@@ -1,21 +1,22 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-BCkXHQr2.cjs');
+var pluginManifest = require('./plugin-manifest-B3zCkHWm.cjs');
 var disposable = require('./disposable-Sj4tt6Lk.cjs');
+var pluginIdentifier = require('./plugin-identifier-CjVVyVRY.cjs');
 
 function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
     var _a, _b;
     if (!pluginManifest.isCapabilityToken(token) || !pluginManifest.isValidSemVer(token.version)) {
-        throw new pluginManifest.InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
+        throw new pluginIdentifier.InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
     }
-    if (!pluginManifest.isRuntimeIdentifier(providerPluginId)) {
-        throw new pluginManifest.InvalidPluginDefinitionError(`Invalid Capability provider Runtime ID for "${token.id}".`, providerPluginId);
+    if (!pluginIdentifier.isRuntimeIdentifier(providerPluginId)) {
+        throw new pluginIdentifier.InvalidPluginDefinitionError(`Invalid Capability provider Runtime ID for "${token.id}".`, providerPluginId);
     }
     if (!pluginManifest.isValidSemVer(providerVersion)) {
-        throw new pluginManifest.InvalidCapabilityVersionError(token.id, providerVersion, 'version');
+        throw new pluginIdentifier.InvalidCapabilityVersionError(token.id, providerVersion, 'version');
     }
     if (providerVersion !== token.version) {
-        throw new pluginManifest.CapabilityVersionError({
+        throw new pluginIdentifier.CapabilityVersionError({
             capabilityId: token.id,
             expectedRange: token.version,
             actualVersion: providerVersion,
@@ -23,10 +24,10 @@ function validateProvider(token, implementation, providerPluginId, providerVersi
         });
     }
     if (requiredPermission !== undefined && !pluginManifest.isPluginPermission(requiredPermission)) {
-        throw new pluginManifest.InvalidPluginDefinitionError(`Capability "${token.id}" requires an unsupported Plugin permission.`, providerPluginId);
+        throw new pluginIdentifier.InvalidPluginDefinitionError(`Capability "${token.id}" requires an unsupported Plugin permission.`, providerPluginId);
     }
     if (implementation === null || implementation === undefined) {
-        throw new pluginManifest.PluginCapabilityError({
+        throw new pluginIdentifier.PluginCapabilityError({
             consumerPluginId: providerPluginId,
             capabilityId: token.id,
             requestedRange: token.version,
@@ -64,7 +65,7 @@ class CapabilityRegistry {
     }
     provideHost(token, implementation, providerPluginId = 'core:host', requiredPermission) {
         if (!pluginManifest.isCapabilityToken(token)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Host capability must use createCapabilityToken().');
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Host capability must use createCapabilityToken().');
         }
         return this.provide(token, implementation, providerPluginId, requiredPermission);
     }
@@ -87,7 +88,7 @@ class CapabilityRegistry {
                     dispose: () => noop.dispose(),
                 };
             }
-            throw new pluginManifest.CapabilityConflictError(token.id, existing.providerPluginId, providerPluginId);
+            throw new pluginIdentifier.CapabilityConflictError(token.id, existing.providerPluginId, providerPluginId);
         }
         const record = {
             token,
@@ -128,8 +129,8 @@ class CapabilityRegistry {
     getProviderInfo(tokenOrId) {
         this.assertActive('inspect a capability provider');
         const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
-        if (!pluginManifest.isRuntimeIdentifier(id)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
+        if (!pluginIdentifier.isRuntimeIdentifier(id)) {
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(id);
         if (!record)
@@ -147,8 +148,8 @@ class CapabilityRegistry {
     }
     getRequiredPermission(capabilityId, visibleTransactions) {
         this.assertActive('inspect a Capability permission');
-        if (!pluginManifest.isRuntimeIdentifier(capabilityId)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
+        if (!pluginIdentifier.isRuntimeIdentifier(capabilityId)) {
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(capabilityId);
         if (!record)
@@ -166,14 +167,14 @@ class CapabilityRegistry {
     resolve(requirement, consumerPluginId, optional, visibleTransactions) {
         var _a, _b, _c;
         this.assertActive('resolve a capability');
-        if (!pluginManifest.isRuntimeIdentifier(consumerPluginId)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Invalid Capability consumer Runtime ID.', consumerPluginId);
+        if (!pluginIdentifier.isRuntimeIdentifier(consumerPluginId)) {
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Invalid Capability consumer Runtime ID.', consumerPluginId);
         }
         try {
             pluginManifest.assertCapabilityRequirement(requirement);
         }
         catch (error) {
-            throw new pluginManifest.PluginCapabilityError({
+            throw new pluginIdentifier.PluginCapabilityError({
                 consumerPluginId,
                 capabilityId: (_b = (_a = requirement === null || requirement === void 0 ? void 0 : requirement.token) === null || _a === void 0 ? void 0 : _a.id) !== null && _b !== void 0 ? _b : 'unknown',
                 requestedRange: (_c = requirement === null || requirement === void 0 ? void 0 : requirement.range) !== null && _c !== void 0 ? _c : '',
@@ -185,7 +186,7 @@ class CapabilityRegistry {
         if (!record) {
             if (optional)
                 return null;
-            throw new pluginManifest.CapabilityMissingError({
+            throw new pluginIdentifier.CapabilityMissingError({
                 consumerPluginId,
                 capabilityId: requirement.token.id,
                 requestedRange: requirement.range,
@@ -195,7 +196,7 @@ class CapabilityRegistry {
         if (!record.complete && !(visibleTransactions === null || visibleTransactions === void 0 ? void 0 : visibleTransactions.has(record.transactionId))) {
             if (optional)
                 return null;
-            throw new pluginManifest.PluginCapabilityError({
+            throw new pluginIdentifier.PluginCapabilityError({
                 consumerPluginId,
                 capabilityId: requirement.token.id,
                 requestedRange: requirement.range,
@@ -206,7 +207,7 @@ class CapabilityRegistry {
         }
         if (!pluginManifest.satisfiesSemVer(record.version, requirement.range)) {
             if (!optional) {
-                throw new pluginManifest.CapabilityVersionError({
+                throw new pluginIdentifier.CapabilityVersionError({
                     capabilityId: requirement.token.id,
                     expectedRange: requirement.range,
                     actualVersion: record.version,
@@ -238,7 +239,7 @@ class CapabilityRegistry {
     }
     assertActive(operation) {
         if (this.disposed)
-            throw new pluginManifest.PluginKernelDisposedError(operation);
+            throw new pluginIdentifier.PluginKernelDisposedError(operation);
     }
 }
 
@@ -323,11 +324,11 @@ class CommittedEventBus {
     }
     assertActive(operation) {
         if (this.disposed)
-            throw new pluginManifest.PluginKernelDisposedError(operation);
+            throw new pluginIdentifier.PluginKernelDisposedError(operation);
     }
     assertEventName(eventName) {
-        if (!pluginManifest.isRuntimeIdentifier(eventName)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Invalid committed event Runtime ID.');
+        if (!pluginIdentifier.isRuntimeIdentifier(eventName)) {
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Invalid committed event Runtime ID.');
         }
     }
 }
@@ -416,7 +417,7 @@ class OperationRegistry {
         this.validateDefinition(definition, ownerPluginId);
         const existing = this.operations.get(definition.id);
         if (existing) {
-            throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" is already registered by "${existing.ownerPluginId}".`, ownerPluginId);
+            throw new pluginIdentifier.OperationRegistrationError(`Operation "${definition.id}" is already registered by "${existing.ownerPluginId}".`, ownerPluginId);
         }
         const frozenDefinition = Object.freeze({
             ...definition,
@@ -467,7 +468,7 @@ class OperationRegistry {
         if (record.definition.reentrancy === 'coalesce' && existingPending) {
             const coalesce = record.definition.coalesce;
             if (!coalesce) {
-                return Promise.reject(new pluginManifest.OperationRegistrationError(`Operation "${operationId}" has no coalesce function.`, ownerPluginId));
+                return Promise.reject(new pluginIdentifier.OperationRegistrationError(`Operation "${operationId}" has no coalesce function.`, ownerPluginId));
             }
             existingPending.args = coalesce(existingPending.args, args);
             return new Promise((resolve, reject) => {
@@ -778,14 +779,14 @@ class OperationRegistry {
         this.assertActive('access an operation');
         const registered = this.operations.get(operationId);
         if (!registered) {
-            throw new pluginManifest.OperationConflictError(`Operation "${operationId}" is not registered.`, ownerPluginId);
+            throw new pluginIdentifier.OperationConflictError(`Operation "${operationId}" is not registered.`, ownerPluginId);
         }
         return registered;
     }
     requireOwned(operationId, ownerPluginId) {
         const registered = this.requireRegistered(operationId, ownerPluginId);
         if (registered.ownerPluginId !== ownerPluginId) {
-            throw new pluginManifest.OperationConflictError(`Operation "${operationId}" belongs to "${registered.ownerPluginId}", not "${ownerPluginId}".`, ownerPluginId);
+            throw new pluginIdentifier.OperationConflictError(`Operation "${operationId}" belongs to "${registered.ownerPluginId}", not "${ownerPluginId}".`, ownerPluginId);
         }
         return registered;
     }
@@ -795,40 +796,40 @@ class OperationRegistry {
         if (!parent.active ||
             parent.signal.aborted ||
             ![...this.activeOperations].some((active) => active.token === parent)) {
-            throw new pluginManifest.OperationConflictError(`Parent operation "${parent.id}" is not active.`, parent.ownerPluginId);
+            throw new pluginIdentifier.OperationConflictError(`Parent operation "${parent.id}" is not active.`, parent.ownerPluginId);
         }
     }
     validateDefinition(definition, ownerPluginId) {
-        if (!pluginManifest.isRuntimeIdentifier(ownerPluginId)) {
-            throw new pluginManifest.OperationRegistrationError('Invalid Operation owner Runtime ID.', ownerPluginId);
+        if (!pluginIdentifier.isRuntimeIdentifier(ownerPluginId)) {
+            throw new pluginIdentifier.OperationRegistrationError('Invalid Operation owner Runtime ID.', ownerPluginId);
         }
-        if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
-            throw new pluginManifest.OperationRegistrationError('Invalid Operation Runtime ID.', ownerPluginId);
+        if (!pluginIdentifier.isRuntimeIdentifier(definition.id)) {
+            throw new pluginIdentifier.OperationRegistrationError('Invalid Operation Runtime ID.', ownerPluginId);
         }
         if (!OPERATION_MODES.includes(definition.mode)) {
-            throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);
+            throw new pluginIdentifier.OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);
         }
         if (!REENTRANCY_POLICIES.includes(definition.reentrancy)) {
-            throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" has invalid reentrancy policy.`, ownerPluginId);
+            throw new pluginIdentifier.OperationRegistrationError(`Operation "${definition.id}" has invalid reentrancy policy.`, ownerPluginId);
         }
         if (!Array.isArray(definition.conflictDomains) ||
             definition.conflictDomains.length === 0 ||
             definition.conflictDomains.some((domain) => !CONFLICT_DOMAINS.includes(domain)) ||
             new Set(definition.conflictDomains).size !== definition.conflictDomains.length) {
-            throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" has invalid conflict domains.`, ownerPluginId);
+            throw new pluginIdentifier.OperationRegistrationError(`Operation "${definition.id}" has invalid conflict domains.`, ownerPluginId);
         }
         if (definition.reentrancy === 'coalesce' && typeof definition.coalesce !== 'function') {
-            throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" must define coalesce().`, ownerPluginId);
+            throw new pluginIdentifier.OperationRegistrationError(`Operation "${definition.id}" must define coalesce().`, ownerPluginId);
         }
         if (definition.allowedDuringTool !== undefined &&
             (!Array.isArray(definition.allowedDuringTool) ||
-                definition.allowedDuringTool.some((toolId) => !pluginManifest.isRuntimeIdentifier(toolId)) ||
+                definition.allowedDuringTool.some((toolId) => !pluginIdentifier.isRuntimeIdentifier(toolId)) ||
                 new Set(definition.allowedDuringTool).size !== definition.allowedDuringTool.length)) {
-            throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" has invalid allowed Tool ids.`, ownerPluginId);
+            throw new pluginIdentifier.OperationRegistrationError(`Operation "${definition.id}" has invalid allowed Tool ids.`, ownerPluginId);
         }
     }
     conflictError(requested, active, ownerPluginId) {
-        return new pluginManifest.OperationConflictError(`Operation "${requested.definition.id}" conflicts with active operation "${active.definition.id}" in domain(s) ${requested.definition.conflictDomains
+        return new pluginIdentifier.OperationConflictError(`Operation "${requested.definition.id}" conflicts with active operation "${active.definition.id}" in domain(s) ${requested.definition.conflictDomains
             .filter((domain) => active.definition.conflictDomains.includes(domain))
             .join(', ')}.`, ownerPluginId);
     }
@@ -846,13 +847,13 @@ class OperationRegistry {
     }
     assertActive(operation) {
         if (this.disposed)
-            throw new pluginManifest.PluginKernelDisposedError(operation);
+            throw new pluginIdentifier.PluginKernelDisposedError(operation);
     }
 }
 
 function assertStateKey(key) {
     if (key.trim().length === 0 || key.trim() !== key) {
-        throw new pluginManifest.InvalidPluginDefinitionError('Plugin state keys must be non-empty trimmed strings.');
+        throw new pluginIdentifier.InvalidPluginDefinitionError('Plugin state keys must be non-empty trimmed strings.');
     }
 }
 class PluginStateStore {
@@ -878,9 +879,9 @@ class PluginStateStore {
     }
     createScoped(pluginId, registerCleanup, registerFinalizer, isScopeActive) {
         this.assertActive('create plugin state');
-        pluginManifest.assertPluginIdentifier(pluginId, 'Plugin state owner id');
+        pluginIdentifier.assertPluginIdentifier(pluginId, 'Plugin state owner id');
         if (this.activePluginIds.has(pluginId)) {
-            throw new pluginManifest.InvalidPluginDefinitionError(`Plugin state scope "${pluginId}" is already active.`, pluginId);
+            throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin state scope "${pluginId}" is already active.`, pluginId);
         }
         this.activePluginIds.add(pluginId);
         let active = true;
@@ -902,7 +903,7 @@ class PluginStateStore {
         const assertScopedActive = () => {
             this.assertActive('access plugin state');
             if (!active || !isScopeActive()) {
-                throw new pluginManifest.PluginKernelDisposedError(`access state for plugin "${pluginId}"`);
+                throw new pluginIdentifier.PluginKernelDisposedError(`access state for plugin "${pluginId}"`);
             }
         };
         const activate = () => {
@@ -961,7 +962,7 @@ class PluginStateStore {
     }
     assertActive(operation) {
         if (this.disposed)
-            throw new pluginManifest.PluginKernelDisposedError(operation);
+            throw new pluginIdentifier.PluginKernelDisposedError(operation);
     }
 }
 
@@ -1003,7 +1004,7 @@ class RegistrationScope {
             writable: true,
             value: 'open'
         });
-        pluginManifest.assertPluginIdentifier(pluginId, 'RegistrationScope Plugin id');
+        pluginIdentifier.assertPluginIdentifier(pluginId, 'RegistrationScope Plugin id');
         this.transactionId = Symbol(`plugin-install:${pluginId}`);
     }
     get active() {
@@ -1011,7 +1012,7 @@ class RegistrationScope {
     }
     assertOpen(operation = 'register installation resources') {
         if (this.state !== 'open') {
-            throw new pluginManifest.PluginKernelStateError(operation, `registration-scope:${this.state}`);
+            throw new pluginIdentifier.PluginKernelStateError(operation, `registration-scope:${this.state}`);
         }
     }
     add(disposable) {
@@ -1090,7 +1091,7 @@ class RegistrationScope {
         this.finalizers.length = 0;
         this.state = 'disposed';
         if (errors.length > 0) {
-            throw new pluginManifest.PluginAggregateError(`[ImageEditor] Plugin "${this.pluginId}" cleanup failed.`, errors, { pluginId: this.pluginId });
+            throw new pluginIdentifier.PluginAggregateError(`[ImageEditor] Plugin "${this.pluginId}" cleanup failed.`, errors, { pluginId: this.pluginId });
         }
     }
     disposeSync() {
@@ -1098,7 +1099,7 @@ class RegistrationScope {
             return;
         const errors = this.rollbackSync();
         if (errors.length > 0) {
-            throw new pluginManifest.PluginAggregateError(`[ImageEditor] Plugin "${this.pluginId}" synchronous cleanup failed.`, errors, { pluginId: this.pluginId });
+            throw new pluginIdentifier.PluginAggregateError(`[ImageEditor] Plugin "${this.pluginId}" synchronous cleanup failed.`, errors, { pluginId: this.pluginId });
         }
     }
 }
@@ -1138,15 +1139,15 @@ class ToolCoordinator {
     }
     register(definition, ownerPluginId) {
         this.assertActive('register a tool');
-        if (!pluginManifest.isRuntimeIdentifier(ownerPluginId)) {
-            throw new pluginManifest.ToolRegistrationError('Invalid Tool owner Runtime ID.', ownerPluginId);
+        if (!pluginIdentifier.isRuntimeIdentifier(ownerPluginId)) {
+            throw new pluginIdentifier.ToolRegistrationError('Invalid Tool owner Runtime ID.', ownerPluginId);
         }
-        if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
-            throw new pluginManifest.ToolRegistrationError('Invalid Tool Runtime ID.', ownerPluginId);
+        if (!pluginIdentifier.isRuntimeIdentifier(definition.id)) {
+            throw new pluginIdentifier.ToolRegistrationError('Invalid Tool Runtime ID.', ownerPluginId);
         }
         const existing = this.tools.get(definition.id);
         if (existing) {
-            throw new pluginManifest.ToolRegistrationError(`Tool "${definition.id}" is already registered by "${existing.ownerPluginId}".`, ownerPluginId);
+            throw new pluginIdentifier.ToolRegistrationError(`Tool "${definition.id}" is already registered by "${existing.ownerPluginId}".`, ownerPluginId);
         }
         const record = {
             definition,
@@ -1179,7 +1180,7 @@ class ToolCoordinator {
                     void Promise.resolve(result).catch((error) => {
                         disposable.reportErrorSafely(this.options.errorSink, error);
                     });
-                    throw new pluginManifest.ToolTransitionError(current.definition.id, 'returned a Promise during synchronous host disposal', current.ownerPluginId);
+                    throw new pluginIdentifier.ToolTransitionError(current.definition.id, 'returned a Promise during synchronous host disposal', current.ownerPluginId);
                 }
             }
         }
@@ -1198,9 +1199,9 @@ class ToolCoordinator {
         this.assertActive('enter a tool');
         const next = this.tools.get(toolId);
         if (!next)
-            throw new pluginManifest.ToolTransitionError(toolId, 'is not registered', requesterPluginId);
+            throw new pluginIdentifier.ToolTransitionError(toolId, 'is not registered', requesterPluginId);
         if (requesterPluginId && requesterPluginId !== next.ownerPluginId) {
-            throw new pluginManifest.ToolTransitionError(toolId, `belongs to "${next.ownerPluginId}", not "${requesterPluginId}"`, requesterPluginId);
+            throw new pluginIdentifier.ToolTransitionError(toolId, `belongs to "${next.ownerPluginId}", not "${requesterPluginId}"`, requesterPluginId);
         }
         if (this.active === next)
             return;
@@ -1213,7 +1214,7 @@ class ToolCoordinator {
             }
             catch (error) {
                 this.active = null;
-                const transitionError = new pluginManifest.ToolTransitionError(toolId, 'failed to enter', next.ownerPluginId, error);
+                const transitionError = new pluginIdentifier.ToolTransitionError(toolId, 'failed to enter', next.ownerPluginId, error);
                 disposable.reportErrorSafely(this.options.errorSink, transitionError);
                 throw transitionError;
             }
@@ -1239,7 +1240,7 @@ class ToolCoordinator {
             return this.active.definition.canRunOperation(operationId);
         }
         catch (error) {
-            const transitionError = new pluginManifest.ToolTransitionError(this.active.definition.id, `operation policy failed for "${operationId}"`, this.active.ownerPluginId, error);
+            const transitionError = new pluginIdentifier.ToolTransitionError(this.active.definition.id, `operation policy failed for "${operationId}"`, this.active.ownerPluginId, error);
             disposable.reportErrorSafely(this.options.errorSink, transitionError);
             return false;
         }
@@ -1272,14 +1273,14 @@ class ToolCoordinator {
             await current.definition.exit(reason, current.context);
         }
         catch (error) {
-            const transitionError = new pluginManifest.ToolTransitionError(current.definition.id, `failed to exit for reason "${reason}"`, current.ownerPluginId, error);
+            const transitionError = new pluginIdentifier.ToolTransitionError(current.definition.id, `failed to exit for reason "${reason}"`, current.ownerPluginId, error);
             disposable.reportErrorSafely(this.options.errorSink, transitionError);
             throw transitionError;
         }
     }
     async runTransition(toolId, task) {
         if (this.transitioning) {
-            throw new pluginManifest.ToolTransitionError(toolId, 'cannot transition while another transition is active');
+            throw new pluginIdentifier.ToolTransitionError(toolId, 'cannot transition while another transition is active');
         }
         this.transitioning = true;
         try {
@@ -1291,7 +1292,7 @@ class ToolCoordinator {
     }
     assertActive(operation) {
         if (this.disposed)
-            throw new pluginManifest.PluginKernelDisposedError(operation);
+            throw new pluginIdentifier.PluginKernelDisposedError(operation);
     }
 }
 
@@ -1394,7 +1395,7 @@ class PluginManager {
     async install(plugin) {
         this.assertCanInstall();
         if (this.topLevelInstallActive) {
-            throw new pluginManifest.PluginKernelStateError('start a concurrent plugin installation', this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError('start a concurrent plugin installation', this.hostState);
         }
         this.topLevelInstallActive = true;
         try {
@@ -1408,7 +1409,7 @@ class PluginManager {
     installSync(plugin) {
         this.assertCanInstall();
         if (this.topLevelInstallActive) {
-            throw new pluginManifest.PluginKernelStateError('start a concurrent plugin installation', this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError('start a concurrent plugin installation', this.hostState);
         }
         this.topLevelInstallActive = true;
         try {
@@ -1422,7 +1423,7 @@ class PluginManager {
     installBatchSync(plugins) {
         this.assertCanInstall();
         if (this.topLevelInstallActive) {
-            throw new pluginManifest.PluginKernelStateError('start a concurrent plugin installation', this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError('start a concurrent plugin installation', this.hostState);
         }
         this.topLevelInstallActive = true;
         try {
@@ -1445,10 +1446,10 @@ class PluginManager {
             }
             catch (cause) {
                 const cleanupErrors = [
-                    ...(cause instanceof pluginManifest.PluginSetupError ? cause.cleanupErrors : []),
+                    ...(cause instanceof pluginIdentifier.PluginSetupError ? cause.cleanupErrors : []),
                     ...this.rollbackPendingBatchSync(pendingRecords),
                 ];
-                throw new pluginManifest.PluginBatchInstallError(cause, cleanupErrors);
+                throw new pluginIdentifier.PluginBatchInstallError(cause, cleanupErrors);
             }
             return Object.freeze({
                 apisByPluginId: prepared.apisByPluginId,
@@ -1469,7 +1470,7 @@ class PluginManager {
     require(ref) {
         const api = this.get(ref);
         if (api === null)
-            throw new pluginManifest.PluginNotInstalledError(ref.id);
+            throw new pluginIdentifier.PluginNotInstalledError(ref.id);
         return api;
     }
     getById(pluginId) {
@@ -1496,13 +1497,13 @@ class PluginManager {
     }
     beginOperationForHost(operationId) {
         if (!this.toolCoordinator.canRunOperation(operationId)) {
-            throw new pluginManifest.PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
         }
         return this.operationRegistry.beginForHost(operationId);
     }
     runOperationForHost(operationId, args, task, options = {}) {
         if (!this.toolCoordinator.canRunOperation(operationId)) {
-            return Promise.reject(new pluginManifest.PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState));
+            return Promise.reject(new pluginIdentifier.PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState));
         }
         return this.operationRegistry.runForHost(operationId, args, task, options);
     }
@@ -1525,7 +1526,7 @@ class PluginManager {
         var _a;
         this.assertUsable('initialize the Plugin Kernel');
         if (this.hostState !== 'created' || this.topLevelInstallActive) {
-            throw new pluginManifest.PluginKernelStateError('initialize the Plugin Kernel', this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError('initialize the Plugin Kernel', this.hostState);
         }
         this.hostState = 'initializing';
         try {
@@ -1537,7 +1538,7 @@ class PluginManager {
                     await record.plugin.onInit(record.lifecycleContext);
                 }
                 catch (error) {
-                    throw new pluginManifest.PluginLifecycleError(pluginId, 'init', error);
+                    throw new pluginIdentifier.PluginLifecycleError(pluginId, 'init', error);
                 }
             }
             this.hostState = 'initialized';
@@ -1546,17 +1547,17 @@ class PluginManager {
             this.hostState = 'disposing';
             const cleanupErrors = await this.cleanupAll();
             this.hostState = 'disposed';
-            const lifecycleError = error instanceof pluginManifest.PluginLifecycleError
+            const lifecycleError = error instanceof pluginIdentifier.PluginLifecycleError
                 ? error
-                : new pluginManifest.PluginLifecycleError('plugin-kernel', 'init', error);
-            throw new pluginManifest.PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : 'plugin-kernel', 'init', lifecycleError.cause, cleanupErrors);
+                : new pluginIdentifier.PluginLifecycleError('plugin-kernel', 'init', error);
+            throw new pluginIdentifier.PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : 'plugin-kernel', 'init', lifecycleError.cause, cleanupErrors);
         }
     }
     initializeSync() {
         var _a;
         this.assertUsable('initialize the Plugin Kernel');
         if (this.hostState !== 'created' || this.topLevelInstallActive) {
-            throw new pluginManifest.PluginKernelStateError('initialize the Plugin Kernel', this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError('initialize the Plugin Kernel', this.hostState);
         }
         this.hostState = 'initializing';
         try {
@@ -1566,7 +1567,7 @@ class PluginManager {
                     continue;
                 const result = record.plugin.onInit(record.lifecycleContext);
                 if (disposable.isPromiseLike(result)) {
-                    throw new pluginManifest.PluginLifecycleError(pluginId, 'init', new Error('Synchronous plugin onInit returned a Promise.'));
+                    throw new pluginIdentifier.PluginLifecycleError(pluginId, 'init', new Error('Synchronous plugin onInit returned a Promise.'));
                 }
             }
             this.hostState = 'initialized';
@@ -1575,10 +1576,10 @@ class PluginManager {
             this.hostState = 'disposing';
             const cleanupErrors = this.cleanupAllSync();
             this.hostState = 'disposed';
-            const lifecycleError = error instanceof pluginManifest.PluginLifecycleError
+            const lifecycleError = error instanceof pluginIdentifier.PluginLifecycleError
                 ? error
-                : new pluginManifest.PluginLifecycleError('plugin-kernel', 'init', error);
-            throw new pluginManifest.PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : 'plugin-kernel', 'init', lifecycleError.cause, cleanupErrors);
+                : new pluginIdentifier.PluginLifecycleError('plugin-kernel', 'init', error);
+            throw new pluginIdentifier.PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : 'plugin-kernel', 'init', lifecycleError.cause, cleanupErrors);
         }
     }
     async notifyImageLoaded(image) {
@@ -1591,7 +1592,7 @@ class PluginManager {
                 await record.plugin.onImageLoaded(image, record.lifecycleContext);
             }
             catch (error) {
-                throw new pluginManifest.PluginLifecycleError(pluginId, 'image-loaded', error);
+                throw new pluginIdentifier.PluginLifecycleError(pluginId, 'image-loaded', error);
             }
         }
     }
@@ -1605,7 +1606,7 @@ class PluginManager {
                 await record.plugin.onImageCleared(record.lifecycleContext);
             }
             catch (error) {
-                throw new pluginManifest.PluginLifecycleError(pluginId, 'image-cleared', error);
+                throw new pluginIdentifier.PluginLifecycleError(pluginId, 'image-cleared', error);
             }
         }
     }
@@ -1616,7 +1617,7 @@ class PluginManager {
         if (this.hostState === 'disposing')
             return (_a = this.disposePromise) !== null && _a !== void 0 ? _a : Promise.resolve();
         if (this.hostState === 'initializing') {
-            return Promise.reject(new pluginManifest.PluginKernelStateError('dispose the Plugin Kernel', this.hostState));
+            return Promise.reject(new pluginIdentifier.PluginKernelStateError('dispose the Plugin Kernel', this.hostState));
         }
         this.hostState = 'disposing';
         this.disposePromise = this.performDispose();
@@ -1626,19 +1627,19 @@ class PluginManager {
         if (this.hostState === 'disposed')
             return;
         if (this.hostState === 'disposing' || this.hostState === 'initializing') {
-            throw new pluginManifest.PluginKernelStateError('dispose the Plugin Kernel synchronously', this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError('dispose the Plugin Kernel synchronously', this.hostState);
         }
         this.hostState = 'disposing';
         const errors = this.cleanupAllSync();
         this.hostState = 'disposed';
         if (errors.length > 0) {
-            throw new pluginManifest.PluginAggregateError('[ImageEditor] Plugin Kernel synchronous disposal completed with cleanup errors.', errors);
+            throw new pluginIdentifier.PluginAggregateError('[ImageEditor] Plugin Kernel synchronous disposal completed with cleanup errors.', errors);
         }
     }
     prepareBatch(inputs) {
         var _a;
         if (!Array.isArray(inputs) || inputs.length === 0) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Plugin batch must contain at least one Plugin.');
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Plugin batch must contain at least one Plugin.');
         }
         const candidatesById = new Map();
         const apisByPluginId = new Map();
@@ -1648,7 +1649,7 @@ class PluginManager {
             const existing = this.installed.get(pluginId);
             if (existing) {
                 if (!sameInstallationDefinition(existing.plugin, plugin)) {
-                    throw new pluginManifest.PluginDefinitionConflictError(pluginId);
+                    throw new pluginIdentifier.PluginDefinitionConflictError(pluginId);
                 }
                 apisByPluginId.set(pluginId, existing.api);
                 continue;
@@ -1656,7 +1657,7 @@ class PluginManager {
             const duplicate = candidatesById.get(pluginId);
             if (duplicate) {
                 if (!sameInstallationDefinition(duplicate.plugin, plugin)) {
-                    throw new pluginManifest.PluginDefinitionConflictError(pluginId);
+                    throw new pluginIdentifier.PluginDefinitionConflictError(pluginId);
                 }
                 continue;
             }
@@ -1691,7 +1692,7 @@ class PluginManager {
                     [...((_a = dependencies.get(candidate.plugin.ref.id)) !== null && _a !== void 0 ? _a : [])].every((dependencyId) => !remaining.has(dependencyId));
             });
             if (!next) {
-                throw new pluginManifest.PluginDependencyCycleError(this.findDependencyCycle(remaining, dependencies));
+                throw new pluginIdentifier.PluginDependencyCycleError(this.findDependencyCycle(remaining, dependencies));
             }
             remaining.delete(next.plugin.ref.id);
             ordered.push(next);
@@ -1733,7 +1734,7 @@ class PluginManager {
     }
     performPendingInstallSync(plugin, visibleTransactions) {
         if (plugin.setupMode !== 'sync') {
-            throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
+            throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
         }
         const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
         const scope = new RegistrationScope(plugin.ref.id, this.options);
@@ -1744,10 +1745,10 @@ class PluginManager {
             ]);
             const api = plugin.setup(contexts.setup);
             if (disposable.isPromiseLike(api)) {
-                throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" returned a Promise from synchronous setup.`, plugin.ref.id);
+                throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" returned a Promise from synchronous setup.`, plugin.ref.id);
             }
             if (!isPluginApi(api)) {
-                throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" setup must return a non-null object or function API.`, plugin.ref.id);
+                throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" setup must return a non-null object or function API.`, plugin.ref.id);
             }
             return {
                 plugin,
@@ -1760,7 +1761,7 @@ class PluginManager {
         catch (error) {
             visibleTransactions.delete(scope.transactionId);
             const cleanupErrors = scope.rollbackSync();
-            throw new pluginManifest.PluginSetupError(plugin.ref.id, error, cleanupErrors);
+            throw new pluginIdentifier.PluginSetupError(plugin.ref.id, error, cleanupErrors);
         }
     }
     rollbackPendingBatchSync(pendingRecords) {
@@ -1777,7 +1778,7 @@ class PluginManager {
                     }
                 }
                 catch (error) {
-                    cleanupErrors.push(new pluginManifest.PluginLifecycleError(record.plugin.ref.id, 'dispose', error));
+                    cleanupErrors.push(new pluginIdentifier.PluginLifecycleError(record.plugin.ref.id, 'dispose', error));
                 }
             }
             cleanupErrors.push(...record.scope.rollbackSync());
@@ -1785,7 +1786,7 @@ class PluginManager {
         return Object.freeze(cleanupErrors);
     }
     createDependencyError(consumerPluginId, dependency, availablePluginIds) {
-        return new pluginManifest.PluginDependencyError({
+        return new pluginIdentifier.PluginDependencyError({
             consumerPluginId,
             dependencyId: dependency.id,
             requiredApiVersion: dependency.apiVersion,
@@ -1807,15 +1808,15 @@ class PluginManager {
         const plugin = this.normalizePluginDefinition(input);
         const pluginId = plugin.ref.id;
         if (parentStack.includes(pluginId)) {
-            throw new pluginManifest.InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`, pluginId);
+            throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`, pluginId);
         }
         const existing = this.installed.get(pluginId);
         if (existing) {
             if (mode === 'strict')
-                throw new pluginManifest.PluginAlreadyInstalledError(pluginId);
+                throw new pluginIdentifier.PluginAlreadyInstalledError(pluginId);
             const compatible = sameInstallationDefinition(existing.plugin, plugin);
             if (!compatible) {
-                throw new pluginManifest.PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
+                throw new pluginIdentifier.PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
             }
             return { api: existing.api };
         }
@@ -1827,7 +1828,7 @@ class PluginManager {
             const contexts = this.createContexts(plugin.ref, scope, required, optional, stack);
             const api = await plugin.setup(contexts.setup);
             if (!isPluginApi(api)) {
-                throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
+                throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
             }
             scope.commit();
             const record = {
@@ -1843,25 +1844,25 @@ class PluginManager {
         }
         catch (error) {
             const cleanupErrors = await scope.rollback();
-            throw new pluginManifest.PluginSetupError(pluginId, error, cleanupErrors);
+            throw new pluginIdentifier.PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
     performInstallSync(input, mode, parentStack) {
         const plugin = this.normalizePluginDefinition(input);
         if (plugin.setupMode !== 'sync') {
-            throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`, plugin.ref.id);
+            throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`, plugin.ref.id);
         }
         const pluginId = plugin.ref.id;
         if (parentStack.includes(pluginId)) {
-            throw new pluginManifest.InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`, pluginId);
+            throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`, pluginId);
         }
         const existing = this.installed.get(pluginId);
         if (existing) {
             if (mode === 'strict')
-                throw new pluginManifest.PluginAlreadyInstalledError(pluginId);
+                throw new pluginIdentifier.PluginAlreadyInstalledError(pluginId);
             const compatible = sameInstallationDefinition(existing.plugin, plugin);
             if (!compatible) {
-                throw new pluginManifest.PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
+                throw new pluginIdentifier.PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
             }
             return { api: existing.api };
         }
@@ -1875,10 +1876,10 @@ class PluginManager {
             ]);
             const api = plugin.setup(contexts.setup);
             if (disposable.isPromiseLike(api)) {
-                throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${pluginId}" returned a Promise from synchronous setup.`, pluginId);
+                throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${pluginId}" returned a Promise from synchronous setup.`, pluginId);
             }
             if (!isPluginApi(api)) {
-                throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
+                throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
             }
             scope.commit();
             this.installed.set(pluginId, {
@@ -1893,7 +1894,7 @@ class PluginManager {
         }
         catch (error) {
             const cleanupErrors = scope.rollbackSync();
-            throw new pluginManifest.PluginSetupError(pluginId, error, cleanupErrors);
+            throw new pluginIdentifier.PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
     resolveCapabilities(plugin, visibleTransactions) {
@@ -1927,7 +1928,7 @@ class PluginManager {
         const permission = this.capabilityRegistry.getRequiredPermission(capabilityId, visibleTransactions);
         if (!permission || ((_a = plugin.manifest.permissions) === null || _a === void 0 ? void 0 : _a.includes(permission)))
             return;
-        throw new pluginManifest.PluginPermissionError(plugin.ref.id, permission, capabilityId);
+        throw new pluginIdentifier.PluginPermissionError(plugin.ref.id, permission, capabilityId);
     }
     createContexts(plugin, scope, required, optional, stack) {
         const pluginId = plugin.id;
@@ -1936,7 +1937,7 @@ class PluginManager {
             require: (token) => {
                 const resolved = required.get(token.id);
                 if (!resolved || resolved.token !== token) {
-                    throw new pluginManifest.PluginCapabilityError({
+                    throw new pluginIdentifier.PluginCapabilityError({
                         consumerPluginId: pluginId,
                         capabilityId: token.id,
                         requestedRange: 'undeclared-required-capability',
@@ -1948,7 +1949,7 @@ class PluginManager {
             optional: (token) => {
                 const resolved = optional.get(token.id);
                 if (!resolved || resolved.token !== token) {
-                    throw new pluginManifest.PluginCapabilityError({
+                    throw new pluginIdentifier.PluginCapabilityError({
                         consumerPluginId: pluginId,
                         capabilityId: token.id,
                         requestedRange: 'undeclared-optional-capability',
@@ -1960,7 +1961,7 @@ class PluginManager {
             getOptionalStatus: (token) => {
                 const resolved = optional.get(token.id);
                 if (!resolved || resolved.token !== token) {
-                    throw new pluginManifest.PluginCapabilityError({
+                    throw new pluginIdentifier.PluginCapabilityError({
                         consumerPluginId: pluginId,
                         capabilityId: token.id,
                         requestedRange: 'undeclared-optional-capability',
@@ -2083,7 +2084,7 @@ class PluginManager {
                 await record.plugin.onDispose(record.lifecycleContext);
             }
             catch (error) {
-                errors.push(new pluginManifest.PluginLifecycleError(pluginId, 'dispose', error));
+                errors.push(new pluginIdentifier.PluginLifecycleError(pluginId, 'dispose', error));
             }
         }
         try {
@@ -2093,18 +2094,18 @@ class PluginManager {
             errors.push(error);
         }
         if (errors.length > 0) {
-            throw new pluginManifest.PluginAggregateError(`[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`, errors, { pluginId });
+            throw new pluginIdentifier.PluginAggregateError(`[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`, errors, { pluginId });
         }
     }
     normalizePluginDefinition(plugin) {
         if (typeof plugin !== 'object' || plugin === null) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Plugin definition must be an object.');
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Plugin definition must be an object.');
         }
         if (!pluginManifest.isPluginRef(plugin.ref)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Plugin definition must use a PluginRef created by definePluginRef().');
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Plugin definition must use a PluginRef created by definePluginRef().');
         }
         if (typeof plugin.setup !== 'function') {
-            throw new pluginManifest.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must define setup().`, plugin.ref.id);
+            throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must define setup().`, plugin.ref.id);
         }
         const manifest = pluginManifest.validatePluginManifest(plugin.ref, 'manifest' in plugin
             ? plugin.manifest
@@ -2123,7 +2124,7 @@ class PluginManager {
         const errors = await this.cleanupAll();
         this.hostState = 'disposed';
         if (errors.length > 0) {
-            throw new pluginManifest.PluginAggregateError('[ImageEditor] Plugin Kernel disposal completed with cleanup errors.', errors);
+            throw new pluginIdentifier.PluginAggregateError('[ImageEditor] Plugin Kernel disposal completed with cleanup errors.', errors);
         }
     }
     async cleanupAll() {
@@ -2139,7 +2140,7 @@ class PluginManager {
                 await record.plugin.onDispose(record.lifecycleContext);
             }
             catch (error) {
-                const lifecycleError = new pluginManifest.PluginLifecycleError(record.plugin.ref.id, 'dispose', error);
+                const lifecycleError = new pluginIdentifier.PluginLifecycleError(record.plugin.ref.id, 'dispose', error);
                 errors.push(lifecycleError);
                 disposable.reportErrorSafely(this.options.errorSink, lifecycleError);
             }
@@ -2188,13 +2189,13 @@ class PluginManager {
                     void Promise.resolve(result).catch((error) => {
                         disposable.reportErrorSafely(this.options.errorSink, error);
                     });
-                    throw new pluginManifest.PluginLifecycleError(record.plugin.ref.id, 'dispose', new Error('Synchronous plugin onDispose returned a Promise.'));
+                    throw new pluginIdentifier.PluginLifecycleError(record.plugin.ref.id, 'dispose', new Error('Synchronous plugin onDispose returned a Promise.'));
                 }
             }
             catch (error) {
-                const lifecycleError = error instanceof pluginManifest.PluginLifecycleError
+                const lifecycleError = error instanceof pluginIdentifier.PluginLifecycleError
                     ? error
-                    : new pluginManifest.PluginLifecycleError(record.plugin.ref.id, 'dispose', error);
+                    : new pluginIdentifier.PluginLifecycleError(record.plugin.ref.id, 'dispose', error);
                 errors.push(lifecycleError);
                 disposable.reportErrorSafely(this.options.errorSink, lifecycleError);
             }
@@ -2231,21 +2232,21 @@ class PluginManager {
     assertCanInstall() {
         this.assertUsable('install a plugin');
         if (this.hostState !== 'created') {
-            throw new pluginManifest.PluginKernelStateError('install a plugin', this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError('install a plugin', this.hostState);
         }
     }
     assertLifecycleReady(operation) {
         this.assertUsable(operation);
         if (this.hostState !== 'initialized') {
-            throw new pluginManifest.PluginKernelStateError(operation, this.hostState);
+            throw new pluginIdentifier.PluginKernelStateError(operation, this.hostState);
         }
     }
     assertUsable(operation) {
         if (this.hostState === 'disposed' || this.hostState === 'disposing') {
-            throw new pluginManifest.PluginKernelDisposedError(operation);
+            throw new pluginIdentifier.PluginKernelDisposedError(operation);
         }
     }
 }
 
 exports.PluginManager = PluginManager;
-//# sourceMappingURL=plugin-manager-C-UJ_Yc9.cjs.map
+//# sourceMappingURL=plugin-manager-Bb8UQ105.cjs.map

@@ -72,6 +72,7 @@ function classifyModule(moduleName) {
     if (moduleName === 'commonjsHelpers.js') return 'BUNDLER_HELPER';
     if (moduleName.startsWith('tests/bundle/fixtures/sdk/')) return 'MEASUREMENT_FIXTURE';
     if (moduleName.startsWith('tests/bundle/fixtures/preset-')) return 'MEASUREMENT_FIXTURE';
+    if (moduleName === 'dist/esm/plugin-kernel/plugin-identifier.js') return 'PUBLIC_SAFE_UTILITY';
     if (moduleName.startsWith('dist/esm/plugin-kernel/')) return 'SDK_KERNEL';
     if (moduleName.startsWith('dist/esm/sdk/')) return 'SDK';
     if (moduleName.startsWith('dist/esm/testing/')) return 'TESTING';

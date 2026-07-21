@@ -253,12 +253,14 @@
     }
 
     const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-    const PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT = /(^|:)(constructor|prototype)(:|$)/u;
+    function isDangerousStateKey(key) {
+        return key === '__proto__' || key === 'constructor' || key === 'prototype';
+    }
     function isRuntimeIdentifier(value) {
         return (typeof value === 'string' &&
             value.length < 129 &&
             RUNTIME_IDENTIFIER_PATTERN.test(value) &&
-            !PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT.test(value));
+            !value.split(':').some(isDangerousStateKey));
     }
     function assertPluginIdentifier(pluginId, fieldName = 'Plugin id') {
         if (!isRuntimeIdentifier(pluginId)) {
@@ -4015,7 +4017,6 @@
         return sanitizeAffineMatrix(multiplyAffine(after, invertAffine(before)));
     }
 
-    const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
     function isObject$1(value) {
         return typeof value === 'object' && value !== null;
     }
@@ -4142,9 +4143,6 @@
             assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
         }
         seen.delete(value);
-    }
-    function isDangerousStateKey(key) {
-        return dangerousKeys.has(key);
     }
 
     function assertIdentifier$2(value, label) {
@@ -6324,7 +6322,7 @@
                 setGeometryRevision: (value) => {
                     this.geometryRevision = value;
                 },
-                setCanvasSize: (width, height) => this.setCanvasSize(width, height),
+                setCanvasSize: (width, height) => this.setCanvasSize(width, height, false),
                 isDisposed: () => this.lifecycle.current === 'disposed',
             }, this.objectProperties, this.transientObjects, this.externalObjects, {
                 maxDecodedPixels: this.options.maxInputPixels,
@@ -6376,7 +6374,7 @@
                         this.geometryRevision += 1;
                     },
                     restoreGeometry: (snapshot) => {
-                        this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight);
+                        this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight, false);
                         this.geometryRevision = snapshot.revision;
                     },
                     requestRender: () => this.requestRender(),
@@ -7217,15 +7215,16 @@
             image.setCoords();
             canvas.sendObjectToBack(image);
         }
-        setCanvasSize(width, height) {
+        setCanvasSize(width, height, enforceBudget = true) {
             if (!this.canvas)
                 return;
             const nextWidth = Math.max(1, Math.ceil(width));
             const nextHeight = Math.max(1, Math.ceil(height));
             const nextPixels = nextWidth * nextHeight;
-            if (!Number.isSafeInteger(nextPixels) ||
-                Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
-                nextPixels > this.options.maxExportPixels) {
+            if (enforceBudget &&
+                (!Number.isSafeInteger(nextPixels) ||
+                    Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
+                    nextPixels > this.options.maxExportPixels)) {
                 throw new CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
             }
             applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);

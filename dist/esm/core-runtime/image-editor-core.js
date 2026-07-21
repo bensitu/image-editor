@@ -247,7 +247,7 @@ export class ImageEditorCore {
             setGeometryRevision: (value) => {
                 this.geometryRevision = value;
             },
-            setCanvasSize: (width, height) => this.setCanvasSize(width, height),
+            setCanvasSize: (width, height) => this.setCanvasSize(width, height, false),
             isDisposed: () => this.lifecycle.current === 'disposed',
         }, this.objectProperties, this.transientObjects, this.externalObjects, {
             maxDecodedPixels: this.options.maxInputPixels,
@@ -300,7 +300,7 @@ export class ImageEditorCore {
                     this.geometryRevision += 1;
                 },
                 restoreGeometry: (snapshot) => {
-                    this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight);
+                    this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight, false);
                     this.geometryRevision = snapshot.revision;
                 },
                 requestRender: () => this.requestRender(),
@@ -1141,15 +1141,16 @@ export class ImageEditorCore {
         image.setCoords();
         canvas.sendObjectToBack(image);
     }
-    setCanvasSize(width, height) {
+    setCanvasSize(width, height, enforceBudget = true) {
         if (!this.canvas)
             return;
         const nextWidth = Math.max(1, Math.ceil(width));
         const nextHeight = Math.max(1, Math.ceil(height));
         const nextPixels = nextWidth * nextHeight;
-        if (!Number.isSafeInteger(nextPixels) ||
-            Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
-            nextPixels > this.options.maxExportPixels) {
+        if (enforceBudget &&
+            (!Number.isSafeInteger(nextPixels) ||
+                Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
+                nextPixels > this.options.maxExportPixels)) {
             throw new CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
         }
         applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);

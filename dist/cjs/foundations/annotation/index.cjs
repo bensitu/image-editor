@@ -1,11 +1,11 @@
 'use strict';
 
 var foundations_overlay_index = require('../overlay/index.cjs');
-var cloneStateValue = require('../../chunks/clone-state-value-CnsEsCNe.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
 function isFiniteMatrix(matrix) {
@@ -150,7 +150,7 @@ function cloneMetadataValue(value, depth, budget) {
         }
         const clone = {};
         for (const [key, entry] of entries) {
-            if (cloneStateValue.isDangerousStateKey(key) || key.length === 0 || key.length > 128) {
+            if (pluginIdentifier.isDangerousStateKey(key) || key.length === 0 || key.length > 128) {
                 throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
             }
             budget.stringBytes += new TextEncoder().encode(key).byteLength;

@@ -1,4 +1,4 @@
-import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
 import { FilterDefinitionError } from './filters-errors.js';
 export const MAX_SUPPORTED_FILTER_COUNT = 8;
 export const SUPPORTED_FILTER_TYPES = Object.freeze([

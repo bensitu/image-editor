@@ -13,7 +13,7 @@ import type {
     SnapshotMigration,
     SnapshotMigrationContext,
 } from '../core/index.js';
-import { isDangerousStateKey as isUnsafeObjectKey } from '../core-runtime/state/clone-state-value.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../plugin-kernel/plugin-identifier.js';
 
 const SOURCE_SCHEMA = 'image-editor.canvas@2';
 const TARGET_SCHEMA = 'image-editor.state@3' as const;

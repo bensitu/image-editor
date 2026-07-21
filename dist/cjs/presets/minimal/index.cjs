@@ -6,15 +6,15 @@ var plugins_history_index = require('../../plugins/history/index.cjs');
 var plugins_transform_index = require('../../plugins/transform/index.cjs');
 var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
 var core_index = require('../../core/index.cjs');
-var pluginPlan = require('../../chunks/plugin-plan-CxkCZnUf.cjs');
+var pluginPlan = require('../../chunks/plugin-plan-7_a5v9uF.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
-require('../../chunks/plugin-definition-B3UyurRp.cjs');
-require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
+require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
+require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
+require('../../chunks/core-capabilities-802kAEgU.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/clone-state-value-CnsEsCNe.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
-require('../../chunks/plugin-manager-C-UJ_Yc9.cjs');
+require('../../chunks/plugin-manager-Bb8UQ105.cjs');
 
 function createMinimalPreset(fabric, options = {}) {
     const editor = new core_index.ImageEditorCore(fabric, options.core);

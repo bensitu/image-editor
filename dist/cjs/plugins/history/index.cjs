@@ -1,9 +1,10 @@
 'use strict';
 
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
+require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 
 function resolveMaxSize(value) {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 50;

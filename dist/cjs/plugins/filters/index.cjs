@@ -1,12 +1,11 @@
 'use strict';
 
-var cloneStateValue = require('../../chunks/clone-state-value-CnsEsCNe.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-B7dAdnmC.cjs');
-require('../../chunks/errors-DeAfrgDC.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DIUNQiLO.cjs');
 
 class FilterDefinitionError extends TypeError {
     constructor(message, path = '$') {
@@ -118,7 +117,7 @@ function validateKeys(value, allowed, path) {
         if (typeof key !== 'string') {
             throw new FilterDefinitionError('Filter definition contains an unsupported symbol key.', path);
         }
-        if (cloneStateValue.isDangerousStateKey(key)) {
+        if (pluginIdentifier.isDangerousStateKey(key)) {
             throw new FilterDefinitionError(`Filter definition contains dangerous key "${key}".`, path);
         }
         if (!allowed.includes(key)) {
@@ -332,7 +331,7 @@ function normalizeFilterBakeOptions(options, sourceMimeType) {
     }
     const record = (options !== null && options !== void 0 ? options : {});
     for (const key of Object.keys(record)) {
-        if (cloneStateValue.isDangerousStateKey(key)) {
+        if (pluginIdentifier.isDangerousStateKey(key)) {
             throw new FilterBakeValidationError(`Filter bake options contain dangerous key "${key}".`);
         }
         if (key !== 'format' && key !== 'quality') {
@@ -471,7 +470,7 @@ function isRecord(value) {
 }
 function validateStateKeys(value) {
     for (const key of Object.keys(value)) {
-        if (cloneStateValue.isDangerousStateKey(key)) {
+        if (pluginIdentifier.isDangerousStateKey(key)) {
             return `Filters state contains dangerous key "${key}".`;
         }
         if (key !== 'schema' && key !== 'version' && key !== 'filters') {
@@ -934,7 +933,7 @@ class FiltersController {
             throw new TypeError('[ImageEditor] Filters configuration patch must be a plain object.');
         }
         for (const key of Object.keys(patch)) {
-            if (cloneStateValue.isDangerousStateKey(key)) {
+            if (pluginIdentifier.isDangerousStateKey(key)) {
                 throw new TypeError(`[ImageEditor] Filters configuration contains dangerous key "${key}".`);
             }
             if (key !== 'maxFilterCount') {

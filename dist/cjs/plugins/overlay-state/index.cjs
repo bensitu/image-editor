@@ -2,10 +2,10 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var affineMatrix = require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-var cloneStateValue = require('../../chunks/clone-state-value-CnsEsCNe.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
 
@@ -306,7 +306,7 @@ function cloneJsonValue(value, path, depth, context) {
         let ok = accountBytes(context, 2, path);
         for (const key of keys) {
             const childPath = `${path}.${key}`;
-            if (cloneStateValue.isDangerousStateKey(key)) {
+            if (pluginIdentifier.isDangerousStateKey(key)) {
                 addIssue(context.issues, 'object.dangerousKey', childPath, 'Key is not allowed.');
                 ok = false;
                 continue;
@@ -361,7 +361,7 @@ function validIdentifier(value, path, limits, issues, persistent = false) {
     if (typeof value !== 'string' ||
         value.length === 0 ||
         value.length > limits.maxIdentifierLength ||
-        !(persistent ? PERSISTENT_ID_PATTERN.test(value) : pluginManifest.isRuntimeIdentifier(value))) {
+        !(persistent ? PERSISTENT_ID_PATTERN.test(value) : pluginIdentifier.isRuntimeIdentifier(value))) {
         addIssue(issues, 'identifier.invalid', path, 'Identifier is invalid.');
         return false;
     }
@@ -617,7 +617,7 @@ function resolveStateKind(overlay, kind) {
     if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== 'persistent' ||
         !codec ||
         typeof codec.type !== 'string' ||
-        !pluginManifest.isRuntimeIdentifier(codec.type) ||
+        !pluginIdentifier.isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
         !SEMVER_PATTERN.test(codec.version) ||
         typeof codec.serialize !== 'function' ||

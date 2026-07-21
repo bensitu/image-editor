@@ -1,11 +1,11 @@
 'use strict';
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var cloneStateValue = require('../../chunks/clone-state-value-CnsEsCNe.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
 
 function markMaskObject(object, meta) {
@@ -95,7 +95,7 @@ function reportWarning(options, error, message) {
 }
 
 function canCopySafeObjectKey(key) {
-    return !cloneStateValue.isDangerousStateKey(key);
+    return !pluginIdentifier.isDangerousStateKey(key);
 }
 function copySafeOwnProperties(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value))

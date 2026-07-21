@@ -4,7 +4,8 @@
  * @module
  */
 
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
+import { isDangerousStateKey } from '../../plugin-kernel/plugin-identifier.js';
+export { isDangerousStateKey };
 import { StateCloneError } from '../errors.js';
 
 function isObject(value: unknown): value is object {
@@ -144,8 +145,4 @@ export function assertSafeImmutableReference(
         );
     }
     seen.delete(value);
-}
-
-export function isDangerousStateKey(key: string): boolean {
-    return dangerousKeys.has(key);
 }

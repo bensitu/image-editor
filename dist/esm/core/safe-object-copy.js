@@ -1,4 +1,4 @@
-import { isDangerousStateKey as isUnsafeObjectKey } from '../core-runtime/state/clone-state-value.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../plugin-kernel/plugin-identifier.js';
 export function canCopySafeObjectKey(key) {
     return !isUnsafeObjectKey(key);
 }

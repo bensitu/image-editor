@@ -1,4 +1,5 @@
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
+import { isDangerousStateKey } from '../../plugin-kernel/plugin-identifier.js';
+export { isDangerousStateKey };
 import { StateCloneError } from '../errors.js';
 function isObject(value) {
     return typeof value === 'object' && value !== null;
@@ -126,8 +127,5 @@ export function assertSafeImmutableReference(value, path = '$', seen = new WeakS
         assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
     }
     seen.delete(value);
-}
-export function isDangerousStateKey(key) {
-    return dangerousKeys.has(key);
 }
 //# sourceMappingURL=clone-state-value.js.map

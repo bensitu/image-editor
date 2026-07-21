@@ -2,9 +2,10 @@
 
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
 
 function isFiniteTransformMatrix(matrix) {
     return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
@@ -135,7 +136,7 @@ function isRecord(value) {
 function freezePersistence(definition) {
     const persistence = definition.persistence;
     const failure = (message) => {
-        throw new pluginManifest.PluginManifestError(`Plugin "${definition.ownerPluginId}" Overlay Kind "${definition.id}" ${message}`, { pluginId: definition.ownerPluginId });
+        throw new pluginIdentifier.PluginManifestError(`Plugin "${definition.ownerPluginId}" Overlay Kind "${definition.id}" ${message}`, { pluginId: definition.ownerPluginId });
     };
     if (!isRecord(persistence))
         return failure('must declare persistence.');
@@ -151,7 +152,7 @@ function freezePersistence(definition) {
     const codec = persistence.codec;
     if (!isRecord(codec) ||
         typeof codec.type !== 'string' ||
-        !pluginManifest.isRuntimeIdentifier(codec.type) ||
+        !pluginIdentifier.isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
         !pluginManifest.isValidSemVer(codec.version) ||
         typeof codec.serialize !== 'function' ||
@@ -178,7 +179,7 @@ function isSerializedRecord(value) {
         typeof value.locked === 'boolean' &&
         isRecord(value.codec) &&
         typeof value.codec.type === 'string' &&
-        pluginManifest.isRuntimeIdentifier(value.codec.type) &&
+        pluginIdentifier.isRuntimeIdentifier(value.codec.type) &&
         typeof value.codec.version === 'string' &&
         pluginManifest.isValidSemVer(value.codec.version) &&
         Object.prototype.hasOwnProperty.call(value, 'data'));
@@ -508,7 +509,7 @@ class OverlayFoundationController {
             typeof definition.getPersistentId !== 'function' ||
             (definition.setPersistentId !== undefined &&
                 typeof definition.setPersistentId !== 'function')) {
-            throw new pluginManifest.PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', {
+            throw new pluginIdentifier.PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', {
                 pluginId: isRecord(definition) && typeof definition.ownerPluginId === 'string'
                     ? definition.ownerPluginId
                     : undefined,
@@ -1713,7 +1714,7 @@ class OverlayFoundationController {
         };
     }
     assertRuntimeIdentifier(value, label) {
-        if (!pluginManifest.isRuntimeIdentifier(value)) {
+        if (!pluginIdentifier.isRuntimeIdentifier(value)) {
             throw new errors.CoreRuntimeError(`[ImageEditor] Invalid ${label} Runtime ID.`);
         }
     }

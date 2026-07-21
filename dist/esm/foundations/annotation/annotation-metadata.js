@@ -1,4 +1,4 @@
-import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
 import { AnnotationValidationError } from './annotation-errors.js';
 export const MAX_ANNOTATION_NAME_LENGTH = 128;
 export const MAX_ANNOTATION_METADATA_DEPTH = 4;

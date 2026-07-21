@@ -1,7 +1,8 @@
 'use strict';
 
-var pluginManager = require('../chunks/plugin-manager-C-UJ_Yc9.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-BCkXHQr2.cjs');
+var pluginManager = require('../chunks/plugin-manager-Bb8UQ105.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
 require('../chunks/disposable-Sj4tt6Lk.cjs');
 
 function createDeferredOperation() {
@@ -654,7 +655,7 @@ async function assertInstallRollback(plugin, options = {}) {
             catch (error) {
                 failure = error;
             }
-            if (!(failure instanceof pluginManifest.PluginSetupError) || failure.cause !== sentinel) {
+            if (!(failure instanceof pluginIdentifier.PluginSetupError) || failure.cause !== sentinel) {
                 throw new Error('Forced setup failure did not surface as PluginSetupError.');
             }
             if (host.has(source.ref)) {
@@ -788,7 +789,7 @@ async function assertMissingCapabilityFailure(plugin, options = {}) {
             catch (error) {
                 failure = error;
             }
-            if (!(failure instanceof pluginManifest.CapabilityMissingError) ||
+            if (!(failure instanceof pluginIdentifier.CapabilityMissingError) ||
                 failure.capabilityId !== missingToken.id) {
                 throw new Error('Missing Capability did not produce the typed failure.');
             }

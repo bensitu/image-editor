@@ -5,7 +5,7 @@
  */
 
 import { isRuntimeIdentifier } from '../../sdk/index.js';
-import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
 
 import {
     OVERLAY_STATE_COORDINATE_SPACE,

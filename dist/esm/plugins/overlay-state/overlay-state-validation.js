@@ -1,5 +1,5 @@
 import { isRuntimeIdentifier } from '../../sdk/index.js';
-import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
 import { OVERLAY_STATE_COORDINATE_SPACE, OVERLAY_STATE_SCHEMA, OVERLAY_STATE_WIRE_VERSION, } from './overlay-state-types.js';
 export const DEFAULT_OVERLAY_STATE_LIMITS = Object.freeze({
     maxPayloadBytes: 5000000,

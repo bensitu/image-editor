@@ -1,5 +1,5 @@
 /**
- * Validates the shared Runtime ID contract and applies it to Plugin identities.
+ * Validates shared Runtime ID and unsafe object-key policies.
  *
  * @module
  */
@@ -7,14 +7,18 @@
 import { InvalidPluginDefinitionError } from './errors.js';
 
 const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-const PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT = /(^|:)(constructor|prototype)(:|$)/u;
+
+/** Returns whether an object key must be rejected at an untrusted data boundary. */
+export function isDangerousStateKey(key: string): boolean {
+    return key === '__proto__' || key === 'constructor' || key === 'prototype';
+}
 
 export function isRuntimeIdentifier(value: unknown): value is string {
     return (
         typeof value === 'string' &&
         value.length < 129 &&
         RUNTIME_IDENTIFIER_PATTERN.test(value) &&
-        !PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT.test(value)
+        !value.split(':').some(isDangerousStateKey)
     );
 }
 

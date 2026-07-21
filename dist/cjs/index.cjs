@@ -5,12 +5,12 @@ Object.defineProperty(exports, '__esModule', { value: true });
 var affineMatrix = require('./chunks/affine-matrix-DRJ0b89x.cjs');
 var errors = require('./chunks/errors-DeAfrgDC.cjs');
 var core_index = require('./core/index.cjs');
-var cloneStateValue = require('./chunks/clone-state-value-CnsEsCNe.cjs');
-var pluginManifest = require('./chunks/plugin-manifest-BCkXHQr2.cjs');
-require('./chunks/plugin-plan-CxkCZnUf.cjs');
+var pluginManifest = require('./chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginIdentifier = require('./chunks/plugin-identifier-CjVVyVRY.cjs');
+require('./chunks/plugin-plan-7_a5v9uF.cjs');
 require('./chunks/disposable-Sj4tt6Lk.cjs');
-require('./chunks/plugin-manager-C-UJ_Yc9.cjs');
-require('./chunks/core-capabilities-ewP5YPVJ.cjs');
+require('./chunks/plugin-manager-Bb8UQ105.cjs');
+require('./chunks/core-capabilities-802kAEgU.cjs');
 
 
 
@@ -46,10 +46,10 @@ exports.ObjectPropertyRegistry = core_index.ObjectPropertyRegistry;
 exports.SnapshotService = core_index.SnapshotService;
 exports.StateSliceRegistry = core_index.StateSliceRegistry;
 exports.TransientObjectRegistry = core_index.TransientObjectRegistry;
+exports.assertSafeImmutableReference = core_index.assertSafeImmutableReference;
+exports.cloneStateValue = core_index.cloneStateValue;
 exports.default = core_index.ImageEditorCore;
-exports.assertSafeImmutableReference = cloneStateValue.assertSafeImmutableReference;
-exports.cloneStateValue = cloneStateValue.cloneStateValue;
-exports.isDangerousStateKey = cloneStateValue.isDangerousStateKey;
 exports.createCapabilityToken = pluginManifest.createCapabilityToken;
 exports.definePluginRef = pluginManifest.definePluginRef;
+exports.isDangerousStateKey = pluginIdentifier.isDangerousStateKey;
 //# sourceMappingURL=index.cjs.map

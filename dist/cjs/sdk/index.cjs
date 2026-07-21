@@ -1,11 +1,12 @@
 'use strict';
 
-var coreCapabilities = require('../chunks/core-capabilities-ewP5YPVJ.cjs');
-var visibleRasterBake = require('../chunks/visible-raster-bake-B7dAdnmC.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-BCkXHQr2.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-802kAEgU.cjs');
+var visibleRasterBake = require('../chunks/visible-raster-bake-DIUNQiLO.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-B3zCkHWm.cjs');
 var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginDefinition = require('../chunks/plugin-definition-B3UyurRp.cjs');
-var pluginPlan = require('../chunks/plugin-plan-CxkCZnUf.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginDefinition = require('../chunks/plugin-definition-Cf-BfA6c.cjs');
+var pluginPlan = require('../chunks/plugin-plan-7_a5v9uF.cjs');
 
 
 
@@ -27,28 +28,28 @@ exports.RENDER_REQUEST_CAPABILITY = coreCapabilities.RENDER_REQUEST_CAPABILITY;
 exports.SNAPSHOT_REGISTRATION_CAPABILITY = coreCapabilities.SNAPSHOT_REGISTRATION_CAPABILITY;
 exports.VISIBLE_RASTER_BAKE_CAPABILITY = visibleRasterBake.VISIBLE_RASTER_BAKE_CAPABILITY;
 exports.CORE_API_VERSION = pluginManifest.CORE_API_VERSION;
-exports.CapabilityConflictError = pluginManifest.CapabilityConflictError;
-exports.CapabilityMissingError = pluginManifest.CapabilityMissingError;
-exports.CapabilityVersionError = pluginManifest.CapabilityVersionError;
-exports.PluginApiVersionError = pluginManifest.PluginApiVersionError;
-exports.PluginBatchInstallError = pluginManifest.PluginBatchInstallError;
-exports.PluginDefinitionConflictError = pluginManifest.PluginDefinitionConflictError;
-exports.PluginDependencyCycleError = pluginManifest.PluginDependencyCycleError;
-exports.PluginDependencyError = pluginManifest.PluginDependencyError;
-exports.PluginEngineVersionError = pluginManifest.PluginEngineVersionError;
-exports.PluginError = pluginManifest.PluginError;
-exports.PluginIdentityConflictError = pluginManifest.PluginIdentityConflictError;
-exports.PluginManifestError = pluginManifest.PluginManifestError;
-exports.PluginNotInstalledError = pluginManifest.PluginNotInstalledError;
-exports.PluginPermissionError = pluginManifest.PluginPermissionError;
-exports.PluginSetupError = pluginManifest.PluginSetupError;
 exports.createCapabilityToken = pluginManifest.createCapabilityToken;
 exports.definePluginRef = pluginManifest.definePluginRef;
-exports.isRuntimeIdentifier = pluginManifest.isRuntimeIdentifier;
 exports.isValidSemVer = pluginManifest.isValidSemVer;
 exports.validatePluginManifest = pluginManifest.validatePluginManifest;
 exports.createDisposable = disposable.createDisposable;
 exports.disposeInReverseSync = disposable.disposeInReverseSync;
+exports.CapabilityConflictError = pluginIdentifier.CapabilityConflictError;
+exports.CapabilityMissingError = pluginIdentifier.CapabilityMissingError;
+exports.CapabilityVersionError = pluginIdentifier.CapabilityVersionError;
+exports.PluginApiVersionError = pluginIdentifier.PluginApiVersionError;
+exports.PluginBatchInstallError = pluginIdentifier.PluginBatchInstallError;
+exports.PluginDefinitionConflictError = pluginIdentifier.PluginDefinitionConflictError;
+exports.PluginDependencyCycleError = pluginIdentifier.PluginDependencyCycleError;
+exports.PluginDependencyError = pluginIdentifier.PluginDependencyError;
+exports.PluginEngineVersionError = pluginIdentifier.PluginEngineVersionError;
+exports.PluginError = pluginIdentifier.PluginError;
+exports.PluginIdentityConflictError = pluginIdentifier.PluginIdentityConflictError;
+exports.PluginManifestError = pluginIdentifier.PluginManifestError;
+exports.PluginNotInstalledError = pluginIdentifier.PluginNotInstalledError;
+exports.PluginPermissionError = pluginIdentifier.PluginPermissionError;
+exports.PluginSetupError = pluginIdentifier.PluginSetupError;
+exports.isRuntimeIdentifier = pluginIdentifier.isRuntimeIdentifier;
 exports.definePlugin = pluginDefinition.definePlugin;
 exports.composePlugins = pluginPlan.composePlugins;
 //# sourceMappingURL=index.cjs.map

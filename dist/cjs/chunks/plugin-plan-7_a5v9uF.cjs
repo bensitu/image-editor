@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-BCkXHQr2.cjs');
+var pluginIdentifier = require('./plugin-identifier-CjVVyVRY.cjs');
 
 const pluginPlanDefinition = Symbol('image-editor.plugin-plan.definition');
 function isPluginPlan(value) {
@@ -13,16 +13,16 @@ function assertPluginPlanItem(value, key) {
     if (isPluginPlan(value))
         return;
     if (typeof value !== 'object' || value === null || !('ref' in value) || !('setup' in value)) {
-        throw new pluginManifest.InvalidPluginDefinitionError(`Plugin Plan entry "${key}" must be a Plugin or nested Plugin Plan.`);
+        throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin Plan entry "${key}" must be a Plugin or nested Plugin Plan.`);
     }
 }
 function composePlugins(definitions) {
     if (typeof definitions !== 'object' || definitions === null) {
-        throw new pluginManifest.InvalidPluginDefinitionError('Plugin Plan definitions must be an object.');
+        throw new pluginIdentifier.InvalidPluginDefinitionError('Plugin Plan definitions must be an object.');
     }
     const entries = Object.entries(definitions);
     if (entries.length === 0) {
-        throw new pluginManifest.InvalidPluginDefinitionError('Plugin Plan must contain at least one Plugin.');
+        throw new pluginIdentifier.InvalidPluginDefinitionError('Plugin Plan must contain at least one Plugin.');
     }
     const plugins = [];
     for (const [key, value] of entries) {
@@ -51,4 +51,4 @@ function resolvePluginPlanApis(plan, resolveApi) {
 exports.composePlugins = composePlugins;
 exports.isPluginPlan = isPluginPlan;
 exports.resolvePluginPlanApis = resolvePluginPlanApis;
-//# sourceMappingURL=plugin-plan-CxkCZnUf.cjs.map
+//# sourceMappingURL=plugin-plan-7_a5v9uF.cjs.map

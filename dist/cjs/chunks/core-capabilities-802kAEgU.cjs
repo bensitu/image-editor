@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-BCkXHQr2.cjs');
+var pluginManifest = require('./plugin-manifest-B3zCkHWm.cjs');
 
 const CORE_STATUS_CAPABILITY = pluginManifest.createCapabilityToken('core:status', '1.0.0');
 const CORE_DIAGNOSTICS_CAPABILITY = pluginManifest.createCapabilityToken('core:diagnostics', '1.0.0');
@@ -35,4 +35,4 @@ exports.MEMENTO_HISTORY_CAPABILITY = MEMENTO_HISTORY_CAPABILITY;
 exports.RASTER_MUTATION_CAPABILITY = RASTER_MUTATION_CAPABILITY;
 exports.RENDER_REQUEST_CAPABILITY = RENDER_REQUEST_CAPABILITY;
 exports.SNAPSHOT_REGISTRATION_CAPABILITY = SNAPSHOT_REGISTRATION_CAPABILITY;
-//# sourceMappingURL=core-capabilities-ewP5YPVJ.cjs.map
+//# sourceMappingURL=core-capabilities-802kAEgU.cjs.map

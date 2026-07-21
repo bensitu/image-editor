@@ -4,7 +4,7 @@
  * @module
  */
 
-import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
 import { AnnotationValidationError } from './annotation-errors.js';
 import type { AnnotationMetadata, AnnotationMetadataValue } from './annotation-definition.js';
 

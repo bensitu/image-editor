@@ -1,7 +1,6 @@
 'use strict';
 
-var cloneStateValue = require('../chunks/clone-state-value-CnsEsCNe.cjs');
-require('../chunks/errors-DeAfrgDC.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
 
 const SOURCE_SCHEMA = 'image-editor.canvas@2';
 const TARGET_SCHEMA = 'image-editor.state@3';
@@ -138,7 +137,7 @@ function inspectJsonValue(value, limits, path = '$', depth = 0, ancestors = new 
     }
     ancestors.add(value);
     for (const key of Object.keys(value)) {
-        if (cloneStateValue.isDangerousStateKey(key)) {
+        if (pluginIdentifier.isDangerousStateKey(key)) {
             throw new SnapshotMigrationError('input.key', `Snapshot contains dangerous key "${key}".`, `${path}.${key}`);
         }
         inspectJsonValue(value[key], limits, Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, depth + 1, ancestors, counter);
