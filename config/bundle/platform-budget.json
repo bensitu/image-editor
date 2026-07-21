@@ -37,11 +37,11 @@
         }
     },
     "measurement": {
-        "corePlatformGzipBytes": 40681,
+        "corePlatformGzipBytes": 40675,
         "overlayDeltaGzipBytes": 9495,
         "path": "tests/bundle/baselines/platform-anchor.json",
-        "platformAnchorGzipBytes": 50176,
-        "sha256": "018793fcc5cdc0fdfdacbd63bdb5c0b1c4aec0a2e99a63b0fea523a12d22ea52"
+        "platformAnchorGzipBytes": 50170,
+        "sha256": "1100a02bc98933ea0e319a986388e3667e5242b31315110bc80584c97b39a1f0"
     },
     "modulePolicy": {
         "allowedPrefixes": [
@@ -65,8 +65,8 @@
     },
     "schemaVersion": 1,
     "source": {
-        "commit": "0631e490e37e219e6496b2ab8da8e4ad7a635ee5",
-        "tree": "4e33ebae42bddbf0169b0e7f415deb2e8ead70ba"
+        "commit": "f351b469c7bc2c349edf7be63ac0a092af70d570",
+        "tree": "17d36310a442897d66054ff0ebd93c78b8af5d2b"
     },
     "toolchain": {
         "bundler": {
