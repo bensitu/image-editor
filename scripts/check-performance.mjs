@@ -111,7 +111,7 @@ function createMementoFixture(sliceCount, captureMode) {
     const registry = new StateSliceRegistry();
     for (let index = 0; index < sliceCount; index += 1) {
         registry.register({
-            id: `performance/slice-${index}`,
+            id: `performance:slice-${index}`,
             version: 1,
             capture: () => sliceStates[index],
             validate: (value) => ({ valid: true, value }),
@@ -183,7 +183,7 @@ function createHistoryFixture() {
             );
             for (let index = 0; index < 100; index += 1) {
                 controller.push({
-                    operationId: `performance:${sampleIndex}:${index}`,
+                    operationId: `performance:history-${sampleIndex}-${index}`,
                     before: frozenMemento(index),
                     after: frozenMemento(index + 1),
                     timestamp: index,
