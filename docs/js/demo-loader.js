@@ -16,14 +16,18 @@
     }
 
     window.__imageEditorDemoRuntime = {
-        getImageEditorConstructor() {
-            const candidate = window.ImageEditorFull?.ImageEditorCore;
-            if (typeof candidate !== 'function') return null;
-            return class BrowserImageEditorCore extends candidate {
-                constructor(options) {
-                    super(window.fabric, options);
-                }
-            };
+        createEditor(coreOptions, pluginPlan) {
+            const api = window.ImageEditorFull;
+            if (
+                typeof api?.ImageEditorCore !== 'function' ||
+                typeof api?.composePlugins !== 'function' ||
+                !window.fabric
+            ) {
+                throw new Error('The ImageEditor v3 modular runtime is unavailable.');
+            }
+            const editor = new api.ImageEditorCore(window.fabric, coreOptions);
+            const plugins = editor.install(api.composePlugins(pluginPlan));
+            return Object.freeze({ editor, ...plugins });
         },
         createCanvas(width, height) {
             const canvas = document.createElement('canvas');
@@ -46,17 +50,27 @@
         },
     };
 
-    const isGitHubPages = window.location.hostname.endsWith('github.io');
-    const fabricSrc = isGitHubPages
-        ? 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'
-        : '../node_modules/fabric/dist/index.min.js';
-    const imageEditorSrc = isGitHubPages
-        ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.full.umd.min.js'
-        : '../dist/umd/image-editor.full.umd.min.js';
+    const loaderPath = loaderScript ? new URL(loaderScript.src, window.location.href).pathname : '';
+    const usesRepositoryLayout = /\/docs\/js\/[^/]+$/.test(loaderPath);
+    const fabricSrc = usesRepositoryLayout
+        ? '../node_modules/fabric/dist/index.min.js'
+        : 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js';
+    const imageEditorSrc = usesRepositoryLayout
+        ? '../dist/umd/image-editor.full.umd.min.js'
+        : 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.full.umd.min.js';
 
     try {
         await loadScript(fabricSrc);
         await loadScript(imageEditorSrc);
+        if (
+            !window.fabric ||
+            typeof window.ImageEditorFull?.ImageEditorCore !== 'function' ||
+            typeof window.ImageEditorFull?.composePlugins !== 'function'
+        ) {
+            throw new Error(
+                'The ImageEditor v3 browser runtime did not expose its expected globals.',
+            );
+        }
         await loadScript(entryScript);
     } catch (error) {
         const message = document.getElementById(errorTarget);

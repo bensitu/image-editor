@@ -129,8 +129,8 @@
                             />
                         </label>
                         <p class="note">
-                            Mosaic edits are committed into the base image pixels when a stroke is
-                            applied.
+                            Mosaic strokes are previewed while you drag and committed into the base
+                            image when you exit Mosaic mode.
                         </p>
                     </section>
                 </aside>
@@ -250,13 +250,22 @@
 
                     <section class="panel-section">
                         <h2>Public APIs Used</h2>
+                        <p class="note">
+                            This page installs only the Overlay Foundation, Mask, and Mosaic.
+                        </p>
                         <div class="api-list">
-                            <code>createMask()</code>
-                            <code>removeSelectedMask()</code>
-                            <code>enterMosaicMode()</code>
-                            <code>setMosaicConfig()</code>
-                            <code>mergeMasks()</code>
-                            <code>exportImageBase64()</code>
+                            <code>new ImageEditorCore()</code>
+                            <code>composePlugins()</code>
+                            <code>overlayFoundationPlugin()</code>
+                            <code>maskPlugin()</code>
+                            <code>mosaicPlugin()</code>
+                            <code>modules.masks.create()</code>
+                            <code>modules.masks.removeSelected()</code>
+                            <code>modules.masks.flatten()</code>
+                            <code>modules.mosaic.enter()</code>
+                            <code>modules.mosaic.configure()</code>
+                            <code>modules.mosaic.commit()</code>
+                            <code>modules.editor.exportImageBase64()</code>
                         </div>
                     </section>
                 </aside>

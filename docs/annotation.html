@@ -385,18 +385,31 @@
 
                     <section class="panel-section">
                         <h2>Public APIs Used</h2>
+                        <p class="note">
+                            This page installs only History and the Overlay/Annotation feature
+                            plugins.
+                        </p>
                         <div class="api-list">
-                            <code>createTextAnnotation()</code>
-                            <code>createShapeAnnotation()</code>
-                            <code>enterShapeMode()</code>
-                            <code>enterDrawMode()</code>
-                            <code>setDrawSubMode()</code>
-                            <code>setEraserConfig()</code>
-                            <code>updateAnnotation()</code>
-                            <code>removeSelectedAnnotation()</code>
-                            <code>bringSelectedObjectForward()</code>
-                            <code>mergeAnnotations()</code>
-                            <code>exportImageBase64()</code>
+                            <code>new ImageEditorCore()</code>
+                            <code>composePlugins()</code>
+                            <code>overlayFoundationPlugin()</code>
+                            <code>annotationFoundationPlugin()</code>
+                            <code>textAnnotationPlugin()</code>
+                            <code>shapeAnnotationPlugin()</code>
+                            <code>drawAnnotationPlugin()</code>
+                            <code>historyPlugin()</code>
+                            <code>modules.text.create()</code>
+                            <code>modules.text.beginEditing()</code>
+                            <code>modules.shape.create()</code>
+                            <code>modules.shape.enter()</code>
+                            <code>modules.draw.enter()</code>
+                            <code>modules.draw.setSubMode()</code>
+                            <code>modules.draw.configureEraser()</code>
+                            <code>modules.annotations.update()</code>
+                            <code>modules.annotations.remove()</code>
+                            <code>modules.overlays.bringForward()</code>
+                            <code>modules.annotations.flatten()</code>
+                            <code>modules.editor.exportImageBase64()</code>
                         </div>
                     </section>
                 </aside>

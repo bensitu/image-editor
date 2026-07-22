@@ -334,21 +334,30 @@
 
                     <section class="panel-section">
                         <h2>Public APIs Used</h2>
+                        <p class="note">
+                            This page installs only Transform, History, Filters, and Crop.
+                        </p>
                         <div class="api-list">
-                            <code>loadImage()</code>
-                            <code>setLayoutMode()</code>
-                            <code>scaleImage()</code>
-                            <code>rotateImage()</code>
-                            <code>flipHorizontal()</code>
-                            <code>flipVertical()</code>
-                            <code>resetImageTransform()</code>
-                            <code>setImageFilterConfig()</code>
-                            <code>commitImageFilters()</code>
-                            <code>clearImageFilters()</code>
-                            <code>enterCropMode()</code>
-                            <code>applyCrop()</code>
-                            <code>exportImageBase64()</code>
-                            <code>downloadImage()</code>
+                            <code>new ImageEditorCore()</code>
+                            <code>composePlugins()</code>
+                            <code>transformPlugin()</code>
+                            <code>historyPlugin()</code>
+                            <code>filtersPlugin()</code>
+                            <code>cropPlugin()</code>
+                            <code>modules.editor.loadImage()</code>
+                            <code>modules.editor.setLayoutMode()</code>
+                            <code>modules.transform.scale()</code>
+                            <code>modules.transform.rotate()</code>
+                            <code>modules.transform.flipHorizontal()</code>
+                            <code>modules.transform.flipVertical()</code>
+                            <code>modules.transform.resetImageTransform()</code>
+                            <code>modules.filters.preview()</code>
+                            <code>modules.filters.commit()</code>
+                            <code>modules.filters.clear()</code>
+                            <code>modules.crop.enter()</code>
+                            <code>modules.crop.apply()</code>
+                            <code>modules.editor.exportImageBase64()</code>
+                            <code>modules.editor.exportImageFile()</code>
                         </div>
                     </section>
                 </aside>

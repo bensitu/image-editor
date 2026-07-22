@@ -4,6 +4,7 @@
     const demoRuntime = window.__imageEditorDemoRuntime;
     const studioWidth = 1120;
     const studioHeight = 320;
+    let landingKit = null;
 
     function createStudioDataUrl() {
         const { canvas, context } = demoRuntime.createCanvas(studioWidth, studioHeight);
@@ -294,13 +295,17 @@
     }
 
     function createOverlayScale(editor) {
-        const imageInfo = editor.getImageInfo?.();
-        const xScale = imageInfo?.displayWidth ? imageInfo.displayWidth / studioWidth : 1;
-        const yScale = imageInfo?.displayHeight ? imageInfo.displayHeight / studioHeight : xScale;
+        const baseImage = editor
+            .getCanvas()
+            ?.getObjects()
+            .find((object) => object.editorObjectKind === 'baseImage');
+        const bounds = baseImage?.getBoundingRect();
+        const xScale = bounds?.width ? bounds.width / studioWidth : 1;
+        const yScale = bounds?.height ? bounds.height / studioHeight : xScale;
         const baseScale = Math.min(xScale || 1, yScale || 1);
         return {
-            x: (value) => Math.round(value * xScale),
-            y: (value) => Math.round(value * yScale),
+            x: (value) => Math.round((bounds?.left || 0) + value * xScale),
+            y: (value) => Math.round((bounds?.top || 0) + value * yScale),
             width: (value) => Math.max(1, Math.round(value * xScale)),
             height: (value) => Math.max(1, Math.round(value * yScale)),
             font: (value) => Math.max(8, Math.round(value * baseScale)),
@@ -308,11 +313,14 @@
             dash: (values) => values.map((value) => Math.max(2, Math.round(value * baseScale))),
             arrow: (value) => Math.max(8, Math.round(value * baseScale)),
             points: (points) =>
-                points.map(([x, y]) => [Math.round(x * xScale), Math.round(y * yScale)]),
+                points.map(([x, y]) => [
+                    Math.round((bounds?.left || 0) + x * xScale),
+                    Math.round((bounds?.top || 0) + y * yScale),
+                ]),
         };
     }
 
-    function createMask(editor, scale, config) {
+    function createMask(kit, scale, config) {
         const scaledConfig = { ...config };
         if (typeof config.left === 'number') scaledConfig.left = scale.x(config.left);
         if (typeof config.top === 'number') scaledConfig.top = scale.y(config.top);
@@ -321,10 +329,10 @@
         if (typeof config.rx === 'number') scaledConfig.rx = scale.width(config.rx);
         if (typeof config.ry === 'number') scaledConfig.ry = scale.height(config.ry);
         if (Array.isArray(config.points)) scaledConfig.points = scale.points(config.points);
-        return editor.createMask(scaledConfig);
+        return kit.masks.create(scaledConfig);
     }
 
-    function createTextAnnotation(editor, scale, config) {
+    function createTextAnnotation(kit, scale, config) {
         const scaledConfig = {
             ...config,
             left: typeof config.left === 'number' ? scale.x(config.left) : config.left,
@@ -332,199 +340,233 @@
             width: scale.width(config.width ?? 160),
             fontSize: scale.font(config.fontSize ?? 18),
         };
-        return editor.createTextAnnotation({
+        return kit.text.create({
             fontWeight: 700,
             fill: '#0f172a',
             backgroundColor: 'rgba(255,255,255,0)',
-            enterEditing: false,
             ...scaledConfig,
         });
     }
 
-    function createShapeAnnotation(editor, scale, config) {
-        const scaledConfig = { ...config };
-        if (typeof config.left === 'number') scaledConfig.left = scale.x(config.left);
-        if (typeof config.top === 'number') scaledConfig.top = scale.y(config.top);
-        if (typeof config.width === 'number') scaledConfig.width = scale.width(config.width);
-        if (typeof config.height === 'number') scaledConfig.height = scale.height(config.height);
-        if (typeof config.x1 === 'number') scaledConfig.x1 = scale.x(config.x1);
-        if (typeof config.y1 === 'number') scaledConfig.y1 = scale.y(config.y1);
-        if (typeof config.x2 === 'number') scaledConfig.x2 = scale.x(config.x2);
-        if (typeof config.y2 === 'number') scaledConfig.y2 = scale.y(config.y2);
-        if (typeof config.strokeWidth === 'number')
-            scaledConfig.strokeWidth = scale.stroke(config.strokeWidth);
-        if (typeof config.arrowHeadLength === 'number') {
-            scaledConfig.arrowHeadLength = scale.arrow(config.arrowHeadLength);
-        }
-        if (Array.isArray(config.strokeDashArray)) {
-            scaledConfig.strokeDashArray = scale.dash(config.strokeDashArray);
-        }
-        return editor.createShapeAnnotation({
+    function createShapeAnnotation(kit, scale, config) {
+        const kind = config.shape === 'line' || config.shape === 'arrow' ? config.shape : 'rect';
+        const geometry =
+            kind === 'rect'
+                ? {
+                      kind,
+                      left: scale.x(config.left ?? 0),
+                      top: scale.y(config.top ?? 0),
+                      width: scale.width(config.width ?? 1),
+                      height: scale.height(config.height ?? 1),
+                  }
+                : {
+                      kind,
+                      start: { x: scale.x(config.x1 ?? 0), y: scale.y(config.y1 ?? 0) },
+                      end: { x: scale.x(config.x2 ?? 1), y: scale.y(config.y2 ?? 1) },
+                  };
+        return kit.shape.create({
+            geometry,
             stroke: '#2468ff',
-            strokeWidth: scale.stroke(4),
+            strokeWidth: scale.stroke(config.strokeWidth ?? 4),
             fill: 'rgba(36,104,255,0.08)',
             opacity: 1,
-            ...scaledConfig,
+            ...(typeof config.stroke === 'string' ? { stroke: config.stroke } : {}),
+            ...(typeof config.fill === 'string' ? { fill: config.fill } : {}),
+            ...(typeof config.opacity === 'number' ? { opacity: config.opacity } : {}),
+            ...(Array.isArray(config.strokeDashArray)
+                ? { strokeDashArray: scale.dash(config.strokeDashArray) }
+                : {}),
+            ...(typeof config.arrowHeadLength === 'number'
+                ? { arrowHeadLength: scale.arrow(config.arrowHeadLength) }
+                : {}),
         });
     }
 
     async function initLandingStudio() {
-        const ImageEditorCtor = demoRuntime?.getImageEditorConstructor();
         const canvas = document.getElementById('landingStudioCanvas');
         const container = document.getElementById('landingStudioContainer');
-        if (!ImageEditorCtor || !canvas || !container) return;
+        const api = window.ImageEditorFull;
+        if (!demoRuntime?.createEditor || !api || !canvas || !container) return;
 
-        const editor = new ImageEditorCtor({
-            backgroundColor: 'transparent',
-            canvasWidth: studioWidth,
-            canvasHeight: studioHeight,
-            defaultLayoutMode: 'fit',
-            animationDuration: 0,
-            showPlaceholder: false,
-            maskRotatable: true,
-            maskLabelOnSelect: false,
-            textAnnotationName: 'studio-note',
-            maskName: 'studio-mask',
-            defaultMaskConfig: {
-                color: 'rgba(16, 23, 36, 0.78)',
-                alpha: 0.78,
-                styles: {
-                    stroke: '#ffffff',
-                    strokeWidth: 1,
-                },
+        const kit = demoRuntime.createEditor(
+            {
+                backgroundColor: 'transparent',
+                canvasWidth: studioWidth,
+                canvasHeight: studioHeight,
+                defaultLayoutMode: 'fit',
             },
-        });
+            {
+                filters: api.filtersPlugin(),
+                overlays: api.overlayFoundationPlugin(),
+                masks: api.maskPlugin({
+                    rotatable: true,
+                    label: false,
+                    namePrefix: 'studio-mask',
+                    defaultConfig: {
+                        color: 'rgba(16, 23, 36, 0.78)',
+                        alpha: 0.78,
+                        styles: {
+                            stroke: '#ffffff',
+                            strokeWidth: 1,
+                        },
+                    },
+                }),
+                annotations: api.annotationFoundationPlugin(),
+                text: api.textAnnotationPlugin({ namePrefix: 'studio-note' }),
+                shape: api.shapeAnnotationPlugin(),
+            },
+        );
+        landingKit = kit;
+        const { editor } = kit;
 
-        editor.init({
-            canvas,
-            canvasContainer: container,
-        });
+        try {
+            await editor.init({
+                canvas,
+                canvasContainer: container,
+            });
 
-        await editor.loadImage(createStudioDataUrl());
-        editor.setImageFilterConfig({
-            brightness: 0.03,
-            contrast: 0.08,
-            saturation: 0.14,
-            sharpen: 0.28,
-        });
-        editor.commitImageFilters();
+            await editor.loadImage(createStudioDataUrl());
+            await kit.filters.commit([
+                { type: 'brightness', value: 0.03 },
+                { type: 'contrast', value: 0.08 },
+                { type: 'saturation', value: 0.14 },
+                { type: 'sharpen', value: 0.28 },
+            ]);
 
-        const overlayScale = createOverlayScale(editor);
+            const overlayScale = createOverlayScale(editor);
 
-        createMask(editor, overlayScale, {
-            shape: 'ellipse',
-            left: 76,
-            top: 132,
-            width: 88,
-            height: 74,
-            color: 'rgba(15, 23, 42, 0.66)',
-            alpha: 0.66,
-        });
-        createMask(editor, overlayScale, {
-            shape: 'rect',
-            left: 180,
-            top: 128,
-            width: 142,
-            height: 22,
-            rx: 5,
-            ry: 5,
-        });
-        createMask(editor, overlayScale, {
-            shape: 'rect',
-            left: 180,
-            top: 158,
-            width: 122,
-            height: 22,
-            rx: 5,
-            ry: 5,
-        });
-        createMask(editor, overlayScale, {
-            shape: 'polygon',
-            points: [
-                [622, 197],
-                [718, 198],
-                [708, 222],
-                [618, 220],
-            ],
-            color: 'rgba(16, 23, 36, 0.72)',
-            alpha: 0.72,
-        });
+            await createMask(kit, overlayScale, {
+                shape: 'ellipse',
+                left: 76,
+                top: 132,
+                width: 88,
+                height: 74,
+                color: 'rgba(15, 23, 42, 0.66)',
+                alpha: 0.66,
+            });
+            await createMask(kit, overlayScale, {
+                shape: 'rect',
+                left: 180,
+                top: 128,
+                width: 142,
+                height: 22,
+                rx: 5,
+                ry: 5,
+            });
+            await createMask(kit, overlayScale, {
+                shape: 'rect',
+                left: 180,
+                top: 158,
+                width: 122,
+                height: 22,
+                rx: 5,
+                ry: 5,
+            });
+            await createMask(kit, overlayScale, {
+                shape: 'polygon',
+                points: [
+                    [622, 197],
+                    [718, 198],
+                    [708, 222],
+                    [618, 220],
+                ],
+                color: 'rgba(16, 23, 36, 0.72)',
+                alpha: 0.72,
+            });
 
-        createShapeAnnotation(editor, overlayScale, {
-            shape: 'rect',
-            left: 398,
-            top: 116,
-            width: 358,
-            height: 114,
-            stroke: '#2468ff',
-            strokeDashArray: [12, 8],
-        });
-        createShapeAnnotation(editor, overlayScale, {
-            shape: 'arrow',
-            x1: 356,
-            y1: 124,
-            x2: 300,
-            y2: 140,
-            stroke: '#ff5f3d',
-            fill: 'rgba(0,0,0,0)',
-            arrowHeadLength: 22,
-        });
-        createShapeAnnotation(editor, overlayScale, {
-            shape: 'arrow',
-            x1: 744,
-            y1: 252,
-            x2: 686,
-            y2: 214,
-            stroke: '#087f70',
-            fill: 'rgba(0,0,0,0)',
-            arrowHeadLength: 22,
-        });
-        createShapeAnnotation(editor, overlayScale, {
-            shape: 'line',
-            x1: 842,
-            y1: 212,
-            x2: 990,
-            y2: 212,
-            stroke: '#ff5f3d',
-            strokeWidth: 5,
-            fill: 'rgba(0,0,0,0)',
-        });
+            await createShapeAnnotation(kit, overlayScale, {
+                shape: 'rect',
+                left: 398,
+                top: 116,
+                width: 358,
+                height: 114,
+                stroke: '#2468ff',
+                strokeDashArray: [12, 8],
+            });
+            await createShapeAnnotation(kit, overlayScale, {
+                shape: 'arrow',
+                x1: 356,
+                y1: 124,
+                x2: 300,
+                y2: 140,
+                stroke: '#ff5f3d',
+                fill: 'rgba(0,0,0,0)',
+                arrowHeadLength: 22,
+            });
+            await createShapeAnnotation(kit, overlayScale, {
+                shape: 'arrow',
+                x1: 744,
+                y1: 252,
+                x2: 686,
+                y2: 214,
+                stroke: '#087f70',
+                fill: 'rgba(0,0,0,0)',
+                arrowHeadLength: 22,
+            });
+            await createShapeAnnotation(kit, overlayScale, {
+                shape: 'line',
+                x1: 842,
+                y1: 212,
+                x2: 990,
+                y2: 212,
+                stroke: '#ff5f3d',
+                strokeWidth: 5,
+                fill: 'rgba(0,0,0,0)',
+            });
 
-        createTextAnnotation(editor, overlayScale, {
-            text: 'PII masked',
-            left: 186,
-            top: 98,
-            width: 130,
-            fontSize: 18,
-            fill: '#c42f3a',
-        });
-        createTextAnnotation(editor, overlayScale, {
-            text: 'OCR mismatch',
-            left: 796,
-            top: 236,
-            width: 158,
-            fontSize: 18,
-            fill: '#9d341f',
-        });
-        createTextAnnotation(editor, overlayScale, {
-            text: 'Filter + mosaic',
-            left: 520,
-            top: 244,
-            width: 190,
-            fontSize: 19,
-            fill: '#087f70',
-        });
-        createTextAnnotation(editor, overlayScale, {
-            text: 'Export-ready',
-            left: 820,
-            top: 112,
-            width: 160,
-            fontSize: 20,
-            fill: '#1647c8',
-        });
+            await createTextAnnotation(kit, overlayScale, {
+                text: 'PII masked',
+                left: 186,
+                top: 98,
+                width: 130,
+                fontSize: 18,
+                fill: '#c42f3a',
+            });
+            await createTextAnnotation(kit, overlayScale, {
+                text: 'OCR mismatch',
+                left: 796,
+                top: 236,
+                width: 158,
+                fontSize: 18,
+                fill: '#9d341f',
+            });
+            await createTextAnnotation(kit, overlayScale, {
+                text: 'Filter + mosaic',
+                left: 520,
+                top: 244,
+                width: 190,
+                fontSize: 19,
+                fill: '#087f70',
+            });
+            await createTextAnnotation(kit, overlayScale, {
+                text: 'Export-ready',
+                left: 820,
+                top: 112,
+                width: 160,
+                fontSize: 20,
+                fill: '#1647c8',
+            });
+            document.body.dataset.demoReady = 'true';
+        } catch (error) {
+            landingKit = null;
+            await editor.disposeAsync().catch(() => undefined);
+            throw error;
+        }
     }
 
     initLandingStudio().catch((error) => {
+        document.body.dataset.demoError = 'true';
         console.error('[ImageEditor landing demo] Studio initialization failed.', error);
+    });
+    window.addEventListener('pagehide', () => {
+        const kit = landingKit;
+        landingKit = null;
+        if (kit) {
+            void kit.editor
+                .disposeAsync()
+                .catch((error) =>
+                    console.warn('[ImageEditor landing demo] Disposal failed.', error),
+                );
+        }
     });
 })();

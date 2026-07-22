@@ -517,18 +517,33 @@
 
                     <section class="panel-section">
                         <h2>Public APIs used</h2>
+                        <p class="note">
+                            This page composes the editing and Overlay/Annotation plugins used by
+                            the integrated workspace without installing unrelated features.
+                        </p>
                         <div class="api-list">
-                            <code>zoomIn()</code>
-                            <code>rotateRight()</code>
-                            <code>flipHorizontal()</code>
-                            <code>createMask()</code>
-                            <code>createTextAnnotation()</code>
-                            <code>createShapeAnnotation()</code>
-                            <code>enterDrawMode()</code>
-                            <code>resetImageTransform()</code>
-                            <code>exportOverlayState()</code>
-                            <code>importOverlayState()</code>
-                            <code>exportImageBase64()</code>
+                            <code>new ImageEditorCore()</code>
+                            <code>composePlugins()</code>
+                            <code>transformPlugin()</code>
+                            <code>historyPlugin()</code>
+                            <code>overlayFoundationPlugin()</code>
+                            <code>maskPlugin()</code>
+                            <code>annotationFoundationPlugin()</code>
+                            <code>textAnnotationPlugin()</code>
+                            <code>shapeAnnotationPlugin()</code>
+                            <code>drawAnnotationPlugin()</code>
+                            <code>modules.transform.zoomIn()</code>
+                            <code>modules.transform.rotate()</code>
+                            <code>modules.transform.flipHorizontal()</code>
+                            <code>modules.masks.create()</code>
+                            <code>modules.text.create()</code>
+                            <code>modules.shape.create()</code>
+                            <code>modules.draw.enter()</code>
+                            <code>modules.history.undo()</code>
+                            <code>modules.overlays.bringForward()</code>
+                            <code>modules.editor.saveState()</code>
+                            <code>modules.editor.loadFromState()</code>
+                            <code>modules.editor.exportImageBase64()</code>
                         </div>
                     </section>
                 </aside>
