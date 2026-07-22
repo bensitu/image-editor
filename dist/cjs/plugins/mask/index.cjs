@@ -1,12 +1,14 @@
 'use strict';
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
+var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CHiQxoA8.cjs');
 var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+var imageBudget = require('../../chunks/image-budget-e-EIVZb3.cjs');
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
-require('../../chunks/disposable-Sj4tt6Lk.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+require('../../chunks/disposable-pTo80E0l.cjs');
 
 function markMaskObject(object, meta) {
     const mask = object;
@@ -206,13 +208,14 @@ function detachMaskHoverHandlers(mask) {
 
 function resolveNumeric(val, axis, fallback, canvas, options) {
     if (typeof val === 'number') {
-        return val;
+        return Number.isFinite(val) ? val : fallback;
     }
     if (typeof val === 'function') {
-        return val(canvas, options);
+        const resolved = val(canvas, options);
+        return Number.isFinite(resolved) ? resolved : fallback;
     }
-    if (typeof val === 'string' && val.endsWith('%')) {
-        const pct = parseFloat(val);
+    if (typeof val === 'string' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/iu.test(val)) {
+        const pct = Number(val.slice(0, -1));
         if (!Number.isFinite(pct)) {
             return fallback;
         }
@@ -222,10 +225,20 @@ function resolveNumeric(val, axis, fallback, canvas, options) {
     return fallback;
 }
 function coercePoint(pt) {
+    const coerceCoordinate = (value) => {
+        if (value === null ||
+            value === undefined ||
+            typeof value === 'boolean' ||
+            (typeof value === 'string' && value.trim().length === 0)) {
+            return Number.NaN;
+        }
+        const coordinate = Number(value);
+        return Number.isFinite(coordinate) ? coordinate : Number.NaN;
+    };
     if (Array.isArray(pt)) {
-        return { x: Number(pt[0]), y: Number(pt[1]) };
+        return { x: coerceCoordinate(pt[0]), y: coerceCoordinate(pt[1]) };
     }
-    return { x: Number(pt.x), y: Number(pt.y) };
+    return { x: coerceCoordinate(pt.x), y: coerceCoordinate(pt.y) };
 }
 
 const POLYGON_AREA_EPSILON = 1e-6;
@@ -242,6 +255,13 @@ function isFabricObjectLike(value) {
 function isStyleObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
+function copyMaskStyles(value) {
+    const styles = copySafeOwnProperties(value);
+    if (Array.isArray(styles.strokeDashArray)) {
+        styles.strokeDashArray = [...styles.strokeDashArray];
+    }
+    return styles;
+}
 function mergeMaskConfig(defaultMaskConfig, config) {
     const safeDefaultConfig = copySafeOwnProperties(defaultMaskConfig);
     const defaultStyles = safeDefaultConfig.styles;
@@ -249,8 +269,8 @@ function mergeMaskConfig(defaultMaskConfig, config) {
     delete safeDefaultConfig.fabricGenerator;
     delete safeDefaultConfig.styles;
     const safeConfig = copySafeOwnProperties(config);
-    const configStyles = copySafeOwnProperties(config.styles);
-    const safeDefaultStyles = copySafeOwnProperties(isStyleObject(defaultStyles) ? defaultStyles : {});
+    const configStyles = copyMaskStyles(config.styles);
+    const safeDefaultStyles = copyMaskStyles(isStyleObject(defaultStyles) ? defaultStyles : {});
     return {
         ...safeDefaultConfig,
         ...safeConfig,
@@ -460,6 +480,13 @@ function createMask(context, config = {}) {
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+        if (!context.expandCanvasIfNeeded &&
+            (nextWidth > options.maxExportDimension ||
+                nextHeight > options.maxExportDimension ||
+                !imageBudget.isPixelAreaWithinBudget(nextWidth, nextHeight, options.maxExportPixels))) {
+            warnInvalidMask(options, 'canvas expansion exceeds the configured resource budget');
+            return null;
+        }
         if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
             preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
             resizeMaskCanvas(context, nextWidth, nextHeight);
@@ -737,6 +764,7 @@ function hideAllMaskLabels(context) {
 }
 
 const MASK_PLUGIN_ID = 'plugin:mask';
+const MAX_MASK_OBJECT_BYTES = 512 * 1024;
 const MASK_SERIALIZED_OBJECT_PROPERTIES = [
     'hasControls',
     'selectable',
@@ -788,15 +816,30 @@ function isSerializedMaskData(value) {
     if (!value || typeof value !== 'object')
         return false;
     const candidate = value;
-    return (!!candidate.object &&
-        typeof candidate.object === 'object' &&
-        Number.isSafeInteger(candidate.maskId) &&
-        Number(candidate.maskId) > 0 &&
-        typeof candidate.maskUid === 'string' &&
-        candidate.maskUid.length > 0 &&
-        typeof candidate.maskName === 'string' &&
-        typeof candidate.originalAlpha === 'number' &&
-        Number.isFinite(candidate.originalAlpha));
+    try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor))
+            return false;
+        const serializedObject = objectDescriptor.value;
+        return (safeFabricSerialization.isSafeSerializedFabricObject(serializedObject, {
+            rootTypes: ['rect', 'circle', 'ellipse', 'polygon'],
+        }) &&
+            new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength <=
+                MAX_MASK_OBJECT_BYTES &&
+            Number.isSafeInteger(candidate.maskId) &&
+            Number(candidate.maskId) > 0 &&
+            typeof candidate.maskUid === 'string' &&
+            candidate.maskUid.length > 0 &&
+            typeof candidate.maskName === 'string' &&
+            typeof candidate.originalAlpha === 'number' &&
+            Number.isFinite(candidate.originalAlpha) &&
+            (candidate.originalStroke === undefined ||
+                candidate.originalStroke === null ||
+                typeof candidate.originalStroke === 'string'));
+    }
+    catch {
+        return false;
+    }
 }
 function isPlainRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -1483,7 +1526,10 @@ function maskPlugin(options = {}) {
             const overlayRegistration = context.capabilities.require(foundations_overlay_index.OVERLAY_REGISTRATION_CAPABILITY);
             const host = Object.freeze({
                 ...diagnostics,
-                ...presentation,
+                backgroundColor: presentation.backgroundColor,
+                get layoutMode() {
+                    return presentation.layoutMode;
+                },
                 ...fabricRuntime,
                 ...canvas,
                 ...render,

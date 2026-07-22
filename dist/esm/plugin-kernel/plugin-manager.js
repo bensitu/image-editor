@@ -209,19 +209,22 @@ export class PluginManager {
         return this.operationRegistry.register(definition, 'core:host');
     }
     beginOperationForHost(operationId) {
-        if (!this.toolCoordinator.canRunOperation(operationId)) {
+        if (!this.canRunOperation(operationId)) {
             throw new PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
         }
         return this.operationRegistry.beginForHost(operationId);
     }
     runOperationForHost(operationId, args, task, options = {}) {
-        if (!this.toolCoordinator.canRunOperation(operationId)) {
+        if (!this.canRunOperation(operationId)) {
             return Promise.reject(new PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState));
         }
         return this.operationRegistry.runForHost(operationId, args, task, options);
     }
     waitForOperations() {
         return this.operationRegistry.waitForIdle();
+    }
+    hasRunningOperations() {
+        return this.operationRegistry.hasInFlightOperations();
     }
     abortOperationsForHost(reason) {
         return this.operationRegistry.abortAll(reason);
@@ -341,6 +344,9 @@ export class PluginManager {
             return;
         if (this.hostState === 'disposing' || this.hostState === 'initializing') {
             throw new PluginKernelStateError('dispose the Plugin Kernel synchronously', this.hostState);
+        }
+        if (this.operationRegistry.hasInFlightOperations()) {
+            throw new PluginKernelStateError('dispose the Plugin Kernel synchronously while operations are running', this.hostState);
         }
         this.hostState = 'disposing';
         const errors = this.cleanupAllSync();
@@ -685,8 +691,15 @@ export class PluginManager {
             },
         });
         const operations = Object.freeze({
-            begin: (operationId) => this.operationRegistry.begin(operationId, pluginId),
-            run: (operationId, args, task, options = {}) => this.operationRegistry.run(operationId, pluginId, args, task, options),
+            begin: (operationId) => {
+                if (!this.canRunOperation(operationId)) {
+                    throw this.operationRejectedByTool(operationId);
+                }
+                return this.operationRegistry.begin(operationId, pluginId);
+            },
+            run: (operationId, args, task, options = {}) => this.canRunOperation(operationId)
+                ? this.operationRegistry.run(operationId, pluginId, args, task, options)
+                : Promise.reject(this.operationRejectedByTool(operationId)),
             get: (operationId) => this.operationRegistry.get(operationId),
             isActive: (operationId) => this.operationRegistry.isActive(operationId),
         });
@@ -842,6 +855,13 @@ export class PluginManager {
     }
     async cleanupAll() {
         const errors = [];
+        try {
+            await this.operationRegistry.suspend(new DOMException('Plugin Kernel disposal aborted active operations.', 'AbortError'));
+        }
+        catch (error) {
+            errors.push(error);
+            reportErrorSafely(this.options.errorSink, error);
+        }
         const records = [...this.installationOrder]
             .reverse()
             .map((pluginId) => this.installed.get(pluginId))
@@ -947,6 +967,17 @@ export class PluginManager {
         if (this.hostState !== 'created') {
             throw new PluginKernelStateError('install a plugin', this.hostState);
         }
+    }
+    canRunOperation(operationId) {
+        var _a;
+        const activeToolId = this.toolCoordinator.getActiveToolId();
+        const operation = this.operationRegistry.get(operationId);
+        if (activeToolId && ((_a = operation === null || operation === void 0 ? void 0 : operation.allowedDuringTool) === null || _a === void 0 ? void 0 : _a.includes(activeToolId)))
+            return true;
+        return this.toolCoordinator.canRunOperation(operationId);
+    }
+    operationRejectedByTool(operationId) {
+        return new PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
     }
     assertLifecycleReady(operation) {
         this.assertUsable(operation);

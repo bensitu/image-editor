@@ -2,12 +2,12 @@
 
 var errors = require('../chunks/errors-DeAfrgDC.cjs');
 var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-B4W6-2BB.cjs');
 var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
 var pluginPlan = require('../chunks/plugin-plan-7_a5v9uF.cjs');
-var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManager = require('../chunks/plugin-manager-Bb8UQ105.cjs');
-var coreCapabilities = require('../chunks/core-capabilities-802kAEgU.cjs');
+var disposable = require('../chunks/disposable-pTo80E0l.cjs');
+var pluginManager = require('../chunks/plugin-manager-BLzAzBA9.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-DVJQ8w-Z.cjs');
 
 function forceReflow(element) {
     if (!element)
@@ -608,6 +608,43 @@ class ExportContributorRegistry {
 function isObject(value) {
     return typeof value === 'object' && value !== null;
 }
+function assertSafeStateValue(value, seen = new WeakSet(), path = '$') {
+    var _a;
+    if (!isObject(value) || seen.has(value))
+        return;
+    seen.add(value);
+    if (value instanceof Map) {
+        for (const [key, entry] of value) {
+            assertSafeStateValue(key, seen, `${path}.<map-key>`);
+            assertSafeStateValue(entry, seen, `${path}.<map-value>`);
+        }
+        return;
+    }
+    if (value instanceof Set) {
+        for (const entry of value)
+            assertSafeStateValue(entry, seen, `${path}.<set-value>`);
+        return;
+    }
+    if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value))
+        return;
+    for (const key of Object.getOwnPropertySymbols(value)) {
+        if ((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.enumerable) {
+            throw new errors.StateCloneError(`State at ${path} contains an enumerable symbol key.`);
+        }
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+        if (!(descriptor === null || descriptor === void 0 ? void 0 : descriptor.enumerable))
+            continue;
+        if (pluginIdentifier.isDangerousStateKey(key)) {
+            throw new errors.StateCloneError(`State contains dangerous key "${key}".`);
+        }
+        if (!('value' in descriptor)) {
+            throw new errors.StateCloneError(`State at ${path}.${key} contains an accessor property.`);
+        }
+        assertSafeStateValue(descriptor.value, seen, `${path}.${key}`);
+    }
+}
 function cloneFallback(value, seen) {
     var _a, _b;
     if (!isObject(value)) {
@@ -691,6 +728,7 @@ function deepFreeze(value, seen = new WeakSet()) {
 }
 function cloneStateValue(value) {
     try {
+        assertSafeStateValue(value);
         const structuredCloneFunction = globalThis.structuredClone;
         const cloned = typeof structuredCloneFunction === 'function'
             ? structuredCloneFunction(value)
@@ -841,15 +879,16 @@ class GeometryMutationCoordinator {
     }
     run(request) {
         this.assertActive('run a geometry mutation');
+        let metadata;
         try {
-            this.validateRequest(request);
+            metadata = this.validateRequest(request);
         }
         catch (error) {
             return Promise.reject(error);
         }
         const controller = new AbortController();
         this.activeControllers.add(controller);
-        const operation = this.performRun(request, controller.signal);
+        const operation = this.performRun(request, metadata, controller.signal);
         this.activePromises.add(operation);
         return operation.finally(() => {
             this.activePromises.delete(operation);
@@ -892,9 +931,8 @@ class GeometryMutationCoordinator {
         this.participants.clear();
         this.usedMutationIds.clear();
     }
-    async performRun(request, signal) {
-        var _a, _b, _c;
-        const metadata = cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+    async performRun(request, metadata, signal) {
+        var _a, _b;
         let before = null;
         let provisional = null;
         const participantSnapshot = Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order ||
@@ -1009,7 +1047,7 @@ class GeometryMutationCoordinator {
         }
         catch (error) {
             const failure = this.toGeometryFailure(request.id, error);
-            (_c = (_b = this.options).errorSink) === null || _c === void 0 ? void 0 : _c.call(_b, failure);
+            (_b = (_a = this.options).errorSink) === null || _b === void 0 ? void 0 : _b.call(_a, failure);
             throw failure;
         }
     }
@@ -1061,12 +1099,21 @@ class GeometryMutationCoordinator {
         if (typeof request.mutateBase !== 'function') {
             throw new errors.GeometryMutationError(request.id, 'mutateBase must be a function.');
         }
-        const metadata = JSON.stringify((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+        let clonedMetadata;
+        let serializedMetadata;
+        try {
+            clonedMetadata = cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+            serializedMetadata = JSON.stringify(clonedMetadata);
+        }
+        catch (error) {
+            throw new errors.GeometryMutationError(request.id, 'metadata must be safely JSON-serializable.', error);
+        }
         const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
-        if (new TextEncoder().encode(metadata).byteLength > maxMetadataBytes) {
+        if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
             throw new errors.GeometryMutationError(request.id, `metadata exceeds ${maxMetadataBytes} bytes.`);
         }
         this.usedMutationIds.add(request.id);
+        return clonedMetadata;
     }
     warn(warning) {
         var _a, _b, _c, _d;
@@ -1245,6 +1292,7 @@ class EditorLifecycleController {
     }
 }
 
+const DEFAULT_ROLLBACK_TIMEOUT_MS$1 = 30000;
 function isCancellation(error) {
     return (typeof error === 'object' &&
         error !== null &&
@@ -1265,6 +1313,7 @@ function immutableMetadata(value) {
 }
 class DocumentMutationCoordinator {
     constructor(options) {
+        var _a;
         Object.defineProperty(this, "options", {
             enumerable: true,
             configurable: true,
@@ -1301,6 +1350,10 @@ class DocumentMutationCoordinator {
             writable: true,
             value: false
         });
+        const rollbackTimeoutMs = (_a = options.rollbackTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_ROLLBACK_TIMEOUT_MS$1;
+        if (!Number.isSafeInteger(rollbackTimeoutMs) || rollbackTimeoutMs <= 0) {
+            throw new errors.DocumentMutationRegistrationError('rollbackTimeoutMs must be a positive safe integer.');
+        }
     }
     get isRunning() {
         return this.activePromises.size > 0;
@@ -1480,9 +1533,9 @@ class DocumentMutationCoordinator {
         const requestRollback = request.rollback
             ? {
                 enabled: false,
-                run: async (cause) => {
+                run: async (cause, signal) => {
                     var _a;
-                    const rollbackContext = this.createRollbackContext(context, cause, outcome.result);
+                    const rollbackContext = this.createRollbackContext(context, cause, outcome.result, signal);
                     await ((_a = request.rollback) === null || _a === void 0 ? void 0 : _a.call(request, rollbackContext));
                 },
             }
@@ -1499,9 +1552,9 @@ class DocumentMutationCoordinator {
             if (participant.rollback) {
                 session.rollbackEntries.push({
                     enabled: true,
-                    run: async (cause) => {
+                    run: async (cause, signal) => {
                         var _a;
-                        const rollbackContext = this.createRollbackContext(context, cause, outcome.result);
+                        const rollbackContext = this.createRollbackContext(context, cause, outcome.result, signal);
                         await ((_a = participant.rollback) === null || _a === void 0 ? void 0 : _a.call(participant, preparedValue, rollbackContext));
                     },
                 });
@@ -1551,66 +1604,97 @@ class DocumentMutationCoordinator {
         }));
         return context;
     }
-    createRollbackContext(context, cause, result) {
+    createRollbackContext(context, cause, result, signal) {
         return Object.freeze({
             ...context,
-            signal: new AbortController().signal,
+            signal,
             cause,
             result,
         });
     }
     async restoreAfterFailure(transactionId, session, cause) {
-        var _a, _b, _c, _d, _e, _f;
+        var _a, _b, _c, _d, _e, _f, _g;
         const rollbackErrors = [];
-        for (let index = session.rollbackEntries.length - 1; index >= 0; index -= 1) {
-            const entry = session.rollbackEntries[index];
-            if (!(entry === null || entry === void 0 ? void 0 : entry.enabled))
-                continue;
-            try {
-                await entry.run(cause);
+        const rollbackTimeoutMs = (_a = this.options.rollbackTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_ROLLBACK_TIMEOUT_MS$1;
+        const rollbackController = new AbortController();
+        const timeoutError = new Error(`Document mutation rollback timed out after ${rollbackTimeoutMs}ms.`);
+        timeoutError.name = 'TimeoutError';
+        const timeout = setTimeout(() => rollbackController.abort(timeoutError), rollbackTimeoutMs);
+        const runRollbackTask = async (task) => {
+            var _a;
+            if (rollbackController.signal.aborted) {
+                throw (_a = rollbackController.signal.reason) !== null && _a !== void 0 ? _a : timeoutError;
             }
-            catch (error) {
-                rollbackErrors.push(error);
+            let removeAbortListener = () => undefined;
+            const aborted = new Promise((resolve, reject) => {
+                const abort = () => { var _a; return reject((_a = rollbackController.signal.reason) !== null && _a !== void 0 ? _a : timeoutError); };
+                removeAbortListener = () => rollbackController.signal.removeEventListener('abort', abort);
+                rollbackController.signal.addEventListener('abort', abort, { once: true });
+            });
+            try {
+                await Promise.race([task(), aborted]);
+            }
+            finally {
+                removeAbortListener();
+            }
+        };
+        try {
+            for (let index = session.rollbackEntries.length - 1; index >= 0; index -= 1) {
+                const entry = session.rollbackEntries[index];
+                if (!(entry === null || entry === void 0 ? void 0 : entry.enabled))
+                    continue;
+                try {
+                    await runRollbackTask(() => entry.run(cause, rollbackController.signal));
+                }
+                catch (error) {
+                    rollbackErrors.push(error);
+                }
+            }
+            let targetedStateMatches = false;
+            const targetedRollbackRan = session.rollbackEntries.some((entry) => entry.enabled);
+            if (targetedRollbackRan &&
+                rollbackErrors.length === 0 &&
+                this.options.mementos.matches) {
+                try {
+                    targetedStateMatches = await this.options.mementos.matches(session.before);
+                }
+                catch (error) {
+                    rollbackErrors.push(error);
+                }
+            }
+            if (!targetedStateMatches) {
+                try {
+                    await runRollbackTask(() => this.options.mementos.restore(session.before, {
+                        rollbackOnFailure: false,
+                        signal: rollbackController.signal,
+                    }));
+                }
+                catch (restoreError) {
+                    rollbackErrors.push(restoreError);
+                    const failure = new errors.DocumentMutationUnrecoverableError(transactionId, cause, Object.freeze(rollbackErrors));
+                    (_c = (_b = this.options).faultSink) === null || _c === void 0 ? void 0 : _c.call(_b, failure);
+                    (_e = (_d = this.options).errorSink) === null || _e === void 0 ? void 0 : _e.call(_d, failure);
+                    return failure;
+                }
+            }
+            if (!this.options.state.isDisposed()) {
+                try {
+                    this.options.state.requestRender();
+                }
+                catch (error) {
+                    rollbackErrors.push(error);
+                }
             }
         }
-        let targetedStateMatches = false;
-        const targetedRollbackRan = session.rollbackEntries.some((entry) => entry.enabled);
-        if (targetedRollbackRan && rollbackErrors.length === 0 && this.options.mementos.matches) {
-            try {
-                targetedStateMatches = await this.options.mementos.matches(session.before);
-            }
-            catch (error) {
-                rollbackErrors.push(error);
-            }
-        }
-        if (!targetedStateMatches) {
-            try {
-                await this.options.mementos.restore(session.before, {
-                    rollbackOnFailure: false,
-                });
-            }
-            catch (restoreError) {
-                rollbackErrors.push(restoreError);
-                const failure = new errors.DocumentMutationUnrecoverableError(transactionId, cause, Object.freeze(rollbackErrors));
-                (_b = (_a = this.options).faultSink) === null || _b === void 0 ? void 0 : _b.call(_a, failure);
-                (_d = (_c = this.options).errorSink) === null || _d === void 0 ? void 0 : _d.call(_c, failure);
-                return failure;
-            }
-        }
-        if (!this.options.state.isDisposed()) {
-            try {
-                this.options.state.requestRender();
-            }
-            catch (error) {
-                rollbackErrors.push(error);
-            }
+        finally {
+            clearTimeout(timeout);
         }
         if (isCancellation(cause))
             return cause;
         const failure = cause instanceof errors.DocumentMutationError
             ? cause
             : new errors.DocumentMutationError(transactionId, cause instanceof Error ? cause.message : 'unknown failure.', cause, Object.freeze(rollbackErrors));
-        (_f = (_e = this.options).errorSink) === null || _f === void 0 ? void 0 : _f.call(_e, failure);
+        (_g = (_f = this.options).errorSink) === null || _g === void 0 ? void 0 : _g.call(_f, failure);
         return failure;
     }
     normalizeRequest(request) {
@@ -1649,8 +1733,17 @@ class DocumentMutationCoordinator {
             participantIds.add(participant.id);
         }
         participants.sort((left, right) => left.order - right.order);
-        const metadata = immutableMetadata(request.metadata);
-        const serializedMetadata = JSON.stringify(metadata);
+        let metadata;
+        let serializedMetadata;
+        try {
+            metadata = immutableMetadata(request.metadata);
+            serializedMetadata = JSON.stringify(metadata);
+        }
+        catch (error) {
+            if (error instanceof errors.DocumentMutationRegistrationError)
+                throw error;
+            throw new errors.DocumentMutationRegistrationError('Mutation metadata must be safely JSON-serializable.', request.id);
+        }
         const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
         if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
             throw new errors.DocumentMutationRegistrationError(`Mutation metadata exceeds ${maxMetadataBytes} bytes.`, request.id);
@@ -1695,6 +1788,7 @@ class DocumentMutationCoordinator {
     }
 }
 
+const DEFAULT_ROLLBACK_TIMEOUT_MS = 30000;
 function createAbortError(message) {
     if (typeof DOMException === 'function')
         return new DOMException(message, 'AbortError');
@@ -1706,6 +1800,43 @@ function throwIfAborted(signal) {
     var _a;
     if (signal.aborted)
         throw (_a = signal.reason) !== null && _a !== void 0 ? _a : createAbortError('State restoration was aborted.');
+}
+async function runBoundedRollback(task, timeoutMs) {
+    const controller = new AbortController();
+    const timeoutError = new Error(`Memento rollback timed out after ${timeoutMs}ms.`);
+    timeoutError.name = 'TimeoutError';
+    const timeout = setTimeout(() => controller.abort(timeoutError), timeoutMs);
+    let removeAbortListener = () => undefined;
+    const aborted = new Promise((resolve, reject) => {
+        const abort = () => { var _a; return reject((_a = controller.signal.reason) !== null && _a !== void 0 ? _a : timeoutError); };
+        removeAbortListener = () => controller.signal.removeEventListener('abort', abort);
+        controller.signal.addEventListener('abort', abort, { once: true });
+    });
+    try {
+        await Promise.race([task(controller.signal), aborted]);
+    }
+    finally {
+        clearTimeout(timeout);
+        removeAbortListener();
+    }
+}
+function stateValuesMatch(left, right) {
+    if (Object.is(left, right))
+        return true;
+    if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) {
+        return false;
+    }
+    const leftIsArray = Array.isArray(left);
+    if (leftIsArray !== Array.isArray(right))
+        return false;
+    const leftRecord = left;
+    const rightRecord = right;
+    const leftKeys = Object.keys(leftRecord);
+    const rightKeys = Object.keys(rightRecord);
+    if (leftKeys.length !== rightKeys.length)
+        return false;
+    return leftKeys.every((key) => Object.prototype.hasOwnProperty.call(rightRecord, key) &&
+        stateValuesMatch(leftRecord[key], rightRecord[key]));
 }
 class MementoService {
     constructor(coreAdapter, slices) {
@@ -1761,16 +1892,21 @@ class MementoService {
         if (!this.isTrusted(memento))
             return false;
         const current = this.captureInternal(false);
-        return (JSON.stringify(current.core) === JSON.stringify(memento.core) &&
-            JSON.stringify(current.plugins) === JSON.stringify(memento.plugins));
+        return (stateValuesMatch(current.core, memento.core) &&
+            stateValuesMatch(current.plugins, memento.plugins));
     }
     async restore(memento, options = {}) {
+        var _a;
         this.assertActive('restore a memento');
         if (!this.isTrusted(memento)) {
             throw new errors.MementoRestoreError('core', 'restore', new Error('Untrusted memento.'));
         }
         if (this.restoring) {
             throw new errors.MementoRestoreError('core', 'restore', new Error('Reentrant memento restoration is not allowed.'));
+        }
+        const rollbackTimeoutMs = (_a = options.rollbackTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_ROLLBACK_TIMEOUT_MS;
+        if (!Number.isSafeInteger(rollbackTimeoutMs) || rollbackTimeoutMs <= 0) {
+            throw new errors.MementoRestoreError('core', 'restore', new TypeError('rollbackTimeoutMs must be a positive safe integer.'));
         }
         const controller = new AbortController();
         const providedSignal = options.signal;
@@ -1791,9 +1927,10 @@ class MementoService {
                     throw error;
                 throw new errors.MementoRestoreError('core', 'restore', error);
             }
+            const rollbackMemento = rollback;
             const rollbackErrors = [];
             try {
-                await this.restoreInternal(rollback, 'rollback', new AbortController().signal);
+                await runBoundedRollback((signal) => this.restoreInternal(rollbackMemento, 'rollback', signal), rollbackTimeoutMs);
             }
             catch (rollbackError) {
                 rollbackErrors.push(rollbackError);
@@ -2123,6 +2260,13 @@ function inspectEncodedImageDataUrl(value) {
     return Object.freeze({ mimeType, encodedBytes, dimensions });
 }
 
+const EXTERNAL_RESOURCE_KEYS = new Set(['href', 'source', 'src', 'url']);
+function isExternalResourceKey(propertyName) {
+    if (!propertyName)
+        return false;
+    const normalized = propertyName.toLowerCase();
+    return EXTERNAL_RESOURCE_KEYS.has(normalized) || normalized.endsWith('url');
+}
 const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
     maxInputBytes: 16 * 1024 * 1024,
     maxDepth: 64,
@@ -2170,8 +2314,8 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
                 }
             }
             else if (limits.externalUrlPolicy === 'reject' &&
-                (propertyName === 'src' || propertyName === 'url') &&
-                /^(?:https?:)?\/\//i.test(value)) {
+                isExternalResourceKey(propertyName) &&
+                /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(value)) {
                 throw new errors.SnapshotValidationError('external URL references are forbidden.', path);
             }
         }
@@ -2190,29 +2334,25 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
     if (prototype !== Object.prototype && prototype !== null && !Array.isArray(value)) {
         throw new errors.SnapshotValidationError('only plain objects and arrays are accepted.', path);
     }
+    if (Object.prototype.hasOwnProperty.call(value, 'toJSON') ||
+        Object.getOwnPropertySymbols(value).length > 0) {
+        throw new errors.SnapshotValidationError('toJSON hooks and symbol properties are forbidden.', path);
+    }
     ancestors.add(value);
     for (const key of Object.keys(value)) {
         if (pluginIdentifier.isDangerousStateKey(key)) {
             throw new errors.SnapshotValidationError(`dangerous key "${key}" is forbidden.`, `${path}.${key}`);
         }
-        inspectTree(value[key], limits, `${path}.${key}`, depth + 1, ancestors, counter, key);
-        if (key === 'metadata') {
-            const metadataBytes = byteLength(JSON.stringify(value[key]));
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor || !('value' in descriptor)) {
+            throw new errors.SnapshotValidationError('accessor properties are forbidden.', `${path}.${key}`);
+        }
+        const nestedValue = descriptor.value;
+        inspectTree(nestedValue, limits, `${path}.${key}`, depth + 1, ancestors, counter, key);
+        if (key === 'metadata' || key.endsWith('Metadata')) {
+            const metadataBytes = byteLength(JSON.stringify(nestedValue));
             if (metadataBytes > limits.maxMetadataBytes) {
                 throw new errors.SnapshotValidationError(`metadata exceeds ${limits.maxMetadataBytes} bytes.`, `${path}.${key}`);
-            }
-        }
-    }
-    if (!Array.isArray(value)) {
-        const record = value;
-        if (typeof record.width === 'number' && typeof record.height === 'number') {
-            const width = record.width;
-            const height = record.height;
-            if (width > 0 && height > 0 && width * height > limits.maxDecodedPixels) {
-                throw new errors.SnapshotValidationError(`decoded pixel count exceeds ${limits.maxDecodedPixels}.`, path);
-            }
-            if (width > limits.maxImageDimension || height > limits.maxImageDimension) {
-                throw new errors.SnapshotValidationError(`image dimensions exceed ${limits.maxImageDimension}.`, path);
             }
         }
     }
@@ -2671,6 +2811,7 @@ const DEFAULT_CORE_OPTIONS = Object.freeze({
     exportMultiplier: 1,
     initialImageBase64: '',
 });
+const MAX_RETAINED_DIAGNOSTICS = 1000;
 function positiveFinite(value, fallback) {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
@@ -2729,9 +2870,10 @@ function isLoadCancellation(error) {
         'name' in error &&
         error.name === 'AbortError');
 }
-function withCoreTimeout(promise, timeoutMs, label, signal) {
+function withCoreTimeout(task, timeoutMs, label, signal, disposeLateResult) {
     return new Promise((resolve, reject) => {
         const startedAt = Date.now();
+        const controller = new AbortController();
         let settled = false;
         const finish = (body) => {
             if (settled)
@@ -2741,16 +2883,37 @@ function withCoreTimeout(promise, timeoutMs, label, signal) {
             signal.removeEventListener('abort', abort);
             body();
         };
-        const abort = () => finish(() => reject(loadAbortReason(signal, `${label} was aborted.`)));
+        const abort = () => {
+            const reason = loadAbortReason(signal, `${label} was aborted.`);
+            controller.abort(reason);
+            finish(() => reject(reason));
+        };
         const timeoutId = setTimeout(() => {
-            finish(() => reject(new errors.CoreRuntimeError(`[ImageEditor] ${label} timed out after ${Date.now() - startedAt}ms.`, { code: 'IMAGE_LOAD_TIMEOUT' })));
+            const timeoutError = new errors.CoreRuntimeError(`[ImageEditor] ${label} timed out after ${Date.now() - startedAt}ms.`, { code: 'IMAGE_LOAD_TIMEOUT' });
+            controller.abort(timeoutError);
+            finish(() => reject(timeoutError));
         }, timeoutMs);
         signal.addEventListener('abort', abort, { once: true });
         if (signal.aborted) {
             abort();
             return;
         }
-        promise.then((value) => finish(() => resolve(value)), (error) => finish(() => reject(error)));
+        try {
+            task(controller.signal).then((value) => {
+                if (settled) {
+                    try {
+                        disposeLateResult === null || disposeLateResult === void 0 ? void 0 : disposeLateResult(value);
+                    }
+                    catch {
+                    }
+                    return;
+                }
+                finish(() => resolve(value));
+            }, (error) => finish(() => reject(error)));
+        }
+        catch (error) {
+            finish(() => reject(error));
+        }
     });
 }
 function toAffineMatrix(value) {
@@ -3037,7 +3200,9 @@ class ImageEditorCore {
         if (!ownerDocument)
             throw new errors.CoreRuntimeError('[ImageEditor] Canvas document is unavailable.');
         const canvasElement = resolveElement(elements.canvas, ownerDocument);
-        if (!(canvasElement instanceof ownerDocument.defaultView.HTMLCanvasElement)) {
+        if (!canvasElement ||
+            canvasElement.tagName.toLowerCase() !== 'canvas' ||
+            typeof canvasElement.getContext !== 'function') {
             throw new errors.CoreRuntimeError('[ImageEditor] Core canvas element was not found.');
         }
         this.canvasElement = canvasElement;
@@ -3084,10 +3249,10 @@ class ImageEditorCore {
             await this.plugins.runOperationForHost('core:load-image', source, async (loadSource, operationContext) => {
                 const sequence = ++this.loadSequence;
                 this.latestLoadSequence = sequence;
-                const image = await withCoreTimeout(this.fabric.FabricImage.fromURL(loadSource, {
+                const image = await withCoreTimeout((signal) => this.fabric.FabricImage.fromURL(loadSource, {
                     crossOrigin: 'anonymous',
-                    signal: operationContext.signal,
-                }), this.options.imageLoadTimeoutMs, 'FabricImage.fromURL', operationContext.signal);
+                    signal,
+                }), this.options.imageLoadTimeoutMs, 'FabricImage.fromURL', operationContext.signal, (lateImage) => lateImage.dispose());
                 this.assertCurrentLoad(sequence, operationContext.signal);
                 const naturalWidth = Number(image.width) || 0;
                 const naturalHeight = Number(image.height) || 0;
@@ -3219,13 +3384,13 @@ class ImageEditorCore {
     }
     async loadFromState(input, options = {}) {
         this.assertReady('load state');
-        const prepared = await this.snapshots.prepareForLoad(input, {
-            missingPluginPolicy: options.missingPluginPolicy,
-            migrations: options.migrations,
-            signal: options.signal,
-        });
-        const sequence = ++this.stateLoadSequence;
         try {
+            const prepared = await this.snapshots.prepareForLoad(input, {
+                missingPluginPolicy: options.missingPluginPolicy,
+                migrations: options.migrations,
+                signal: options.signal,
+            });
+            const sequence = ++this.stateLoadSequence;
             await this.documentMutations.run({
                 id: `core:load-state-transaction:${sequence}`,
                 kind: 'compound',
@@ -3251,7 +3416,8 @@ class ImageEditorCore {
             this.updatePlaceholder();
         }
         catch (error) {
-            this.reportError(error, 'loadFromState failed.');
+            if (!isLoadCancellation(error))
+                this.reportError(error, 'loadFromState failed.');
             throw error;
         }
     }
@@ -3323,13 +3489,15 @@ class ImageEditorCore {
     dispose() {
         if (this.lifecycle.current === 'disposed' || this.lifecycle.current === 'disposing')
             return;
-        if (this.geometry.isRunning || this.documentMutations.isRunning) {
-            void this.disposeAsync();
+        if (this.geometry.isRunning ||
+            this.documentMutations.isRunning ||
+            this.plugins.hasRunningOperations()) {
+            this.observeDetachedDisposal(this.disposeAsync());
             return;
         }
         if (!this.lifecycle.beginDisposal())
             return;
-        const errors$1 = [];
+        const errors = [];
         for (const cleanup of [
             () => this.plugins.disposeSync(),
             () => this.geometry.disposeSync(),
@@ -3346,21 +3514,35 @@ class ImageEditorCore {
                 cleanup();
             }
             catch (error) {
-                errors$1.push(error);
+                errors.push(error);
             }
         }
         const canvas = this.canvas;
-        this.clearRuntimeReferences();
+        try {
+            this.clearRuntimeReferences();
+        }
+        catch (error) {
+            errors.push(error);
+        }
+        let canvasDispose;
         if (canvas) {
-            const canvasDispose = canvas.dispose();
-            if (canvasDispose && typeof canvasDispose.then === 'function') {
-                this.disposePromise = Promise.resolve(canvasDispose).then(() => undefined);
+            try {
+                canvasDispose = canvas.dispose();
+            }
+            catch (error) {
+                errors.push(error);
             }
         }
-        this.lifecycle.completeDisposal();
-        if (errors$1.length > 0) {
-            throw new errors.CoreRuntimeError(`[ImageEditor] Core disposal completed with ${errors$1.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors$1) });
+        if (canvasDispose && typeof canvasDispose.then === 'function') {
+            const disposal = Promise.resolve(canvasDispose).then(() => this.completeDisposal(errors, 'Core disposal'), (error) => {
+                errors.push(error);
+                this.completeDisposal(errors, 'Core disposal');
+            });
+            this.disposePromise = disposal;
+            this.observeDetachedDisposal(disposal);
+            return;
         }
+        this.completeDisposal(errors, 'Core disposal');
     }
     disposeAsync() {
         var _a;
@@ -3628,9 +3810,12 @@ class ImageEditorCore {
         });
     }
     createPresentationPort() {
+        const resolveLayoutMode = () => this.layoutMode;
         return Object.freeze({
             backgroundColor: this.options.backgroundColor,
-            layoutMode: this.layoutMode,
+            get layoutMode() {
+                return resolveLayoutMode();
+            },
         });
     }
     createFabricRuntimePort() {
@@ -3936,9 +4121,16 @@ class ImageEditorCore {
     }
     recordDiagnostic(error, message) {
         const classification = errors.classifyCoreError(error);
-        const code = error && typeof error === 'object' && typeof Reflect.get(error, 'code') === 'string'
-            ? String(Reflect.get(error, 'code'))
-            : 'UNCLASSIFIED_CORE_ERROR';
+        let errorCode;
+        if (error && typeof error === 'object') {
+            try {
+                errorCode = Reflect.get(error, 'code');
+            }
+            catch {
+                errorCode = undefined;
+            }
+        }
+        const code = typeof errorCode === 'string' ? errorCode : 'UNCLASSIFIED_CORE_ERROR';
         const diagnostic = Object.freeze({
             ...classification,
             timestamp: Date.now(),
@@ -3949,6 +4141,9 @@ class ImageEditorCore {
                 : error,
         });
         this.diagnostics.push(diagnostic);
+        if (this.diagnostics.length > MAX_RETAINED_DIAGNOSTICS) {
+            this.diagnostics.splice(0, this.diagnostics.length - MAX_RETAINED_DIAGNOSTICS);
+        }
         return diagnostic;
     }
     assertReady(operation) {
@@ -3974,40 +4169,54 @@ class ImageEditorCore {
         this.viewportCache.clear();
     }
     async performDisposeAsync() {
-        const errors$1 = [];
+        const errors = [];
         for (const cleanup of [
             () => this.geometry.dispose(),
             () => this.documentMutations.dispose(),
             () => this.plugins.dispose(),
+            () => this.snapshots.dispose(),
+            () => this.exportContributors.dispose(),
+            () => this.mementos.dispose(),
+            () => this.transientObjects.dispose(),
+            () => this.externalObjects.dispose(),
+            () => this.objectProperties.dispose(),
+            () => this.slices.dispose(),
         ]) {
             try {
                 await cleanup();
             }
             catch (error) {
-                errors$1.push(error);
+                errors.push(error);
             }
         }
-        this.snapshots.dispose();
-        this.exportContributors.dispose();
-        this.mementos.dispose();
-        this.transientObjects.dispose();
-        this.externalObjects.dispose();
-        this.objectProperties.dispose();
-        this.slices.dispose();
         const canvas = this.canvas;
-        this.clearRuntimeReferences();
+        try {
+            this.clearRuntimeReferences();
+        }
+        catch (error) {
+            errors.push(error);
+        }
         if (canvas) {
             try {
                 await canvas.dispose();
             }
             catch (error) {
-                errors$1.push(error);
+                errors.push(error);
             }
         }
+        this.completeDisposal(errors, 'Async disposal');
+    }
+    completeDisposal(errors$1, label) {
         this.lifecycle.completeDisposal();
         if (errors$1.length > 0) {
-            throw new errors.CoreRuntimeError(`[ImageEditor] Async disposal completed with ${errors$1.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors$1) });
+            throw new errors.CoreRuntimeError(`[ImageEditor] ${label} completed with ${errors$1.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors$1) });
         }
+    }
+    observeDetachedDisposal(disposal) {
+        void disposal.catch((error) => {
+            this.recordDiagnostic(error, 'Detached Core disposal completed with cleanup failures.');
+            this.reportError(error, 'Detached Core disposal completed with cleanup failures.');
+        });
     }
 }
 

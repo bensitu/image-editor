@@ -11,6 +11,7 @@ import {
     ImageEditorCore,
     definePluginRef,
 } from '../../src/core/index.js';
+import { CORE_PRESENTATION_CAPABILITY } from '../../src/sdk/index.js';
 import {
     disposeEditor,
     fabric,
@@ -149,6 +150,69 @@ test('disposing and disposed states reject init with typed errors', async () => 
     assert.equal(editor.getLifecycleState(), 'disposed');
     await assert.rejects(editor.init({ canvas: ids.canvas }), EditorDisposedError);
     assert.equal(editor.disposeAsync(), editor.disposeAsync());
+});
+
+test('synchronous dispose remains disposing until asynchronous Canvas cleanup settles', async () => {
+    const ids = resetEditorDom();
+    const BaseCanvas = fabric.Canvas;
+    let releaseCanvasDispose;
+    const canvasDisposeGate = new Promise((resolve) => {
+        releaseCanvasDispose = resolve;
+    });
+    const injectedFabric = {
+        ...fabric,
+        Canvas: class DeferredDisposeCanvas extends BaseCanvas {
+            async dispose() {
+                await canvasDisposeGate;
+                return super.dispose();
+            }
+        },
+    };
+    const editor = new ImageEditorCore(injectedFabric);
+    await editor.init({ canvas: ids.canvas });
+
+    editor.dispose();
+    assert.equal(editor.getLifecycleState(), 'disposing');
+    const disposal = editor.disposeAsync();
+    releaseCanvasDispose();
+    await disposal;
+    assert.equal(editor.getLifecycleState(), 'disposed');
+});
+
+test('asynchronous disposal aggregates synchronous cleanup failures and still completes lifecycle', async () => {
+    const { editor, ids } = createCore();
+    await editor.init({ canvas: ids.canvas });
+    editor.snapshots.dispose = () => {
+        throw new Error('synthetic Snapshot cleanup failure');
+    };
+
+    await assert.rejects(
+        editor.disposeAsync(),
+        (error) =>
+            error.code === 'CORE_DISPOSE_ERROR' &&
+            error.cause.some((cause) => cause?.message === 'synthetic Snapshot cleanup failure'),
+    );
+    assert.equal(editor.getLifecycleState(), 'disposed');
+});
+
+test('Core Presentation capability reads the current layout mode', () => {
+    const editor = new ImageEditorCore(fabric, { defaultLayoutMode: 'fit' });
+    const plugin = {
+        ref: definePluginRef('example-test:presentation-probe', '1.0.0'),
+        version: '1.0.0',
+        setupMode: 'sync',
+        requires: [{ token: CORE_PRESENTATION_CAPABILITY, range: '^1.0.0' }],
+        setup(context) {
+            const presentation = context.capabilities.require(CORE_PRESENTATION_CAPABILITY);
+            return Object.freeze({ getLayoutMode: () => presentation.layoutMode });
+        },
+    };
+    const probe = editor.use(plugin);
+
+    assert.equal(probe.getLayoutMode(), 'fit');
+    editor.setLayoutMode('cover');
+    assert.equal(probe.getLayoutMode(), 'cover');
+    editor.dispose();
 });
 
 test('root cutover keeps one Canvas and Base Image owner with no EditorRuntime constructor', async () => {

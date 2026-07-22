@@ -1,3 +1,6 @@
+import { settleAbortable } from '../../utils/abortable-promise.js';
+import { hasErrorName } from '../../utils/error.js';
+import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { CropValidationError } from './crop-errors.js';
 function isRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -57,10 +60,10 @@ async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
         abort();
     const timeout = setTimeout(() => controller.abort(new CropValidationError('Crop decode timed out.')), timeoutMs);
     try {
-        return await fabric.FabricImage.fromURL(dataUrl, {
+        return await settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
             crossOrigin: 'anonymous',
             signal: controller.signal,
-        });
+        }), controller.signal, (lateImage) => lateImage.dispose());
     }
     catch (error) {
         if (controller.signal.aborted)
@@ -103,13 +106,14 @@ function applyCropPresentation(source, target, rect) {
     target.setCoords();
 }
 export async function renderCropImage(host, source, rect, options, signal) {
-    var _a;
+    var _a, _b;
     if (signal.aborted)
         throw signal.reason;
     const policy = host.getImageResourcePolicy();
+    const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
     if (rect.widthPx > policy.maxExportDimension ||
         rect.heightPx > policy.maxExportDimension ||
-        rect.widthPx * rect.heightPx > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+        !isPixelAreaWithinBudget(rect.widthPx, rect.heightPx, pixelBudget)) {
         throw new CropValidationError('Crop dimensions exceed the Core resource policy.');
     }
     const ownerDocument = (_a = source.getElement().ownerDocument) !== null && _a !== void 0 ? _a : globalThis.document;
@@ -121,10 +125,21 @@ export async function renderCropImage(host, source, rect, options, signal) {
     const context = surface.getContext('2d');
     if (!context)
         throw new CropValidationError('Crop rendering context is unavailable.');
-    context.drawImage(source.getElement(), rect.leftPx, rect.topPx, rect.widthPx, rect.heightPx, 0, 0, rect.widthPx, rect.heightPx);
-    if (signal.aborted)
-        throw signal.reason;
-    const dataUrl = surface.toDataURL(options.mimeType, options.format === 'png' ? undefined : options.quality);
+    let dataUrl;
+    try {
+        context.drawImage(source.getElement(), rect.leftPx, rect.topPx, rect.widthPx, rect.heightPx, 0, 0, rect.widthPx, rect.heightPx);
+        if (signal.aborted)
+            throw signal.reason;
+        dataUrl = surface.toDataURL(options.mimeType, options.format === 'png' ? undefined : options.quality);
+    }
+    catch (error) {
+        if (signal.aborted)
+            throw (_b = signal.reason) !== null && _b !== void 0 ? _b : error;
+        if (hasErrorName(error, 'SecurityError')) {
+            throw new CropValidationError('Crop pixels cannot be exported because canvas access is blocked.');
+        }
+        throw error;
+    }
     if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) {
         throw new CropValidationError('Crop output exceeds the Core input budget.');
     }

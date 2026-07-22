@@ -9,6 +9,7 @@ import type { StateSliceRegistry } from './state-slice-registry.js';
 export interface MementoRestoreOptions {
     readonly signal?: AbortSignal;
     readonly rollbackOnFailure?: boolean;
+    readonly rollbackTimeoutMs?: number;
 }
 export declare class MementoService implements Disposable {
     private readonly coreAdapter;

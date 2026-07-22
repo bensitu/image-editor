@@ -4,11 +4,12 @@ import test from 'node:test';
 import {
     DocumentMutationCoordinator,
     DocumentMutationError,
+    DocumentMutationRegistrationError,
     DocumentMutationUnrecoverableError,
 } from '../../src/core-runtime/mutation/index.js';
 import { OperationRegistry } from '../../src/plugin-kernel/index.js';
 
-function createHarness({ historyAvailable = true } = {}) {
+function createHarness({ historyAvailable = true, rollbackTimeoutMs } = {}) {
     const calls = [];
     const events = [];
     const history = [];
@@ -70,6 +71,7 @@ function createHarness({ historyAvailable = true } = {}) {
                 events.push(descriptor);
             },
         },
+        rollbackTimeoutMs,
     });
 
     function registerOperation(id, domains = ['document', 'state']) {
@@ -109,6 +111,36 @@ function createHarness({ historyAvailable = true } = {}) {
         },
     };
 }
+
+test('cyclic mutation metadata is rejected as a registration error', async () => {
+    const harness = createHarness();
+    harness.registerOperation('test:mutate');
+    const metadata = {};
+    metadata.self = metadata;
+
+    await assert.rejects(
+        harness.coordinator.run(request(harness, { metadata })),
+        DocumentMutationRegistrationError,
+    );
+    assert.deepEqual(harness.calls, []);
+});
+
+test('document rollback has a hard deadline for non-cooperative callbacks', async () => {
+    const harness = createHarness({ rollbackTimeoutMs: 20 });
+    harness.registerOperation('test:mutate');
+
+    await assert.rejects(
+        harness.coordinator.run(
+            request(harness, {
+                mutate: () => {
+                    throw new Error('mutation failed');
+                },
+                rollback: () => new Promise(() => undefined),
+            }),
+        ),
+        DocumentMutationUnrecoverableError,
+    );
+});
 
 function request(harness, overrides = {}) {
     return {

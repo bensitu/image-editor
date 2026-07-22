@@ -8,6 +8,9 @@ import type * as FabricNS from 'fabric';
 
 import type { CoreImageInfo, FabricModule } from '../../core/index.js';
 import type { ImageResourcePolicyPort } from '../../sdk/index.js';
+import { settleAbortable } from '../../utils/abortable-promise.js';
+import { hasErrorName } from '../../utils/error.js';
+import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { MosaicValidationError } from './mosaic-errors.js';
 import { copyMosaicImagePresentation, type MosaicRasterCache } from './mosaic-raster-cache.js';
 import type {
@@ -112,10 +115,14 @@ async function decodeMosaicImage(
         timeoutMs,
     );
     try {
-        return await fabric.FabricImage.fromURL(dataUrl, {
-            crossOrigin: 'anonymous',
-            signal: controller.signal,
-        });
+        return await settleAbortable(
+            fabric.FabricImage.fromURL(dataUrl, {
+                crossOrigin: 'anonymous',
+                signal: controller.signal,
+            }),
+            controller.signal,
+            (lateImage) => lateImage.dispose(),
+        );
     } catch (error) {
         if (controller.signal.aborted) throw controller.signal.reason ?? error;
         throw new MosaicValidationError('Mosaic decode failed.');
@@ -133,16 +140,28 @@ export async function renderMosaicImage(
     signal: AbortSignal,
 ): Promise<MosaicRenderResult> {
     const policy = host.getImageResourcePolicy();
+    const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
     if (
         cache.widthPx > policy.maxExportDimension ||
         cache.heightPx > policy.maxExportDimension ||
-        cache.widthPx * cache.heightPx > Math.min(policy.maxInputPixels, policy.maxExportPixels)
+        !isPixelAreaWithinBudget(cache.widthPx, cache.heightPx, pixelBudget)
     ) {
         throw new MosaicValidationError('Mosaic dimensions exceed the Core resource policy.');
     }
-    cache.context.putImageData(cache.imageData, 0, 0);
-    if (signal.aborted) throw signal.reason;
-    const dataUrl = cache.surface.toDataURL(options.mimeType, options.quality);
+    let dataUrl: string;
+    try {
+        cache.context.putImageData(cache.imageData, 0, 0);
+        if (signal.aborted) throw signal.reason;
+        dataUrl = cache.surface.toDataURL(options.mimeType, options.quality);
+    } catch (error) {
+        if (signal.aborted) throw signal.reason ?? error;
+        if (hasErrorName(error, 'SecurityError')) {
+            throw new MosaicValidationError(
+                'Mosaic pixels cannot be exported because canvas access is blocked.',
+            );
+        }
+        throw error;
+    }
     if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) {
         throw new MosaicValidationError('Mosaic output exceeds the Core input budget.');
     }

@@ -100,10 +100,13 @@ export function fitCropRectToAspectRatio(rect, ratio, bounds) {
         return Object.freeze({ ...rect });
     let width = rect.widthPx;
     let height = rect.heightPx;
-    if (width / height > normalizedRatio) {
+    const currentRatio = width / height;
+    const ratioMatches = Number.isFinite(currentRatio) &&
+        Math.abs(currentRatio - normalizedRatio) <= Math.max(1, normalizedRatio) * 1e-9;
+    if (!ratioMatches && currentRatio > normalizedRatio) {
         width = height * normalizedRatio;
     }
-    else {
+    else if (!ratioMatches) {
         height = width / normalizedRatio;
     }
     const centerX = rect.leftPx + rect.widthPx / 2;

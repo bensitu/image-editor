@@ -314,6 +314,124 @@ test('dispose continues after plugin failures, aggregates them, and remains idem
     assert.throws(() => manager.getById('example-test:dispose-first'), PluginKernelDisposedError);
 });
 
+test('Plugin operations cannot bypass the active Tool policy', async () => {
+    const manager = new PluginManager();
+    const api = await manager.install(
+        pluginDefinition('example-test:tool-policy', {
+            setup: (context) => {
+                context.operations.register({
+                    id: 'example-test:blocked-operation',
+                    mode: 'mutation',
+                    conflictDomains: ['document'],
+                    reentrancy: 'reject',
+                });
+                context.operations.register({
+                    id: 'example-test:explicitly-allowed-operation',
+                    mode: 'mutation',
+                    conflictDomains: ['document'],
+                    reentrancy: 'reject',
+                    allowedDuringTool: ['example-test:restrictive-tool'],
+                });
+                context.tools.register({
+                    id: 'example-test:restrictive-tool',
+                    enter: () => undefined,
+                    exit: () => undefined,
+                    canRunOperation: () => false,
+                });
+                return {
+                    beginBlocked: () => context.operations.begin('example-test:blocked-operation'),
+                    enter: () =>
+                        context.tools.enter('example-test:restrictive-tool').then(() => undefined),
+                    runAllowed: () =>
+                        context.operations.run(
+                            'example-test:explicitly-allowed-operation',
+                            null,
+                            async () => 'allowed',
+                        ),
+                    runBlocked: () =>
+                        context.operations.run(
+                            'example-test:blocked-operation',
+                            null,
+                            async () => 'blocked',
+                        ),
+                };
+            },
+        }),
+    );
+    await manager.initialize();
+    await api.enter();
+
+    assert.throws(api.beginBlocked, PluginKernelStateError);
+    await assert.rejects(api.runBlocked(), PluginKernelStateError);
+    assert.equal(await api.runAllowed(), 'allowed');
+    await manager.dispose();
+});
+
+test('Plugin disposal aborts and awaits active operations before lifecycle teardown', async () => {
+    const manager = new PluginManager();
+    const cleanupGate = (() => {
+        let resolve;
+        const promise = new Promise((resolvePromise) => {
+            resolve = resolvePromise;
+        });
+        return { promise, resolve };
+    })();
+    const calls = [];
+    const api = await manager.install(
+        pluginDefinition('example-test:dispose-operation', {
+            setup: (context) => {
+                context.operations.register({
+                    id: 'example-test:dispose-operation-run',
+                    mode: 'mutation',
+                    conflictDomains: ['document'],
+                    reentrancy: 'queue',
+                });
+                return {
+                    run: () =>
+                        context.operations.run(
+                            'example-test:dispose-operation-run',
+                            null,
+                            async (_args, operation) => {
+                                calls.push('operation:start');
+                                await new Promise((resolve) => {
+                                    operation.signal.addEventListener('abort', resolve, {
+                                        once: true,
+                                    });
+                                });
+                                calls.push('operation:aborted');
+                                await cleanupGate.promise;
+                                calls.push('operation:settled');
+                            },
+                        ),
+                };
+            },
+            onDispose: () => calls.push('plugin:dispose'),
+        }),
+    );
+    await manager.initialize();
+    const running = api.run();
+    void running.catch(() => undefined);
+    await Promise.resolve();
+
+    let disposed = false;
+    const disposal = manager.dispose().then(() => {
+        disposed = true;
+    });
+    await Promise.resolve();
+    assert.equal(disposed, false);
+    assert.deepEqual(calls, ['operation:start', 'operation:aborted']);
+
+    cleanupGate.resolve();
+    await assert.rejects(running, (error) => error?.name === 'AbortError');
+    await disposal;
+    assert.deepEqual(calls, [
+        'operation:start',
+        'operation:aborted',
+        'operation:settled',
+        'plugin:dispose',
+    ]);
+});
+
 test('importing the Kernel does not install plugins or create shared singleton state', async () => {
     const first = new PluginManager();
     const second = new PluginManager();

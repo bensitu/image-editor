@@ -117,4 +117,6 @@ export declare class ImageEditorCore {
     private isDisposingOrDisposed;
     private clearRuntimeReferences;
     private performDisposeAsync;
+    private completeDisposal;
+    private observeDetachedDisposal;
 }

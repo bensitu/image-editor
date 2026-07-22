@@ -6,6 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import type {
     AnnotationAuthoringPort,
     AnnotationFeatureDefinition,
@@ -312,11 +313,23 @@ function isShapeStateData(value: unknown): value is ShapeStateData {
 }
 
 function isSerializedShape(value: unknown): value is SerializedShape {
-    if (!isPlainRecord(value) || value.version !== 1 || !isPlainRecord(value.object)) return false;
+    if (!isPlainRecord(value)) return false;
     try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor)) return false;
+        const serializedObject = objectDescriptor.value;
+        if (
+            value.version !== 1 ||
+            !isPlainRecord(serializedObject) ||
+            !isSafeSerializedFabricObject(serializedObject, {
+                rootTypes: ['rect', 'line', 'path'],
+            })
+        ) {
+            return false;
+        }
         const geometry = normalizeShapeGeometry(value.geometry);
-        const bytes = new TextEncoder().encode(JSON.stringify(value.object)).byteLength;
-        const type = String(value.object.type ?? '').toLowerCase();
+        const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
+        const type = String(serializedObject.type ?? '').toLowerCase();
         return (
             bytes <= MAX_SHAPE_OBJECT_BYTES &&
             geometry.kind === value.shapeKind &&

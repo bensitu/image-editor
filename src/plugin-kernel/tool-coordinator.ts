@@ -44,6 +44,7 @@ export class ToolCoordinator implements Disposable {
     private readonly tools = new Map<ToolId, RegisteredTool>();
     private active: RegisteredTool | null = null;
     private transitioning = false;
+    private transitionCompletion: Promise<void> | null = null;
     private disposed = false;
 
     constructor(private readonly options: ToolCoordinatorOptions = {}) {}
@@ -70,15 +71,7 @@ export class ToolCoordinator implements Disposable {
         };
         this.tools.set(definition.id, record);
 
-        return createDisposable(() => {
-            if (this.active === record) {
-                return this.exitCurrent('plugin-dispose').finally(() => {
-                    if (this.tools.get(definition.id) === record) this.tools.delete(definition.id);
-                });
-            }
-            if (this.tools.get(definition.id) === record) this.tools.delete(definition.id);
-            return undefined;
-        });
+        return createDisposable(() => this.disposeRegistration(record));
     }
 
     disposeSync(): void {
@@ -173,6 +166,7 @@ export class ToolCoordinator implements Disposable {
         if (this.disposed) return;
         let exitError: unknown;
         try {
+            await this.waitForTransition();
             if (this.active) await this.exitCurrent('host-dispose');
         } catch (error) {
             exitError = error;
@@ -210,11 +204,36 @@ export class ToolCoordinator implements Disposable {
             );
         }
         this.transitioning = true;
+        let completeTransition = (): void => undefined;
+        this.transitionCompletion = new Promise<void>((resolve) => {
+            completeTransition = resolve;
+        });
         try {
             await task();
         } finally {
+            completeTransition();
+            this.transitionCompletion = null;
             this.transitioning = false;
         }
+    }
+
+    private async disposeRegistration(record: RegisteredTool): Promise<void> {
+        await this.waitForTransition();
+        try {
+            if (this.active === record) {
+                await this.runTransition(record.definition.id, () =>
+                    this.exitCurrent('plugin-dispose'),
+                );
+            }
+        } finally {
+            if (this.tools.get(record.definition.id) === record) {
+                this.tools.delete(record.definition.id);
+            }
+        }
+    }
+
+    private async waitForTransition(): Promise<void> {
+        while (this.transitionCompletion) await this.transitionCompletion;
     }
 
     private assertActive(operation: string): void {

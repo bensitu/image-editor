@@ -14,14 +14,17 @@ var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
 var core_index = require('../../core/index.cjs');
 var pluginPlan = require('../../chunks/plugin-plan-7_a5v9uF.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/disposable-Sj4tt6Lk.cjs');
+require('../../chunks/disposable-pTo80E0l.cjs');
 require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
-require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
-require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
-require('../../chunks/core-capabilities-802kAEgU.cjs');
-require('../../chunks/visible-raster-bake-DIUNQiLO.cjs');
+require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
+require('../../chunks/plugin-definition-CT9AOCE7.cjs');
+require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+require('../../chunks/error-Cg6SL3PT.cjs');
+require('../../chunks/image-budget-e-EIVZb3.cjs');
+require('../../chunks/visible-raster-bake-DRW-_VAM.cjs');
+require('../../chunks/safe-fabric-serialization-CHiQxoA8.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-Bb8UQ105.cjs');
+require('../../chunks/plugin-manager-BLzAzBA9.cjs');
 
 function createRedactionPreset(fabric, options = {}) {
     const editor = new core_index.ImageEditorCore(fabric, options.core);

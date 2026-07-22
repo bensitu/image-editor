@@ -3,6 +3,7 @@ const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*
 const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, 'u');
 const partialVersionPattern = new RegExp(`^(${numericIdentifier})(?:\\.(${numericIdentifier}|[xX*]))?(?:\\.(${numericIdentifier}|[xX*]))?$`, 'u');
 const comparatorPattern = /^(<=|>=|<|>|=|~|\^)?(.+)$/u;
+const MAX_SEMVER_INPUT_LENGTH = 256;
 function parseRangeVersion(value) {
     const exact = semVerPattern.exec(value);
     if (exact) {
@@ -161,14 +162,19 @@ function satisfiesComparator(version, comparator) {
     }
 }
 export function isValidSemVer(version) {
-    return version.trim() === version && semVerPattern.test(version);
+    return (version.length <= MAX_SEMVER_INPUT_LENGTH &&
+        version.trim() === version &&
+        semVerPattern.test(version));
 }
 export function isValidSemVerRange(range) {
-    return normalizeRange(range) !== null;
+    return range.length <= MAX_SEMVER_INPUT_LENGTH && normalizeRange(range) !== null;
 }
 export function satisfiesSemVer(version, range) {
-    if (version.trim() !== version)
+    if (version.length > MAX_SEMVER_INPUT_LENGTH ||
+        range.length > MAX_SEMVER_INPUT_LENGTH ||
+        version.trim() !== version) {
         return false;
+    }
     const parsedVersion = semVerPattern.exec(version);
     const normalized = normalizeRange(range);
     if (!parsedVersion || !normalized)

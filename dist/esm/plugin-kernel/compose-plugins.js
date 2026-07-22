@@ -1,4 +1,5 @@
 import { InvalidPluginDefinitionError } from './errors.js';
+import { CORE_API_RANGE } from './plugin-manifest.js';
 export function composePlugins(options) {
     if (options.plugins.length === 0) {
         throw new InvalidPluginDefinitionError(`Composed plugin "${options.ref.id}" must declare at least one child plugin.`, options.ref.id);
@@ -13,7 +14,7 @@ export function composePlugins(options) {
             id: options.ref.id,
             version: options.version,
             apiVersion: options.ref.apiVersion,
-            engine: '^3.0.0',
+            engine: CORE_API_RANGE,
         }),
         async setup(context) {
             const childApis = [];

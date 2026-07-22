@@ -19,6 +19,7 @@ export interface CommittedEventBusOptions {
 
 export class CommittedEventBus<TEvents extends object = PluginEventMap> implements Disposable {
     private readonly listeners = new Map<string, CommittedEventListener<never>[]>();
+    private readonly emissionTails = new Map<string, Promise<void>>();
     private disposed = false;
 
     constructor(private readonly options: CommittedEventBusOptions = {}) {}
@@ -51,6 +52,22 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
     ): Promise<void> {
         this.assertActive('emit a committed event');
         this.assertEventName(eventName);
+        const previous = this.emissionTails.get(eventName) ?? Promise.resolve();
+        const emission = previous.then(() => this.dispatch(eventName, payload));
+        this.emissionTails.set(eventName, emission);
+        try {
+            await emission;
+        } finally {
+            if (this.emissionTails.get(eventName) === emission) {
+                this.emissionTails.delete(eventName);
+            }
+        }
+    }
+
+    private async dispatch<TKey extends keyof TEvents & string>(
+        eventName: TKey,
+        payload: TEvents[TKey],
+    ): Promise<void> {
         const snapshot = [...(this.listeners.get(eventName) ?? [])];
         for (let index = 0; index < snapshot.length; index += 1) {
             try {

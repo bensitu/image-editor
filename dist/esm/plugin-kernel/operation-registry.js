@@ -139,9 +139,7 @@ export class OperationRegistry {
                 return Promise.reject(new OperationRegistrationError(`Operation "${operationId}" has no coalesce function.`, ownerPluginId));
             }
             existingPending.args = coalesce(existingPending.args, args);
-            return new Promise((resolve, reject) => {
-                existingPending.waiters.push({ resolve, reject });
-            });
+            return this.addWaiter(existingPending, options.signal);
         }
         const request = {
             record,
@@ -153,9 +151,7 @@ export class OperationRegistry {
             state: 'pending',
             removeExternalAbortListener: null,
         };
-        const result = new Promise((resolve, reject) => {
-            request.waiters.push({ resolve, reject });
-        });
+        const result = this.addWaiter(request, options.signal);
         this.attachExternalAbort(request);
         this.schedule(request);
         return result;
@@ -188,6 +184,9 @@ export class OperationRegistry {
         if (this.isIdle())
             return Promise.resolve();
         return new Promise((resolve) => this.idleWaiters.add(resolve));
+    }
+    hasInFlightOperations() {
+        return !this.isIdle();
     }
     async abortAll(reason = abortError('All Plugin Kernel operations were aborted.')) {
         this.assertActive('abort operations');
@@ -386,14 +385,66 @@ export class OperationRegistry {
     findCoalesciblePending(record, parent) {
         return this.pendingRequests.find((request) => request.record === record && request.options.parent === parent);
     }
+    addWaiter(request, signal) {
+        return new Promise((resolve, reject) => {
+            const waiter = {
+                resolve,
+                reject,
+                removeAbortListener: null,
+                settled: false,
+            };
+            request.waiters.push(waiter);
+            if (!signal)
+                return;
+            const abort = () => {
+                var _a, _b;
+                if (waiter.settled)
+                    return;
+                if (request.state === 'active' && request.active && request.waiters.length === 1) {
+                    (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+                    waiter.removeAbortListener = null;
+                    this.abortActive(request.active, abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`));
+                    return;
+                }
+                waiter.settled = true;
+                (_b = waiter.removeAbortListener) === null || _b === void 0 ? void 0 : _b.call(waiter);
+                waiter.removeAbortListener = null;
+                const index = request.waiters.indexOf(waiter);
+                if (index >= 0)
+                    request.waiters.splice(index, 1);
+                reject(abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`));
+                if (request.waiters.length === 0) {
+                    this.abortRequestWithoutWaiters(request, signal);
+                }
+            };
+            signal.addEventListener('abort', abort, { once: true });
+            waiter.removeAbortListener = () => signal.removeEventListener('abort', abort);
+            if (signal.aborted)
+                abort();
+        });
+    }
+    abortRequestWithoutWaiters(request, signal) {
+        var _a;
+        const reason = abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`);
+        if (request.state === 'pending') {
+            this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
+            (_a = request.removeExternalAbortListener) === null || _a === void 0 ? void 0 : _a.call(request);
+            request.removeExternalAbortListener = null;
+            request.state = 'settled';
+        }
+        else if (request.active) {
+            this.abortActive(request.active, reason);
+        }
+        this.drainPending();
+        this.resolveIdleWaiters();
+    }
     attachExternalAbort(request) {
         var _a;
-        const signals = [
-            ...new Set([request.options.signal, (_a = request.options.parent) === null || _a === void 0 ? void 0 : _a.signal]),
-        ].filter((signal) => signal !== undefined);
+        const signals = [...new Set([(_a = request.options.parent) === null || _a === void 0 ? void 0 : _a.signal])].filter((signal) => signal !== undefined);
         if (signals.length === 0)
             return;
         const abort = () => {
+            var _a;
             const signal = signals.find((candidate) => candidate.aborted);
             const reason = signal
                 ? abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`)
@@ -401,6 +452,8 @@ export class OperationRegistry {
             if (request.state === 'pending') {
                 this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
                 this.rejectRequest(request, reason);
+                (_a = request.removeExternalAbortListener) === null || _a === void 0 ? void 0 : _a.call(request);
+                request.removeExternalAbortListener = null;
                 request.state = 'settled';
             }
             else if (request.active) {
@@ -434,13 +487,27 @@ export class OperationRegistry {
         this.resolveIdleWaiters();
     }
     resolveRequest(request, value) {
-        for (const waiter of request.waiters)
+        var _a;
+        for (const waiter of request.waiters) {
+            if (waiter.settled)
+                continue;
+            waiter.settled = true;
+            (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+            waiter.removeAbortListener = null;
             waiter.resolve(value);
+        }
         request.waiters.length = 0;
     }
     rejectRequest(request, error) {
-        for (const waiter of request.waiters)
+        var _a;
+        for (const waiter of request.waiters) {
+            if (waiter.settled)
+                continue;
+            waiter.settled = true;
+            (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+            waiter.removeAbortListener = null;
             waiter.reject(error);
+        }
         request.waiters.length = 0;
     }
     requireRegistered(operationId, ownerPluginId) {

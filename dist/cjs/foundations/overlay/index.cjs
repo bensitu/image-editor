@@ -1,11 +1,11 @@
 'use strict';
 
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
-var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
+var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
 var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
 
 function isFiniteTransformMatrix(matrix) {
     return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
@@ -53,12 +53,22 @@ function applyDeltaToObject(object, fullDelta, context) {
     object.setCoords();
     const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
     const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
+    const previousTransform = {
+        angle: object.angle,
+        scaleX: object.scaleX,
+        scaleY: object.scaleY,
+        skewX: object.skewX,
+        skewY: object.skewY,
+        flipX: object.flipX,
+        flipY: object.flipY,
+    };
     const originalCenter = object.getCenterPoint();
     const targetCenter = transformPointByMatrix(originalCenter, fullDelta, fabricUtil);
     const orientationDelta = context.preserveReadableText
         ? stripReflectionFromDelta(fullDelta, fabricUtil)
         : fullDelta;
     let restoreCenter = originalCenter;
+    let committed = false;
     try {
         object.set({ originX: 'center', originY: 'center' });
         object.setPositionByOrigin(originalCenter, 'center', 'center');
@@ -82,8 +92,11 @@ function applyDeltaToObject(object, fullDelta, context) {
             });
         }
         restoreCenter = targetCenter;
+        committed = true;
     }
     finally {
+        if (!committed)
+            object.set(previousTransform);
         object.set({ originX: previousOriginX, originY: previousOriginY });
         object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
@@ -197,8 +210,22 @@ function validateStateShape(value) {
 function getImageExportRegion(image, canvas) {
     image.setCoords();
     const bounds = image.getBoundingRect();
-    const canvasWidth = Math.max(1, Math.round(canvas.getWidth()));
-    const canvasHeight = Math.max(1, Math.round(canvas.getHeight()));
+    const measuredCanvasWidth = canvas.getWidth();
+    const measuredCanvasHeight = canvas.getHeight();
+    const canvasWidth = Number.isFinite(measuredCanvasWidth) && measuredCanvasWidth > 0
+        ? Math.max(1, Math.round(measuredCanvasWidth))
+        : 1;
+    const canvasHeight = Number.isFinite(measuredCanvasHeight) && measuredCanvasHeight > 0
+        ? Math.max(1, Math.round(measuredCanvasHeight))
+        : 1;
+    if (!Number.isFinite(bounds.left) ||
+        !Number.isFinite(bounds.top) ||
+        !Number.isFinite(bounds.width) ||
+        !Number.isFinite(bounds.height) ||
+        bounds.width <= 0 ||
+        bounds.height <= 0) {
+        return Object.freeze({ left: 0, top: 0, width: canvasWidth, height: canvasHeight });
+    }
     const left = Math.min(canvasWidth - 1, Math.max(0, Math.floor(bounds.left)));
     const top = Math.min(canvasHeight - 1, Math.max(0, Math.floor(bounds.top)));
     const right = Math.min(canvasWidth, Math.max(left + 1, Math.ceil(bounds.left + bounds.width)));
@@ -1767,8 +1794,33 @@ function frameFromCorners(corners) {
     ];
 }
 function cornersMatch(actual, expected, epsilon = 1e-6) {
-    return actual.every((point, index) => Math.abs(point.x - expected[index].x) <= epsilon &&
-        Math.abs(point.y - expected[index].y) <= epsilon);
+    const coordinateScale = Math.max(1, ...actual.flatMap(({ x, y }) => [Math.abs(x), Math.abs(y)]), ...expected.flatMap(({ x, y }) => [Math.abs(x), Math.abs(y)]));
+    const tolerance = Math.max(epsilon, coordinateScale * 1e-9);
+    return actual.every((point, index) => Math.abs(point.x - expected[index].x) <= tolerance &&
+        Math.abs(point.y - expected[index].y) <= tolerance);
+}
+class OverlayStateRestoreError extends TypeError {
+    constructor(cause, rollbackError) {
+        super('Overlay State bounds failed and the original transform could not be restored.');
+        Object.defineProperty(this, "cause", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: cause
+        });
+        Object.defineProperty(this, "rollbackError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: rollbackError
+        });
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'OverlayStateRestoreError'
+        });
+    }
 }
 function restoreOverlayStateBounds(object, geometry, context, fabric) {
     if (!isOverlayStateBoundsGeometry(geometry)) {
@@ -1781,20 +1833,43 @@ function restoreOverlayStateBounds(object, geometry, context, fabric) {
         qrDecompose: (matrix) => fabric.util.qrDecompose(matrix),
         Point: fabric.Point,
     };
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-        object.setCoords();
-        const sourceCorners = object.getCoords();
-        if (sourceCorners.length !== 4) {
-            throw new TypeError('Overlay State bounds require four object corners.');
+    const originalTransform = {
+        left: object.left,
+        top: object.top,
+        angle: object.angle,
+        scaleX: object.scaleX,
+        scaleY: object.scaleY,
+        skewX: object.skewX,
+        skewY: object.skewY,
+        flipX: object.flipX,
+        flipY: object.flipY,
+    };
+    try {
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+            object.setCoords();
+            const sourceCorners = object.getCoords();
+            if (sourceCorners.length !== 4) {
+                throw new TypeError('Overlay State bounds require four object corners.');
+            }
+            if (cornersMatch(sourceCorners, targetCorners))
+                return;
+            const delta = fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners)));
+            applyDeltaToObject(object, delta, { fabricUtil });
         }
-        if (cornersMatch(sourceCorners, targetCorners))
-            return;
-        const delta = fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners)));
-        applyDeltaToObject(object, delta, { fabricUtil });
+        object.setCoords();
+        if (!cornersMatch(object.getCoords(), targetCorners)) {
+            throw new TypeError('Overlay State bounds could not be restored precisely.');
+        }
     }
-    object.setCoords();
-    if (!cornersMatch(object.getCoords(), targetCorners)) {
-        throw new TypeError('Overlay State bounds could not be restored precisely.');
+    catch (error) {
+        try {
+            object.set(originalTransform);
+            object.setCoords();
+        }
+        catch (rollbackError) {
+            throw new OverlayStateRestoreError(error, rollbackError);
+        }
+        throw error;
     }
 }
 function objectPointToCanvas(object, point) {

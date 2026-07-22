@@ -60,6 +60,8 @@ export declare class OperationRegistry implements Disposable {
     private abortActive;
     private findConflicts;
     private findCoalesciblePending;
+    private addWaiter;
+    private abortRequestWithoutWaiters;
     private attachExternalAbort;
     private rejectPending;
     private resolveRequest;

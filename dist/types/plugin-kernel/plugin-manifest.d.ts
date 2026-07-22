@@ -6,6 +6,7 @@
 import { type PluginRef } from './plugin-ref.js';
 import type { PluginManifest, PluginPermission } from './plugin-types.js';
 export declare const CORE_API_VERSION = "3.0.0";
+export declare const CORE_API_RANGE = "^3.0.0";
 export declare function isPluginPermission(value: unknown): value is PluginPermission;
 /**
  * Validates and freezes metadata before a Plugin setup transaction can start.

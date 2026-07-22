@@ -6,6 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import {
     CoreRuntimeError,
     type DefaultMaskConfig,
@@ -122,6 +123,7 @@ interface MaskStateData {
 }
 
 const MASK_PLUGIN_ID = 'plugin:mask';
+const MAX_MASK_OBJECT_BYTES = 512 * 1024;
 
 type MaskCoreAccess = CoreDiagnosticsPort &
     CorePresentationPort &
@@ -188,17 +190,30 @@ function isMaskObject(value: FabricNS.FabricObject): value is MaskObject {
 function isSerializedMaskData(value: unknown): value is SerializedMaskData {
     if (!value || typeof value !== 'object') return false;
     const candidate = value as Partial<SerializedMaskData>;
-    return (
-        !!candidate.object &&
-        typeof candidate.object === 'object' &&
-        Number.isSafeInteger(candidate.maskId) &&
-        Number(candidate.maskId) > 0 &&
-        typeof candidate.maskUid === 'string' &&
-        candidate.maskUid.length > 0 &&
-        typeof candidate.maskName === 'string' &&
-        typeof candidate.originalAlpha === 'number' &&
-        Number.isFinite(candidate.originalAlpha)
-    );
+    try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor)) return false;
+        const serializedObject = objectDescriptor.value;
+        return (
+            isSafeSerializedFabricObject(serializedObject, {
+                rootTypes: ['rect', 'circle', 'ellipse', 'polygon'],
+            }) &&
+            new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength <=
+                MAX_MASK_OBJECT_BYTES &&
+            Number.isSafeInteger(candidate.maskId) &&
+            Number(candidate.maskId) > 0 &&
+            typeof candidate.maskUid === 'string' &&
+            candidate.maskUid.length > 0 &&
+            typeof candidate.maskName === 'string' &&
+            typeof candidate.originalAlpha === 'number' &&
+            Number.isFinite(candidate.originalAlpha) &&
+            (candidate.originalStroke === undefined ||
+                candidate.originalStroke === null ||
+                typeof candidate.originalStroke === 'string')
+        );
+    } catch {
+        return false;
+    }
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

@@ -286,6 +286,44 @@ test('always capture policy never stores a mutable Map payload', () => {
     assert.throws(() => harness.service.capture(), MementoCaptureError);
 });
 
+test('memento matching distinguishes undefined fields and ignores object key order', () => {
+    const harness = createHarness();
+    harness.setCore({ first: 1, second: 2 });
+    const target = harness.service.capture();
+
+    harness.setCore({ second: 2, first: 1 });
+    assert.equal(harness.service.matches(target), true);
+
+    harness.setCore({ first: 1, second: 2, optional: undefined });
+    assert.equal(harness.service.matches(target), false);
+});
+
+test('memento rollback has a hard deadline and releases the restoration lock', async () => {
+    const harness = createHarness();
+    let state = 1;
+    harness.registry.register({
+        id: 'example:rollback-timeout',
+        version: 1,
+        capture: () => state,
+        validate: (value) => valid(value),
+        restore: (value, context) => {
+            if (context.mode === 'rollback') return new Promise(() => undefined);
+            state = value;
+            throw new Error('force rollback');
+        },
+    });
+    const target = harness.service.capture();
+    state = 2;
+
+    await assert.rejects(
+        harness.service.restore(target, { rollbackTimeoutMs: 20 }),
+        (error) =>
+            error instanceof MementoRestoreError &&
+            error.rollbackErrors.some((rollbackError) => rollbackError?.name === 'TimeoutError'),
+    );
+    assert.doesNotThrow(() => harness.service.capture());
+});
+
 test('State Slice registration accepts only always and reference capture policies', () => {
     const harness = createHarness();
     const definition = {

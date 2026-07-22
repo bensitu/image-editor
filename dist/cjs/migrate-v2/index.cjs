@@ -109,7 +109,13 @@ function limit(value, fallback, label) {
     }
     return value;
 }
-function inspectJsonValue(value, limits, path = '$', depth = 0, ancestors = new WeakSet(), counter = { value: 0 }) {
+function inspectJsonValue(value, limits, path = '$', depth = 0, ancestors = new WeakSet(), counter = { objects: 0, bytes: 0 }) {
+    const addBytes = (amount) => {
+        counter.bytes += amount;
+        if (!Number.isSafeInteger(counter.bytes) || counter.bytes > limits.maxInputBytes) {
+            throw new SnapshotMigrationError('input.bytes', 'Snapshot input is too large.', path);
+        }
+    };
     if (depth > limits.maxDepth) {
         throw new SnapshotMigrationError('input.depth', 'Snapshot nesting is too deep.', path);
     }
@@ -123,24 +129,60 @@ function inspectJsonValue(value, limits, path = '$', depth = 0, ancestors = new 
         if (typeof value === 'number' && !Number.isFinite(value)) {
             throw new SnapshotMigrationError('input.number', 'Snapshot numbers must be finite.', path);
         }
+        const serialized = JSON.stringify(value);
+        if (serialized === undefined) {
+            throw new SnapshotMigrationError('input.value', 'Snapshot contains unsupported data.', path);
+        }
+        addBytes(byteLength(serialized));
         return;
     }
     if (!Array.isArray(value) && !isRecord(value)) {
         throw new SnapshotMigrationError('input.prototype', 'Snapshot data must contain only plain objects and arrays.', path);
     }
+    if (Object.prototype.hasOwnProperty.call(value, 'toJSON') ||
+        Object.getOwnPropertySymbols(value).length > 0) {
+        throw new SnapshotMigrationError('input.property', 'Snapshot data must not contain toJSON hooks or symbol properties.', path);
+    }
     if (ancestors.has(value)) {
         throw new SnapshotMigrationError('input.cycle', 'Snapshot data must not be cyclic.', path);
     }
-    counter.value += 1;
-    if (counter.value > limits.maxObjectCount) {
+    counter.objects += 1;
+    if (counter.objects > limits.maxObjectCount) {
         throw new SnapshotMigrationError('input.objects', 'Snapshot object count exceeds the configured limit.', path);
     }
     ancestors.add(value);
-    for (const key of Object.keys(value)) {
+    const keys = Object.keys(value);
+    if (Array.isArray(value)) {
+        const extraKey = keys.find((key) => !/^(?:0|[1-9]\d*)$/u.test(key) || Number(key) >= value.length);
+        if (extraKey !== undefined) {
+            throw new SnapshotMigrationError('input.array-property', 'Snapshot arrays must not contain named enumerable properties.', `${path}.${extraKey}`);
+        }
+        addBytes(2 + Math.max(0, value.length - 1));
+        for (let index = 0; index < value.length; index += 1) {
+            const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+            if (!descriptor) {
+                addBytes(4);
+                continue;
+            }
+            if (!('value' in descriptor)) {
+                throw new SnapshotMigrationError('input.accessor', 'Snapshot data must not contain accessor properties.', `${path}[${index}]`);
+            }
+            inspectJsonValue(descriptor.value, limits, `${path}[${index}]`, depth + 1, ancestors, counter);
+        }
+        ancestors.delete(value);
+        return;
+    }
+    addBytes(2 + Math.max(0, keys.length - 1));
+    for (const key of keys) {
         if (pluginIdentifier.isDangerousStateKey(key)) {
             throw new SnapshotMigrationError('input.key', `Snapshot contains dangerous key "${key}".`, `${path}.${key}`);
         }
-        inspectJsonValue(value[key], limits, Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, depth + 1, ancestors, counter);
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor || !('value' in descriptor)) {
+            throw new SnapshotMigrationError('input.accessor', 'Snapshot data must not contain accessor properties.', `${path}.${key}`);
+        }
+        addBytes(byteLength(JSON.stringify(key)) + 1);
+        inspectJsonValue(descriptor.value, limits, `${path}.${key}`, depth + 1, ancestors, counter);
     }
     ancestors.delete(value);
 }
@@ -149,6 +191,7 @@ function cloneInput(input, options) {
     const limits = {
         maxObjectCount: limit(options.maxObjectCount, MAX_OBJECT_COUNT, 'maxObjectCount'),
         maxDepth: limit(options.maxDepth, MAX_DEPTH, 'maxDepth'),
+        maxInputBytes,
     };
     let value;
     if (typeof input === 'string') {
@@ -175,12 +218,8 @@ function cloneInput(input, options) {
     return JSON.parse(serialized);
 }
 function detectionValue(input) {
-    if (typeof input !== 'string')
-        return input;
-    if (byteLength(input) > MAX_INPUT_BYTES)
-        return null;
     try {
-        return JSON.parse(input);
+        return cloneInput(input, {});
     }
     catch {
         return null;
@@ -366,6 +405,15 @@ function maskRecord(object, index, context) {
             ? object.opacity
             : 0.5;
     const serialized = sanitizedFabricObject(object);
+    let overlayMetadata;
+    if (object.overlayMetadata !== undefined) {
+        if (isRecord(object.overlayMetadata)) {
+            overlayMetadata = Object.freeze({ ...object.overlayMetadata });
+        }
+        else {
+            issue(context, 'mask.metadata', `${path}.overlayMetadata`, 'Mask metadata was skipped because it is not an object.');
+        }
+    }
     const data = Object.freeze({
         object: serialized,
         maskId: Number(object.maskId),
@@ -381,9 +429,7 @@ function maskRecord(object, index, context) {
         ...(typeof object.overlayPersistentId === 'string'
             ? { overlayPersistentId: object.overlayPersistentId }
             : {}),
-        ...(object.overlayMetadata !== undefined
-            ? { overlayMetadata: object.overlayMetadata }
-            : {}),
+        ...(overlayMetadata ? { overlayMetadata } : {}),
     });
     return Object.freeze({
         kind: 'mask:object',

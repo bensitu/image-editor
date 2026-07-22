@@ -49,12 +49,22 @@ export function applyDeltaToObject(object, fullDelta, context) {
     object.setCoords();
     const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
     const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
+    const previousTransform = {
+        angle: object.angle,
+        scaleX: object.scaleX,
+        scaleY: object.scaleY,
+        skewX: object.skewX,
+        skewY: object.skewY,
+        flipX: object.flipX,
+        flipY: object.flipY,
+    };
     const originalCenter = object.getCenterPoint();
     const targetCenter = transformPointByMatrix(originalCenter, fullDelta, fabricUtil);
     const orientationDelta = context.preserveReadableText
         ? stripReflectionFromDelta(fullDelta, fabricUtil)
         : fullDelta;
     let restoreCenter = originalCenter;
+    let committed = false;
     try {
         object.set({ originX: 'center', originY: 'center' });
         object.setPositionByOrigin(originalCenter, 'center', 'center');
@@ -78,8 +88,11 @@ export function applyDeltaToObject(object, fullDelta, context) {
             });
         }
         restoreCenter = targetCenter;
+        committed = true;
     }
     finally {
+        if (!committed)
+            object.set(previousTransform);
         object.set({ originX: previousOriginX, originY: previousOriginY });
         object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();

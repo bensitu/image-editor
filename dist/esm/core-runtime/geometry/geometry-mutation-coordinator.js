@@ -111,15 +111,16 @@ export class GeometryMutationCoordinator {
     }
     run(request) {
         this.assertActive('run a geometry mutation');
+        let metadata;
         try {
-            this.validateRequest(request);
+            metadata = this.validateRequest(request);
         }
         catch (error) {
             return Promise.reject(error);
         }
         const controller = new AbortController();
         this.activeControllers.add(controller);
-        const operation = this.performRun(request, controller.signal);
+        const operation = this.performRun(request, metadata, controller.signal);
         this.activePromises.add(operation);
         return operation.finally(() => {
             this.activePromises.delete(operation);
@@ -162,9 +163,8 @@ export class GeometryMutationCoordinator {
         this.participants.clear();
         this.usedMutationIds.clear();
     }
-    async performRun(request, signal) {
-        var _a, _b, _c;
-        const metadata = cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+    async performRun(request, metadata, signal) {
+        var _a, _b;
         let before = null;
         let provisional = null;
         const participantSnapshot = Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order ||
@@ -279,7 +279,7 @@ export class GeometryMutationCoordinator {
         }
         catch (error) {
             const failure = this.toGeometryFailure(request.id, error);
-            (_c = (_b = this.options).errorSink) === null || _c === void 0 ? void 0 : _c.call(_b, failure);
+            (_b = (_a = this.options).errorSink) === null || _b === void 0 ? void 0 : _b.call(_a, failure);
             throw failure;
         }
     }
@@ -331,12 +331,21 @@ export class GeometryMutationCoordinator {
         if (typeof request.mutateBase !== 'function') {
             throw new GeometryMutationError(request.id, 'mutateBase must be a function.');
         }
-        const metadata = JSON.stringify((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+        let clonedMetadata;
+        let serializedMetadata;
+        try {
+            clonedMetadata = cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+            serializedMetadata = JSON.stringify(clonedMetadata);
+        }
+        catch (error) {
+            throw new GeometryMutationError(request.id, 'metadata must be safely JSON-serializable.', error);
+        }
         const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
-        if (new TextEncoder().encode(metadata).byteLength > maxMetadataBytes) {
+        if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
             throw new GeometryMutationError(request.id, `metadata exceeds ${maxMetadataBytes} bytes.`);
         }
         this.usedMutationIds.add(request.id);
+        return clonedMetadata;
     }
     warn(warning) {
         var _a, _b, _c, _d;

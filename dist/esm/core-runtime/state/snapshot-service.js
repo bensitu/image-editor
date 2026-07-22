@@ -2,6 +2,13 @@ import { isRuntimeIdentifier } from '../../plugin-kernel/plugin-identifier.js';
 import { SnapshotValidationError, SnapshotVersionUnsupportedError, StateRegistrationError, } from '../errors.js';
 import { cloneStateValue, isDangerousStateKey } from './clone-state-value.js';
 import { inspectEncodedImageDataUrl } from './image-data-url.js';
+const EXTERNAL_RESOURCE_KEYS = new Set(['href', 'source', 'src', 'url']);
+function isExternalResourceKey(propertyName) {
+    if (!propertyName)
+        return false;
+    const normalized = propertyName.toLowerCase();
+    return EXTERNAL_RESOURCE_KEYS.has(normalized) || normalized.endsWith('url');
+}
 export const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
     maxInputBytes: 16 * 1024 * 1024,
     maxDepth: 64,
@@ -49,8 +56,8 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
                 }
             }
             else if (limits.externalUrlPolicy === 'reject' &&
-                (propertyName === 'src' || propertyName === 'url') &&
-                /^(?:https?:)?\/\//i.test(value)) {
+                isExternalResourceKey(propertyName) &&
+                /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(value)) {
                 throw new SnapshotValidationError('external URL references are forbidden.', path);
             }
         }
@@ -69,29 +76,25 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
     if (prototype !== Object.prototype && prototype !== null && !Array.isArray(value)) {
         throw new SnapshotValidationError('only plain objects and arrays are accepted.', path);
     }
+    if (Object.prototype.hasOwnProperty.call(value, 'toJSON') ||
+        Object.getOwnPropertySymbols(value).length > 0) {
+        throw new SnapshotValidationError('toJSON hooks and symbol properties are forbidden.', path);
+    }
     ancestors.add(value);
     for (const key of Object.keys(value)) {
         if (isDangerousStateKey(key)) {
             throw new SnapshotValidationError(`dangerous key "${key}" is forbidden.`, `${path}.${key}`);
         }
-        inspectTree(value[key], limits, `${path}.${key}`, depth + 1, ancestors, counter, key);
-        if (key === 'metadata') {
-            const metadataBytes = byteLength(JSON.stringify(value[key]));
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor || !('value' in descriptor)) {
+            throw new SnapshotValidationError('accessor properties are forbidden.', `${path}.${key}`);
+        }
+        const nestedValue = descriptor.value;
+        inspectTree(nestedValue, limits, `${path}.${key}`, depth + 1, ancestors, counter, key);
+        if (key === 'metadata' || key.endsWith('Metadata')) {
+            const metadataBytes = byteLength(JSON.stringify(nestedValue));
             if (metadataBytes > limits.maxMetadataBytes) {
                 throw new SnapshotValidationError(`metadata exceeds ${limits.maxMetadataBytes} bytes.`, `${path}.${key}`);
-            }
-        }
-    }
-    if (!Array.isArray(value)) {
-        const record = value;
-        if (typeof record.width === 'number' && typeof record.height === 'number') {
-            const width = record.width;
-            const height = record.height;
-            if (width > 0 && height > 0 && width * height > limits.maxDecodedPixels) {
-                throw new SnapshotValidationError(`decoded pixel count exceeds ${limits.maxDecodedPixels}.`, path);
-            }
-            if (width > limits.maxImageDimension || height > limits.maxImageDimension) {
-                throw new SnapshotValidationError(`image dimensions exceed ${limits.maxImageDimension}.`, path);
             }
         }
     }

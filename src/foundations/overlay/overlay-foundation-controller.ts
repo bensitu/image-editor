@@ -261,8 +261,26 @@ function getImageExportRegion(
 ): Readonly<{ left: number; top: number; width: number; height: number }> {
     image.setCoords();
     const bounds = image.getBoundingRect();
-    const canvasWidth = Math.max(1, Math.round(canvas.getWidth()));
-    const canvasHeight = Math.max(1, Math.round(canvas.getHeight()));
+    const measuredCanvasWidth = canvas.getWidth();
+    const measuredCanvasHeight = canvas.getHeight();
+    const canvasWidth =
+        Number.isFinite(measuredCanvasWidth) && measuredCanvasWidth > 0
+            ? Math.max(1, Math.round(measuredCanvasWidth))
+            : 1;
+    const canvasHeight =
+        Number.isFinite(measuredCanvasHeight) && measuredCanvasHeight > 0
+            ? Math.max(1, Math.round(measuredCanvasHeight))
+            : 1;
+    if (
+        !Number.isFinite(bounds.left) ||
+        !Number.isFinite(bounds.top) ||
+        !Number.isFinite(bounds.width) ||
+        !Number.isFinite(bounds.height) ||
+        bounds.width <= 0 ||
+        bounds.height <= 0
+    ) {
+        return Object.freeze({ left: 0, top: 0, width: canvasWidth, height: canvasHeight });
+    }
     const left = Math.min(canvasWidth - 1, Math.max(0, Math.floor(bounds.left)));
     const top = Math.min(canvasHeight - 1, Math.max(0, Math.floor(bounds.top)));
     const right = Math.min(canvasWidth, Math.max(left + 1, Math.ceil(bounds.left + bounds.width)));

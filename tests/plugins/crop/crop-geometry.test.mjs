@@ -78,6 +78,14 @@ test('fixed-ratio fitting remains centered and bounded deterministically', () =>
     assert.ok(wide.leftPx + wide.widthPx <= 80);
     assert.ok(wide.topPx + wide.heightPx <= 40);
     assert.ok(Math.abs(wide.widthPx / wide.heightPx - 16 / 9) < 0.05);
+
+    assert.deepEqual(
+        fitCropRectToAspectRatio({ leftPx: 0, topPx: 0, widthPx: 100, heightPx: 75 }, 4 / 3, {
+            widthPx: 100,
+            heightPx: 75,
+        }),
+        { leftPx: 0, topPx: 0, widthPx: 100, heightPx: 75 },
+    );
 });
 
 test('rectangle intersection treats touching edges as outside', () => {

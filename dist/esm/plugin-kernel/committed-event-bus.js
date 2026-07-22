@@ -16,6 +16,12 @@ export class CommittedEventBus {
             writable: true,
             value: new Map()
         });
+        Object.defineProperty(this, "emissionTails", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
             configurable: true,
@@ -45,9 +51,23 @@ export class CommittedEventBus {
         });
     }
     async emitCommitted(eventName, payload) {
-        var _a, _b;
+        var _a;
         this.assertActive('emit a committed event');
         this.assertEventName(eventName);
+        const previous = (_a = this.emissionTails.get(eventName)) !== null && _a !== void 0 ? _a : Promise.resolve();
+        const emission = previous.then(() => this.dispatch(eventName, payload));
+        this.emissionTails.set(eventName, emission);
+        try {
+            await emission;
+        }
+        finally {
+            if (this.emissionTails.get(eventName) === emission) {
+                this.emissionTails.delete(eventName);
+            }
+        }
+    }
+    async dispatch(eventName, payload) {
+        var _a, _b;
         const snapshot = [...((_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : [])];
         for (let index = 0; index < snapshot.length; index += 1) {
             try {

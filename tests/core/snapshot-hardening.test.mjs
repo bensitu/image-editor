@@ -241,10 +241,38 @@ test('Snapshot limits reject resource, structure, image, and source attacks', as
 
     await t.test('external URL', async () => {
         const { snapshots } = createSnapshotHarness();
-        await assert.rejects(
-            snapshots.load(snapshotWith({ src: 'https://example.invalid/image.png' })),
-            /external URL/i,
-        );
+        for (const payload of [
+            { src: 'https://example.invalid/image.png' },
+            { source: 'file:///etc/passwd' },
+            { imageUrl: 'blob:https://example.invalid/id' },
+            { href: '//example.invalid/image.png' },
+        ]) {
+            await assert.rejects(snapshots.load(snapshotWith(payload)), /external URL/i);
+        }
+    });
+
+    await t.test('accessors and serialization hooks', async () => {
+        const { snapshots } = createSnapshotHarness();
+        let calls = 0;
+        const accessorPayload = {};
+        Object.defineProperty(accessorPayload, 'value', {
+            enumerable: true,
+            get() {
+                calls += 1;
+                return 1;
+            },
+        });
+        await assert.rejects(snapshots.load(snapshotWith(accessorPayload)), /accessor/i);
+
+        const hookPayload = {};
+        Object.defineProperty(hookPayload, 'toJSON', {
+            value() {
+                calls += 1;
+                return {};
+            },
+        });
+        await assert.rejects(snapshots.load(snapshotWith(hookPayload)), /toJSON/i);
+        assert.equal(calls, 0);
     });
 });
 
@@ -259,6 +287,26 @@ test('Snapshot rejects an installed Slice version mismatch before mutation', asy
     });
 
     await assert.rejects(snapshots.load(snapshotWith({})), /version 1 is incompatible/i);
+});
+
+test('Snapshot pixel limits do not reject non-image width and height fields', async () => {
+    const { snapshots, slices } = createSnapshotHarness({
+        maxDecodedPixels: 10_000,
+        maxImageDimension: 100,
+    });
+    let restored;
+    slices.register({
+        id: 'example-test:payload',
+        version: 1,
+        capture: () => ({}),
+        validate: (value) => valid(value),
+        restore: (value) => {
+            restored = value;
+        },
+    });
+
+    await snapshots.load(snapshotWith({ width: 40_000, height: 40_000, kind: 'viewport' }));
+    assert.deepEqual(restored, { width: 40_000, height: 40_000, kind: 'viewport' });
 });
 
 test('Snapshot rejects unknown Fabric classes before Canvas mutation', async () => {

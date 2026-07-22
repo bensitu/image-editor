@@ -113,13 +113,14 @@ export function resolveNumeric(
     options: ResolvedOptions,
 ): number {
     if (typeof val === 'number') {
-        return val;
+        return Number.isFinite(val) ? val : fallback;
     }
     if (typeof val === 'function') {
-        return val(canvas, options);
+        const resolved = val(canvas, options);
+        return Number.isFinite(resolved) ? resolved : fallback;
     }
-    if (typeof val === 'string' && val.endsWith('%')) {
-        const pct = parseFloat(val);
+    if (typeof val === 'string' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/iu.test(val)) {
+        const pct = Number(val.slice(0, -1));
         if (!Number.isFinite(pct)) {
             return fallback;
         }
@@ -141,18 +142,28 @@ export function resolveNumeric(
  * coercePoint([10, 20]); // → { x: 10, y: 20 }
  * ```
  *
- * Values are coerced via `Number(...)` so string-encoded coordinates
- * (e.g. coming straight from a JSON payload) round-trip correctly. Any
- * value that fails to coerce becomes `NaN`, matching the rest of the
- * mask pipeline's tolerant input handling — callers that need stricter
- * validation should perform it before constructing the polygon.
+ * Finite numbers and non-empty numeric strings are accepted. Nullish,
+ * boolean, empty-string, and non-finite values become `NaN`, matching the
+ * rest of the mask pipeline's tolerant invalid-input handling.
  *
  * @param pt - A polygon vertex in object or tuple form.
  * @returns An `{ x, y }` numeric point.
  */
 export function coercePoint(pt: PolygonPoint): { x: number; y: number } {
+    const coerceCoordinate = (value: unknown): number => {
+        if (
+            value === null ||
+            value === undefined ||
+            typeof value === 'boolean' ||
+            (typeof value === 'string' && value.trim().length === 0)
+        ) {
+            return Number.NaN;
+        }
+        const coordinate = Number(value);
+        return Number.isFinite(coordinate) ? coordinate : Number.NaN;
+    };
     if (Array.isArray(pt)) {
-        return { x: Number(pt[0]), y: Number(pt[1]) };
+        return { x: coerceCoordinate(pt[0]), y: coerceCoordinate(pt[1]) };
     }
-    return { x: Number(pt.x), y: Number(pt.y) };
+    return { x: coerceCoordinate(pt.x), y: coerceCoordinate(pt.y) };
 }

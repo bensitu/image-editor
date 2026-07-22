@@ -34,10 +34,14 @@ const publicSourceEntries = new Set([
 ]);
 const publicSafeUtilities = new Set([
     'src/fabric/fabric-animation.ts',
+    'src/fabric/safe-fabric-serialization.ts',
     'src/mask/mask-factory.ts',
     'src/mask/mask-label-manager.ts',
     'src/mask/mask-style.ts',
     'src/plugin-kernel/plugin-identifier.ts',
+    'src/utils/abortable-promise.ts',
+    'src/utils/error.ts',
+    'src/utils/image-budget.ts',
 ]);
 const permissionRequirements = new Map([
     ['FABRIC_RUNTIME_CAPABILITY', 'fabric:objects'],

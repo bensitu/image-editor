@@ -1,9 +1,9 @@
 'use strict';
 
-var pluginManager = require('../chunks/plugin-manager-Bb8UQ105.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-B3zCkHWm.cjs');
+var pluginManager = require('../chunks/plugin-manager-BLzAzBA9.cjs');
 var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
-require('../chunks/disposable-Sj4tt6Lk.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-B4W6-2BB.cjs');
+require('../chunks/disposable-pTo80E0l.cjs');
 
 function createDeferredOperation() {
     let settled = false;
@@ -599,7 +599,6 @@ async function useFixture(options, operation) {
     return result;
 }
 function cloneStateValue(value, seen = new Set()) {
-    var _a;
     if (value === null || typeof value === 'string' || typeof value === 'boolean')
         return value;
     if (typeof value === 'number') {
@@ -619,9 +618,16 @@ function cloneStateValue(value, seen = new Set()) {
         if (seen.has(value))
             throw new Error('State fixtures must not contain cycles.');
         seen.add(value);
-        const clone = {};
+        const clone = Object.create(null);
         for (const key of Object.keys(value).sort()) {
-            clone[key] = cloneStateValue((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.value, seen);
+            if (pluginIdentifier.isDangerousStateKey(key)) {
+                throw new Error(`State fixtures must not contain dangerous key "${key}".`);
+            }
+            const descriptor = Object.getOwnPropertyDescriptor(value, key);
+            if (!descriptor || !('value' in descriptor)) {
+                throw new Error('State fixtures must contain only data properties.');
+            }
+            clone[key] = cloneStateValue(descriptor.value, seen);
         }
         seen.delete(value);
         return clone;

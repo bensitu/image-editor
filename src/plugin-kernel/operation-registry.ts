@@ -66,6 +66,8 @@ interface RegisteredOperation {
 interface OperationWaiter<TResult = unknown> {
     readonly resolve: (value: TResult) => void;
     readonly reject: (error: unknown) => void;
+    removeAbortListener: (() => void) | null;
+    settled: boolean;
 }
 
 interface ActiveOperation {
@@ -209,9 +211,7 @@ export class OperationRegistry implements Disposable {
                 );
             }
             existingPending.args = coalesce(existingPending.args, args) as unknown;
-            return new Promise<TResult>((resolve, reject) => {
-                existingPending.waiters.push({ resolve, reject } as OperationWaiter<unknown>);
-            });
+            return this.addWaiter(existingPending, options.signal) as Promise<TResult>;
         }
 
         const request: ScheduledOperation<TArgs, TResult> = {
@@ -224,9 +224,10 @@ export class OperationRegistry implements Disposable {
             state: 'pending',
             removeExternalAbortListener: null,
         };
-        const result = new Promise<TResult>((resolve, reject) => {
-            request.waiters.push({ resolve, reject });
-        });
+        const result = this.addWaiter(
+            request as ScheduledOperation,
+            options.signal,
+        ) as Promise<TResult>;
         this.attachExternalAbort(request as ScheduledOperation);
         this.schedule(request as ScheduledOperation);
         return result;
@@ -271,6 +272,11 @@ export class OperationRegistry implements Disposable {
     waitForIdle(): Promise<void> {
         if (this.isIdle()) return Promise.resolve();
         return new Promise<void>((resolve) => this.idleWaiters.add(resolve));
+    }
+
+    /** @internal Reports whether synchronous host disposal would race scheduled work. */
+    hasInFlightOperations(): boolean {
+        return !this.isIdle();
     }
 
     /** @internal Aborts all scheduled work while preserving operation registrations. */
@@ -510,10 +516,73 @@ export class OperationRegistry implements Disposable {
         );
     }
 
+    private addWaiter<TResult>(
+        request: ScheduledOperation,
+        signal: AbortSignal | undefined,
+    ): Promise<TResult> {
+        return new Promise<TResult>((resolve, reject) => {
+            const waiter: OperationWaiter<TResult> = {
+                resolve,
+                reject,
+                removeAbortListener: null,
+                settled: false,
+            };
+            request.waiters.push(waiter as OperationWaiter<unknown>);
+            if (!signal) return;
+
+            const abort = (): void => {
+                if (waiter.settled) return;
+                if (request.state === 'active' && request.active && request.waiters.length === 1) {
+                    waiter.removeAbortListener?.();
+                    waiter.removeAbortListener = null;
+                    this.abortActive(
+                        request.active,
+                        abortReason(
+                            signal,
+                            `Operation "${request.record.definition.id}" was aborted.`,
+                        ),
+                    );
+                    return;
+                }
+                waiter.settled = true;
+                waiter.removeAbortListener?.();
+                waiter.removeAbortListener = null;
+                const index = request.waiters.indexOf(waiter as OperationWaiter<unknown>);
+                if (index >= 0) request.waiters.splice(index, 1);
+                reject(
+                    abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`),
+                );
+                if (request.waiters.length === 0) {
+                    this.abortRequestWithoutWaiters(request, signal);
+                }
+            };
+            signal.addEventListener('abort', abort, { once: true });
+            waiter.removeAbortListener = () => signal.removeEventListener('abort', abort);
+            if (signal.aborted) abort();
+        });
+    }
+
+    private abortRequestWithoutWaiters(request: ScheduledOperation, signal: AbortSignal): void {
+        const reason = abortReason(
+            signal,
+            `Operation "${request.record.definition.id}" was aborted.`,
+        );
+        if (request.state === 'pending') {
+            this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
+            request.removeExternalAbortListener?.();
+            request.removeExternalAbortListener = null;
+            request.state = 'settled';
+        } else if (request.active) {
+            this.abortActive(request.active, reason);
+        }
+        this.drainPending();
+        this.resolveIdleWaiters();
+    }
+
     private attachExternalAbort(request: ScheduledOperation): void {
-        const signals = [
-            ...new Set([request.options.signal, request.options.parent?.signal]),
-        ].filter((signal): signal is AbortSignal => signal !== undefined);
+        const signals = [...new Set([request.options.parent?.signal])].filter(
+            (signal): signal is AbortSignal => signal !== undefined,
+        );
         if (signals.length === 0) return;
         const abort = (): void => {
             const signal = signals.find((candidate) => candidate.aborted);
@@ -523,6 +592,8 @@ export class OperationRegistry implements Disposable {
             if (request.state === 'pending') {
                 this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
                 this.rejectRequest(request, reason);
+                request.removeExternalAbortListener?.();
+                request.removeExternalAbortListener = null;
                 request.state = 'settled';
             } else if (request.active) {
                 // Keep the authority active until task cleanup settles so queued mutations
@@ -558,12 +629,24 @@ export class OperationRegistry implements Disposable {
     }
 
     private resolveRequest(request: ScheduledOperation, value: unknown): void {
-        for (const waiter of request.waiters) waiter.resolve(value);
+        for (const waiter of request.waiters) {
+            if (waiter.settled) continue;
+            waiter.settled = true;
+            waiter.removeAbortListener?.();
+            waiter.removeAbortListener = null;
+            waiter.resolve(value);
+        }
         request.waiters.length = 0;
     }
 
     private rejectRequest(request: ScheduledOperation, error: unknown): void {
-        for (const waiter of request.waiters) waiter.reject(error);
+        for (const waiter of request.waiters) {
+            if (waiter.settled) continue;
+            waiter.settled = true;
+            waiter.removeAbortListener?.();
+            waiter.removeAbortListener = null;
+            waiter.reject(error);
+        }
         request.waiters.length = 0;
     }
 

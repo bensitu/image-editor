@@ -28,6 +28,12 @@ export class ToolCoordinator {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "transitionCompletion", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
             configurable: true,
@@ -53,17 +59,7 @@ export class ToolCoordinator {
             context: Object.freeze({ toolId: definition.id, ownerPluginId }),
         };
         this.tools.set(definition.id, record);
-        return createDisposable(() => {
-            if (this.active === record) {
-                return this.exitCurrent('plugin-dispose').finally(() => {
-                    if (this.tools.get(definition.id) === record)
-                        this.tools.delete(definition.id);
-                });
-            }
-            if (this.tools.get(definition.id) === record)
-                this.tools.delete(definition.id);
-            return undefined;
-        });
+        return createDisposable(() => this.disposeRegistration(record));
     }
     disposeSync() {
         if (this.disposed)
@@ -148,6 +144,7 @@ export class ToolCoordinator {
             return;
         let exitError;
         try {
+            await this.waitForTransition();
             if (this.active)
                 await this.exitCurrent('host-dispose');
         }
@@ -181,12 +178,35 @@ export class ToolCoordinator {
             throw new ToolTransitionError(toolId, 'cannot transition while another transition is active');
         }
         this.transitioning = true;
+        let completeTransition = () => undefined;
+        this.transitionCompletion = new Promise((resolve) => {
+            completeTransition = resolve;
+        });
         try {
             await task();
         }
         finally {
+            completeTransition();
+            this.transitionCompletion = null;
             this.transitioning = false;
         }
+    }
+    async disposeRegistration(record) {
+        await this.waitForTransition();
+        try {
+            if (this.active === record) {
+                await this.runTransition(record.definition.id, () => this.exitCurrent('plugin-dispose'));
+            }
+        }
+        finally {
+            if (this.tools.get(record.definition.id) === record) {
+                this.tools.delete(record.definition.id);
+            }
+        }
+    }
+    async waitForTransition() {
+        while (this.transitionCompletion)
+            await this.transitionCompletion;
     }
     assertActive(operation) {
         if (this.disposed)

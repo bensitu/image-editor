@@ -4,6 +4,7 @@
  * @module
  */
 
+import { isDangerousStateKey } from '../plugin-kernel/plugin-identifier.js';
 import type { PluginLifecycleContext, PluginSetupContext } from '../plugin-kernel/plugin-types.js';
 import { isValidSemVer } from '../plugin-kernel/semver.js';
 import {
@@ -299,9 +300,16 @@ function cloneStateValue(value: unknown, seen = new Set<object>()): unknown {
     if (typeof value === 'object') {
         if (seen.has(value)) throw new Error('State fixtures must not contain cycles.');
         seen.add(value);
-        const clone: Record<string, unknown> = {};
+        const clone = Object.create(null) as Record<string, unknown>;
         for (const key of Object.keys(value).sort()) {
-            clone[key] = cloneStateValue(Object.getOwnPropertyDescriptor(value, key)?.value, seen);
+            if (isDangerousStateKey(key)) {
+                throw new Error(`State fixtures must not contain dangerous key "${key}".`);
+            }
+            const descriptor = Object.getOwnPropertyDescriptor(value, key);
+            if (!descriptor || !('value' in descriptor)) {
+                throw new Error('State fixtures must contain only data properties.');
+            }
+            clone[key] = cloneStateValue(descriptor.value, seen);
         }
         seen.delete(value);
         return clone;

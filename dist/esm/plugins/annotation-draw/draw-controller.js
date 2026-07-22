@@ -1,3 +1,4 @@
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import { AnnotationValidationError } from '../../foundations/annotation/index.js';
 import { objectPointToCanvas } from '../../foundations/overlay/index.js';
 import { appendInterpolatedPoints, buildCurvedDrawPath, drawPathIntersects, normalizeDrawPoint, } from './draw-path.js';
@@ -129,14 +130,23 @@ function normalizePoints(value, maximumCount) {
 }
 function isSerializedDraw(value) {
     var _a;
-    if (!isPlainRecord(value) || value.version !== 1 || !isPlainRecord(value.object))
+    if (!isPlainRecord(value))
         return false;
     try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor))
+            return false;
+        const serializedObject = objectDescriptor.value;
+        if (value.version !== 1 ||
+            !isPlainRecord(serializedObject) ||
+            !isSafeSerializedFabricObject(serializedObject, { rootTypes: ['path'] })) {
+            return false;
+        }
         const points = normalizePoints(value.points, 65536);
-        const bytes = new TextEncoder().encode(JSON.stringify(value.object)).byteLength;
+        const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
         return (points.length >= 2 &&
             bytes <= MAX_DRAW_OBJECT_BYTES &&
-            String((_a = value.object.type) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'path');
+            String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'path');
     }
     catch {
         return false;

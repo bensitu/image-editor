@@ -14,10 +14,12 @@ export interface CommittedEventBusOptions {
 export declare class CommittedEventBus<TEvents extends object = PluginEventMap> implements Disposable {
     private readonly options;
     private readonly listeners;
+    private readonly emissionTails;
     private disposed;
     constructor(options?: CommittedEventBusOptions);
     on<TKey extends keyof TEvents & string>(eventName: TKey, listener: CommittedEventListener<TEvents[TKey]>): Disposable;
     emitCommitted<TKey extends keyof TEvents & string>(eventName: TKey, payload: TEvents[TKey]): Promise<void>;
+    private dispatch;
     listenerCount(eventName?: keyof TEvents & string): number;
     dispose(): void;
     private assertActive;

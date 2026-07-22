@@ -48,19 +48,29 @@ export function createDisposable(cleanup) {
             if (state === 'disposing')
                 return pending !== null && pending !== void 0 ? pending : undefined;
             state = 'disposing';
+            let resolvePending = () => undefined;
+            let rejectPending = () => undefined;
+            const deferred = new Promise((resolve, reject) => {
+                resolvePending = resolve;
+                rejectPending = reject;
+            });
+            pending = deferred.finally(() => {
+                state = 'disposed';
+            });
+            void pending.catch(() => undefined);
             try {
                 const result = cleanup();
                 if (isPromiseLike(result)) {
-                    pending = Promise.resolve(result).finally(() => {
-                        state = 'disposed';
-                    });
+                    void Promise.resolve(result).then(resolvePending, rejectPending);
                     return pending;
                 }
                 state = 'disposed';
+                resolvePending();
                 return undefined;
             }
             catch (error) {
                 state = 'disposed';
+                rejectPending(error);
                 throw error;
             }
         },

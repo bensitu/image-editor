@@ -4229,7 +4229,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "b18e4a398084da54fc48bf476f44159fd0a300d55612908106563e9bca28dc88",
+        "graphSha256": "5688fc8c973e15d1b310e2c093e172ec4537a7b4cd8d13246ae3d54b2ee2d0e2",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4253,7 +4253,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "c43f093e616c1dd1685690277cfcc159598169e4416b160857264e675eef5501"
+                "sha256": "9a75401cc3bd1d7c84791769d37cf7d293e1cea6b6436470ac886776fd4dea40"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
@@ -4265,7 +4265,7 @@
             },
             {
                 "file": "dist/types/core-runtime/mutation/mutation-types.d.ts",
-                "sha256": "b5cbf98fda3ecffafa822578d36e99ec69a651739b59c567195f36df44351002"
+                "sha256": "31a2eadfcccc1ddf20fbd45376d3f7b7a65241c84646e90d65a7625f479fa54b"
             },
             {
                 "file": "dist/types/core-runtime/public-types.d.ts",
@@ -4281,7 +4281,7 @@
             },
             {
                 "file": "dist/types/core-runtime/state/memento-service.d.ts",
-                "sha256": "45f64fb77c5d41955f73f447570d39a5be6ab03358397e475c3ccc5db58bd9d6"
+                "sha256": "44cab3debdcb3f1cf0e4c156cba519fcc77ed3340c7f70644bf232b979a457fb"
             },
             {
                 "file": "dist/types/core-runtime/state/object-property-registry.d.ts",
@@ -4361,7 +4361,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/committed-event-bus.d.ts",
-                "sha256": "a0495d9e0d2166daac864011a8a3d5c18a3364ca7405d60e2387d88f17a59e10"
+                "sha256": "388c1ad12ca4e7c98484a3df72ea45e253369d831163c8b6d4f29ea6ebd47ed8"
             },
             {
                 "file": "dist/types/plugin-kernel/compose-plugins.d.ts",
@@ -4381,7 +4381,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
-                "sha256": "411507915cfbe7acc51c2ecc5160eff40ab59f87e9f6e4fd89888f7750f201ee"
+                "sha256": "c1b53c50f75f0034be8b680078992fe286b5b3889587c8970128214692f6aa9a"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-identifier.d.ts",
@@ -4389,11 +4389,11 @@
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manager.d.ts",
-                "sha256": "a01fe72df160d0f886f56e2b7aa6e79b376c348ad314a299065547f9cd3d8939"
+                "sha256": "f630685c33bcd3112efb0825d11a6ff1d2e5f66af8f3001382bd245135805a23"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manifest.d.ts",
-                "sha256": "077696f86d660dd6d94bb4a613de68ddb0d6fcd6947e5ef3727e5a209b98f148"
+                "sha256": "fba46122a1753a21a3a344a6bfdd51a5230f82e42b83c32afe1fab1501e2f0d5"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-plan.d.ts",
@@ -4425,7 +4425,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/tool-coordinator.d.ts",
-                "sha256": "346a5e8d77a6cf99276908b78b564ad52eff1e4e33eb52a2457b37bbeb9755ae"
+                "sha256": "e1904b74addc04928c746b5deddd549e0a89b95a7df7fcdb897cab13bcd4f073"
             },
             {
                 "file": "dist/types/plugins/annotation-draw/draw-annotation.d.ts",

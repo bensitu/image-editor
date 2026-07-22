@@ -39,7 +39,10 @@ export function maskPlugin(options = {}) {
             const overlayRegistration = context.capabilities.require(OVERLAY_REGISTRATION_CAPABILITY);
             const host = Object.freeze({
                 ...diagnostics,
-                ...presentation,
+                backgroundColor: presentation.backgroundColor,
+                get layoutMode() {
+                    return presentation.layoutMode;
+                },
                 ...fabricRuntime,
                 ...canvas,
                 ...render,

@@ -1,11 +1,13 @@
 'use strict';
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-DIUNQiLO.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
+var error = require('../../chunks/error-Cg6SL3PT.cjs');
+var imageBudget = require('../../chunks/image-budget-e-EIVZb3.cjs');
+var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DRW-_VAM.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 
@@ -156,10 +158,13 @@ function fitCropRectToAspectRatio(rect, ratio, bounds) {
         return Object.freeze({ ...rect });
     let width = rect.widthPx;
     let height = rect.heightPx;
-    if (width / height > normalizedRatio) {
+    const currentRatio = width / height;
+    const ratioMatches = Number.isFinite(currentRatio) &&
+        Math.abs(currentRatio - normalizedRatio) <= Math.max(1, normalizedRatio) * 1e-9;
+    if (!ratioMatches && currentRatio > normalizedRatio) {
         width = height * normalizedRatio;
     }
-    else {
+    else if (!ratioMatches) {
         height = width / normalizedRatio;
     }
     const centerX = rect.leftPx + rect.widthPx / 2;
@@ -324,10 +329,10 @@ async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
         abort();
     const timeout = setTimeout(() => controller.abort(new CropValidationError('Crop decode timed out.')), timeoutMs);
     try {
-        return await fabric.FabricImage.fromURL(dataUrl, {
+        return await error.settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
             crossOrigin: 'anonymous',
             signal: controller.signal,
-        });
+        }), controller.signal, (lateImage) => lateImage.dispose());
     }
     catch (error) {
         if (controller.signal.aborted)
@@ -369,13 +374,14 @@ function applyCropPresentation(source, target, rect) {
     target.setCoords();
 }
 async function renderCropImage(host, source, rect, options, signal) {
-    var _a;
+    var _a, _b;
     if (signal.aborted)
         throw signal.reason;
     const policy = host.getImageResourcePolicy();
+    const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
     if (rect.widthPx > policy.maxExportDimension ||
         rect.heightPx > policy.maxExportDimension ||
-        rect.widthPx * rect.heightPx > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+        !imageBudget.isPixelAreaWithinBudget(rect.widthPx, rect.heightPx, pixelBudget)) {
         throw new CropValidationError('Crop dimensions exceed the Core resource policy.');
     }
     const ownerDocument = (_a = source.getElement().ownerDocument) !== null && _a !== void 0 ? _a : globalThis.document;
@@ -387,10 +393,21 @@ async function renderCropImage(host, source, rect, options, signal) {
     const context = surface.getContext('2d');
     if (!context)
         throw new CropValidationError('Crop rendering context is unavailable.');
-    context.drawImage(source.getElement(), rect.leftPx, rect.topPx, rect.widthPx, rect.heightPx, 0, 0, rect.widthPx, rect.heightPx);
-    if (signal.aborted)
-        throw signal.reason;
-    const dataUrl = surface.toDataURL(options.mimeType, options.format === 'png' ? undefined : options.quality);
+    let dataUrl;
+    try {
+        context.drawImage(source.getElement(), rect.leftPx, rect.topPx, rect.widthPx, rect.heightPx, 0, 0, rect.widthPx, rect.heightPx);
+        if (signal.aborted)
+            throw signal.reason;
+        dataUrl = surface.toDataURL(options.mimeType, options.format === 'png' ? undefined : options.quality);
+    }
+    catch (error$1) {
+        if (signal.aborted)
+            throw (_b = signal.reason) !== null && _b !== void 0 ? _b : error$1;
+        if (error.hasErrorName(error$1, 'SecurityError')) {
+            throw new CropValidationError('Crop pixels cannot be exported because canvas access is blocked.');
+        }
+        throw error$1;
+    }
     if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) {
         throw new CropValidationError('Crop output exceeds the Core input budget.');
     }

@@ -1,3 +1,4 @@
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import { createDisposable } from '../../sdk/index.js';
 import { AnnotationValidationError } from '../../foundations/annotation/index.js';
 import { captureOverlayStateBounds, isOverlayStateBoundsGeometry, restoreOverlayStateBounds, } from '../../foundations/overlay/index.js';
@@ -199,6 +200,8 @@ function isSerializedText(value) {
     if (!isPlainRecord(value))
         return false;
     try {
+        if (!isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] }))
+            return false;
         const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
         const type = String((_a = value.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
         return (bytes <= MAX_TEXT_OBJECT_BYTES &&
@@ -451,10 +454,12 @@ export class TextAnnotationController {
             throw new AnnotationValidationError('Locked Text cannot enter editing.');
         }
         const preview = (await source.clone());
-        preview.set({ visible: true, selectable: true, evented: true, editable: true });
         const previewId = `annotation-text:edit:${++this.previewSequence}`;
-        const visibility = this.authoring.hideForPreview([id]);
+        let visibility = null;
+        let added = false;
         try {
+            preview.set({ visible: true, selectable: true, evented: true, editable: true });
+            visibility = this.authoring.hideForPreview([id]);
             this.authoring.addPreview({
                 id: previewId,
                 ownerKind: TEXT_ANNOTATION_KIND,
@@ -462,14 +467,22 @@ export class TextAnnotationController {
                 interactive: true,
                 select: false,
             });
+            added = true;
+            (_a = preview.enterEditing) === null || _a === void 0 ? void 0 : _a.call(preview);
         }
         catch (error) {
-            visibility.dispose();
-            preview.dispose();
+            try {
+                if (added)
+                    this.authoring.removePreview([previewId]);
+                else
+                    preview.dispose();
+            }
+            finally {
+                visibility === null || visibility === void 0 ? void 0 : visibility.dispose();
+            }
             throw error;
         }
         this.session = Object.freeze({ annotationId: id, previewId, preview, visibility });
-        (_a = preview.enterEditing) === null || _a === void 0 ? void 0 : _a.call(preview);
         this.emitStatus();
     }
     async commitEditing() {

@@ -100,6 +100,44 @@ test('coalesce policy combines pending arguments and settles every caller', asyn
     registry.dispose();
 });
 
+test('a coalesced caller can cancel its own waiter without cancelling the shared request', async () => {
+    const registry = new OperationRegistry();
+    registry.register(
+        definition('test:coalesce-cancel', {
+            reentrancy: 'coalesce',
+            coalesce: (previous, next) => previous + next,
+        }),
+        'plugin:owner',
+    );
+    const activeGate = deferred();
+    const active = registry.run(
+        'test:coalesce-cancel',
+        'plugin:owner',
+        1,
+        () => activeGate.promise,
+    );
+    await Promise.resolve();
+
+    const pending = registry.run('test:coalesce-cancel', 'plugin:owner', 2, async (value) => value);
+    const controller = new AbortController();
+    const cancelled = registry.run(
+        'test:coalesce-cancel',
+        'plugin:owner',
+        3,
+        async () => {
+            throw new Error('A coalesced request must retain its first executor.');
+        },
+        { signal: controller.signal },
+    );
+    controller.abort(new DOMException('Caller no longer needs the result.', 'AbortError'));
+
+    await assert.rejects(cancelled, (error) => error?.name === 'AbortError');
+    activeGate.resolve(1);
+    assert.equal(await active, 1);
+    assert.equal(await pending, 5);
+    registry.dispose();
+});
+
 test('replace policy retires the active authority and suppresses its late result', async () => {
     const registry = new OperationRegistry();
     registry.register(definition('test:replace', { reentrancy: 'replace' }), 'plugin:owner');
@@ -201,6 +239,12 @@ test('cancellation holds the conflict authority until cleanup settles', async ()
         { signal: controller.signal },
     );
     void first.catch(() => undefined);
+    let firstSettled = false;
+    void first
+        .finally(() => {
+            firstSettled = true;
+        })
+        .catch(() => undefined);
     const second = registry.run('test:cancel', 'plugin:owner', 'second', async (value) => {
         calls.push(`start:${value}`);
     });
@@ -208,6 +252,7 @@ test('cancellation holds the conflict authority until cleanup settles', async ()
     controller.abort(new DOMException('Cancel the first operation.', 'AbortError'));
     await Promise.resolve();
     assert.deepEqual(calls, ['start:first']);
+    assert.equal(firstSettled, false);
     cleanupGate.resolve();
     await assert.rejects(first, (error) => error?.name === 'AbortError');
     await second;

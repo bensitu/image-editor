@@ -48,6 +48,17 @@ test('snapshot generation detection distinguishes source, current, future, and m
     assert.deepEqual(detectSnapshotVersion({ objects: [], _editorState: {} }), {
         kind: 'unknown',
     });
+    let getterCalls = 0;
+    const accessorInput = {};
+    Object.defineProperty(accessorInput, 'objects', {
+        enumerable: true,
+        get() {
+            getterCalls += 1;
+            return [];
+        },
+    });
+    assert.deepEqual(detectSnapshotVersion(accessorInput), { kind: 'unknown' });
+    assert.equal(getterCalls, 0);
     assert.throws(
         () =>
             migrateV2Snapshot({
@@ -184,6 +195,41 @@ test('conversion enforces input limits and requires explicit dimensions when abs
     assert.throws(
         () => migrateV2Snapshot('{"__proto__":{"polluted":true}}'),
         (error) => error instanceof SnapshotMigrationError && error.code === 'input.key',
+    );
+    const accessor = await fixture('committed-raster');
+    let getterCalls = 0;
+    Object.defineProperty(accessor, 'dangerousAccessor', {
+        enumerable: true,
+        get() {
+            getterCalls += 1;
+            return 'unexpected';
+        },
+    });
+    assert.throws(
+        () => migrateV2Snapshot(accessor),
+        (error) => error instanceof SnapshotMigrationError && error.code === 'input.accessor',
+    );
+    assert.equal(getterCalls, 0);
+
+    const toJsonInput = await fixture('committed-raster');
+    let toJsonCalls = 0;
+    Object.defineProperty(toJsonInput, 'toJSON', {
+        value() {
+            toJsonCalls += 1;
+            return {};
+        },
+    });
+    assert.throws(
+        () => migrateV2Snapshot(toJsonInput),
+        (error) => error instanceof SnapshotMigrationError && error.code === 'input.property',
+    );
+    assert.equal(toJsonCalls, 0);
+
+    const sparse = await fixture('committed-raster');
+    sparse.objects = new Array(10_000);
+    assert.throws(
+        () => migrateV2Snapshot(sparse, { maxInputBytes: 256 }),
+        (error) => error instanceof SnapshotMigrationError && error.code === 'input.bytes',
     );
 });
 

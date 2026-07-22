@@ -8,6 +8,7 @@ import type { PluginEventMap } from './committed-event-bus.js';
 import { InvalidPluginDefinitionError } from './errors.js';
 import type { PluginRef } from './plugin-ref.js';
 import type { EditorPlugin, EditorPluginDefinition, PluginSetupContext } from './plugin-types.js';
+import { CORE_API_RANGE } from './plugin-manifest.js';
 
 export type PluginApiOf<TPlugin> =
     TPlugin extends EditorPlugin<infer TApi, infer TEvents>
@@ -60,7 +61,7 @@ export function composePlugins<
             id: options.ref.id,
             version: options.version,
             apiVersion: options.ref.apiVersion,
-            engine: '^3.0.0',
+            engine: CORE_API_RANGE,
         }),
         async setup(context: PluginSetupContext<TEvents>): Promise<TApi> {
             const childApis: unknown[] = [];

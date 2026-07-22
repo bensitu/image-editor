@@ -5,6 +5,7 @@ import {
     GeometryMutationCoordinator,
     IDENTITY_AFFINE_MATRIX,
 } from '../../src/core-runtime/geometry/index.js';
+import { GeometryMutationError } from '../../src/core-runtime/errors.js';
 import { createDocumentMutationEnvironment } from '../helpers/document-mutation-environment.mjs';
 
 function geometry(revision, matrix = IDENTITY_AFFINE_MATRIX) {
@@ -119,6 +120,18 @@ function request(harness, overrides = {}) {
         metadata: overrides.metadata,
     };
 }
+
+test('cyclic geometry metadata is rejected as a geometry mutation error', async () => {
+    const harness = createHarness();
+    const metadata = {};
+    metadata.self = metadata;
+
+    await assert.rejects(
+        harness.coordinator.run(request(harness, { metadata })),
+        GeometryMutationError,
+    );
+    assert.deepEqual(harness.calls, []);
+});
 
 test('coordinator executes deterministic prepare, mutate, apply, synchronize, history, event order', async () => {
     const harness = createHarness();

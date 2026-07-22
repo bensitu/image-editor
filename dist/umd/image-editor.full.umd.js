@@ -274,6 +274,7 @@
     const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, 'u');
     const partialVersionPattern = new RegExp(`^(${numericIdentifier})(?:\\.(${numericIdentifier}|[xX*]))?(?:\\.(${numericIdentifier}|[xX*]))?$`, 'u');
     const comparatorPattern = /^(<=|>=|<|>|=|~|\^)?(.+)$/u;
+    const MAX_SEMVER_INPUT_LENGTH = 256;
     function parseRangeVersion(value) {
         const exact = semVerPattern.exec(value);
         if (exact) {
@@ -432,14 +433,19 @@
         }
     }
     function isValidSemVer(version) {
-        return version.trim() === version && semVerPattern.test(version);
+        return (version.length <= MAX_SEMVER_INPUT_LENGTH &&
+            version.trim() === version &&
+            semVerPattern.test(version));
     }
     function isValidSemVerRange(range) {
-        return normalizeRange(range) !== null;
+        return range.length <= MAX_SEMVER_INPUT_LENGTH && normalizeRange(range) !== null;
     }
     function satisfiesSemVer(version, range) {
-        if (version.trim() !== version)
+        if (version.length > MAX_SEMVER_INPUT_LENGTH ||
+            range.length > MAX_SEMVER_INPUT_LENGTH ||
+            version.trim() !== version) {
             return false;
+        }
         const parsedVersion = semVerPattern.exec(version);
         const normalized = normalizeRange(range);
         if (!parsedVersion || !normalized)
@@ -559,19 +565,29 @@
                 if (state === 'disposing')
                     return pending !== null && pending !== void 0 ? pending : undefined;
                 state = 'disposing';
+                let resolvePending = () => undefined;
+                let rejectPending = () => undefined;
+                const deferred = new Promise((resolve, reject) => {
+                    resolvePending = resolve;
+                    rejectPending = reject;
+                });
+                pending = deferred.finally(() => {
+                    state = 'disposed';
+                });
+                void pending.catch(() => undefined);
                 try {
                     const result = cleanup();
                     if (isPromiseLike(result)) {
-                        pending = Promise.resolve(result).finally(() => {
-                            state = 'disposed';
-                        });
+                        void Promise.resolve(result).then(resolvePending, rejectPending);
                         return pending;
                     }
                     state = 'disposed';
+                    resolvePending();
                     return undefined;
                 }
                 catch (error) {
                     state = 'disposed';
+                    rejectPending(error);
                     throw error;
                 }
             },
@@ -1006,6 +1022,12 @@
                 writable: true,
                 value: new Map()
             });
+            Object.defineProperty(this, "emissionTails", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: new Map()
+            });
             Object.defineProperty(this, "disposed", {
                 enumerable: true,
                 configurable: true,
@@ -1035,9 +1057,23 @@
             });
         }
         async emitCommitted(eventName, payload) {
-            var _a, _b;
+            var _a;
             this.assertActive('emit a committed event');
             this.assertEventName(eventName);
+            const previous = (_a = this.emissionTails.get(eventName)) !== null && _a !== void 0 ? _a : Promise.resolve();
+            const emission = previous.then(() => this.dispatch(eventName, payload));
+            this.emissionTails.set(eventName, emission);
+            try {
+                await emission;
+            }
+            finally {
+                if (this.emissionTails.get(eventName) === emission) {
+                    this.emissionTails.delete(eventName);
+                }
+            }
+        }
+        async dispatch(eventName, payload) {
+            var _a, _b;
             const snapshot = [...((_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : [])];
             for (let index = 0; index < snapshot.length; index += 1) {
                 try {
@@ -1220,9 +1256,7 @@
                     return Promise.reject(new OperationRegistrationError(`Operation "${operationId}" has no coalesce function.`, ownerPluginId));
                 }
                 existingPending.args = coalesce(existingPending.args, args);
-                return new Promise((resolve, reject) => {
-                    existingPending.waiters.push({ resolve, reject });
-                });
+                return this.addWaiter(existingPending, options.signal);
             }
             const request = {
                 record,
@@ -1234,9 +1268,7 @@
                 state: 'pending',
                 removeExternalAbortListener: null,
             };
-            const result = new Promise((resolve, reject) => {
-                request.waiters.push({ resolve, reject });
-            });
+            const result = this.addWaiter(request, options.signal);
             this.attachExternalAbort(request);
             this.schedule(request);
             return result;
@@ -1269,6 +1301,9 @@
             if (this.isIdle())
                 return Promise.resolve();
             return new Promise((resolve) => this.idleWaiters.add(resolve));
+        }
+        hasInFlightOperations() {
+            return !this.isIdle();
         }
         async abortAll(reason = abortError$3('All Plugin Kernel operations were aborted.')) {
             this.assertActive('abort operations');
@@ -1467,14 +1502,66 @@
         findCoalesciblePending(record, parent) {
             return this.pendingRequests.find((request) => request.record === record && request.options.parent === parent);
         }
+        addWaiter(request, signal) {
+            return new Promise((resolve, reject) => {
+                const waiter = {
+                    resolve,
+                    reject,
+                    removeAbortListener: null,
+                    settled: false,
+                };
+                request.waiters.push(waiter);
+                if (!signal)
+                    return;
+                const abort = () => {
+                    var _a, _b;
+                    if (waiter.settled)
+                        return;
+                    if (request.state === 'active' && request.active && request.waiters.length === 1) {
+                        (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+                        waiter.removeAbortListener = null;
+                        this.abortActive(request.active, abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`));
+                        return;
+                    }
+                    waiter.settled = true;
+                    (_b = waiter.removeAbortListener) === null || _b === void 0 ? void 0 : _b.call(waiter);
+                    waiter.removeAbortListener = null;
+                    const index = request.waiters.indexOf(waiter);
+                    if (index >= 0)
+                        request.waiters.splice(index, 1);
+                    reject(abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`));
+                    if (request.waiters.length === 0) {
+                        this.abortRequestWithoutWaiters(request, signal);
+                    }
+                };
+                signal.addEventListener('abort', abort, { once: true });
+                waiter.removeAbortListener = () => signal.removeEventListener('abort', abort);
+                if (signal.aborted)
+                    abort();
+            });
+        }
+        abortRequestWithoutWaiters(request, signal) {
+            var _a;
+            const reason = abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`);
+            if (request.state === 'pending') {
+                this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
+                (_a = request.removeExternalAbortListener) === null || _a === void 0 ? void 0 : _a.call(request);
+                request.removeExternalAbortListener = null;
+                request.state = 'settled';
+            }
+            else if (request.active) {
+                this.abortActive(request.active, reason);
+            }
+            this.drainPending();
+            this.resolveIdleWaiters();
+        }
         attachExternalAbort(request) {
             var _a;
-            const signals = [
-                ...new Set([request.options.signal, (_a = request.options.parent) === null || _a === void 0 ? void 0 : _a.signal]),
-            ].filter((signal) => signal !== undefined);
+            const signals = [...new Set([(_a = request.options.parent) === null || _a === void 0 ? void 0 : _a.signal])].filter((signal) => signal !== undefined);
             if (signals.length === 0)
                 return;
             const abort = () => {
+                var _a;
                 const signal = signals.find((candidate) => candidate.aborted);
                 const reason = signal
                     ? abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`)
@@ -1482,6 +1569,8 @@
                 if (request.state === 'pending') {
                     this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
                     this.rejectRequest(request, reason);
+                    (_a = request.removeExternalAbortListener) === null || _a === void 0 ? void 0 : _a.call(request);
+                    request.removeExternalAbortListener = null;
                     request.state = 'settled';
                 }
                 else if (request.active) {
@@ -1515,13 +1604,27 @@
             this.resolveIdleWaiters();
         }
         resolveRequest(request, value) {
-            for (const waiter of request.waiters)
+            var _a;
+            for (const waiter of request.waiters) {
+                if (waiter.settled)
+                    continue;
+                waiter.settled = true;
+                (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+                waiter.removeAbortListener = null;
                 waiter.resolve(value);
+            }
             request.waiters.length = 0;
         }
         rejectRequest(request, error) {
-            for (const waiter of request.waiters)
+            var _a;
+            for (const waiter of request.waiters) {
+                if (waiter.settled)
+                    continue;
+                waiter.settled = true;
+                (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+                waiter.removeAbortListener = null;
                 waiter.reject(error);
+            }
             request.waiters.length = 0;
         }
         requireRegistered(operationId, ownerPluginId) {
@@ -1879,6 +1982,12 @@
                 writable: true,
                 value: false
             });
+            Object.defineProperty(this, "transitionCompletion", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: null
+            });
             Object.defineProperty(this, "disposed", {
                 enumerable: true,
                 configurable: true,
@@ -1904,17 +2013,7 @@
                 context: Object.freeze({ toolId: definition.id, ownerPluginId }),
             };
             this.tools.set(definition.id, record);
-            return createDisposable(() => {
-                if (this.active === record) {
-                    return this.exitCurrent('plugin-dispose').finally(() => {
-                        if (this.tools.get(definition.id) === record)
-                            this.tools.delete(definition.id);
-                    });
-                }
-                if (this.tools.get(definition.id) === record)
-                    this.tools.delete(definition.id);
-                return undefined;
-            });
+            return createDisposable(() => this.disposeRegistration(record));
         }
         disposeSync() {
             if (this.disposed)
@@ -1999,6 +2098,7 @@
                 return;
             let exitError;
             try {
+                await this.waitForTransition();
                 if (this.active)
                     await this.exitCurrent('host-dispose');
             }
@@ -2032,12 +2132,35 @@
                 throw new ToolTransitionError(toolId, 'cannot transition while another transition is active');
             }
             this.transitioning = true;
+            let completeTransition = () => undefined;
+            this.transitionCompletion = new Promise((resolve) => {
+                completeTransition = resolve;
+            });
             try {
                 await task();
             }
             finally {
+                completeTransition();
+                this.transitionCompletion = null;
                 this.transitioning = false;
             }
+        }
+        async disposeRegistration(record) {
+            await this.waitForTransition();
+            try {
+                if (this.active === record) {
+                    await this.runTransition(record.definition.id, () => this.exitCurrent('plugin-dispose'));
+                }
+            }
+            finally {
+                if (this.tools.get(record.definition.id) === record) {
+                    this.tools.delete(record.definition.id);
+                }
+            }
+        }
+        async waitForTransition() {
+            while (this.transitionCompletion)
+                await this.transitionCompletion;
         }
         assertActive(operation) {
             if (this.disposed)
@@ -2245,19 +2368,22 @@
             return this.operationRegistry.register(definition, 'core:host');
         }
         beginOperationForHost(operationId) {
-            if (!this.toolCoordinator.canRunOperation(operationId)) {
+            if (!this.canRunOperation(operationId)) {
                 throw new PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
             }
             return this.operationRegistry.beginForHost(operationId);
         }
         runOperationForHost(operationId, args, task, options = {}) {
-            if (!this.toolCoordinator.canRunOperation(operationId)) {
+            if (!this.canRunOperation(operationId)) {
                 return Promise.reject(new PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState));
             }
             return this.operationRegistry.runForHost(operationId, args, task, options);
         }
         waitForOperations() {
             return this.operationRegistry.waitForIdle();
+        }
+        hasRunningOperations() {
+            return this.operationRegistry.hasInFlightOperations();
         }
         abortOperationsForHost(reason) {
             return this.operationRegistry.abortAll(reason);
@@ -2377,6 +2503,9 @@
                 return;
             if (this.hostState === 'disposing' || this.hostState === 'initializing') {
                 throw new PluginKernelStateError('dispose the Plugin Kernel synchronously', this.hostState);
+            }
+            if (this.operationRegistry.hasInFlightOperations()) {
+                throw new PluginKernelStateError('dispose the Plugin Kernel synchronously while operations are running', this.hostState);
             }
             this.hostState = 'disposing';
             const errors = this.cleanupAllSync();
@@ -2721,8 +2850,15 @@
                 },
             });
             const operations = Object.freeze({
-                begin: (operationId) => this.operationRegistry.begin(operationId, pluginId),
-                run: (operationId, args, task, options = {}) => this.operationRegistry.run(operationId, pluginId, args, task, options),
+                begin: (operationId) => {
+                    if (!this.canRunOperation(operationId)) {
+                        throw this.operationRejectedByTool(operationId);
+                    }
+                    return this.operationRegistry.begin(operationId, pluginId);
+                },
+                run: (operationId, args, task, options = {}) => this.canRunOperation(operationId)
+                    ? this.operationRegistry.run(operationId, pluginId, args, task, options)
+                    : Promise.reject(this.operationRejectedByTool(operationId)),
                 get: (operationId) => this.operationRegistry.get(operationId),
                 isActive: (operationId) => this.operationRegistry.isActive(operationId),
             });
@@ -2878,6 +3014,13 @@
         }
         async cleanupAll() {
             const errors = [];
+            try {
+                await this.operationRegistry.suspend(new DOMException('Plugin Kernel disposal aborted active operations.', 'AbortError'));
+            }
+            catch (error) {
+                errors.push(error);
+                reportErrorSafely(this.options.errorSink, error);
+            }
             const records = [...this.installationOrder]
                 .reverse()
                 .map((pluginId) => this.installed.get(pluginId))
@@ -2983,6 +3126,17 @@
             if (this.hostState !== 'created') {
                 throw new PluginKernelStateError('install a plugin', this.hostState);
             }
+        }
+        canRunOperation(operationId) {
+            var _a;
+            const activeToolId = this.toolCoordinator.getActiveToolId();
+            const operation = this.operationRegistry.get(operationId);
+            if (activeToolId && ((_a = operation === null || operation === void 0 ? void 0 : operation.allowedDuringTool) === null || _a === void 0 ? void 0 : _a.includes(activeToolId)))
+                return true;
+            return this.toolCoordinator.canRunOperation(operationId);
+        }
+        operationRejectedByTool(operationId) {
+            return new PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
         }
         assertLifecycleReady(operation) {
             this.assertUsable(operation);
@@ -4020,6 +4174,43 @@
     function isObject$1(value) {
         return typeof value === 'object' && value !== null;
     }
+    function assertSafeStateValue(value, seen = new WeakSet(), path = '$') {
+        var _a;
+        if (!isObject$1(value) || seen.has(value))
+            return;
+        seen.add(value);
+        if (value instanceof Map) {
+            for (const [key, entry] of value) {
+                assertSafeStateValue(key, seen, `${path}.<map-key>`);
+                assertSafeStateValue(entry, seen, `${path}.<map-value>`);
+            }
+            return;
+        }
+        if (value instanceof Set) {
+            for (const entry of value)
+                assertSafeStateValue(entry, seen, `${path}.<set-value>`);
+            return;
+        }
+        if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value))
+            return;
+        for (const key of Object.getOwnPropertySymbols(value)) {
+            if ((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.enumerable) {
+                throw new StateCloneError(`State at ${path} contains an enumerable symbol key.`);
+            }
+        }
+        const descriptors = Object.getOwnPropertyDescriptors(value);
+        for (const [key, descriptor] of Object.entries(descriptors)) {
+            if (!(descriptor === null || descriptor === void 0 ? void 0 : descriptor.enumerable))
+                continue;
+            if (isDangerousStateKey(key)) {
+                throw new StateCloneError(`State contains dangerous key "${key}".`);
+            }
+            if (!('value' in descriptor)) {
+                throw new StateCloneError(`State at ${path}.${key} contains an accessor property.`);
+            }
+            assertSafeStateValue(descriptor.value, seen, `${path}.${key}`);
+        }
+    }
     function cloneFallback(value, seen) {
         var _a, _b;
         if (!isObject$1(value)) {
@@ -4103,6 +4294,7 @@
     }
     function cloneStateValue(value) {
         try {
+            assertSafeStateValue(value);
             const structuredCloneFunction = globalThis.structuredClone;
             const cloned = typeof structuredCloneFunction === 'function'
                 ? structuredCloneFunction(value)
@@ -4253,15 +4445,16 @@
         }
         run(request) {
             this.assertActive('run a geometry mutation');
+            let metadata;
             try {
-                this.validateRequest(request);
+                metadata = this.validateRequest(request);
             }
             catch (error) {
                 return Promise.reject(error);
             }
             const controller = new AbortController();
             this.activeControllers.add(controller);
-            const operation = this.performRun(request, controller.signal);
+            const operation = this.performRun(request, metadata, controller.signal);
             this.activePromises.add(operation);
             return operation.finally(() => {
                 this.activePromises.delete(operation);
@@ -4304,9 +4497,8 @@
             this.participants.clear();
             this.usedMutationIds.clear();
         }
-        async performRun(request, signal) {
-            var _a, _b, _c;
-            const metadata = cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+        async performRun(request, metadata, signal) {
+            var _a, _b;
             let before = null;
             let provisional = null;
             const participantSnapshot = Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order ||
@@ -4421,7 +4613,7 @@
             }
             catch (error) {
                 const failure = this.toGeometryFailure(request.id, error);
-                (_c = (_b = this.options).errorSink) === null || _c === void 0 ? void 0 : _c.call(_b, failure);
+                (_b = (_a = this.options).errorSink) === null || _b === void 0 ? void 0 : _b.call(_a, failure);
                 throw failure;
             }
         }
@@ -4473,12 +4665,21 @@
             if (typeof request.mutateBase !== 'function') {
                 throw new GeometryMutationError(request.id, 'mutateBase must be a function.');
             }
-            const metadata = JSON.stringify((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+            let clonedMetadata;
+            let serializedMetadata;
+            try {
+                clonedMetadata = cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+                serializedMetadata = JSON.stringify(clonedMetadata);
+            }
+            catch (error) {
+                throw new GeometryMutationError(request.id, 'metadata must be safely JSON-serializable.', error);
+            }
             const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
-            if (new TextEncoder().encode(metadata).byteLength > maxMetadataBytes) {
+            if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
                 throw new GeometryMutationError(request.id, `metadata exceeds ${maxMetadataBytes} bytes.`);
             }
             this.usedMutationIds.add(request.id);
+            return clonedMetadata;
         }
         warn(warning) {
             var _a, _b, _c, _d;
@@ -4674,6 +4875,7 @@
         }
     }
 
+    const DEFAULT_ROLLBACK_TIMEOUT_MS$1 = 30000;
     function isCancellation(error) {
         return (typeof error === 'object' &&
             error !== null &&
@@ -4694,6 +4896,7 @@
     }
     class DocumentMutationCoordinator {
         constructor(options) {
+            var _a;
             Object.defineProperty(this, "options", {
                 enumerable: true,
                 configurable: true,
@@ -4730,6 +4933,10 @@
                 writable: true,
                 value: false
             });
+            const rollbackTimeoutMs = (_a = options.rollbackTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_ROLLBACK_TIMEOUT_MS$1;
+            if (!Number.isSafeInteger(rollbackTimeoutMs) || rollbackTimeoutMs <= 0) {
+                throw new DocumentMutationRegistrationError('rollbackTimeoutMs must be a positive safe integer.');
+            }
         }
         get isRunning() {
             return this.activePromises.size > 0;
@@ -4909,9 +5116,9 @@
             const requestRollback = request.rollback
                 ? {
                     enabled: false,
-                    run: async (cause) => {
+                    run: async (cause, signal) => {
                         var _a;
-                        const rollbackContext = this.createRollbackContext(context, cause, outcome.result);
+                        const rollbackContext = this.createRollbackContext(context, cause, outcome.result, signal);
                         await ((_a = request.rollback) === null || _a === void 0 ? void 0 : _a.call(request, rollbackContext));
                     },
                 }
@@ -4928,9 +5135,9 @@
                 if (participant.rollback) {
                     session.rollbackEntries.push({
                         enabled: true,
-                        run: async (cause) => {
+                        run: async (cause, signal) => {
                             var _a;
-                            const rollbackContext = this.createRollbackContext(context, cause, outcome.result);
+                            const rollbackContext = this.createRollbackContext(context, cause, outcome.result, signal);
                             await ((_a = participant.rollback) === null || _a === void 0 ? void 0 : _a.call(participant, preparedValue, rollbackContext));
                         },
                     });
@@ -4980,66 +5187,97 @@
             }));
             return context;
         }
-        createRollbackContext(context, cause, result) {
+        createRollbackContext(context, cause, result, signal) {
             return Object.freeze({
                 ...context,
-                signal: new AbortController().signal,
+                signal,
                 cause,
                 result,
             });
         }
         async restoreAfterFailure(transactionId, session, cause) {
-            var _a, _b, _c, _d, _e, _f;
+            var _a, _b, _c, _d, _e, _f, _g;
             const rollbackErrors = [];
-            for (let index = session.rollbackEntries.length - 1; index >= 0; index -= 1) {
-                const entry = session.rollbackEntries[index];
-                if (!(entry === null || entry === void 0 ? void 0 : entry.enabled))
-                    continue;
-                try {
-                    await entry.run(cause);
+            const rollbackTimeoutMs = (_a = this.options.rollbackTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_ROLLBACK_TIMEOUT_MS$1;
+            const rollbackController = new AbortController();
+            const timeoutError = new Error(`Document mutation rollback timed out after ${rollbackTimeoutMs}ms.`);
+            timeoutError.name = 'TimeoutError';
+            const timeout = setTimeout(() => rollbackController.abort(timeoutError), rollbackTimeoutMs);
+            const runRollbackTask = async (task) => {
+                var _a;
+                if (rollbackController.signal.aborted) {
+                    throw (_a = rollbackController.signal.reason) !== null && _a !== void 0 ? _a : timeoutError;
                 }
-                catch (error) {
-                    rollbackErrors.push(error);
+                let removeAbortListener = () => undefined;
+                const aborted = new Promise((resolve, reject) => {
+                    const abort = () => { var _a; return reject((_a = rollbackController.signal.reason) !== null && _a !== void 0 ? _a : timeoutError); };
+                    removeAbortListener = () => rollbackController.signal.removeEventListener('abort', abort);
+                    rollbackController.signal.addEventListener('abort', abort, { once: true });
+                });
+                try {
+                    await Promise.race([task(), aborted]);
+                }
+                finally {
+                    removeAbortListener();
+                }
+            };
+            try {
+                for (let index = session.rollbackEntries.length - 1; index >= 0; index -= 1) {
+                    const entry = session.rollbackEntries[index];
+                    if (!(entry === null || entry === void 0 ? void 0 : entry.enabled))
+                        continue;
+                    try {
+                        await runRollbackTask(() => entry.run(cause, rollbackController.signal));
+                    }
+                    catch (error) {
+                        rollbackErrors.push(error);
+                    }
+                }
+                let targetedStateMatches = false;
+                const targetedRollbackRan = session.rollbackEntries.some((entry) => entry.enabled);
+                if (targetedRollbackRan &&
+                    rollbackErrors.length === 0 &&
+                    this.options.mementos.matches) {
+                    try {
+                        targetedStateMatches = await this.options.mementos.matches(session.before);
+                    }
+                    catch (error) {
+                        rollbackErrors.push(error);
+                    }
+                }
+                if (!targetedStateMatches) {
+                    try {
+                        await runRollbackTask(() => this.options.mementos.restore(session.before, {
+                            rollbackOnFailure: false,
+                            signal: rollbackController.signal,
+                        }));
+                    }
+                    catch (restoreError) {
+                        rollbackErrors.push(restoreError);
+                        const failure = new DocumentMutationUnrecoverableError(transactionId, cause, Object.freeze(rollbackErrors));
+                        (_c = (_b = this.options).faultSink) === null || _c === void 0 ? void 0 : _c.call(_b, failure);
+                        (_e = (_d = this.options).errorSink) === null || _e === void 0 ? void 0 : _e.call(_d, failure);
+                        return failure;
+                    }
+                }
+                if (!this.options.state.isDisposed()) {
+                    try {
+                        this.options.state.requestRender();
+                    }
+                    catch (error) {
+                        rollbackErrors.push(error);
+                    }
                 }
             }
-            let targetedStateMatches = false;
-            const targetedRollbackRan = session.rollbackEntries.some((entry) => entry.enabled);
-            if (targetedRollbackRan && rollbackErrors.length === 0 && this.options.mementos.matches) {
-                try {
-                    targetedStateMatches = await this.options.mementos.matches(session.before);
-                }
-                catch (error) {
-                    rollbackErrors.push(error);
-                }
-            }
-            if (!targetedStateMatches) {
-                try {
-                    await this.options.mementos.restore(session.before, {
-                        rollbackOnFailure: false,
-                    });
-                }
-                catch (restoreError) {
-                    rollbackErrors.push(restoreError);
-                    const failure = new DocumentMutationUnrecoverableError(transactionId, cause, Object.freeze(rollbackErrors));
-                    (_b = (_a = this.options).faultSink) === null || _b === void 0 ? void 0 : _b.call(_a, failure);
-                    (_d = (_c = this.options).errorSink) === null || _d === void 0 ? void 0 : _d.call(_c, failure);
-                    return failure;
-                }
-            }
-            if (!this.options.state.isDisposed()) {
-                try {
-                    this.options.state.requestRender();
-                }
-                catch (error) {
-                    rollbackErrors.push(error);
-                }
+            finally {
+                clearTimeout(timeout);
             }
             if (isCancellation(cause))
                 return cause;
             const failure = cause instanceof DocumentMutationError
                 ? cause
                 : new DocumentMutationError(transactionId, cause instanceof Error ? cause.message : 'unknown failure.', cause, Object.freeze(rollbackErrors));
-            (_f = (_e = this.options).errorSink) === null || _f === void 0 ? void 0 : _f.call(_e, failure);
+            (_g = (_f = this.options).errorSink) === null || _g === void 0 ? void 0 : _g.call(_f, failure);
             return failure;
         }
         normalizeRequest(request) {
@@ -5078,8 +5316,17 @@
                 participantIds.add(participant.id);
             }
             participants.sort((left, right) => left.order - right.order);
-            const metadata = immutableMetadata(request.metadata);
-            const serializedMetadata = JSON.stringify(metadata);
+            let metadata;
+            let serializedMetadata;
+            try {
+                metadata = immutableMetadata(request.metadata);
+                serializedMetadata = JSON.stringify(metadata);
+            }
+            catch (error) {
+                if (error instanceof DocumentMutationRegistrationError)
+                    throw error;
+                throw new DocumentMutationRegistrationError('Mutation metadata must be safely JSON-serializable.', request.id);
+            }
             const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
             if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
                 throw new DocumentMutationRegistrationError(`Mutation metadata exceeds ${maxMetadataBytes} bytes.`, request.id);
@@ -5124,6 +5371,7 @@
         }
     }
 
+    const DEFAULT_ROLLBACK_TIMEOUT_MS = 30000;
     function createAbortError(message) {
         if (typeof DOMException === 'function')
             return new DOMException(message, 'AbortError');
@@ -5135,6 +5383,43 @@
         var _a;
         if (signal.aborted)
             throw (_a = signal.reason) !== null && _a !== void 0 ? _a : createAbortError('State restoration was aborted.');
+    }
+    async function runBoundedRollback(task, timeoutMs) {
+        const controller = new AbortController();
+        const timeoutError = new Error(`Memento rollback timed out after ${timeoutMs}ms.`);
+        timeoutError.name = 'TimeoutError';
+        const timeout = setTimeout(() => controller.abort(timeoutError), timeoutMs);
+        let removeAbortListener = () => undefined;
+        const aborted = new Promise((resolve, reject) => {
+            const abort = () => { var _a; return reject((_a = controller.signal.reason) !== null && _a !== void 0 ? _a : timeoutError); };
+            removeAbortListener = () => controller.signal.removeEventListener('abort', abort);
+            controller.signal.addEventListener('abort', abort, { once: true });
+        });
+        try {
+            await Promise.race([task(controller.signal), aborted]);
+        }
+        finally {
+            clearTimeout(timeout);
+            removeAbortListener();
+        }
+    }
+    function stateValuesMatch(left, right) {
+        if (Object.is(left, right))
+            return true;
+        if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) {
+            return false;
+        }
+        const leftIsArray = Array.isArray(left);
+        if (leftIsArray !== Array.isArray(right))
+            return false;
+        const leftRecord = left;
+        const rightRecord = right;
+        const leftKeys = Object.keys(leftRecord);
+        const rightKeys = Object.keys(rightRecord);
+        if (leftKeys.length !== rightKeys.length)
+            return false;
+        return leftKeys.every((key) => Object.prototype.hasOwnProperty.call(rightRecord, key) &&
+            stateValuesMatch(leftRecord[key], rightRecord[key]));
     }
     class MementoService {
         constructor(coreAdapter, slices) {
@@ -5190,16 +5475,21 @@
             if (!this.isTrusted(memento))
                 return false;
             const current = this.captureInternal(false);
-            return (JSON.stringify(current.core) === JSON.stringify(memento.core) &&
-                JSON.stringify(current.plugins) === JSON.stringify(memento.plugins));
+            return (stateValuesMatch(current.core, memento.core) &&
+                stateValuesMatch(current.plugins, memento.plugins));
         }
         async restore(memento, options = {}) {
+            var _a;
             this.assertActive('restore a memento');
             if (!this.isTrusted(memento)) {
                 throw new MementoRestoreError('core', 'restore', new Error('Untrusted memento.'));
             }
             if (this.restoring) {
                 throw new MementoRestoreError('core', 'restore', new Error('Reentrant memento restoration is not allowed.'));
+            }
+            const rollbackTimeoutMs = (_a = options.rollbackTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_ROLLBACK_TIMEOUT_MS;
+            if (!Number.isSafeInteger(rollbackTimeoutMs) || rollbackTimeoutMs <= 0) {
+                throw new MementoRestoreError('core', 'restore', new TypeError('rollbackTimeoutMs must be a positive safe integer.'));
             }
             const controller = new AbortController();
             const providedSignal = options.signal;
@@ -5220,9 +5510,10 @@
                         throw error;
                     throw new MementoRestoreError('core', 'restore', error);
                 }
+                const rollbackMemento = rollback;
                 const rollbackErrors = [];
                 try {
-                    await this.restoreInternal(rollback, 'rollback', new AbortController().signal);
+                    await runBoundedRollback((signal) => this.restoreInternal(rollbackMemento, 'rollback', signal), rollbackTimeoutMs);
                 }
                 catch (rollbackError) {
                     rollbackErrors.push(rollbackError);
@@ -5552,6 +5843,13 @@
         return Object.freeze({ mimeType, encodedBytes, dimensions });
     }
 
+    const EXTERNAL_RESOURCE_KEYS = new Set(['href', 'source', 'src', 'url']);
+    function isExternalResourceKey(propertyName) {
+        if (!propertyName)
+            return false;
+        const normalized = propertyName.toLowerCase();
+        return EXTERNAL_RESOURCE_KEYS.has(normalized) || normalized.endsWith('url');
+    }
     const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
         maxInputBytes: 16 * 1024 * 1024,
         maxDepth: 64,
@@ -5599,8 +5897,8 @@
                     }
                 }
                 else if (limits.externalUrlPolicy === 'reject' &&
-                    (propertyName === 'src' || propertyName === 'url') &&
-                    /^(?:https?:)?\/\//i.test(value)) {
+                    isExternalResourceKey(propertyName) &&
+                    /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(value)) {
                     throw new SnapshotValidationError('external URL references are forbidden.', path);
                 }
             }
@@ -5619,29 +5917,25 @@
         if (prototype !== Object.prototype && prototype !== null && !Array.isArray(value)) {
             throw new SnapshotValidationError('only plain objects and arrays are accepted.', path);
         }
+        if (Object.prototype.hasOwnProperty.call(value, 'toJSON') ||
+            Object.getOwnPropertySymbols(value).length > 0) {
+            throw new SnapshotValidationError('toJSON hooks and symbol properties are forbidden.', path);
+        }
         ancestors.add(value);
         for (const key of Object.keys(value)) {
             if (isDangerousStateKey(key)) {
                 throw new SnapshotValidationError(`dangerous key "${key}" is forbidden.`, `${path}.${key}`);
             }
-            inspectTree(value[key], limits, `${path}.${key}`, depth + 1, ancestors, counter, key);
-            if (key === 'metadata') {
-                const metadataBytes = byteLength(JSON.stringify(value[key]));
+            const descriptor = Object.getOwnPropertyDescriptor(value, key);
+            if (!descriptor || !('value' in descriptor)) {
+                throw new SnapshotValidationError('accessor properties are forbidden.', `${path}.${key}`);
+            }
+            const nestedValue = descriptor.value;
+            inspectTree(nestedValue, limits, `${path}.${key}`, depth + 1, ancestors, counter, key);
+            if (key === 'metadata' || key.endsWith('Metadata')) {
+                const metadataBytes = byteLength(JSON.stringify(nestedValue));
                 if (metadataBytes > limits.maxMetadataBytes) {
                     throw new SnapshotValidationError(`metadata exceeds ${limits.maxMetadataBytes} bytes.`, `${path}.${key}`);
-                }
-            }
-        }
-        if (!Array.isArray(value)) {
-            const record = value;
-            if (typeof record.width === 'number' && typeof record.height === 'number') {
-                const width = record.width;
-                const height = record.height;
-                if (width > 0 && height > 0 && width * height > limits.maxDecodedPixels) {
-                    throw new SnapshotValidationError(`decoded pixel count exceeds ${limits.maxDecodedPixels}.`, path);
-                }
-                if (width > limits.maxImageDimension || height > limits.maxImageDimension) {
-                    throw new SnapshotValidationError(`image dimensions exceed ${limits.maxImageDimension}.`, path);
                 }
             }
         }
@@ -6100,6 +6394,7 @@
         exportMultiplier: 1,
         initialImageBase64: '',
     });
+    const MAX_RETAINED_DIAGNOSTICS = 1000;
     function positiveFinite(value, fallback) {
         return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
     }
@@ -6158,9 +6453,10 @@
             'name' in error &&
             error.name === 'AbortError');
     }
-    function withCoreTimeout(promise, timeoutMs, label, signal) {
+    function withCoreTimeout(task, timeoutMs, label, signal, disposeLateResult) {
         return new Promise((resolve, reject) => {
             const startedAt = Date.now();
+            const controller = new AbortController();
             let settled = false;
             const finish = (body) => {
                 if (settled)
@@ -6170,16 +6466,37 @@
                 signal.removeEventListener('abort', abort);
                 body();
             };
-            const abort = () => finish(() => reject(loadAbortReason(signal, `${label} was aborted.`)));
+            const abort = () => {
+                const reason = loadAbortReason(signal, `${label} was aborted.`);
+                controller.abort(reason);
+                finish(() => reject(reason));
+            };
             const timeoutId = setTimeout(() => {
-                finish(() => reject(new CoreRuntimeError(`[ImageEditor] ${label} timed out after ${Date.now() - startedAt}ms.`, { code: 'IMAGE_LOAD_TIMEOUT' })));
+                const timeoutError = new CoreRuntimeError(`[ImageEditor] ${label} timed out after ${Date.now() - startedAt}ms.`, { code: 'IMAGE_LOAD_TIMEOUT' });
+                controller.abort(timeoutError);
+                finish(() => reject(timeoutError));
             }, timeoutMs);
             signal.addEventListener('abort', abort, { once: true });
             if (signal.aborted) {
                 abort();
                 return;
             }
-            promise.then((value) => finish(() => resolve(value)), (error) => finish(() => reject(error)));
+            try {
+                task(controller.signal).then((value) => {
+                    if (settled) {
+                        try {
+                            disposeLateResult === null || disposeLateResult === void 0 ? void 0 : disposeLateResult(value);
+                        }
+                        catch {
+                        }
+                        return;
+                    }
+                    finish(() => resolve(value));
+                }, (error) => finish(() => reject(error)));
+            }
+            catch (error) {
+                finish(() => reject(error));
+            }
         });
     }
     function toAffineMatrix(value) {
@@ -6466,7 +6783,9 @@
             if (!ownerDocument)
                 throw new CoreRuntimeError('[ImageEditor] Canvas document is unavailable.');
             const canvasElement = resolveElement$1(elements.canvas, ownerDocument);
-            if (!(canvasElement instanceof ownerDocument.defaultView.HTMLCanvasElement)) {
+            if (!canvasElement ||
+                canvasElement.tagName.toLowerCase() !== 'canvas' ||
+                typeof canvasElement.getContext !== 'function') {
                 throw new CoreRuntimeError('[ImageEditor] Core canvas element was not found.');
             }
             this.canvasElement = canvasElement;
@@ -6513,10 +6832,10 @@
                 await this.plugins.runOperationForHost('core:load-image', source, async (loadSource, operationContext) => {
                     const sequence = ++this.loadSequence;
                     this.latestLoadSequence = sequence;
-                    const image = await withCoreTimeout(this.fabric.FabricImage.fromURL(loadSource, {
+                    const image = await withCoreTimeout((signal) => this.fabric.FabricImage.fromURL(loadSource, {
                         crossOrigin: 'anonymous',
-                        signal: operationContext.signal,
-                    }), this.options.imageLoadTimeoutMs, 'FabricImage.fromURL', operationContext.signal);
+                        signal,
+                    }), this.options.imageLoadTimeoutMs, 'FabricImage.fromURL', operationContext.signal, (lateImage) => lateImage.dispose());
                     this.assertCurrentLoad(sequence, operationContext.signal);
                     const naturalWidth = Number(image.width) || 0;
                     const naturalHeight = Number(image.height) || 0;
@@ -6648,13 +6967,13 @@
         }
         async loadFromState(input, options = {}) {
             this.assertReady('load state');
-            const prepared = await this.snapshots.prepareForLoad(input, {
-                missingPluginPolicy: options.missingPluginPolicy,
-                migrations: options.migrations,
-                signal: options.signal,
-            });
-            const sequence = ++this.stateLoadSequence;
             try {
+                const prepared = await this.snapshots.prepareForLoad(input, {
+                    missingPluginPolicy: options.missingPluginPolicy,
+                    migrations: options.migrations,
+                    signal: options.signal,
+                });
+                const sequence = ++this.stateLoadSequence;
                 await this.documentMutations.run({
                     id: `core:load-state-transaction:${sequence}`,
                     kind: 'compound',
@@ -6680,7 +6999,8 @@
                 this.updatePlaceholder();
             }
             catch (error) {
-                this.reportError(error, 'loadFromState failed.');
+                if (!isLoadCancellation(error))
+                    this.reportError(error, 'loadFromState failed.');
                 throw error;
             }
         }
@@ -6752,8 +7072,10 @@
         dispose() {
             if (this.lifecycle.current === 'disposed' || this.lifecycle.current === 'disposing')
                 return;
-            if (this.geometry.isRunning || this.documentMutations.isRunning) {
-                void this.disposeAsync();
+            if (this.geometry.isRunning ||
+                this.documentMutations.isRunning ||
+                this.plugins.hasRunningOperations()) {
+                this.observeDetachedDisposal(this.disposeAsync());
                 return;
             }
             if (!this.lifecycle.beginDisposal())
@@ -6779,17 +7101,31 @@
                 }
             }
             const canvas = this.canvas;
-            this.clearRuntimeReferences();
+            try {
+                this.clearRuntimeReferences();
+            }
+            catch (error) {
+                errors.push(error);
+            }
+            let canvasDispose;
             if (canvas) {
-                const canvasDispose = canvas.dispose();
-                if (canvasDispose && typeof canvasDispose.then === 'function') {
-                    this.disposePromise = Promise.resolve(canvasDispose).then(() => undefined);
+                try {
+                    canvasDispose = canvas.dispose();
+                }
+                catch (error) {
+                    errors.push(error);
                 }
             }
-            this.lifecycle.completeDisposal();
-            if (errors.length > 0) {
-                throw new CoreRuntimeError(`[ImageEditor] Core disposal completed with ${errors.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) });
+            if (canvasDispose && typeof canvasDispose.then === 'function') {
+                const disposal = Promise.resolve(canvasDispose).then(() => this.completeDisposal(errors, 'Core disposal'), (error) => {
+                    errors.push(error);
+                    this.completeDisposal(errors, 'Core disposal');
+                });
+                this.disposePromise = disposal;
+                this.observeDetachedDisposal(disposal);
+                return;
             }
+            this.completeDisposal(errors, 'Core disposal');
         }
         disposeAsync() {
             var _a;
@@ -7057,9 +7393,12 @@
             });
         }
         createPresentationPort() {
+            const resolveLayoutMode = () => this.layoutMode;
             return Object.freeze({
                 backgroundColor: this.options.backgroundColor,
-                layoutMode: this.layoutMode,
+                get layoutMode() {
+                    return resolveLayoutMode();
+                },
             });
         }
         createFabricRuntimePort() {
@@ -7365,9 +7704,16 @@
         }
         recordDiagnostic(error, message) {
             const classification = classifyCoreError(error);
-            const code = error && typeof error === 'object' && typeof Reflect.get(error, 'code') === 'string'
-                ? String(Reflect.get(error, 'code'))
-                : 'UNCLASSIFIED_CORE_ERROR';
+            let errorCode;
+            if (error && typeof error === 'object') {
+                try {
+                    errorCode = Reflect.get(error, 'code');
+                }
+                catch {
+                    errorCode = undefined;
+                }
+            }
+            const code = typeof errorCode === 'string' ? errorCode : 'UNCLASSIFIED_CORE_ERROR';
             const diagnostic = Object.freeze({
                 ...classification,
                 timestamp: Date.now(),
@@ -7378,6 +7724,9 @@
                     : error,
             });
             this.diagnostics.push(diagnostic);
+            if (this.diagnostics.length > MAX_RETAINED_DIAGNOSTICS) {
+                this.diagnostics.splice(0, this.diagnostics.length - MAX_RETAINED_DIAGNOSTICS);
+            }
             return diagnostic;
         }
         assertReady(operation) {
@@ -7408,6 +7757,13 @@
                 () => this.geometry.dispose(),
                 () => this.documentMutations.dispose(),
                 () => this.plugins.dispose(),
+                () => this.snapshots.dispose(),
+                () => this.exportContributors.dispose(),
+                () => this.mementos.dispose(),
+                () => this.transientObjects.dispose(),
+                () => this.externalObjects.dispose(),
+                () => this.objectProperties.dispose(),
+                () => this.slices.dispose(),
             ]) {
                 try {
                     await cleanup();
@@ -7416,15 +7772,13 @@
                     errors.push(error);
                 }
             }
-            this.snapshots.dispose();
-            this.exportContributors.dispose();
-            this.mementos.dispose();
-            this.transientObjects.dispose();
-            this.externalObjects.dispose();
-            this.objectProperties.dispose();
-            this.slices.dispose();
             const canvas = this.canvas;
-            this.clearRuntimeReferences();
+            try {
+                this.clearRuntimeReferences();
+            }
+            catch (error) {
+                errors.push(error);
+            }
             if (canvas) {
                 try {
                     await canvas.dispose();
@@ -7433,10 +7787,19 @@
                     errors.push(error);
                 }
             }
+            this.completeDisposal(errors, 'Async disposal');
+        }
+        completeDisposal(errors, label) {
             this.lifecycle.completeDisposal();
             if (errors.length > 0) {
-                throw new CoreRuntimeError(`[ImageEditor] Async disposal completed with ${errors.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) });
+                throw new CoreRuntimeError(`[ImageEditor] ${label} completed with ${errors.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) });
             }
+        }
+        observeDetachedDisposal(disposal) {
+            void disposal.catch((error) => {
+                this.recordDiagnostic(error, 'Detached Core disposal completed with cleanup failures.');
+                this.reportError(error, 'Detached Core disposal completed with cleanup failures.');
+            });
         }
     }
 
@@ -7502,12 +7865,22 @@
         object.setCoords();
         const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
         const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
+        const previousTransform = {
+            angle: object.angle,
+            scaleX: object.scaleX,
+            scaleY: object.scaleY,
+            skewX: object.skewX,
+            skewY: object.skewY,
+            flipX: object.flipX,
+            flipY: object.flipY,
+        };
         const originalCenter = object.getCenterPoint();
         const targetCenter = transformPointByMatrix(originalCenter, fullDelta, fabricUtil);
         const orientationDelta = context.preserveReadableText
             ? stripReflectionFromDelta(fullDelta, fabricUtil)
             : fullDelta;
         let restoreCenter = originalCenter;
+        let committed = false;
         try {
             object.set({ originX: 'center', originY: 'center' });
             object.setPositionByOrigin(originalCenter, 'center', 'center');
@@ -7531,8 +7904,11 @@
                 });
             }
             restoreCenter = targetCenter;
+            committed = true;
         }
         finally {
+            if (!committed)
+                object.set(previousTransform);
             object.set({ originX: previousOriginX, originY: previousOriginY });
             object.setPositionByOrigin(restoreCenter, 'center', 'center');
             object.setCoords();
@@ -7646,8 +8022,22 @@
     function getImageExportRegion(image, canvas) {
         image.setCoords();
         const bounds = image.getBoundingRect();
-        const canvasWidth = Math.max(1, Math.round(canvas.getWidth()));
-        const canvasHeight = Math.max(1, Math.round(canvas.getHeight()));
+        const measuredCanvasWidth = canvas.getWidth();
+        const measuredCanvasHeight = canvas.getHeight();
+        const canvasWidth = Number.isFinite(measuredCanvasWidth) && measuredCanvasWidth > 0
+            ? Math.max(1, Math.round(measuredCanvasWidth))
+            : 1;
+        const canvasHeight = Number.isFinite(measuredCanvasHeight) && measuredCanvasHeight > 0
+            ? Math.max(1, Math.round(measuredCanvasHeight))
+            : 1;
+        if (!Number.isFinite(bounds.left) ||
+            !Number.isFinite(bounds.top) ||
+            !Number.isFinite(bounds.width) ||
+            !Number.isFinite(bounds.height) ||
+            bounds.width <= 0 ||
+            bounds.height <= 0) {
+            return Object.freeze({ left: 0, top: 0, width: canvasWidth, height: canvasHeight });
+        }
         const left = Math.min(canvasWidth - 1, Math.max(0, Math.floor(bounds.left)));
         const top = Math.min(canvasHeight - 1, Math.max(0, Math.floor(bounds.top)));
         const right = Math.min(canvasWidth, Math.max(left + 1, Math.ceil(bounds.left + bounds.width)));
@@ -9216,8 +9606,33 @@
         ];
     }
     function cornersMatch(actual, expected, epsilon = 1e-6) {
-        return actual.every((point, index) => Math.abs(point.x - expected[index].x) <= epsilon &&
-            Math.abs(point.y - expected[index].y) <= epsilon);
+        const coordinateScale = Math.max(1, ...actual.flatMap(({ x, y }) => [Math.abs(x), Math.abs(y)]), ...expected.flatMap(({ x, y }) => [Math.abs(x), Math.abs(y)]));
+        const tolerance = Math.max(epsilon, coordinateScale * 1e-9);
+        return actual.every((point, index) => Math.abs(point.x - expected[index].x) <= tolerance &&
+            Math.abs(point.y - expected[index].y) <= tolerance);
+    }
+    class OverlayStateRestoreError extends TypeError {
+        constructor(cause, rollbackError) {
+            super('Overlay State bounds failed and the original transform could not be restored.');
+            Object.defineProperty(this, "cause", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: cause
+            });
+            Object.defineProperty(this, "rollbackError", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: rollbackError
+            });
+            Object.defineProperty(this, "name", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: 'OverlayStateRestoreError'
+            });
+        }
     }
     function restoreOverlayStateBounds(object, geometry, context, fabric) {
         if (!isOverlayStateBoundsGeometry(geometry)) {
@@ -9230,20 +9645,43 @@
             qrDecompose: (matrix) => fabric.util.qrDecompose(matrix),
             Point: fabric.Point,
         };
-        for (let attempt = 0; attempt < 8; attempt += 1) {
-            object.setCoords();
-            const sourceCorners = object.getCoords();
-            if (sourceCorners.length !== 4) {
-                throw new TypeError('Overlay State bounds require four object corners.');
+        const originalTransform = {
+            left: object.left,
+            top: object.top,
+            angle: object.angle,
+            scaleX: object.scaleX,
+            scaleY: object.scaleY,
+            skewX: object.skewX,
+            skewY: object.skewY,
+            flipX: object.flipX,
+            flipY: object.flipY,
+        };
+        try {
+            for (let attempt = 0; attempt < 8; attempt += 1) {
+                object.setCoords();
+                const sourceCorners = object.getCoords();
+                if (sourceCorners.length !== 4) {
+                    throw new TypeError('Overlay State bounds require four object corners.');
+                }
+                if (cornersMatch(sourceCorners, targetCorners))
+                    return;
+                const delta = fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners)));
+                applyDeltaToObject(object, delta, { fabricUtil });
             }
-            if (cornersMatch(sourceCorners, targetCorners))
-                return;
-            const delta = fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners)));
-            applyDeltaToObject(object, delta, { fabricUtil });
+            object.setCoords();
+            if (!cornersMatch(object.getCoords(), targetCorners)) {
+                throw new TypeError('Overlay State bounds could not be restored precisely.');
+            }
         }
-        object.setCoords();
-        if (!cornersMatch(object.getCoords(), targetCorners)) {
-            throw new TypeError('Overlay State bounds could not be restored precisely.');
+        catch (error) {
+            try {
+                object.set(originalTransform);
+                object.setCoords();
+            }
+            catch (rollbackError) {
+                throw new OverlayStateRestoreError(error, rollbackError);
+            }
+            throw error;
         }
     }
     function objectPointToCanvas(object, point) {
@@ -9499,7 +9937,7 @@
     const MAX_ANNOTATION_METADATA_DEPTH = 4;
     const MAX_ANNOTATION_METADATA_KEYS = 32;
     const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
-    function isPlainRecord$6(value) {
+    function isPlainRecord$7(value) {
         if (typeof value !== 'object' || value === null || Array.isArray(value))
             return false;
         const prototype = Object.getPrototypeOf(value);
@@ -9538,7 +9976,7 @@
                 }
                 return Object.freeze(value.map((entry) => cloneMetadataValue(entry, depth + 1, budget)));
             }
-            if (!isPlainRecord$6(value)) {
+            if (!isPlainRecord$7(value)) {
                 throw new AnnotationValidationError('Annotation metadata objects must be plain.');
             }
             const entries = Object.entries(value);
@@ -9571,7 +10009,7 @@
         return candidate;
     }
     function normalizeAnnotationMetadata(value = {}) {
-        if (!isPlainRecord$6(value)) {
+        if (!isPlainRecord$7(value)) {
             throw new AnnotationValidationError('Annotation metadata must be a plain object.');
         }
         return cloneMetadataValue(value, 0, {
@@ -9642,14 +10080,14 @@
     const identifierPattern = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
     const DEFAULT_MAX_ANNOTATION_COUNT = 2000;
     const HARD_MAX_ANNOTATION_COUNT = 10000;
-    function isPlainRecord$5(value) {
+    function isPlainRecord$6(value) {
         if (typeof value !== 'object' || value === null || Array.isArray(value))
             return false;
         const prototype = Object.getPrototypeOf(value);
         return prototype === Object.prototype || prototype === null;
     }
     function isInteractionState(value) {
-        if (!isPlainRecord$5(value))
+        if (!isPlainRecord$6(value))
             return false;
         const keys = Object.keys(value);
         return (keys.every((key) => ['selectable', 'evented', 'hasControls', 'editable'].includes(key)) &&
@@ -9659,7 +10097,7 @@
             (value.editable === undefined || typeof value.editable === 'boolean'));
     }
     function isEnvelopeShape(value) {
-        if (!isPlainRecord$5(value))
+        if (!isPlainRecord$6(value))
             return false;
         return (Object.keys(value).every((key) => ['version', 'name', 'metadata', 'interaction', 'feature'].includes(key)) &&
             value.version === 1 &&
@@ -9675,7 +10113,7 @@
             return (left.length === right.length &&
                 left.every((entry, index) => equalMetadata(entry, right[index])));
         }
-        if (isPlainRecord$5(left) && isPlainRecord$5(right)) {
+        if (isPlainRecord$6(left) && isPlainRecord$6(right)) {
             const leftKeys = Object.keys(left).sort();
             const rightKeys = Object.keys(right).sort();
             return (leftKeys.length === rightKeys.length &&
@@ -9693,7 +10131,7 @@
         });
     }
     function isStateData(value) {
-        return (isPlainRecord$5(value) &&
+        return (isPlainRecord$6(value) &&
             Object.keys(value).every((key) => ['version', 'name', 'interaction', 'feature'].includes(key)) &&
             value.version === 1 &&
             typeof value.name === 'string' &&
@@ -9709,7 +10147,7 @@
         return value;
     }
     function normalizeSharedUpdate(value) {
-        if (!isPlainRecord$5(value)) {
+        if (!isPlainRecord$6(value)) {
             throw new AnnotationValidationError('Annotation update must be a plain object.');
         }
         const allowed = new Set(['name', 'metadata', 'hidden', 'locked']);
@@ -10303,7 +10741,7 @@
             this.disposed = true;
         }
         normalizeQuery(query) {
-            if (!isPlainRecord$5(query)) {
+            if (!isPlainRecord$6(query)) {
                 throw new AnnotationValidationError('Annotation query must be a plain object.');
             }
             const allowed = new Set(['kinds', 'ids', 'includeHidden', 'includeLocked']);
@@ -10408,7 +10846,7 @@
             return feature;
         }
         validateFeatureDefinition(definition) {
-            if (!isPlainRecord$5(definition)) {
+            if (!isPlainRecord$6(definition)) {
                 throw new AnnotationValidationError('Annotation Feature definition must be an object.');
             }
             if (!featureKindPattern.test(definition.kind) ||
@@ -10417,7 +10855,7 @@
             }
             this.assertIdentifier(definition.ownerPluginId, 'Annotation Feature owner');
             if (typeof definition.classify !== 'function' ||
-                !isPlainRecord$5(definition.codec) ||
+                !isPlainRecord$6(definition.codec) ||
                 !identifierPattern.test(definition.codec.type) ||
                 !/^\d+\.\d+\.\d+$/.test(definition.codec.version) ||
                 typeof definition.codec.serialize !== 'function' ||
@@ -11425,6 +11863,195 @@
         });
     }
 
+    const SAFE_NESTED_FABRIC_TYPES = new Set(['linear', 'pattern', 'radial', 'shadow']);
+    const RESOURCE_KEYS = new Set(['href', 'source', 'src', 'url']);
+    const DATA_IMAGE_PATTERN = /^data:image\/(?:jpeg|png|webp);base64,[a-z\d+/]+={0,2}$/iu;
+    const COMMON_ROOT_PROPERTIES = new Set([
+        'angle',
+        'backgroundColor',
+        'fill',
+        'fillRule',
+        'flipX',
+        'flipY',
+        'globalCompositeOperation',
+        'height',
+        'left',
+        'opacity',
+        'originX',
+        'originY',
+        'paintFirst',
+        'scaleX',
+        'scaleY',
+        'shadow',
+        'skewX',
+        'skewY',
+        'stroke',
+        'strokeDashArray',
+        'strokeDashOffset',
+        'strokeLineCap',
+        'strokeLineJoin',
+        'strokeMiterLimit',
+        'strokeUniform',
+        'strokeWidth',
+        'top',
+        'type',
+        'version',
+        'visible',
+        'width',
+    ]);
+    const MASK_INTERACTION_PROPERTIES = new Set([
+        'borderColor',
+        'cornerColor',
+        'cornerSize',
+        'evented',
+        'hasControls',
+        'lockRotation',
+        'selectable',
+        'transparentCorners',
+    ]);
+    const ROOT_TYPE_PROPERTIES = Object.freeze({
+        rect: new Set(['rx', 'ry']),
+        circle: new Set(['counterClockwise', 'endAngle', 'radius', 'startAngle']),
+        ellipse: new Set(['rx', 'ry']),
+        line: new Set(['x1', 'x2', 'y1', 'y2']),
+        path: new Set(['path']),
+        polygon: new Set(['points']),
+        textbox: new Set([
+            'charSpacing',
+            'direction',
+            'editable',
+            'fontFamily',
+            'fontSize',
+            'fontStyle',
+            'fontWeight',
+            'lineHeight',
+            'linethrough',
+            'minWidth',
+            'overline',
+            'path',
+            'pathAlign',
+            'pathSide',
+            'pathStartOffset',
+            'splitByGrapheme',
+            'styles',
+            'text',
+            'textAlign',
+            'textBackgroundColor',
+            'textDecorationThickness',
+            'underline',
+        ]),
+    });
+    function isPlainRecord$5(value) {
+        if (typeof value !== 'object' || value === null || Array.isArray(value))
+            return false;
+        const prototype = Object.getPrototypeOf(value);
+        return prototype === Object.prototype || prototype === null;
+    }
+    function isSafeSerializedFabricObject(value, options) {
+        var _a, _b, _c;
+        if (!isPlainRecord$5(value))
+            return false;
+        const rootTypeDescriptor = Object.getOwnPropertyDescriptor(value, 'type');
+        const rootType = rootTypeDescriptor && 'value' in rootTypeDescriptor ? rootTypeDescriptor.value : undefined;
+        if (typeof rootType !== 'string' ||
+            !options.rootTypes.some((type) => type.toLowerCase() === rootType.toLowerCase())) {
+            return false;
+        }
+        const maxDepth = (_a = options.maxDepth) !== null && _a !== void 0 ? _a : 24;
+        const maxNodes = (_b = options.maxNodes) !== null && _b !== void 0 ? _b : 20000;
+        const maxArrayLength = (_c = options.maxArrayLength) !== null && _c !== void 0 ? _c : 65536;
+        const ancestors = new WeakSet();
+        let nodes = 0;
+        const inspect = (entry, depth, root, propertyName) => {
+            var _a;
+            if (entry === null ||
+                entry === undefined ||
+                typeof entry === 'string' ||
+                typeof entry === 'boolean') {
+                if (typeof entry === 'string' &&
+                    propertyName &&
+                    (RESOURCE_KEYS.has(propertyName.toLowerCase()) ||
+                        propertyName.toLowerCase().endsWith('url'))) {
+                    return DATA_IMAGE_PATTERN.test(entry);
+                }
+                return true;
+            }
+            if (typeof entry === 'number')
+                return Number.isFinite(entry);
+            if (typeof entry !== 'object' || depth > maxDepth || ancestors.has(entry))
+                return false;
+            nodes += 1;
+            if (nodes > maxNodes)
+                return false;
+            if (Array.isArray(entry)) {
+                if (entry.length > maxArrayLength)
+                    return false;
+                ancestors.add(entry);
+                const enumerableSymbols = Object.getOwnPropertySymbols(entry).some((key) => { var _a; return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true; });
+                if (enumerableSymbols)
+                    return false;
+                const keys = Object.keys(entry);
+                if (keys.some((key) => !/^(?:0|[1-9]\d*)$/u.test(key) || Number(key) >= entry.length)) {
+                    return false;
+                }
+                for (let index = 0; index < entry.length; index += 1) {
+                    const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
+                    if (!descriptor || !('value' in descriptor))
+                        return false;
+                    if (!inspect(descriptor.value, depth + 1, false))
+                        return false;
+                }
+                ancestors.delete(entry);
+                return true;
+            }
+            if (!isPlainRecord$5(entry))
+                return false;
+            const typeDescriptor = Object.getOwnPropertyDescriptor(entry, 'type');
+            const entryType = typeDescriptor && 'value' in typeDescriptor ? typeDescriptor.value : undefined;
+            if (!root && typeof entryType === 'string') {
+                const nestedType = entryType.toLowerCase();
+                if (!SAFE_NESTED_FABRIC_TYPES.has(nestedType))
+                    return false;
+            }
+            if (Object.getOwnPropertySymbols(entry).some((key) => { var _a; return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true; })) {
+                return false;
+            }
+            ancestors.add(entry);
+            for (const key of Object.keys(entry)) {
+                if (isDangerousStateKey(key))
+                    return false;
+                if (root &&
+                    !COMMON_ROOT_PROPERTIES.has(key) &&
+                    !MASK_INTERACTION_PROPERTIES.has(key) &&
+                    !((_a = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _a === void 0 ? void 0 : _a.has(key))) {
+                    return false;
+                }
+                const descriptor = Object.getOwnPropertyDescriptor(entry, key);
+                if (!descriptor || !('value' in descriptor))
+                    return false;
+                if (key === 'clipPath' && descriptor.value !== null && descriptor.value !== undefined) {
+                    return false;
+                }
+                if (key === 'filters' &&
+                    (!Array.isArray(descriptor.value) || descriptor.value.length > 0)) {
+                    return false;
+                }
+                if (!inspect(descriptor.value, depth + 1, false, key))
+                    return false;
+            }
+            ancestors.delete(entry);
+            return true;
+        };
+        if (!inspect(value, 0, true))
+            return false;
+        if (rootType.toLowerCase() === 'path' && !Array.isArray(value.path))
+            return false;
+        if (rootType.toLowerCase() === 'textbox' && value.path !== null && value.path !== undefined) {
+            return false;
+        }
+        return true;
+    }
+
     function markMaskObject(object, meta) {
         const mask = object;
         mask.editorObjectKind = 'mask';
@@ -11623,13 +12250,14 @@
 
     function resolveNumeric(val, axis, fallback, canvas, options) {
         if (typeof val === 'number') {
-            return val;
+            return Number.isFinite(val) ? val : fallback;
         }
         if (typeof val === 'function') {
-            return val(canvas, options);
+            const resolved = val(canvas, options);
+            return Number.isFinite(resolved) ? resolved : fallback;
         }
-        if (typeof val === 'string' && val.endsWith('%')) {
-            const pct = parseFloat(val);
+        if (typeof val === 'string' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/iu.test(val)) {
+            const pct = Number(val.slice(0, -1));
             if (!Number.isFinite(pct)) {
                 return fallback;
             }
@@ -11639,10 +12267,30 @@
         return fallback;
     }
     function coercePoint(pt) {
+        const coerceCoordinate = (value) => {
+            if (value === null ||
+                value === undefined ||
+                typeof value === 'boolean' ||
+                (typeof value === 'string' && value.trim().length === 0)) {
+                return Number.NaN;
+            }
+            const coordinate = Number(value);
+            return Number.isFinite(coordinate) ? coordinate : Number.NaN;
+        };
         if (Array.isArray(pt)) {
-            return { x: Number(pt[0]), y: Number(pt[1]) };
+            return { x: coerceCoordinate(pt[0]), y: coerceCoordinate(pt[1]) };
         }
-        return { x: Number(pt.x), y: Number(pt.y) };
+        return { x: coerceCoordinate(pt.x), y: coerceCoordinate(pt.y) };
+    }
+
+    function isPixelAreaWithinBudget(width, height, maxPixels) {
+        return (Number.isSafeInteger(width) &&
+            Number.isSafeInteger(height) &&
+            Number.isSafeInteger(maxPixels) &&
+            width > 0 &&
+            height > 0 &&
+            maxPixels > 0 &&
+            width <= Math.floor(maxPixels / height));
     }
 
     const POLYGON_AREA_EPSILON = 1e-6;
@@ -11659,6 +12307,13 @@
     function isStyleObject(value) {
         return value !== null && typeof value === 'object' && !Array.isArray(value);
     }
+    function copyMaskStyles(value) {
+        const styles = copySafeOwnProperties(value);
+        if (Array.isArray(styles.strokeDashArray)) {
+            styles.strokeDashArray = [...styles.strokeDashArray];
+        }
+        return styles;
+    }
     function mergeMaskConfig(defaultMaskConfig, config) {
         const safeDefaultConfig = copySafeOwnProperties(defaultMaskConfig);
         const defaultStyles = safeDefaultConfig.styles;
@@ -11666,8 +12321,8 @@
         delete safeDefaultConfig.fabricGenerator;
         delete safeDefaultConfig.styles;
         const safeConfig = copySafeOwnProperties(config);
-        const configStyles = copySafeOwnProperties(config.styles);
-        const safeDefaultStyles = copySafeOwnProperties(isStyleObject(defaultStyles) ? defaultStyles : {});
+        const configStyles = copyMaskStyles(config.styles);
+        const safeDefaultStyles = copyMaskStyles(isStyleObject(defaultStyles) ? defaultStyles : {});
         return {
             ...safeDefaultConfig,
             ...safeConfig,
@@ -11877,6 +12532,13 @@
             const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
             const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
             const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+            if (!context.expandCanvasIfNeeded &&
+                (nextWidth > options.maxExportDimension ||
+                    nextHeight > options.maxExportDimension ||
+                    !isPixelAreaWithinBudget(nextWidth, nextHeight, options.maxExportPixels))) {
+                warnInvalidMask(options, 'canvas expansion exceeds the configured resource budget');
+                return null;
+            }
             if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
                 preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
                 resizeMaskCanvas(context, nextWidth, nextHeight);
@@ -12154,6 +12816,7 @@
     }
 
     const MASK_PLUGIN_ID = 'plugin:mask';
+    const MAX_MASK_OBJECT_BYTES = 512 * 1024;
     const MASK_SERIALIZED_OBJECT_PROPERTIES = [
         'hasControls',
         'selectable',
@@ -12205,15 +12868,30 @@
         if (!value || typeof value !== 'object')
             return false;
         const candidate = value;
-        return (!!candidate.object &&
-            typeof candidate.object === 'object' &&
-            Number.isSafeInteger(candidate.maskId) &&
-            Number(candidate.maskId) > 0 &&
-            typeof candidate.maskUid === 'string' &&
-            candidate.maskUid.length > 0 &&
-            typeof candidate.maskName === 'string' &&
-            typeof candidate.originalAlpha === 'number' &&
-            Number.isFinite(candidate.originalAlpha));
+        try {
+            const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+            if (!objectDescriptor || !('value' in objectDescriptor))
+                return false;
+            const serializedObject = objectDescriptor.value;
+            return (isSafeSerializedFabricObject(serializedObject, {
+                rootTypes: ['rect', 'circle', 'ellipse', 'polygon'],
+            }) &&
+                new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength <=
+                    MAX_MASK_OBJECT_BYTES &&
+                Number.isSafeInteger(candidate.maskId) &&
+                Number(candidate.maskId) > 0 &&
+                typeof candidate.maskUid === 'string' &&
+                candidate.maskUid.length > 0 &&
+                typeof candidate.maskName === 'string' &&
+                typeof candidate.originalAlpha === 'number' &&
+                Number.isFinite(candidate.originalAlpha) &&
+                (candidate.originalStroke === undefined ||
+                    candidate.originalStroke === null ||
+                    typeof candidate.originalStroke === 'string'));
+        }
+        catch {
+            return false;
+        }
     }
     function isPlainRecord$4(value) {
         if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -12900,7 +13578,10 @@
                 const overlayRegistration = context.capabilities.require(OVERLAY_REGISTRATION_CAPABILITY);
                 const host = Object.freeze({
                     ...diagnostics,
-                    ...presentation,
+                    backgroundColor: presentation.backgroundColor,
+                    get layoutMode() {
+                        return presentation.layoutMode;
+                    },
                     ...fabricRuntime,
                     ...canvas,
                     ...render,
@@ -13194,6 +13875,49 @@
         }
     }
 
+    function settleAbortable(task, signal, disposeLateResult) {
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const finish = (body) => {
+                if (settled)
+                    return;
+                settled = true;
+                signal.removeEventListener('abort', abort);
+                body();
+            };
+            const abort = () => finish(() => {
+                var _a;
+                return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException('The asynchronous task was aborted.', 'AbortError'));
+            });
+            signal.addEventListener('abort', abort, { once: true });
+            if (signal.aborted)
+                abort();
+            task.then((value) => {
+                if (settled) {
+                    try {
+                        disposeLateResult === null || disposeLateResult === void 0 ? void 0 : disposeLateResult(value);
+                    }
+                    catch {
+                    }
+                    return;
+                }
+                finish(() => resolve(value));
+            }, (error) => finish(() => reject(error)));
+        });
+    }
+
+    function hasErrorName(error, expectedName) {
+        if ((typeof error !== 'object' && typeof error !== 'function') || error === null) {
+            return false;
+        }
+        try {
+            return Reflect.get(error, 'name') === expectedName;
+        }
+        catch {
+            return false;
+        }
+    }
+
     function abortError$1(message) {
         return new DOMException(message, 'AbortError');
     }
@@ -13297,10 +14021,10 @@
             abort();
         const timeout = setTimeout(() => controller.abort(new FilterBakeValidationError('Filtered Raster decode timed out.')), timeoutMs);
         try {
-            return await fabric.FabricImage.fromURL(dataUrl, {
+            return await settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
                 crossOrigin: 'anonymous',
                 signal: controller.signal,
-            });
+            }), controller.signal, (lateImage) => lateImage.dispose());
         }
         catch (error) {
             if (controller.signal.aborted)
@@ -13317,26 +14041,39 @@
         const normalizedOptions = normalizeFilterBakeOptions(options, (_a = imageInfo === null || imageInfo === void 0 ? void 0 : imageInfo.mimeType) !== null && _a !== void 0 ? _a : null);
         const width = Number(baseImage.width);
         const height = Number(baseImage.height);
-        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        if (!Number.isSafeInteger(width) ||
+            !Number.isSafeInteger(height) ||
+            width <= 0 ||
+            height <= 0) {
             throw new FilterBakeValidationError('Base Image dimensions are invalid.');
         }
+        const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
         if (width > policy.maxExportDimension ||
             height > policy.maxExportDimension ||
-            width * height > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+            !isPixelAreaWithinBudget(width, height, pixelBudget)) {
             throw new FilterBakeValidationError('Filtered Raster dimensions exceed the Core policy.');
         }
         const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal);
         let replacement = null;
         try {
             throwIfAborted(signal);
-            const dataUrl = clone.toDataURL({
-                format: normalizedOptions.format,
-                quality: normalizedOptions.quality,
-                multiplier: 1,
-                withoutTransform: true,
-                withoutShadow: true,
-                enableRetinaScaling: false,
-            });
+            let dataUrl;
+            try {
+                dataUrl = clone.toDataURL({
+                    format: normalizedOptions.format,
+                    quality: normalizedOptions.quality,
+                    multiplier: 1,
+                    withoutTransform: true,
+                    withoutShadow: true,
+                    enableRetinaScaling: false,
+                });
+            }
+            catch (error) {
+                if (hasErrorName(error, 'SecurityError')) {
+                    throw new FilterBakeValidationError('Filtered Raster pixels cannot be exported because canvas access is blocked.', error);
+                }
+                throw error;
+            }
             if (encodedBytes$2(dataUrl) > policy.maxInputBytes) {
                 throw new FilterBakeValidationError('Filtered Raster exceeds the Core input budget.');
             }
@@ -14336,10 +15073,13 @@
             return Object.freeze({ ...rect });
         let width = rect.widthPx;
         let height = rect.heightPx;
-        if (width / height > normalizedRatio) {
+        const currentRatio = width / height;
+        const ratioMatches = Number.isFinite(currentRatio) &&
+            Math.abs(currentRatio - normalizedRatio) <= Math.max(1, normalizedRatio) * 1e-9;
+        if (!ratioMatches && currentRatio > normalizedRatio) {
             width = height * normalizedRatio;
         }
-        else {
+        else if (!ratioMatches) {
             height = width / normalizedRatio;
         }
         const centerX = rect.leftPx + rect.widthPx / 2;
@@ -14504,10 +15244,10 @@
             abort();
         const timeout = setTimeout(() => controller.abort(new CropValidationError('Crop decode timed out.')), timeoutMs);
         try {
-            return await fabric.FabricImage.fromURL(dataUrl, {
+            return await settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
                 crossOrigin: 'anonymous',
                 signal: controller.signal,
-            });
+            }), controller.signal, (lateImage) => lateImage.dispose());
         }
         catch (error) {
             if (controller.signal.aborted)
@@ -14549,13 +15289,14 @@
         target.setCoords();
     }
     async function renderCropImage(host, source, rect, options, signal) {
-        var _a;
+        var _a, _b;
         if (signal.aborted)
             throw signal.reason;
         const policy = host.getImageResourcePolicy();
+        const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
         if (rect.widthPx > policy.maxExportDimension ||
             rect.heightPx > policy.maxExportDimension ||
-            rect.widthPx * rect.heightPx > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+            !isPixelAreaWithinBudget(rect.widthPx, rect.heightPx, pixelBudget)) {
             throw new CropValidationError('Crop dimensions exceed the Core resource policy.');
         }
         const ownerDocument = (_a = source.getElement().ownerDocument) !== null && _a !== void 0 ? _a : globalThis.document;
@@ -14567,10 +15308,21 @@
         const context = surface.getContext('2d');
         if (!context)
             throw new CropValidationError('Crop rendering context is unavailable.');
-        context.drawImage(source.getElement(), rect.leftPx, rect.topPx, rect.widthPx, rect.heightPx, 0, 0, rect.widthPx, rect.heightPx);
-        if (signal.aborted)
-            throw signal.reason;
-        const dataUrl = surface.toDataURL(options.mimeType, options.format === 'png' ? undefined : options.quality);
+        let dataUrl;
+        try {
+            context.drawImage(source.getElement(), rect.leftPx, rect.topPx, rect.widthPx, rect.heightPx, 0, 0, rect.widthPx, rect.heightPx);
+            if (signal.aborted)
+                throw signal.reason;
+            dataUrl = surface.toDataURL(options.mimeType, options.format === 'png' ? undefined : options.quality);
+        }
+        catch (error) {
+            if (signal.aborted)
+                throw (_b = signal.reason) !== null && _b !== void 0 ? _b : error;
+            if (hasErrorName(error, 'SecurityError')) {
+                throw new CropValidationError('Crop pixels cannot be exported because canvas access is blocked.');
+            }
+            throw error;
+        }
         if (encodedBytes$1(dataUrl, options.mimeType) > policy.maxInputBytes) {
             throw new CropValidationError('Crop output exceeds the Core input budget.');
         }
@@ -15530,10 +16282,10 @@
             abort();
         const timeout = setTimeout(() => controller.abort(new MosaicValidationError('Mosaic decode timed out.')), timeoutMs);
         try {
-            return await fabric.FabricImage.fromURL(dataUrl, {
+            return await settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
                 crossOrigin: 'anonymous',
                 signal: controller.signal,
-            });
+            }), controller.signal, (lateImage) => lateImage.dispose());
         }
         catch (error) {
             if (controller.signal.aborted)
@@ -15546,16 +16298,29 @@
         }
     }
     async function renderMosaicImage(host, source, cache, options, signal) {
+        var _a;
         const policy = host.getImageResourcePolicy();
+        const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
         if (cache.widthPx > policy.maxExportDimension ||
             cache.heightPx > policy.maxExportDimension ||
-            cache.widthPx * cache.heightPx > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+            !isPixelAreaWithinBudget(cache.widthPx, cache.heightPx, pixelBudget)) {
             throw new MosaicValidationError('Mosaic dimensions exceed the Core resource policy.');
         }
-        cache.context.putImageData(cache.imageData, 0, 0);
-        if (signal.aborted)
-            throw signal.reason;
-        const dataUrl = cache.surface.toDataURL(options.mimeType, options.quality);
+        let dataUrl;
+        try {
+            cache.context.putImageData(cache.imageData, 0, 0);
+            if (signal.aborted)
+                throw signal.reason;
+            dataUrl = cache.surface.toDataURL(options.mimeType, options.quality);
+        }
+        catch (error) {
+            if (signal.aborted)
+                throw (_a = signal.reason) !== null && _a !== void 0 ? _a : error;
+            if (hasErrorName(error, 'SecurityError')) {
+                throw new MosaicValidationError('Mosaic pixels cannot be exported because canvas access is blocked.');
+            }
+            throw error;
+        }
         if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) {
             throw new MosaicValidationError('Mosaic output exceeds the Core input budget.');
         }
@@ -15582,6 +16347,7 @@
         quality: 0.92,
         maxPointCount: 4096,
     });
+    const MAX_INTERPOLATED_POINT_COUNT = 250000;
     function isRecord(value) {
         if (typeof value !== 'object' || value === null || Array.isArray(value))
             return false;
@@ -15653,13 +16419,17 @@
             configuration: Object.freeze({ ...state.configuration }),
         });
     }
-    function replayStroke(cache, stroke, configuration) {
+    function replayStroke(cache, stroke, configuration, replayBudget) {
         let dirty = null;
         let previous = null;
         for (const point of stroke) {
             const points = previous
                 ? interpolateMosaicPoints(previous, point, configuration.brushSizePx / 2)
                 : [point];
+            replayBudget.count += points.length;
+            if (replayBudget.count > MAX_INTERPOLATED_POINT_COUNT) {
+                throw new MosaicValidationError('Mosaic interpolation exceeds the safe processing budget.');
+            }
             for (const interpolated of points) {
                 dirty = mergeDirtyRectangles(dirty, applyCircularMosaic(cache.imageData, {
                     ...interpolated,
@@ -15801,6 +16571,7 @@
                 preview,
                 strokes: [],
                 activeStrokeIndex: null,
+                interpolatedPointCount: 0,
             };
             this.host.requestRender();
             this.emitStatus();
@@ -15813,9 +16584,11 @@
             }
             const point = this.normalizePoint(value, session);
             this.assertPointBudget(session);
+            this.assertInterpolatedPointBudget(session, 1);
             session.strokes.push([point]);
             session.activeStrokeIndex = session.strokes.length - 1;
             this.applyPreviewPoints(session, [point]);
+            session.interpolatedPointCount += 1;
             this.updateSessionState(session, true);
         }
         appendStroke(value) {
@@ -15829,8 +16602,11 @@
             const point = this.normalizePoint(value, session);
             this.assertPointBudget(session);
             const previous = stroke[stroke.length - 1];
+            const interpolated = interpolateMosaicPoints(previous, point, session.state.configuration.brushSizePx / 2);
+            this.assertInterpolatedPointBudget(session, interpolated.length);
             stroke.push(point);
-            this.applyPreviewPoints(session, interpolateMosaicPoints(previous, point, session.state.configuration.brushSizePx / 2));
+            this.applyPreviewPoints(session, interpolated);
+            session.interpolatedPointCount += interpolated.length;
             this.updateSessionState(session, true);
         }
         endStroke() {
@@ -15890,8 +16666,9 @@
                         const cache = createMosaicRasterCache(source);
                         resources.cache = cache;
                         this.assertCachePolicy(cache);
+                        const replayBudget = { count: 0 };
                         for (const stroke of strokes) {
-                            replayStroke(cache, stroke, state.configuration);
+                            replayStroke(cache, stroke, state.configuration, replayBudget);
                         }
                         const rendered = await renderMosaicImage(this.host, source, cache, normalizedOptions, signal);
                         resources.replacement = rendered.image;
@@ -15988,6 +16765,11 @@
                 throw new MosaicValidationError('Mosaic point count exceeds maxPointCount.');
             }
         }
+        assertInterpolatedPointBudget(session, additionalPointCount) {
+            if (session.interpolatedPointCount + additionalPointCount > MAX_INTERPOLATED_POINT_COUNT) {
+                throw new MosaicValidationError('Mosaic interpolation exceeds the safe processing budget.');
+            }
+        }
         closeSession() {
             const session = this.session;
             if (!session)
@@ -16030,9 +16812,10 @@
         }
         assertCachePolicy(cache) {
             const policy = this.host.getImageResourcePolicy();
+            const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
             if (cache.widthPx > policy.maxExportDimension ||
                 cache.heightPx > policy.maxExportDimension ||
-                cache.widthPx * cache.heightPx > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+                !isPixelAreaWithinBudget(cache.widthPx, cache.heightPx, pixelBudget)) {
                 disposeMosaicRasterCache(cache);
                 throw new MosaicValidationError('Mosaic dimensions exceed the Core resource policy.');
             }
@@ -16441,6 +17224,8 @@
         if (!isPlainRecord$3(value))
             return false;
         try {
+            if (!isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] }))
+                return false;
             const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
             const type = String((_a = value.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
             return (bytes <= MAX_TEXT_OBJECT_BYTES &&
@@ -16693,10 +17478,12 @@
                 throw new AnnotationValidationError('Locked Text cannot enter editing.');
             }
             const preview = (await source.clone());
-            preview.set({ visible: true, selectable: true, evented: true, editable: true });
             const previewId = `annotation-text:edit:${++this.previewSequence}`;
-            const visibility = this.authoring.hideForPreview([id]);
+            let visibility = null;
+            let added = false;
             try {
+                preview.set({ visible: true, selectable: true, evented: true, editable: true });
+                visibility = this.authoring.hideForPreview([id]);
                 this.authoring.addPreview({
                     id: previewId,
                     ownerKind: TEXT_ANNOTATION_KIND,
@@ -16704,14 +17491,22 @@
                     interactive: true,
                     select: false,
                 });
+                added = true;
+                (_a = preview.enterEditing) === null || _a === void 0 ? void 0 : _a.call(preview);
             }
             catch (error) {
-                visibility.dispose();
-                preview.dispose();
+                try {
+                    if (added)
+                        this.authoring.removePreview([previewId]);
+                    else
+                        preview.dispose();
+                }
+                finally {
+                    visibility === null || visibility === void 0 ? void 0 : visibility.dispose();
+                }
                 throw error;
             }
             this.session = Object.freeze({ annotationId: id, previewId, preview, visibility });
-            (_a = preview.enterEditing) === null || _a === void 0 ? void 0 : _a.call(preview);
             this.emitStatus();
         }
         async commitEditing() {
@@ -17172,12 +17967,23 @@
     }
     function isSerializedShape(value) {
         var _a;
-        if (!isPlainRecord$2(value) || value.version !== 1 || !isPlainRecord$2(value.object))
+        if (!isPlainRecord$2(value))
             return false;
         try {
+            const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+            if (!objectDescriptor || !('value' in objectDescriptor))
+                return false;
+            const serializedObject = objectDescriptor.value;
+            if (value.version !== 1 ||
+                !isPlainRecord$2(serializedObject) ||
+                !isSafeSerializedFabricObject(serializedObject, {
+                    rootTypes: ['rect', 'line', 'path'],
+                })) {
+                return false;
+            }
             const geometry = normalizeShapeGeometry(value.geometry);
-            const bytes = new TextEncoder().encode(JSON.stringify(value.object)).byteLength;
-            const type = String((_a = value.object.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+            const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
+            const type = String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
             return (bytes <= MAX_SHAPE_OBJECT_BYTES &&
                 geometry.kind === value.shapeKind &&
                 ((geometry.kind === 'rect' && type === 'rect') ||
@@ -17921,14 +18727,23 @@
     }
     function isSerializedDraw(value) {
         var _a;
-        if (!isPlainRecord$1(value) || value.version !== 1 || !isPlainRecord$1(value.object))
+        if (!isPlainRecord$1(value))
             return false;
         try {
+            const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+            if (!objectDescriptor || !('value' in objectDescriptor))
+                return false;
+            const serializedObject = objectDescriptor.value;
+            if (value.version !== 1 ||
+                !isPlainRecord$1(serializedObject) ||
+                !isSafeSerializedFabricObject(serializedObject, { rootTypes: ['path'] })) {
+                return false;
+            }
             const points = normalizePoints(value.points, 65536);
-            const bytes = new TextEncoder().encode(JSON.stringify(value.object)).byteLength;
+            const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
             return (points.length >= 2 &&
                 bytes <= MAX_DRAW_OBJECT_BYTES &&
-                String((_a = value.object.type) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'path');
+                String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'path');
         }
         catch {
             return false;
@@ -18402,7 +19217,9 @@
                         operationId === 'core:load-image' ||
                         operationId === 'core:commit-load-image' ||
                         operationId === 'core:load-state' ||
-                        operationId === 'core:export',
+                        operationId === 'core:export' ||
+                        operationId === 'history:undo' ||
+                        operationId === 'history:redo',
                 }));
                 const requireController = () => {
                     if (!controller)

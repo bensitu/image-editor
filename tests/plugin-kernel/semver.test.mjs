@@ -78,6 +78,15 @@ test('invalid and padded ranges are rejected without throwing', () => {
     }
 });
 
+test('SemVer inputs enforce a bounded parser budget', () => {
+    const oversizedVersion = `1.0.0-${'a'.repeat(256)}`;
+    const oversizedRange = `>=1.0.0 ${'>=1.0.0 '.repeat(32)}`;
+
+    assert.equal(isValidSemVer(oversizedVersion), false);
+    assert.equal(isValidSemVerRange(oversizedRange), false);
+    assert.equal(satisfiesSemVer('1.0.0', oversizedRange), false);
+});
+
 test('SemVer comparison remains aligned with npm across deterministic range families', () => {
     const versions = [];
     for (let major = 0; major <= 3; major += 1) {

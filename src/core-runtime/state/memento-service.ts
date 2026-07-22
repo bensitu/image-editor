@@ -19,7 +19,10 @@ import type { StateSliceRegistry } from './state-slice-registry.js';
 export interface MementoRestoreOptions {
     readonly signal?: AbortSignal;
     readonly rollbackOnFailure?: boolean;
+    readonly rollbackTimeoutMs?: number;
 }
+
+const DEFAULT_ROLLBACK_TIMEOUT_MS = 30_000;
 
 function createAbortError(message: string): Error {
     if (typeof DOMException === 'function') return new DOMException(message, 'AbortError');
@@ -30,6 +33,48 @@ function createAbortError(message: string): Error {
 
 function throwIfAborted(signal: AbortSignal): void {
     if (signal.aborted) throw signal.reason ?? createAbortError('State restoration was aborted.');
+}
+
+async function runBoundedRollback(
+    task: (signal: AbortSignal) => Promise<void>,
+    timeoutMs: number,
+): Promise<void> {
+    const controller = new AbortController();
+    const timeoutError = new Error(`Memento rollback timed out after ${timeoutMs}ms.`);
+    timeoutError.name = 'TimeoutError';
+    const timeout = setTimeout(() => controller.abort(timeoutError), timeoutMs);
+    let removeAbortListener = (): void => undefined;
+    const aborted = new Promise<never>((resolve, reject) => {
+        void resolve;
+        const abort = (): void => reject(controller.signal.reason ?? timeoutError);
+        removeAbortListener = () => controller.signal.removeEventListener('abort', abort);
+        controller.signal.addEventListener('abort', abort, { once: true });
+    });
+    try {
+        await Promise.race([task(controller.signal), aborted]);
+    } finally {
+        clearTimeout(timeout);
+        removeAbortListener();
+    }
+}
+
+function stateValuesMatch(left: unknown, right: unknown): boolean {
+    if (Object.is(left, right)) return true;
+    if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) {
+        return false;
+    }
+    const leftIsArray = Array.isArray(left);
+    if (leftIsArray !== Array.isArray(right)) return false;
+    const leftRecord = left as Readonly<Record<string, unknown>>;
+    const rightRecord = right as Readonly<Record<string, unknown>>;
+    const leftKeys = Object.keys(leftRecord);
+    const rightKeys = Object.keys(rightRecord);
+    if (leftKeys.length !== rightKeys.length) return false;
+    return leftKeys.every(
+        (key) =>
+            Object.prototype.hasOwnProperty.call(rightRecord, key) &&
+            stateValuesMatch(leftRecord[key], rightRecord[key]),
+    );
 }
 
 export class MementoService implements Disposable {
@@ -60,8 +105,8 @@ export class MementoService implements Disposable {
         if (!this.isTrusted(memento)) return false;
         const current = this.captureInternal(false);
         return (
-            JSON.stringify(current.core) === JSON.stringify(memento.core) &&
-            JSON.stringify(current.plugins) === JSON.stringify(memento.plugins)
+            stateValuesMatch(current.core, memento.core) &&
+            stateValuesMatch(current.plugins, memento.plugins)
         );
     }
 
@@ -75,6 +120,14 @@ export class MementoService implements Disposable {
                 'core',
                 'restore',
                 new Error('Reentrant memento restoration is not allowed.'),
+            );
+        }
+        const rollbackTimeoutMs = options.rollbackTimeoutMs ?? DEFAULT_ROLLBACK_TIMEOUT_MS;
+        if (!Number.isSafeInteger(rollbackTimeoutMs) || rollbackTimeoutMs <= 0) {
+            throw new MementoRestoreError(
+                'core',
+                'restore',
+                new TypeError('rollbackTimeoutMs must be a positive safe integer.'),
             );
         }
         const controller = new AbortController();
@@ -93,9 +146,13 @@ export class MementoService implements Disposable {
                 if (error instanceof MementoRestoreError) throw error;
                 throw new MementoRestoreError('core', 'restore', error);
             }
+            const rollbackMemento = rollback;
             const rollbackErrors: unknown[] = [];
             try {
-                await this.restoreInternal(rollback, 'rollback', new AbortController().signal);
+                await runBoundedRollback(
+                    (signal) => this.restoreInternal(rollbackMemento, 'rollback', signal),
+                    rollbackTimeoutMs,
+                );
             } catch (rollbackError) {
                 rollbackErrors.push(rollbackError);
             }

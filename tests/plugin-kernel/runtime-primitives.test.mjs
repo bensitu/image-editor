@@ -214,6 +214,42 @@ test('disposing an active tool registration exits it before removal', async () =
     assert.throws(() => coordinator.getActiveToolId(), PluginKernelDisposedError);
 });
 
+test('disposing a tool while it enters waits and prevents a zombie active tool', async () => {
+    const coordinator = new ToolCoordinator();
+    const exits = [];
+    let releaseEnter;
+    let markEnterStarted;
+    const enterStarted = new Promise((resolve) => {
+        markEnterStarted = resolve;
+    });
+    const registration = coordinator.register(
+        {
+            id: 'third-party-example:entering',
+            enter: async () => {
+                markEnterStarted();
+                await new Promise((resolve) => {
+                    releaseEnter = resolve;
+                });
+            },
+            exit: (reason) => exits.push(reason),
+        },
+        'plugin:owner',
+    );
+
+    const entering = coordinator.enter('third-party-example:entering', 'plugin:owner');
+    await enterStarted;
+    const disposing = registration.dispose();
+    releaseEnter();
+    await Promise.all([entering, disposing]);
+
+    assert.deepEqual(exits, ['plugin-dispose']);
+    assert.equal(coordinator.getActiveToolId(), null);
+    await assert.rejects(
+        coordinator.enter('third-party-example:entering', 'plugin:owner'),
+        ToolTransitionError,
+    );
+});
+
 test('CommittedEventBus preserves registration order and isolates listener failures', async () => {
     const calls = [];
     const warnings = [];
@@ -239,4 +275,29 @@ test('CommittedEventBus preserves registration order and isolates listener failu
     assert.deepEqual(calls, ['second:throw', 'third:two']);
     bus.dispose();
     await assert.rejects(bus.emitCommitted('test:committed', 'three'), PluginKernelDisposedError);
+});
+
+test('CommittedEventBus serializes recursive same-name emissions', async () => {
+    const bus = new CommittedEventBus();
+    const calls = [];
+    let nestedEmission;
+    let activeListeners = 0;
+    let maximumActiveListeners = 0;
+    bus.on('test:recursive', async (payload) => {
+        activeListeners += 1;
+        maximumActiveListeners = Math.max(maximumActiveListeners, activeListeners);
+        calls.push(`start:${payload}`);
+        if (payload === 'outer') {
+            nestedEmission = bus.emitCommitted('test:recursive', 'inner');
+        }
+        await Promise.resolve();
+        calls.push(`end:${payload}`);
+        activeListeners -= 1;
+    });
+
+    await bus.emitCommitted('test:recursive', 'outer');
+    await nestedEmission;
+
+    assert.equal(maximumActiveListeners, 1);
+    assert.deepEqual(calls, ['start:outer', 'end:outer', 'start:inner', 'end:inner']);
 });

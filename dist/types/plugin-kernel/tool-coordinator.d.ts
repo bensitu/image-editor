@@ -25,6 +25,7 @@ export declare class ToolCoordinator implements Disposable {
     private readonly tools;
     private active;
     private transitioning;
+    private transitionCompletion;
     private disposed;
     constructor(options?: ToolCoordinatorOptions);
     register(definition: ToolDefinition, ownerPluginId: string): Disposable;
@@ -36,5 +37,7 @@ export declare class ToolCoordinator implements Disposable {
     dispose(): Promise<void>;
     private exitCurrent;
     private runTransition;
+    private disposeRegistration;
+    private waitForTransition;
     private assertActive;
 }

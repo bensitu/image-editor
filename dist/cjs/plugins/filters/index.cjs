@@ -1,11 +1,13 @@
 'use strict';
 
 var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
-var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-DIUNQiLO.cjs');
+var error = require('../../chunks/error-Cg6SL3PT.cjs');
+var imageBudget = require('../../chunks/image-budget-e-EIVZb3.cjs');
+var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DRW-_VAM.cjs');
 
 class FilterDefinitionError extends TypeError {
     constructor(message, path = '$') {
@@ -374,10 +376,10 @@ async function decodeBakedImage(fabric, dataUrl, timeoutMs, signal) {
         abort();
     const timeout = setTimeout(() => controller.abort(new FilterBakeValidationError('Filtered Raster decode timed out.')), timeoutMs);
     try {
-        return await fabric.FabricImage.fromURL(dataUrl, {
+        return await error.settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
             crossOrigin: 'anonymous',
             signal: controller.signal,
-        });
+        }), controller.signal, (lateImage) => lateImage.dispose());
     }
     catch (error) {
         if (controller.signal.aborted)
@@ -394,26 +396,39 @@ async function renderBakedImage(fabric, baseImage, definitions, options, imageIn
     const normalizedOptions = normalizeFilterBakeOptions(options, (_a = imageInfo === null || imageInfo === void 0 ? void 0 : imageInfo.mimeType) !== null && _a !== void 0 ? _a : null);
     const width = Number(baseImage.width);
     const height = Number(baseImage.height);
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    if (!Number.isSafeInteger(width) ||
+        !Number.isSafeInteger(height) ||
+        width <= 0 ||
+        height <= 0) {
         throw new FilterBakeValidationError('Base Image dimensions are invalid.');
     }
+    const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
     if (width > policy.maxExportDimension ||
         height > policy.maxExportDimension ||
-        width * height > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+        !imageBudget.isPixelAreaWithinBudget(width, height, pixelBudget)) {
         throw new FilterBakeValidationError('Filtered Raster dimensions exceed the Core policy.');
     }
     const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal);
     let replacement = null;
     try {
         throwIfAborted(signal);
-        const dataUrl = clone.toDataURL({
-            format: normalizedOptions.format,
-            quality: normalizedOptions.quality,
-            multiplier: 1,
-            withoutTransform: true,
-            withoutShadow: true,
-            enableRetinaScaling: false,
-        });
+        let dataUrl;
+        try {
+            dataUrl = clone.toDataURL({
+                format: normalizedOptions.format,
+                quality: normalizedOptions.quality,
+                multiplier: 1,
+                withoutTransform: true,
+                withoutShadow: true,
+                enableRetinaScaling: false,
+            });
+        }
+        catch (error$1) {
+            if (error.hasErrorName(error$1, 'SecurityError')) {
+                throw new FilterBakeValidationError('Filtered Raster pixels cannot be exported because canvas access is blocked.', error$1);
+            }
+            throw error$1;
+        }
         if (encodedBytes(dataUrl) > policy.maxInputBytes) {
             throw new FilterBakeValidationError('Filtered Raster exceeds the Core input budget.');
         }

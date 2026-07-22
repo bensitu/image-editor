@@ -131,7 +131,7 @@ export class CapabilityRegistry implements Disposable {
 
     /** @internal Registers a capability owned by the host rather than an installed plugin. */
     provideHost(
-        token: CapabilityIdentity,
+        token: CapabilityToken<unknown>,
         implementation: unknown,
         providerPluginId = 'core:host',
         requiredPermission?: PluginPermission,

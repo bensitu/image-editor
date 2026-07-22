@@ -1,11 +1,12 @@
 'use strict';
 
 var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
-var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
+var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CHiQxoA8.cjs');
+var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
 require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
@@ -207,6 +208,8 @@ function isSerializedText(value) {
     if (!isPlainRecord(value))
         return false;
     try {
+        if (!safeFabricSerialization.isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] }))
+            return false;
         const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
         const type = String((_a = value.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
         return (bytes <= MAX_TEXT_OBJECT_BYTES &&
@@ -459,10 +462,12 @@ class TextAnnotationController {
             throw new foundations_annotation_index.AnnotationValidationError('Locked Text cannot enter editing.');
         }
         const preview = (await source.clone());
-        preview.set({ visible: true, selectable: true, evented: true, editable: true });
         const previewId = `annotation-text:edit:${++this.previewSequence}`;
-        const visibility = this.authoring.hideForPreview([id]);
+        let visibility = null;
+        let added = false;
         try {
+            preview.set({ visible: true, selectable: true, evented: true, editable: true });
+            visibility = this.authoring.hideForPreview([id]);
             this.authoring.addPreview({
                 id: previewId,
                 ownerKind: TEXT_ANNOTATION_KIND,
@@ -470,14 +475,22 @@ class TextAnnotationController {
                 interactive: true,
                 select: false,
             });
+            added = true;
+            (_a = preview.enterEditing) === null || _a === void 0 ? void 0 : _a.call(preview);
         }
         catch (error) {
-            visibility.dispose();
-            preview.dispose();
+            try {
+                if (added)
+                    this.authoring.removePreview([previewId]);
+                else
+                    preview.dispose();
+            }
+            finally {
+                visibility === null || visibility === void 0 ? void 0 : visibility.dispose();
+            }
             throw error;
         }
         this.session = Object.freeze({ annotationId: id, previewId, preview, visibility });
-        (_a = preview.enterEditing) === null || _a === void 0 ? void 0 : _a.call(preview);
         this.emitStatus();
     }
     async commitEditing() {

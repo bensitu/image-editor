@@ -4,6 +4,7 @@ import { assertPluginIdentifier } from './plugin-identifier.js';
 import { isPluginRef } from './plugin-ref.js';
 import { isValidSemVer, isValidSemVerRange, satisfiesSemVer } from './semver.js';
 export const CORE_API_VERSION = '3.0.0';
+export const CORE_API_RANGE = `^${CORE_API_VERSION}`;
 const MAX_VERSION_LENGTH = 64;
 const MAX_PLUGIN_DEPENDENCIES = 64;
 const MAX_CAPABILITY_REQUIREMENTS = 64;

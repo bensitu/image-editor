@@ -4,7 +4,7 @@
  * @module
  */
 
-import { type CapabilityIdentity, type CapabilityToken } from './capability-token.js';
+import type { CapabilityToken } from './capability-token.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import {
     CommittedEventBus,
@@ -71,7 +71,7 @@ export interface PluginManagerOptions {
 }
 
 export interface PluginHostCapabilityProvider {
-    readonly token: CapabilityIdentity;
+    readonly token: CapabilityToken<unknown>;
     readonly implementation: unknown;
     readonly providerId?: string;
     readonly requiredPermission?: PluginPermission;
@@ -340,7 +340,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
 
     /** @internal Used by Core coordinators to acquire a Feature-owned operation. */
     beginOperationForHost(operationId: string) {
-        if (!this.toolCoordinator.canRunOperation(operationId)) {
+        if (!this.canRunOperation(operationId)) {
             throw new PluginKernelStateError(
                 `run operation "${operationId}" while the active tool rejects it`,
                 this.hostState,
@@ -356,7 +356,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         task: (args: TArgs, context: OperationExecutionContext) => Promise<TResult> | TResult,
         options: OperationRunOptions = {},
     ): Promise<TResult> {
-        if (!this.toolCoordinator.canRunOperation(operationId)) {
+        if (!this.canRunOperation(operationId)) {
             return Promise.reject(
                 new PluginKernelStateError(
                     `run operation "${operationId}" while the active tool rejects it`,
@@ -370,6 +370,11 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
     /** @internal Resolves after active and pending operations have settled. */
     waitForOperations(): Promise<void> {
         return this.operationRegistry.waitForIdle();
+    }
+
+    /** @internal Reports whether synchronous Core disposal would race Plugin work. */
+    hasRunningOperations(): boolean {
+        return this.operationRegistry.hasInFlightOperations();
     }
 
     /** @internal Aborts active and pending operations during Core fault recovery. */
@@ -507,6 +512,12 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         if (this.hostState === 'disposing' || this.hostState === 'initializing') {
             throw new PluginKernelStateError(
                 'dispose the Plugin Kernel synchronously',
+                this.hostState,
+            );
+        }
+        if (this.operationRegistry.hasInFlightOperations()) {
+            throw new PluginKernelStateError(
+                'dispose the Plugin Kernel synchronously while operations are running',
                 this.hostState,
             );
         }
@@ -959,7 +970,12 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             },
         });
         const operations: PluginOperationAccess = Object.freeze({
-            begin: (operationId: string) => this.operationRegistry.begin(operationId, pluginId),
+            begin: (operationId: string) => {
+                if (!this.canRunOperation(operationId)) {
+                    throw this.operationRejectedByTool(operationId);
+                }
+                return this.operationRegistry.begin(operationId, pluginId);
+            },
             run: <TArgs, TResult>(
                 operationId: string,
                 args: TArgs,
@@ -968,7 +984,10 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                     context: OperationExecutionContext,
                 ) => Promise<TResult> | TResult,
                 options: OperationRunOptions = {},
-            ) => this.operationRegistry.run(operationId, pluginId, args, task, options),
+            ) =>
+                this.canRunOperation(operationId)
+                    ? this.operationRegistry.run(operationId, pluginId, args, task, options)
+                    : Promise.reject(this.operationRejectedByTool(operationId)),
             get: (operationId: string) => this.operationRegistry.get(operationId),
             isActive: (operationId?: string) => this.operationRegistry.isActive(operationId),
         });
@@ -1171,6 +1190,14 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
 
     private async cleanupAll(): Promise<readonly unknown[]> {
         const errors: unknown[] = [];
+        try {
+            await this.operationRegistry.suspend(
+                new DOMException('Plugin Kernel disposal aborted active operations.', 'AbortError'),
+            );
+        } catch (error) {
+            errors.push(error);
+            reportErrorSafely(this.options.errorSink, error);
+        }
         const records = [...this.installationOrder]
             .reverse()
             .map((pluginId) => this.installed.get(pluginId))
@@ -1282,6 +1309,20 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         if (this.hostState !== 'created') {
             throw new PluginKernelStateError('install a plugin', this.hostState);
         }
+    }
+
+    private canRunOperation(operationId: string): boolean {
+        const activeToolId = this.toolCoordinator.getActiveToolId();
+        const operation = this.operationRegistry.get(operationId);
+        if (activeToolId && operation?.allowedDuringTool?.includes(activeToolId)) return true;
+        return this.toolCoordinator.canRunOperation(operationId);
+    }
+
+    private operationRejectedByTool(operationId: string): PluginKernelStateError {
+        return new PluginKernelStateError(
+            `run operation "${operationId}" while the active tool rejects it`,
+            this.hostState,
+        );
     }
 
     private assertLifecycleReady(operation: string): void {

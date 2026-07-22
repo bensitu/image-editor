@@ -1,7 +1,7 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-B3zCkHWm.cjs');
-var disposable = require('./disposable-Sj4tt6Lk.cjs');
+var pluginManifest = require('./plugin-manifest-B4W6-2BB.cjs');
+var disposable = require('./disposable-pTo80E0l.cjs');
 var pluginIdentifier = require('./plugin-identifier-CjVVyVRY.cjs');
 
 function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
@@ -257,6 +257,12 @@ class CommittedEventBus {
             writable: true,
             value: new Map()
         });
+        Object.defineProperty(this, "emissionTails", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
             configurable: true,
@@ -286,9 +292,23 @@ class CommittedEventBus {
         });
     }
     async emitCommitted(eventName, payload) {
-        var _a, _b;
+        var _a;
         this.assertActive('emit a committed event');
         this.assertEventName(eventName);
+        const previous = (_a = this.emissionTails.get(eventName)) !== null && _a !== void 0 ? _a : Promise.resolve();
+        const emission = previous.then(() => this.dispatch(eventName, payload));
+        this.emissionTails.set(eventName, emission);
+        try {
+            await emission;
+        }
+        finally {
+            if (this.emissionTails.get(eventName) === emission) {
+                this.emissionTails.delete(eventName);
+            }
+        }
+    }
+    async dispatch(eventName, payload) {
+        var _a, _b;
         const snapshot = [...((_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : [])];
         for (let index = 0; index < snapshot.length; index += 1) {
             try {
@@ -471,9 +491,7 @@ class OperationRegistry {
                 return Promise.reject(new pluginIdentifier.OperationRegistrationError(`Operation "${operationId}" has no coalesce function.`, ownerPluginId));
             }
             existingPending.args = coalesce(existingPending.args, args);
-            return new Promise((resolve, reject) => {
-                existingPending.waiters.push({ resolve, reject });
-            });
+            return this.addWaiter(existingPending, options.signal);
         }
         const request = {
             record,
@@ -485,9 +503,7 @@ class OperationRegistry {
             state: 'pending',
             removeExternalAbortListener: null,
         };
-        const result = new Promise((resolve, reject) => {
-            request.waiters.push({ resolve, reject });
-        });
+        const result = this.addWaiter(request, options.signal);
         this.attachExternalAbort(request);
         this.schedule(request);
         return result;
@@ -520,6 +536,9 @@ class OperationRegistry {
         if (this.isIdle())
             return Promise.resolve();
         return new Promise((resolve) => this.idleWaiters.add(resolve));
+    }
+    hasInFlightOperations() {
+        return !this.isIdle();
     }
     async abortAll(reason = abortError('All Plugin Kernel operations were aborted.')) {
         this.assertActive('abort operations');
@@ -718,14 +737,66 @@ class OperationRegistry {
     findCoalesciblePending(record, parent) {
         return this.pendingRequests.find((request) => request.record === record && request.options.parent === parent);
     }
+    addWaiter(request, signal) {
+        return new Promise((resolve, reject) => {
+            const waiter = {
+                resolve,
+                reject,
+                removeAbortListener: null,
+                settled: false,
+            };
+            request.waiters.push(waiter);
+            if (!signal)
+                return;
+            const abort = () => {
+                var _a, _b;
+                if (waiter.settled)
+                    return;
+                if (request.state === 'active' && request.active && request.waiters.length === 1) {
+                    (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+                    waiter.removeAbortListener = null;
+                    this.abortActive(request.active, abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`));
+                    return;
+                }
+                waiter.settled = true;
+                (_b = waiter.removeAbortListener) === null || _b === void 0 ? void 0 : _b.call(waiter);
+                waiter.removeAbortListener = null;
+                const index = request.waiters.indexOf(waiter);
+                if (index >= 0)
+                    request.waiters.splice(index, 1);
+                reject(abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`));
+                if (request.waiters.length === 0) {
+                    this.abortRequestWithoutWaiters(request, signal);
+                }
+            };
+            signal.addEventListener('abort', abort, { once: true });
+            waiter.removeAbortListener = () => signal.removeEventListener('abort', abort);
+            if (signal.aborted)
+                abort();
+        });
+    }
+    abortRequestWithoutWaiters(request, signal) {
+        var _a;
+        const reason = abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`);
+        if (request.state === 'pending') {
+            this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
+            (_a = request.removeExternalAbortListener) === null || _a === void 0 ? void 0 : _a.call(request);
+            request.removeExternalAbortListener = null;
+            request.state = 'settled';
+        }
+        else if (request.active) {
+            this.abortActive(request.active, reason);
+        }
+        this.drainPending();
+        this.resolveIdleWaiters();
+    }
     attachExternalAbort(request) {
         var _a;
-        const signals = [
-            ...new Set([request.options.signal, (_a = request.options.parent) === null || _a === void 0 ? void 0 : _a.signal]),
-        ].filter((signal) => signal !== undefined);
+        const signals = [...new Set([(_a = request.options.parent) === null || _a === void 0 ? void 0 : _a.signal])].filter((signal) => signal !== undefined);
         if (signals.length === 0)
             return;
         const abort = () => {
+            var _a;
             const signal = signals.find((candidate) => candidate.aborted);
             const reason = signal
                 ? abortReason(signal, `Operation "${request.record.definition.id}" was aborted.`)
@@ -733,6 +804,8 @@ class OperationRegistry {
             if (request.state === 'pending') {
                 this.pendingRequests = this.pendingRequests.filter((entry) => entry !== request);
                 this.rejectRequest(request, reason);
+                (_a = request.removeExternalAbortListener) === null || _a === void 0 ? void 0 : _a.call(request);
+                request.removeExternalAbortListener = null;
                 request.state = 'settled';
             }
             else if (request.active) {
@@ -766,13 +839,27 @@ class OperationRegistry {
         this.resolveIdleWaiters();
     }
     resolveRequest(request, value) {
-        for (const waiter of request.waiters)
+        var _a;
+        for (const waiter of request.waiters) {
+            if (waiter.settled)
+                continue;
+            waiter.settled = true;
+            (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+            waiter.removeAbortListener = null;
             waiter.resolve(value);
+        }
         request.waiters.length = 0;
     }
     rejectRequest(request, error) {
-        for (const waiter of request.waiters)
+        var _a;
+        for (const waiter of request.waiters) {
+            if (waiter.settled)
+                continue;
+            waiter.settled = true;
+            (_a = waiter.removeAbortListener) === null || _a === void 0 ? void 0 : _a.call(waiter);
+            waiter.removeAbortListener = null;
             waiter.reject(error);
+        }
         request.waiters.length = 0;
     }
     requireRegistered(operationId, ownerPluginId) {
@@ -1130,6 +1217,12 @@ class ToolCoordinator {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "transitionCompletion", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
             configurable: true,
@@ -1155,17 +1248,7 @@ class ToolCoordinator {
             context: Object.freeze({ toolId: definition.id, ownerPluginId }),
         };
         this.tools.set(definition.id, record);
-        return disposable.createDisposable(() => {
-            if (this.active === record) {
-                return this.exitCurrent('plugin-dispose').finally(() => {
-                    if (this.tools.get(definition.id) === record)
-                        this.tools.delete(definition.id);
-                });
-            }
-            if (this.tools.get(definition.id) === record)
-                this.tools.delete(definition.id);
-            return undefined;
-        });
+        return disposable.createDisposable(() => this.disposeRegistration(record));
     }
     disposeSync() {
         if (this.disposed)
@@ -1250,6 +1333,7 @@ class ToolCoordinator {
             return;
         let exitError;
         try {
+            await this.waitForTransition();
             if (this.active)
                 await this.exitCurrent('host-dispose');
         }
@@ -1283,12 +1367,35 @@ class ToolCoordinator {
             throw new pluginIdentifier.ToolTransitionError(toolId, 'cannot transition while another transition is active');
         }
         this.transitioning = true;
+        let completeTransition = () => undefined;
+        this.transitionCompletion = new Promise((resolve) => {
+            completeTransition = resolve;
+        });
         try {
             await task();
         }
         finally {
+            completeTransition();
+            this.transitionCompletion = null;
             this.transitioning = false;
         }
+    }
+    async disposeRegistration(record) {
+        await this.waitForTransition();
+        try {
+            if (this.active === record) {
+                await this.runTransition(record.definition.id, () => this.exitCurrent('plugin-dispose'));
+            }
+        }
+        finally {
+            if (this.tools.get(record.definition.id) === record) {
+                this.tools.delete(record.definition.id);
+            }
+        }
+    }
+    async waitForTransition() {
+        while (this.transitionCompletion)
+            await this.transitionCompletion;
     }
     assertActive(operation) {
         if (this.disposed)
@@ -1496,19 +1603,22 @@ class PluginManager {
         return this.operationRegistry.register(definition, 'core:host');
     }
     beginOperationForHost(operationId) {
-        if (!this.toolCoordinator.canRunOperation(operationId)) {
+        if (!this.canRunOperation(operationId)) {
             throw new pluginIdentifier.PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
         }
         return this.operationRegistry.beginForHost(operationId);
     }
     runOperationForHost(operationId, args, task, options = {}) {
-        if (!this.toolCoordinator.canRunOperation(operationId)) {
+        if (!this.canRunOperation(operationId)) {
             return Promise.reject(new pluginIdentifier.PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState));
         }
         return this.operationRegistry.runForHost(operationId, args, task, options);
     }
     waitForOperations() {
         return this.operationRegistry.waitForIdle();
+    }
+    hasRunningOperations() {
+        return this.operationRegistry.hasInFlightOperations();
     }
     abortOperationsForHost(reason) {
         return this.operationRegistry.abortAll(reason);
@@ -1628,6 +1738,9 @@ class PluginManager {
             return;
         if (this.hostState === 'disposing' || this.hostState === 'initializing') {
             throw new pluginIdentifier.PluginKernelStateError('dispose the Plugin Kernel synchronously', this.hostState);
+        }
+        if (this.operationRegistry.hasInFlightOperations()) {
+            throw new pluginIdentifier.PluginKernelStateError('dispose the Plugin Kernel synchronously while operations are running', this.hostState);
         }
         this.hostState = 'disposing';
         const errors = this.cleanupAllSync();
@@ -1972,8 +2085,15 @@ class PluginManager {
             },
         });
         const operations = Object.freeze({
-            begin: (operationId) => this.operationRegistry.begin(operationId, pluginId),
-            run: (operationId, args, task, options = {}) => this.operationRegistry.run(operationId, pluginId, args, task, options),
+            begin: (operationId) => {
+                if (!this.canRunOperation(operationId)) {
+                    throw this.operationRejectedByTool(operationId);
+                }
+                return this.operationRegistry.begin(operationId, pluginId);
+            },
+            run: (operationId, args, task, options = {}) => this.canRunOperation(operationId)
+                ? this.operationRegistry.run(operationId, pluginId, args, task, options)
+                : Promise.reject(this.operationRejectedByTool(operationId)),
             get: (operationId) => this.operationRegistry.get(operationId),
             isActive: (operationId) => this.operationRegistry.isActive(operationId),
         });
@@ -2129,6 +2249,13 @@ class PluginManager {
     }
     async cleanupAll() {
         const errors = [];
+        try {
+            await this.operationRegistry.suspend(new DOMException('Plugin Kernel disposal aborted active operations.', 'AbortError'));
+        }
+        catch (error) {
+            errors.push(error);
+            disposable.reportErrorSafely(this.options.errorSink, error);
+        }
         const records = [...this.installationOrder]
             .reverse()
             .map((pluginId) => this.installed.get(pluginId))
@@ -2235,6 +2362,17 @@ class PluginManager {
             throw new pluginIdentifier.PluginKernelStateError('install a plugin', this.hostState);
         }
     }
+    canRunOperation(operationId) {
+        var _a;
+        const activeToolId = this.toolCoordinator.getActiveToolId();
+        const operation = this.operationRegistry.get(operationId);
+        if (activeToolId && ((_a = operation === null || operation === void 0 ? void 0 : operation.allowedDuringTool) === null || _a === void 0 ? void 0 : _a.includes(activeToolId)))
+            return true;
+        return this.toolCoordinator.canRunOperation(operationId);
+    }
+    operationRejectedByTool(operationId) {
+        return new pluginIdentifier.PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
+    }
     assertLifecycleReady(operation) {
         this.assertUsable(operation);
         if (this.hostState !== 'initialized') {
@@ -2249,4 +2387,4 @@ class PluginManager {
 }
 
 exports.PluginManager = PluginManager;
-//# sourceMappingURL=plugin-manager-Bb8UQ105.cjs.map
+//# sourceMappingURL=plugin-manager-BLzAzBA9.cjs.map

@@ -1,3 +1,4 @@
+import { isDangerousStateKey } from '../plugin-kernel/plugin-identifier.js';
 import { isValidSemVer } from '../plugin-kernel/semver.js';
 import { CapabilityMissingError, CORE_API_VERSION, PluginSetupError, createCapabilityToken, } from '../sdk/index.js';
 import { createPluginTestHost, } from './plugin-test-host.js';
@@ -124,7 +125,6 @@ async function useFixture(options, operation) {
     return result;
 }
 function cloneStateValue(value, seen = new Set()) {
-    var _a;
     if (value === null || typeof value === 'string' || typeof value === 'boolean')
         return value;
     if (typeof value === 'number') {
@@ -144,9 +144,16 @@ function cloneStateValue(value, seen = new Set()) {
         if (seen.has(value))
             throw new Error('State fixtures must not contain cycles.');
         seen.add(value);
-        const clone = {};
+        const clone = Object.create(null);
         for (const key of Object.keys(value).sort()) {
-            clone[key] = cloneStateValue((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.value, seen);
+            if (isDangerousStateKey(key)) {
+                throw new Error(`State fixtures must not contain dangerous key "${key}".`);
+            }
+            const descriptor = Object.getOwnPropertyDescriptor(value, key);
+            if (!descriptor || !('value' in descriptor)) {
+                throw new Error('State fixtures must contain only data properties.');
+            }
+            clone[key] = cloneStateValue(descriptor.value, seen);
         }
         seen.delete(value);
         return clone;

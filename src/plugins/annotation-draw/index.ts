@@ -119,7 +119,9 @@ export function drawAnnotationPlugin(
                         operationId === 'core:load-image' ||
                         operationId === 'core:commit-load-image' ||
                         operationId === 'core:load-state' ||
-                        operationId === 'core:export',
+                        operationId === 'core:export' ||
+                        operationId === 'history:undo' ||
+                        operationId === 'history:redo',
                 }),
             );
             const requireController = (): DrawAnnotationController => {

@@ -9,6 +9,9 @@ import type * as FabricNS from 'fabric';
 import type { FabricModule, ImageMimeType } from '../../core/index.js';
 import type { BaseImageInfoPort, ImageResourcePolicyPort } from '../../sdk/index.js';
 import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
+import { settleAbortable } from '../../utils/abortable-promise.js';
+import { hasErrorName } from '../../utils/error.js';
+import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import type { FilterDefinition } from './filter-definitions.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { FilterBakeValidationError } from './filters-errors.js';
@@ -151,10 +154,14 @@ async function decodeBakedImage(
         timeoutMs,
     );
     try {
-        return await fabric.FabricImage.fromURL(dataUrl, {
-            crossOrigin: 'anonymous',
-            signal: controller.signal,
-        });
+        return await settleAbortable(
+            fabric.FabricImage.fromURL(dataUrl, {
+                crossOrigin: 'anonymous',
+                signal: controller.signal,
+            }),
+            controller.signal,
+            (lateImage) => lateImage.dispose(),
+        );
     } catch (error) {
         if (controller.signal.aborted) throw controller.signal.reason ?? error;
         throw new FilterBakeValidationError('Filtered Raster decode failed.', error);
@@ -176,13 +183,19 @@ export async function renderBakedImage(
     const normalizedOptions = normalizeFilterBakeOptions(options, imageInfo?.mimeType ?? null);
     const width = Number(baseImage.width);
     const height = Number(baseImage.height);
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    if (
+        !Number.isSafeInteger(width) ||
+        !Number.isSafeInteger(height) ||
+        width <= 0 ||
+        height <= 0
+    ) {
         throw new FilterBakeValidationError('Base Image dimensions are invalid.');
     }
+    const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
     if (
         width > policy.maxExportDimension ||
         height > policy.maxExportDimension ||
-        width * height > Math.min(policy.maxInputPixels, policy.maxExportPixels)
+        !isPixelAreaWithinBudget(width, height, pixelBudget)
     ) {
         throw new FilterBakeValidationError('Filtered Raster dimensions exceed the Core policy.');
     }
@@ -190,14 +203,25 @@ export async function renderBakedImage(
     let replacement: FabricNS.FabricImage | null = null;
     try {
         throwIfAborted(signal);
-        const dataUrl = clone.toDataURL({
-            format: normalizedOptions.format,
-            quality: normalizedOptions.quality,
-            multiplier: 1,
-            withoutTransform: true,
-            withoutShadow: true,
-            enableRetinaScaling: false,
-        });
+        let dataUrl: string;
+        try {
+            dataUrl = clone.toDataURL({
+                format: normalizedOptions.format,
+                quality: normalizedOptions.quality,
+                multiplier: 1,
+                withoutTransform: true,
+                withoutShadow: true,
+                enableRetinaScaling: false,
+            });
+        } catch (error) {
+            if (hasErrorName(error, 'SecurityError')) {
+                throw new FilterBakeValidationError(
+                    'Filtered Raster pixels cannot be exported because canvas access is blocked.',
+                    error,
+                );
+            }
+            throw error;
+        }
         if (encodedBytes(dataUrl) > policy.maxInputBytes) {
             throw new FilterBakeValidationError('Filtered Raster exceeds the Core input budget.');
         }

@@ -26,6 +26,19 @@ test('disposable cleanup is idempotent for synchronous and asynchronous cleanup'
     assert.equal(asynchronousCalls, 1);
 });
 
+test('recursive disposal observes the in-progress cleanup Promise', async () => {
+    let recursiveResult;
+    let disposable;
+    disposable = createDisposable(async () => {
+        recursiveResult = disposable.dispose();
+        await Promise.resolve();
+    });
+
+    const outerResult = disposable.dispose();
+    assert.equal(recursiveResult, outerResult);
+    await outerResult;
+});
+
 test('reverse cleanup continues after errors and reports each failure', async () => {
     const order = [];
     const warnings = [];

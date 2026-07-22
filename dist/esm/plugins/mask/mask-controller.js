@@ -1,9 +1,11 @@
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import { CoreRuntimeError, } from '../../core/index.js';
 import { captureOverlayStateBounds, isOverlayStateBoundsGeometry, restoreOverlayStateBounds, } from '../../foundations/overlay/index.js';
 import { createMask as createMaskFromFactory, } from '../../mask/mask-factory.js';
 import { hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from '../../mask/mask-label-manager.js';
 import { applyMaskSelectedStyle, applyMaskUnselectedStyle, detachMaskHoverHandlers, reattachMaskHoverHandlers, } from '../../mask/mask-style.js';
 const MASK_PLUGIN_ID = 'plugin:mask';
+const MAX_MASK_OBJECT_BYTES = 512 * 1024;
 const MASK_SERIALIZED_OBJECT_PROPERTIES = [
     'hasControls',
     'selectable',
@@ -55,15 +57,30 @@ function isSerializedMaskData(value) {
     if (!value || typeof value !== 'object')
         return false;
     const candidate = value;
-    return (!!candidate.object &&
-        typeof candidate.object === 'object' &&
-        Number.isSafeInteger(candidate.maskId) &&
-        Number(candidate.maskId) > 0 &&
-        typeof candidate.maskUid === 'string' &&
-        candidate.maskUid.length > 0 &&
-        typeof candidate.maskName === 'string' &&
-        typeof candidate.originalAlpha === 'number' &&
-        Number.isFinite(candidate.originalAlpha));
+    try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor))
+            return false;
+        const serializedObject = objectDescriptor.value;
+        return (isSafeSerializedFabricObject(serializedObject, {
+            rootTypes: ['rect', 'circle', 'ellipse', 'polygon'],
+        }) &&
+            new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength <=
+                MAX_MASK_OBJECT_BYTES &&
+            Number.isSafeInteger(candidate.maskId) &&
+            Number(candidate.maskId) > 0 &&
+            typeof candidate.maskUid === 'string' &&
+            candidate.maskUid.length > 0 &&
+            typeof candidate.maskName === 'string' &&
+            typeof candidate.originalAlpha === 'number' &&
+            Number.isFinite(candidate.originalAlpha) &&
+            (candidate.originalStroke === undefined ||
+                candidate.originalStroke === null ||
+                typeof candidate.originalStroke === 'string'));
+    }
+    catch {
+        return false;
+    }
 }
 function isPlainRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))

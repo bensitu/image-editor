@@ -131,6 +131,7 @@ const DEFAULT_CORE_OPTIONS: ResolvedImageEditorCoreOptions = Object.freeze({
     exportMultiplier: 1,
     initialImageBase64: '',
 });
+const MAX_RETAINED_DIAGNOSTICS = 1_000;
 
 function positiveFinite(value: number | undefined, fallback: number): number {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
@@ -216,13 +217,15 @@ function isLoadCancellation(error: unknown): boolean {
 }
 
 function withCoreTimeout<T>(
-    promise: Promise<T>,
+    task: (signal: AbortSignal) => Promise<T>,
     timeoutMs: number,
     label: string,
     signal: AbortSignal,
+    disposeLateResult?: (value: T) => void,
 ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         const startedAt = Date.now();
+        const controller = new AbortController();
         let settled = false;
         const finish = (body: () => void): void => {
             if (settled) return;
@@ -231,17 +234,18 @@ function withCoreTimeout<T>(
             signal.removeEventListener('abort', abort);
             body();
         };
-        const abort = (): void =>
-            finish(() => reject(loadAbortReason(signal, `${label} was aborted.`)));
+        const abort = (): void => {
+            const reason = loadAbortReason(signal, `${label} was aborted.`);
+            controller.abort(reason);
+            finish(() => reject(reason));
+        };
         const timeoutId = setTimeout(() => {
-            finish(() =>
-                reject(
-                    new CoreRuntimeError(
-                        `[ImageEditor] ${label} timed out after ${Date.now() - startedAt}ms.`,
-                        { code: 'IMAGE_LOAD_TIMEOUT' },
-                    ),
-                ),
+            const timeoutError = new CoreRuntimeError(
+                `[ImageEditor] ${label} timed out after ${Date.now() - startedAt}ms.`,
+                { code: 'IMAGE_LOAD_TIMEOUT' },
             );
+            controller.abort(timeoutError);
+            finish(() => reject(timeoutError));
         }, timeoutMs);
 
         signal.addEventListener('abort', abort, { once: true });
@@ -250,10 +254,24 @@ function withCoreTimeout<T>(
             return;
         }
 
-        promise.then(
-            (value) => finish(() => resolve(value)),
-            (error: unknown) => finish(() => reject(error)),
-        );
+        try {
+            task(controller.signal).then(
+                (value) => {
+                    if (settled) {
+                        try {
+                            disposeLateResult?.(value);
+                        } catch {
+                            // Late-result cleanup is best effort after the public operation settled.
+                        }
+                        return;
+                    }
+                    finish(() => resolve(value));
+                },
+                (error: unknown) => finish(() => reject(error)),
+            );
+        } catch (error) {
+            finish(() => reject(error));
+        }
     });
 }
 
@@ -652,7 +670,11 @@ export class ImageEditorCore {
         if (!ownerDocument)
             throw new CoreRuntimeError('[ImageEditor] Canvas document is unavailable.');
         const canvasElement = resolveElement(elements.canvas, ownerDocument);
-        if (!(canvasElement instanceof ownerDocument.defaultView!.HTMLCanvasElement)) {
+        if (
+            !canvasElement ||
+            canvasElement.tagName.toLowerCase() !== 'canvas' ||
+            typeof canvasElement.getContext !== 'function'
+        ) {
             throw new CoreRuntimeError('[ImageEditor] Core canvas element was not found.');
         }
         this.canvasElement = canvasElement;
@@ -706,13 +728,15 @@ export class ImageEditorCore {
                     const sequence = ++this.loadSequence;
                     this.latestLoadSequence = sequence;
                     const image = await withCoreTimeout(
-                        this.fabric.FabricImage.fromURL(loadSource, {
-                            crossOrigin: 'anonymous',
-                            signal: operationContext.signal,
-                        }),
+                        (signal) =>
+                            this.fabric.FabricImage.fromURL(loadSource, {
+                                crossOrigin: 'anonymous',
+                                signal,
+                            }),
                         this.options.imageLoadTimeoutMs,
                         'FabricImage.fromURL',
                         operationContext.signal,
+                        (lateImage) => lateImage.dispose(),
                     );
                     this.assertCurrentLoad(sequence, operationContext.signal);
                     const naturalWidth = Number(image.width) || 0;
@@ -853,13 +877,13 @@ export class ImageEditorCore {
 
     async loadFromState(input: string | unknown, options: LoadStateOptions = {}): Promise<void> {
         this.assertReady('load state');
-        const prepared = await this.snapshots.prepareForLoad(input, {
-            missingPluginPolicy: options.missingPluginPolicy,
-            migrations: options.migrations,
-            signal: options.signal,
-        });
-        const sequence = ++this.stateLoadSequence;
         try {
+            const prepared = await this.snapshots.prepareForLoad(input, {
+                missingPluginPolicy: options.missingPluginPolicy,
+                migrations: options.migrations,
+                signal: options.signal,
+            });
+            const sequence = ++this.stateLoadSequence;
             await this.documentMutations.run({
                 id: `core:load-state-transaction:${sequence}`,
                 kind: 'compound',
@@ -884,7 +908,7 @@ export class ImageEditorCore {
             });
             this.updatePlaceholder();
         } catch (error) {
-            this.reportError(error, 'loadFromState failed.');
+            if (!isLoadCancellation(error)) this.reportError(error, 'loadFromState failed.');
             throw error;
         }
     }
@@ -971,8 +995,12 @@ export class ImageEditorCore {
 
     dispose(): void {
         if (this.lifecycle.current === 'disposed' || this.lifecycle.current === 'disposing') return;
-        if (this.geometry.isRunning || this.documentMutations.isRunning) {
-            void this.disposeAsync();
+        if (
+            this.geometry.isRunning ||
+            this.documentMutations.isRunning ||
+            this.plugins.hasRunningOperations()
+        ) {
+            this.observeDetachedDisposal(this.disposeAsync());
             return;
         }
         if (!this.lifecycle.beginDisposal()) return;
@@ -996,20 +1024,32 @@ export class ImageEditorCore {
             }
         }
         const canvas = this.canvas;
-        this.clearRuntimeReferences();
+        try {
+            this.clearRuntimeReferences();
+        } catch (error) {
+            errors.push(error);
+        }
+        let canvasDispose: unknown;
         if (canvas) {
-            const canvasDispose = canvas.dispose();
-            if (canvasDispose && typeof canvasDispose.then === 'function') {
-                this.disposePromise = Promise.resolve(canvasDispose).then(() => undefined);
+            try {
+                canvasDispose = canvas.dispose();
+            } catch (error) {
+                errors.push(error);
             }
         }
-        this.lifecycle.completeDisposal();
-        if (errors.length > 0) {
-            throw new CoreRuntimeError(
-                `[ImageEditor] Core disposal completed with ${errors.length} cleanup error(s).`,
-                { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) },
+        if (canvasDispose && typeof (canvasDispose as PromiseLike<unknown>).then === 'function') {
+            const disposal = Promise.resolve(canvasDispose).then(
+                () => this.completeDisposal(errors, 'Core disposal'),
+                (error: unknown) => {
+                    errors.push(error);
+                    this.completeDisposal(errors, 'Core disposal');
+                },
             );
+            this.disposePromise = disposal;
+            this.observeDetachedDisposal(disposal);
+            return;
         }
+        this.completeDisposal(errors, 'Core disposal');
     }
 
     disposeAsync(): Promise<void> {
@@ -1330,9 +1370,12 @@ export class ImageEditorCore {
     }
 
     private createPresentationPort(): CorePresentationPort {
+        const resolveLayoutMode = (): LayoutMode => this.layoutMode;
         return Object.freeze({
             backgroundColor: this.options.backgroundColor,
-            layoutMode: this.layoutMode,
+            get layoutMode() {
+                return resolveLayoutMode();
+            },
         });
     }
 
@@ -1704,10 +1747,15 @@ export class ImageEditorCore {
 
     private recordDiagnostic(error: unknown, message?: string): CoreDiagnostic {
         const classification = classifyCoreError(error);
-        const code =
-            error && typeof error === 'object' && typeof Reflect.get(error, 'code') === 'string'
-                ? String(Reflect.get(error, 'code'))
-                : 'UNCLASSIFIED_CORE_ERROR';
+        let errorCode: unknown;
+        if (error && typeof error === 'object') {
+            try {
+                errorCode = Reflect.get(error, 'code');
+            } catch {
+                errorCode = undefined;
+            }
+        }
+        const code = typeof errorCode === 'string' ? errorCode : 'UNCLASSIFIED_CORE_ERROR';
         const diagnostic = Object.freeze({
             ...classification,
             timestamp: Date.now(),
@@ -1719,6 +1767,9 @@ export class ImageEditorCore {
                     : error,
         });
         this.diagnostics.push(diagnostic);
+        if (this.diagnostics.length > MAX_RETAINED_DIAGNOSTICS) {
+            this.diagnostics.splice(0, this.diagnostics.length - MAX_RETAINED_DIAGNOSTICS);
+        }
         return diagnostic;
     }
 
@@ -1754,6 +1805,13 @@ export class ImageEditorCore {
             () => this.geometry.dispose(),
             () => this.documentMutations.dispose(),
             () => this.plugins.dispose(),
+            () => this.snapshots.dispose(),
+            () => this.exportContributors.dispose(),
+            () => this.mementos.dispose(),
+            () => this.transientObjects.dispose(),
+            () => this.externalObjects.dispose(),
+            () => this.objectProperties.dispose(),
+            () => this.slices.dispose(),
         ]) {
             try {
                 await cleanup();
@@ -1761,15 +1819,12 @@ export class ImageEditorCore {
                 errors.push(error);
             }
         }
-        this.snapshots.dispose();
-        this.exportContributors.dispose();
-        this.mementos.dispose();
-        this.transientObjects.dispose();
-        this.externalObjects.dispose();
-        this.objectProperties.dispose();
-        this.slices.dispose();
         const canvas = this.canvas;
-        this.clearRuntimeReferences();
+        try {
+            this.clearRuntimeReferences();
+        } catch (error) {
+            errors.push(error);
+        }
         if (canvas) {
             try {
                 await canvas.dispose();
@@ -1777,12 +1832,23 @@ export class ImageEditorCore {
                 errors.push(error);
             }
         }
+        this.completeDisposal(errors, 'Async disposal');
+    }
+
+    private completeDisposal(errors: unknown[], label: string): void {
         this.lifecycle.completeDisposal();
         if (errors.length > 0) {
             throw new CoreRuntimeError(
-                `[ImageEditor] Async disposal completed with ${errors.length} cleanup error(s).`,
+                `[ImageEditor] ${label} completed with ${errors.length} cleanup error(s).`,
                 { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) },
             );
         }
+    }
+
+    private observeDetachedDisposal(disposal: Promise<void>): void {
+        void disposal.catch((error: unknown) => {
+            this.recordDiagnostic(error, 'Detached Core disposal completed with cleanup failures.');
+            this.reportError(error, 'Detached Core disposal completed with cleanup failures.');
+        });
     }
 }

@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { type CapabilityIdentity } from './capability-token.js';
+import type { CapabilityToken } from './capability-token.js';
 import { type PluginEventMap } from './committed-event-bus.js';
 import { type Disposable } from './disposable.js';
 import { type PluginRef } from './plugin-ref.js';
@@ -16,7 +16,7 @@ export interface PluginManagerOptions {
     readonly hostCapabilities?: readonly PluginHostCapabilityProvider[];
 }
 export interface PluginHostCapabilityProvider {
-    readonly token: CapabilityIdentity;
+    readonly token: CapabilityToken<unknown>;
     readonly implementation: unknown;
     readonly providerId?: string;
     readonly requiredPermission?: PluginPermission;
@@ -68,6 +68,8 @@ export declare class PluginManager<TEvents extends object = PluginEventMap> impl
     private cleanupAll;
     private cleanupAllSync;
     private assertCanInstall;
+    private canRunOperation;
+    private operationRejectedByTool;
     private assertLifecycleReady;
     private assertUsable;
 }

@@ -12,6 +12,41 @@ function isObject(value: unknown): value is object {
     return typeof value === 'object' && value !== null;
 }
 
+function assertSafeStateValue(value: unknown, seen = new WeakSet<object>(), path = '$'): void {
+    if (!isObject(value) || seen.has(value)) return;
+    seen.add(value);
+
+    if (value instanceof Map) {
+        for (const [key, entry] of value) {
+            assertSafeStateValue(key, seen, `${path}.<map-key>`);
+            assertSafeStateValue(entry, seen, `${path}.<map-value>`);
+        }
+        return;
+    }
+    if (value instanceof Set) {
+        for (const entry of value) assertSafeStateValue(entry, seen, `${path}.<set-value>`);
+        return;
+    }
+    if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return;
+
+    for (const key of Object.getOwnPropertySymbols(value)) {
+        if (Object.getOwnPropertyDescriptor(value, key)?.enumerable) {
+            throw new StateCloneError(`State at ${path} contains an enumerable symbol key.`);
+        }
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+        if (!descriptor?.enumerable) continue;
+        if (isDangerousStateKey(key)) {
+            throw new StateCloneError(`State contains dangerous key "${key}".`);
+        }
+        if (!('value' in descriptor)) {
+            throw new StateCloneError(`State at ${path}.${key} contains an accessor property.`);
+        }
+        assertSafeStateValue(descriptor.value, seen, `${path}.${key}`);
+    }
+}
+
 function cloneFallback(value: unknown, seen: Map<object, unknown>): unknown {
     if (!isObject(value)) {
         if (typeof value === 'function' || typeof value === 'symbol') {
@@ -92,6 +127,7 @@ function deepFreeze(value: unknown, seen = new WeakSet<object>()): unknown {
 /** Creates an alias-free state value without using JSON as a fake deep clone. */
 export function cloneStateValue<T>(value: T): T {
     try {
+        assertSafeStateValue(value);
         const structuredCloneFunction = globalThis.structuredClone;
         const cloned =
             typeof structuredCloneFunction === 'function'

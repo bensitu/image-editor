@@ -22,6 +22,7 @@ const partialVersionPattern = new RegExp(
     'u',
 );
 const comparatorPattern = /^(<=|>=|<|>|=|~|\^)?(.+)$/u;
+const MAX_SEMVER_INPUT_LENGTH = 256;
 
 function parseRangeVersion(value: string): ParsedRangeVersion | null {
     const exact = semVerPattern.exec(value);
@@ -172,11 +173,15 @@ function satisfiesComparator(version: RegExpExecArray, comparator: string): bool
 }
 
 export function isValidSemVer(version: string): boolean {
-    return version.trim() === version && semVerPattern.test(version);
+    return (
+        version.length <= MAX_SEMVER_INPUT_LENGTH &&
+        version.trim() === version &&
+        semVerPattern.test(version)
+    );
 }
 
 export function isValidSemVerRange(range: string): boolean {
-    return normalizeRange(range) !== null;
+    return range.length <= MAX_SEMVER_INPUT_LENGTH && normalizeRange(range) !== null;
 }
 
 /**
@@ -184,7 +189,13 @@ export function isValidSemVerRange(range: string): boolean {
  * matching comparator set that names a prerelease with the same base tuple.
  */
 export function satisfiesSemVer(version: string, range: string): boolean {
-    if (version.trim() !== version) return false;
+    if (
+        version.length > MAX_SEMVER_INPUT_LENGTH ||
+        range.length > MAX_SEMVER_INPUT_LENGTH ||
+        version.trim() !== version
+    ) {
+        return false;
+    }
     const parsedVersion = semVerPattern.exec(version);
     const normalized = normalizeRange(range);
     if (!parsedVersion || !normalized) return false;

@@ -1,3 +1,4 @@
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import { AnnotationValidationError } from '../../foundations/annotation/index.js';
 import { captureOverlayStateBounds, isOverlayStateBoundsGeometry, objectPointToCanvas, restoreOverlayStateBounds, } from '../../foundations/overlay/index.js';
 export const SHAPE_ANNOTATION_KIND = 'annotation:shape';
@@ -203,12 +204,23 @@ function isShapeStateData(value) {
 }
 function isSerializedShape(value) {
     var _a;
-    if (!isPlainRecord(value) || value.version !== 1 || !isPlainRecord(value.object))
+    if (!isPlainRecord(value))
         return false;
     try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor))
+            return false;
+        const serializedObject = objectDescriptor.value;
+        if (value.version !== 1 ||
+            !isPlainRecord(serializedObject) ||
+            !isSafeSerializedFabricObject(serializedObject, {
+                rootTypes: ['rect', 'line', 'path'],
+            })) {
+            return false;
+        }
         const geometry = normalizeShapeGeometry(value.geometry);
-        const bytes = new TextEncoder().encode(JSON.stringify(value.object)).byteLength;
-        const type = String((_a = value.object.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+        const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
+        const type = String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
         return (bytes <= MAX_SHAPE_OBJECT_BYTES &&
             geometry.kind === value.shapeKind &&
             ((geometry.kind === 'rect' && type === 'rect') ||

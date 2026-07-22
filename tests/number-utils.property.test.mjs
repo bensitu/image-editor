@@ -235,13 +235,15 @@ test('unknown value forms return fallback', () => {
 test('boundary: NaN and malformed percent strings fall back', () => {
     const canvas = mockCanvas(800, 600);
     const opts = mockOptions('boundary');
-    // NaN is not `typeof === 'number'` … actually it is. The contract says
-    // numbers pass through unchanged, so NaN passes through. We assert the
-    // documented behavior here so any future tightening is intentional.
-    assert.ok(Number.isNaN(resolveNumeric(NaN, 'x', 99, canvas, opts)));
-    // Percent strings whose leading token does not parse to a finite
-    // number must fall back.
+    assert.equal(resolveNumeric(NaN, 'x', 99, canvas, opts), 99);
+    assert.equal(resolveNumeric(Number.POSITIVE_INFINITY, 'x', 98, canvas, opts), 98);
+    assert.equal(
+        resolveNumeric(() => Number.NEGATIVE_INFINITY, 'x', 97, canvas, opts),
+        97,
+    );
+    // Percent strings must match the complete numeric grammar.
     assert.equal(resolveNumeric('abc%', 'x', 99, canvas, opts), 99);
+    assert.equal(resolveNumeric('50abc%', 'x', 99, canvas, opts), 99);
     assert.equal(resolveNumeric('%', 'y', 77, canvas, opts), 77);
     // Strings without a trailing '%' fall through to the generic fallback
     // branch even when they look numeric — the helper deliberately does
@@ -284,4 +286,11 @@ test('boundary: coercePoint coerces string-encoded numerics', () => {
         ),
         { numRuns: 100 },
     );
+});
+
+test('boundary: coercePoint rejects nullish, boolean, empty, and non-finite coordinates', () => {
+    for (const value of [null, undefined, true, false, '', '   ', Infinity, -Infinity, NaN]) {
+        assert.equal(Number.isNaN(coercePoint([value, 1]).x), true);
+        assert.equal(Number.isNaN(coercePoint({ x: 1, y: value }).y), true);
+    }
 });

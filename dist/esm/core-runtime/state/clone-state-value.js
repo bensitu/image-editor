@@ -4,6 +4,43 @@ import { StateCloneError } from '../errors.js';
 function isObject(value) {
     return typeof value === 'object' && value !== null;
 }
+function assertSafeStateValue(value, seen = new WeakSet(), path = '$') {
+    var _a;
+    if (!isObject(value) || seen.has(value))
+        return;
+    seen.add(value);
+    if (value instanceof Map) {
+        for (const [key, entry] of value) {
+            assertSafeStateValue(key, seen, `${path}.<map-key>`);
+            assertSafeStateValue(entry, seen, `${path}.<map-value>`);
+        }
+        return;
+    }
+    if (value instanceof Set) {
+        for (const entry of value)
+            assertSafeStateValue(entry, seen, `${path}.<set-value>`);
+        return;
+    }
+    if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value))
+        return;
+    for (const key of Object.getOwnPropertySymbols(value)) {
+        if ((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.enumerable) {
+            throw new StateCloneError(`State at ${path} contains an enumerable symbol key.`);
+        }
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+        if (!(descriptor === null || descriptor === void 0 ? void 0 : descriptor.enumerable))
+            continue;
+        if (isDangerousStateKey(key)) {
+            throw new StateCloneError(`State contains dangerous key "${key}".`);
+        }
+        if (!('value' in descriptor)) {
+            throw new StateCloneError(`State at ${path}.${key} contains an accessor property.`);
+        }
+        assertSafeStateValue(descriptor.value, seen, `${path}.${key}`);
+    }
+}
 function cloneFallback(value, seen) {
     var _a, _b;
     if (!isObject(value)) {
@@ -87,6 +124,7 @@ function deepFreeze(value, seen = new WeakSet()) {
 }
 export function cloneStateValue(value) {
     try {
+        assertSafeStateValue(value);
         const structuredCloneFunction = globalThis.structuredClone;
         const cloned = typeof structuredCloneFunction === 'function'
             ? structuredCloneFunction(value)

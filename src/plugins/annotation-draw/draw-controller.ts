@@ -6,6 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import type {
     AnnotationAuthoringPort,
     AnnotationFeatureDefinition,
@@ -227,14 +228,24 @@ function normalizePoints(value: unknown, maximumCount: number): readonly Annotat
 }
 
 function isSerializedDraw(value: unknown): value is SerializedDraw {
-    if (!isPlainRecord(value) || value.version !== 1 || !isPlainRecord(value.object)) return false;
+    if (!isPlainRecord(value)) return false;
     try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor)) return false;
+        const serializedObject = objectDescriptor.value;
+        if (
+            value.version !== 1 ||
+            !isPlainRecord(serializedObject) ||
+            !isSafeSerializedFabricObject(serializedObject, { rootTypes: ['path'] })
+        ) {
+            return false;
+        }
         const points = normalizePoints(value.points, 65_536);
-        const bytes = new TextEncoder().encode(JSON.stringify(value.object)).byteLength;
+        const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
         return (
             points.length >= 2 &&
             bytes <= MAX_DRAW_OBJECT_BYTES &&
-            String(value.object.type ?? '').toLowerCase() === 'path'
+            String(serializedObject.type ?? '').toLowerCase() === 'path'
         );
     } catch {
         return false;

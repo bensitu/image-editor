@@ -4,6 +4,7 @@ import { reportWarning } from '../core/callback-reporter.js';
 import { copySafeOwnProperties } from '../core/safe-object-copy.js';
 import { attachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
+import { isPixelAreaWithinBudget } from '../utils/image-budget.js';
 const POLYGON_AREA_EPSILON = 1e-6;
 const BUILT_IN_MASK_SHAPES = new Set(['rect', 'circle', 'ellipse', 'polygon']);
 function createMaskUid(maskId) {
@@ -18,6 +19,13 @@ function isFabricObjectLike(value) {
 function isStyleObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
+function copyMaskStyles(value) {
+    const styles = copySafeOwnProperties(value);
+    if (Array.isArray(styles.strokeDashArray)) {
+        styles.strokeDashArray = [...styles.strokeDashArray];
+    }
+    return styles;
+}
 function mergeMaskConfig(defaultMaskConfig, config) {
     const safeDefaultConfig = copySafeOwnProperties(defaultMaskConfig);
     const defaultStyles = safeDefaultConfig.styles;
@@ -25,8 +33,8 @@ function mergeMaskConfig(defaultMaskConfig, config) {
     delete safeDefaultConfig.fabricGenerator;
     delete safeDefaultConfig.styles;
     const safeConfig = copySafeOwnProperties(config);
-    const configStyles = copySafeOwnProperties(config.styles);
-    const safeDefaultStyles = copySafeOwnProperties(isStyleObject(defaultStyles) ? defaultStyles : {});
+    const configStyles = copyMaskStyles(config.styles);
+    const safeDefaultStyles = copyMaskStyles(isStyleObject(defaultStyles) ? defaultStyles : {});
     return {
         ...safeDefaultConfig,
         ...safeConfig,
@@ -236,6 +244,13 @@ export function createMask(context, config = {}) {
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+        if (!context.expandCanvasIfNeeded &&
+            (nextWidth > options.maxExportDimension ||
+                nextHeight > options.maxExportDimension ||
+                !isPixelAreaWithinBudget(nextWidth, nextHeight, options.maxExportPixels))) {
+            warnInvalidMask(options, 'canvas expansion exceeds the configured resource budget');
+            return null;
+        }
         if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
             preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
             resizeMaskCanvas(context, nextWidth, nextHeight);

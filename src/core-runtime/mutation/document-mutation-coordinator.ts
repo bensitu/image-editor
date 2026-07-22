@@ -31,7 +31,7 @@ interface NormalizedRequest<TResult> extends DocumentMutationRequest<TResult> {
 }
 
 interface RollbackEntry {
-    readonly run: (cause: unknown) => Promise<void>;
+    readonly run: (cause: unknown, signal: AbortSignal) => Promise<void>;
     enabled: boolean;
 }
 
@@ -48,6 +48,8 @@ interface ContextRecord {
     readonly session: TransactionSession;
     readonly operationToken: OperationToken;
 }
+
+const DEFAULT_ROLLBACK_TIMEOUT_MS = 30_000;
 
 function isCancellation(error: unknown): boolean {
     return (
@@ -81,7 +83,14 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
     private readonly activePromises = new Set<Promise<unknown>>();
     private disposed = false;
 
-    constructor(private readonly options: DocumentMutationCoordinatorOptions) {}
+    constructor(private readonly options: DocumentMutationCoordinatorOptions) {
+        const rollbackTimeoutMs = options.rollbackTimeoutMs ?? DEFAULT_ROLLBACK_TIMEOUT_MS;
+        if (!Number.isSafeInteger(rollbackTimeoutMs) || rollbackTimeoutMs <= 0) {
+            throw new DocumentMutationRegistrationError(
+                'rollbackTimeoutMs must be a positive safe integer.',
+            );
+        }
+    }
 
     get isRunning(): boolean {
         return this.activePromises.size > 0;
@@ -284,11 +293,12 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
         const requestRollback: RollbackEntry | null = request.rollback
             ? {
                   enabled: false,
-                  run: async (cause) => {
+                  run: async (cause, signal) => {
                       const rollbackContext = this.createRollbackContext(
                           context,
                           cause,
                           outcome.result,
+                          signal,
                       );
                       await request.rollback?.(rollbackContext);
                   },
@@ -309,11 +319,12 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
             if (participant.rollback) {
                 session.rollbackEntries.push({
                     enabled: true,
-                    run: async (cause) => {
+                    run: async (cause, signal) => {
                         const rollbackContext = this.createRollbackContext(
                             context,
                             cause,
                             outcome.result,
+                            signal,
                         );
                         await participant.rollback?.(preparedValue, rollbackContext);
                     },
@@ -376,10 +387,11 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
         context: DocumentMutationContext,
         cause: unknown,
         result: TResult | undefined,
+        signal: AbortSignal,
     ): DocumentMutationRollbackContext<TResult> {
         return Object.freeze({
             ...context,
-            signal: new AbortController().signal,
+            signal,
             cause,
             result,
         });
@@ -391,48 +403,85 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
         cause: unknown,
     ): Promise<unknown> {
         const rollbackErrors: unknown[] = [];
-        for (let index = session.rollbackEntries.length - 1; index >= 0; index -= 1) {
-            const entry = session.rollbackEntries[index];
-            if (!entry?.enabled) continue;
-            try {
-                await entry.run(cause);
-            } catch (error) {
-                rollbackErrors.push(error);
+        const rollbackTimeoutMs = this.options.rollbackTimeoutMs ?? DEFAULT_ROLLBACK_TIMEOUT_MS;
+        const rollbackController = new AbortController();
+        const timeoutError = new Error(
+            `Document mutation rollback timed out after ${rollbackTimeoutMs}ms.`,
+        );
+        timeoutError.name = 'TimeoutError';
+        const timeout = setTimeout(() => rollbackController.abort(timeoutError), rollbackTimeoutMs);
+        const runRollbackTask = async (task: () => Promise<void>): Promise<void> => {
+            if (rollbackController.signal.aborted) {
+                throw rollbackController.signal.reason ?? timeoutError;
             }
-        }
+            let removeAbortListener = (): void => undefined;
+            const aborted = new Promise<never>((resolve, reject) => {
+                void resolve;
+                const abort = (): void => reject(rollbackController.signal.reason ?? timeoutError);
+                removeAbortListener = () =>
+                    rollbackController.signal.removeEventListener('abort', abort);
+                rollbackController.signal.addEventListener('abort', abort, { once: true });
+            });
+            try {
+                await Promise.race([task(), aborted]);
+            } finally {
+                removeAbortListener();
+            }
+        };
 
-        let targetedStateMatches = false;
-        const targetedRollbackRan = session.rollbackEntries.some((entry) => entry.enabled);
-        if (targetedRollbackRan && rollbackErrors.length === 0 && this.options.mementos.matches) {
-            try {
-                targetedStateMatches = await this.options.mementos.matches(session.before);
-            } catch (error) {
-                rollbackErrors.push(error);
+        try {
+            for (let index = session.rollbackEntries.length - 1; index >= 0; index -= 1) {
+                const entry = session.rollbackEntries[index];
+                if (!entry?.enabled) continue;
+                try {
+                    await runRollbackTask(() => entry.run(cause, rollbackController.signal));
+                } catch (error) {
+                    rollbackErrors.push(error);
+                }
             }
-        }
-        if (!targetedStateMatches) {
-            try {
-                await this.options.mementos.restore(session.before, {
-                    rollbackOnFailure: false,
-                });
-            } catch (restoreError) {
-                rollbackErrors.push(restoreError);
-                const failure = new DocumentMutationUnrecoverableError(
-                    transactionId,
-                    cause,
-                    Object.freeze(rollbackErrors),
-                );
-                this.options.faultSink?.(failure);
-                this.options.errorSink?.(failure);
-                return failure;
+
+            let targetedStateMatches = false;
+            const targetedRollbackRan = session.rollbackEntries.some((entry) => entry.enabled);
+            if (
+                targetedRollbackRan &&
+                rollbackErrors.length === 0 &&
+                this.options.mementos.matches
+            ) {
+                try {
+                    targetedStateMatches = await this.options.mementos.matches(session.before);
+                } catch (error) {
+                    rollbackErrors.push(error);
+                }
             }
-        }
-        if (!this.options.state.isDisposed()) {
-            try {
-                this.options.state.requestRender();
-            } catch (error) {
-                rollbackErrors.push(error);
+            if (!targetedStateMatches) {
+                try {
+                    await runRollbackTask(() =>
+                        this.options.mementos.restore(session.before, {
+                            rollbackOnFailure: false,
+                            signal: rollbackController.signal,
+                        }),
+                    );
+                } catch (restoreError) {
+                    rollbackErrors.push(restoreError);
+                    const failure = new DocumentMutationUnrecoverableError(
+                        transactionId,
+                        cause,
+                        Object.freeze(rollbackErrors),
+                    );
+                    this.options.faultSink?.(failure);
+                    this.options.errorSink?.(failure);
+                    return failure;
+                }
             }
+            if (!this.options.state.isDisposed()) {
+                try {
+                    this.options.state.requestRender();
+                } catch (error) {
+                    rollbackErrors.push(error);
+                }
+            }
+        } finally {
+            clearTimeout(timeout);
         }
         if (isCancellation(cause)) return cause;
         const failure =
@@ -508,8 +557,18 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
             participantIds.add(participant.id);
         }
         participants.sort((left, right) => left.order - right.order);
-        const metadata = immutableMetadata(request.metadata);
-        const serializedMetadata = JSON.stringify(metadata);
+        let metadata: Readonly<Record<string, unknown>>;
+        let serializedMetadata: string;
+        try {
+            metadata = immutableMetadata(request.metadata);
+            serializedMetadata = JSON.stringify(metadata);
+        } catch (error) {
+            if (error instanceof DocumentMutationRegistrationError) throw error;
+            throw new DocumentMutationRegistrationError(
+                'Mutation metadata must be safely JSON-serializable.',
+                request.id,
+            );
+        }
         const maxMetadataBytes = this.options.maxMetadataBytes ?? 64 * 1024;
         if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
             throw new DocumentMutationRegistrationError(

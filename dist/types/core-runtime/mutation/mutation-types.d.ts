@@ -74,6 +74,7 @@ export interface DocumentMutationMementoPort {
     capture(): CoreMemento;
     restore(memento: CoreMemento, options?: Readonly<{
         rollbackOnFailure?: boolean;
+        signal?: AbortSignal;
     }>): Promise<void>;
     matches?(memento: CoreMemento): MaybePromise<boolean>;
 }
@@ -120,6 +121,7 @@ export interface DocumentMutationCoordinatorOptions {
     readonly errorSink?: DocumentMutationErrorSink;
     readonly faultSink?: DocumentMutationFaultSink;
     readonly maxMetadataBytes?: number;
+    readonly rollbackTimeoutMs?: number;
 }
 export interface DocumentMutationPort {
     run<TResult>(request: DocumentMutationRequest<TResult>): Promise<TResult>;

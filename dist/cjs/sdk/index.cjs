@@ -1,11 +1,11 @@
 'use strict';
 
-var coreCapabilities = require('../chunks/core-capabilities-802kAEgU.cjs');
-var visibleRasterBake = require('../chunks/visible-raster-bake-DIUNQiLO.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-B3zCkHWm.cjs');
-var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-DVJQ8w-Z.cjs');
+var visibleRasterBake = require('../chunks/visible-raster-bake-DRW-_VAM.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-B4W6-2BB.cjs');
+var disposable = require('../chunks/disposable-pTo80E0l.cjs');
 var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
-var pluginDefinition = require('../chunks/plugin-definition-Cf-BfA6c.cjs');
+var pluginDefinition = require('../chunks/plugin-definition-CT9AOCE7.cjs');
 var pluginPlan = require('../chunks/plugin-plan-7_a5v9uF.cjs');
 
 

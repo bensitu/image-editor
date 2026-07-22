@@ -1,4 +1,7 @@
 import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
+import { settleAbortable } from '../../utils/abortable-promise.js';
+import { hasErrorName } from '../../utils/error.js';
+import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { FilterBakeValidationError } from './filters-errors.js';
 function abortError(message) {
@@ -104,10 +107,10 @@ async function decodeBakedImage(fabric, dataUrl, timeoutMs, signal) {
         abort();
     const timeout = setTimeout(() => controller.abort(new FilterBakeValidationError('Filtered Raster decode timed out.')), timeoutMs);
     try {
-        return await fabric.FabricImage.fromURL(dataUrl, {
+        return await settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
             crossOrigin: 'anonymous',
             signal: controller.signal,
-        });
+        }), controller.signal, (lateImage) => lateImage.dispose());
     }
     catch (error) {
         if (controller.signal.aborted)
@@ -124,26 +127,39 @@ export async function renderBakedImage(fabric, baseImage, definitions, options, 
     const normalizedOptions = normalizeFilterBakeOptions(options, (_a = imageInfo === null || imageInfo === void 0 ? void 0 : imageInfo.mimeType) !== null && _a !== void 0 ? _a : null);
     const width = Number(baseImage.width);
     const height = Number(baseImage.height);
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    if (!Number.isSafeInteger(width) ||
+        !Number.isSafeInteger(height) ||
+        width <= 0 ||
+        height <= 0) {
         throw new FilterBakeValidationError('Base Image dimensions are invalid.');
     }
+    const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
     if (width > policy.maxExportDimension ||
         height > policy.maxExportDimension ||
-        width * height > Math.min(policy.maxInputPixels, policy.maxExportPixels)) {
+        !isPixelAreaWithinBudget(width, height, pixelBudget)) {
         throw new FilterBakeValidationError('Filtered Raster dimensions exceed the Core policy.');
     }
     const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal);
     let replacement = null;
     try {
         throwIfAborted(signal);
-        const dataUrl = clone.toDataURL({
-            format: normalizedOptions.format,
-            quality: normalizedOptions.quality,
-            multiplier: 1,
-            withoutTransform: true,
-            withoutShadow: true,
-            enableRetinaScaling: false,
-        });
+        let dataUrl;
+        try {
+            dataUrl = clone.toDataURL({
+                format: normalizedOptions.format,
+                quality: normalizedOptions.quality,
+                multiplier: 1,
+                withoutTransform: true,
+                withoutShadow: true,
+                enableRetinaScaling: false,
+            });
+        }
+        catch (error) {
+            if (hasErrorName(error, 'SecurityError')) {
+                throw new FilterBakeValidationError('Filtered Raster pixels cannot be exported because canvas access is blocked.', error);
+            }
+            throw error;
+        }
         if (encodedBytes(dataUrl) > policy.maxInputBytes) {
             throw new FilterBakeValidationError('Filtered Raster exceeds the Core input budget.');
         }

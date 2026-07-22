@@ -21,6 +21,7 @@ import { isValidSemVer, isValidSemVerRange, satisfiesSemVer } from './semver.js'
 import type { PluginManifest, PluginPermission } from './plugin-types.js';
 
 export const CORE_API_VERSION = '3.0.0';
+export const CORE_API_RANGE = `^${CORE_API_VERSION}`;
 
 const MAX_VERSION_LENGTH = 64;
 const MAX_PLUGIN_DEPENDENCIES = 64;

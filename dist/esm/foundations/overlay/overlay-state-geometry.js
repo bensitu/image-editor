@@ -37,8 +37,33 @@ function frameFromCorners(corners) {
     ];
 }
 function cornersMatch(actual, expected, epsilon = 1e-6) {
-    return actual.every((point, index) => Math.abs(point.x - expected[index].x) <= epsilon &&
-        Math.abs(point.y - expected[index].y) <= epsilon);
+    const coordinateScale = Math.max(1, ...actual.flatMap(({ x, y }) => [Math.abs(x), Math.abs(y)]), ...expected.flatMap(({ x, y }) => [Math.abs(x), Math.abs(y)]));
+    const tolerance = Math.max(epsilon, coordinateScale * 1e-9);
+    return actual.every((point, index) => Math.abs(point.x - expected[index].x) <= tolerance &&
+        Math.abs(point.y - expected[index].y) <= tolerance);
+}
+class OverlayStateRestoreError extends TypeError {
+    constructor(cause, rollbackError) {
+        super('Overlay State bounds failed and the original transform could not be restored.');
+        Object.defineProperty(this, "cause", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: cause
+        });
+        Object.defineProperty(this, "rollbackError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: rollbackError
+        });
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'OverlayStateRestoreError'
+        });
+    }
 }
 export function restoreOverlayStateBounds(object, geometry, context, fabric) {
     if (!isOverlayStateBoundsGeometry(geometry)) {
@@ -51,20 +76,43 @@ export function restoreOverlayStateBounds(object, geometry, context, fabric) {
         qrDecompose: (matrix) => fabric.util.qrDecompose(matrix),
         Point: fabric.Point,
     };
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-        object.setCoords();
-        const sourceCorners = object.getCoords();
-        if (sourceCorners.length !== 4) {
-            throw new TypeError('Overlay State bounds require four object corners.');
+    const originalTransform = {
+        left: object.left,
+        top: object.top,
+        angle: object.angle,
+        scaleX: object.scaleX,
+        scaleY: object.scaleY,
+        skewX: object.skewX,
+        skewY: object.skewY,
+        flipX: object.flipX,
+        flipY: object.flipY,
+    };
+    try {
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+            object.setCoords();
+            const sourceCorners = object.getCoords();
+            if (sourceCorners.length !== 4) {
+                throw new TypeError('Overlay State bounds require four object corners.');
+            }
+            if (cornersMatch(sourceCorners, targetCorners))
+                return;
+            const delta = fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners)));
+            applyDeltaToObject(object, delta, { fabricUtil });
         }
-        if (cornersMatch(sourceCorners, targetCorners))
-            return;
-        const delta = fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners)));
-        applyDeltaToObject(object, delta, { fabricUtil });
+        object.setCoords();
+        if (!cornersMatch(object.getCoords(), targetCorners)) {
+            throw new TypeError('Overlay State bounds could not be restored precisely.');
+        }
     }
-    object.setCoords();
-    if (!cornersMatch(object.getCoords(), targetCorners)) {
-        throw new TypeError('Overlay State bounds could not be restored precisely.');
+    catch (error) {
+        try {
+            object.set(originalTransform);
+            object.setCoords();
+        }
+        catch (rollbackError) {
+            throw new OverlayStateRestoreError(error, rollbackError);
+        }
+        throw error;
     }
 }
 export function objectPointToCanvas(object, point) {

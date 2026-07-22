@@ -6,6 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
 import type {
     BaseImageInfoPort,
     CoreDiagnosticsPort,
@@ -315,6 +316,7 @@ function featureUpdate(value: TextAnnotationUpdate): TextFeatureUpdate {
 function isSerializedText(value: unknown): value is Record<string, unknown> {
     if (!isPlainRecord(value)) return false;
     try {
+        if (!isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] })) return false;
         const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
         const type = String(value.type ?? '').toLowerCase();
         return (
@@ -572,10 +574,12 @@ export class TextAnnotationController implements Disposable {
             throw new AnnotationValidationError('Locked Text cannot enter editing.');
         }
         const preview = (await source.clone()) as TextObject;
-        preview.set({ visible: true, selectable: true, evented: true, editable: true });
         const previewId = `annotation-text:edit:${++this.previewSequence}`;
-        const visibility = this.authoring.hideForPreview([id]);
+        let visibility: Disposable | null = null;
+        let added = false;
         try {
+            preview.set({ visible: true, selectable: true, evented: true, editable: true });
+            visibility = this.authoring.hideForPreview([id]);
             this.authoring.addPreview({
                 id: previewId,
                 ownerKind: TEXT_ANNOTATION_KIND,
@@ -583,13 +587,18 @@ export class TextAnnotationController implements Disposable {
                 interactive: true,
                 select: false,
             });
+            added = true;
+            preview.enterEditing?.();
         } catch (error) {
-            visibility.dispose();
-            preview.dispose();
+            try {
+                if (added) this.authoring.removePreview([previewId]);
+                else preview.dispose();
+            } finally {
+                visibility?.dispose();
+            }
             throw error;
         }
         this.session = Object.freeze({ annotationId: id, previewId, preview, visibility });
-        preview.enterEditing?.();
         this.emitStatus();
     }
 

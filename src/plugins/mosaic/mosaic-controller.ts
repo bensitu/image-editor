@@ -40,6 +40,7 @@ import {
     writeMosaicDirtyRegion,
     type MosaicRasterCache,
 } from './mosaic-raster-cache.js';
+import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { normalizeMosaicCommitOptions, renderMosaicImage } from './mosaic-renderer.js';
 import type {
     MosaicCommitOptions,
@@ -65,6 +66,7 @@ interface MosaicRuntimeSession {
     readonly preview: FabricNS.FabricImage;
     readonly strokes: MosaicImagePoint[][];
     activeStrokeIndex: number | null;
+    interpolatedPointCount: number;
 }
 
 const defaultConfiguration: MosaicConfiguration = Object.freeze({
@@ -74,6 +76,7 @@ const defaultConfiguration: MosaicConfiguration = Object.freeze({
     quality: 0.92,
     maxPointCount: 4096,
 });
+const MAX_INTERPOLATED_POINT_COUNT = 250_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -159,6 +162,7 @@ function replayStroke(
     cache: MosaicRasterCache,
     stroke: readonly MosaicImagePoint[],
     configuration: MosaicConfiguration,
+    replayBudget: { count: number },
 ): DirtyRectangle | null {
     let dirty: DirtyRectangle | null = null;
     let previous: MosaicImagePoint | null = null;
@@ -166,6 +170,12 @@ function replayStroke(
         const points = previous
             ? interpolateMosaicPoints(previous, point, configuration.brushSizePx / 2)
             : [point];
+        replayBudget.count += points.length;
+        if (replayBudget.count > MAX_INTERPOLATED_POINT_COUNT) {
+            throw new MosaicValidationError(
+                'Mosaic interpolation exceeds the safe processing budget.',
+            );
+        }
         for (const interpolated of points) {
             dirty = mergeDirtyRectangles(
                 dirty,
@@ -269,6 +279,7 @@ export class MosaicController {
             preview,
             strokes: [],
             activeStrokeIndex: null,
+            interpolatedPointCount: 0,
         };
         this.host.requestRender();
         this.emitStatus();
@@ -282,9 +293,11 @@ export class MosaicController {
         }
         const point = this.normalizePoint(value, session);
         this.assertPointBudget(session);
+        this.assertInterpolatedPointBudget(session, 1);
         session.strokes.push([point]);
         session.activeStrokeIndex = session.strokes.length - 1;
         this.applyPreviewPoints(session, [point]);
+        session.interpolatedPointCount += 1;
         this.updateSessionState(session, true);
     }
 
@@ -299,11 +312,15 @@ export class MosaicController {
         const point = this.normalizePoint(value, session);
         this.assertPointBudget(session);
         const previous = stroke[stroke.length - 1]!;
-        stroke.push(point);
-        this.applyPreviewPoints(
-            session,
-            interpolateMosaicPoints(previous, point, session.state.configuration.brushSizePx / 2),
+        const interpolated = interpolateMosaicPoints(
+            previous,
+            point,
+            session.state.configuration.brushSizePx / 2,
         );
+        this.assertInterpolatedPointBudget(session, interpolated.length);
+        stroke.push(point);
+        this.applyPreviewPoints(session, interpolated);
+        session.interpolatedPointCount += interpolated.length;
         this.updateSessionState(session, true);
     }
 
@@ -380,8 +397,9 @@ export class MosaicController {
                     const cache = createMosaicRasterCache(source);
                     resources.cache = cache;
                     this.assertCachePolicy(cache);
+                    const replayBudget = { count: 0 };
                     for (const stroke of strokes) {
-                        replayStroke(cache, stroke, state.configuration);
+                        replayStroke(cache, stroke, state.configuration, replayBudget);
                     }
                     const rendered = await renderMosaicImage(
                         this.host,
@@ -497,6 +515,17 @@ export class MosaicController {
         }
     }
 
+    private assertInterpolatedPointBudget(
+        session: MosaicRuntimeSession,
+        additionalPointCount: number,
+    ): void {
+        if (session.interpolatedPointCount + additionalPointCount > MAX_INTERPOLATED_POINT_COUNT) {
+            throw new MosaicValidationError(
+                'Mosaic interpolation exceeds the safe processing budget.',
+            );
+        }
+    }
+
     private closeSession(): void {
         const session = this.session;
         if (!session) return;
@@ -545,10 +574,11 @@ export class MosaicController {
 
     private assertCachePolicy(cache: MosaicRasterCache): void {
         const policy = this.host.getImageResourcePolicy();
+        const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
         if (
             cache.widthPx > policy.maxExportDimension ||
             cache.heightPx > policy.maxExportDimension ||
-            cache.widthPx * cache.heightPx > Math.min(policy.maxInputPixels, policy.maxExportPixels)
+            !isPixelAreaWithinBudget(cache.widthPx, cache.heightPx, pixelBudget)
         ) {
             disposeMosaicRasterCache(cache);
             throw new MosaicValidationError('Mosaic dimensions exceed the Core resource policy.');

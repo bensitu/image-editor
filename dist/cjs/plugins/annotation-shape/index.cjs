@@ -1,12 +1,13 @@
 'use strict';
 
 var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
+var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CHiQxoA8.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B3zCkHWm.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Cf-BfA6c.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-802kAEgU.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
 require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
-require('../../chunks/disposable-Sj4tt6Lk.cjs');
+require('../../chunks/disposable-pTo80E0l.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
 const SHAPE_ANNOTATION_KIND = 'annotation:shape';
@@ -212,12 +213,23 @@ function isShapeStateData(value) {
 }
 function isSerializedShape(value) {
     var _a;
-    if (!isPlainRecord(value) || value.version !== 1 || !isPlainRecord(value.object))
+    if (!isPlainRecord(value))
         return false;
     try {
+        const objectDescriptor = Object.getOwnPropertyDescriptor(value, 'object');
+        if (!objectDescriptor || !('value' in objectDescriptor))
+            return false;
+        const serializedObject = objectDescriptor.value;
+        if (value.version !== 1 ||
+            !isPlainRecord(serializedObject) ||
+            !safeFabricSerialization.isSafeSerializedFabricObject(serializedObject, {
+                rootTypes: ['rect', 'line', 'path'],
+            })) {
+            return false;
+        }
         const geometry = normalizeShapeGeometry(value.geometry);
-        const bytes = new TextEncoder().encode(JSON.stringify(value.object)).byteLength;
-        const type = String((_a = value.object.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+        const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
+        const type = String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
         return (bytes <= MAX_SHAPE_OBJECT_BYTES &&
             geometry.kind === value.shapeKind &&
             ((geometry.kind === 'rect' && type === 'rect') ||

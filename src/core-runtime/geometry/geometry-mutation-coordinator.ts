@@ -157,14 +157,15 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
 
     run(request: GeometryMutationRequest): Promise<GeometryMutationDescriptor> {
         this.assertActive('run a geometry mutation');
+        let metadata: Readonly<Record<string, unknown>>;
         try {
-            this.validateRequest(request);
+            metadata = this.validateRequest(request);
         } catch (error) {
             return Promise.reject(error);
         }
         const controller = new AbortController();
         this.activeControllers.add(controller);
-        const operation = this.performRun(request, controller.signal);
+        const operation = this.performRun(request, metadata, controller.signal);
         this.activePromises.add(operation);
         return operation.finally(() => {
             this.activePromises.delete(operation);
@@ -215,9 +216,9 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
 
     private async performRun(
         request: GeometryMutationRequest,
+        metadata: Readonly<Record<string, unknown>>,
         signal: AbortSignal,
     ): Promise<GeometryMutationDescriptor> {
-        const metadata = cloneStateValue(request.metadata ?? {});
         let before: BaseImageGeometrySnapshot | null = null;
         let provisional: GeometryMutationDescriptor | null = null;
         const participantSnapshot = Object.freeze(
@@ -430,7 +431,7 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
         );
     }
 
-    private validateRequest(request: GeometryMutationRequest): void {
+    private validateRequest(request: GeometryMutationRequest): Readonly<Record<string, unknown>> {
         assertIdentifier(request.id, 'Mutation id');
         assertIdentifier(request.kind, 'Mutation kind');
         assertIdentifier(request.operationId, 'Operation id');
@@ -440,15 +441,27 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
         if (typeof request.mutateBase !== 'function') {
             throw new GeometryMutationError(request.id, 'mutateBase must be a function.');
         }
-        const metadata = JSON.stringify(request.metadata ?? {});
+        let clonedMetadata: Readonly<Record<string, unknown>>;
+        let serializedMetadata: string;
+        try {
+            clonedMetadata = cloneStateValue(request.metadata ?? {});
+            serializedMetadata = JSON.stringify(clonedMetadata);
+        } catch (error) {
+            throw new GeometryMutationError(
+                request.id,
+                'metadata must be safely JSON-serializable.',
+                error,
+            );
+        }
         const maxMetadataBytes = this.options.maxMetadataBytes ?? 64 * 1024;
-        if (new TextEncoder().encode(metadata).byteLength > maxMetadataBytes) {
+        if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
             throw new GeometryMutationError(
                 request.id,
                 `metadata exceeds ${maxMetadataBytes} bytes.`,
             );
         }
         this.usedMutationIds.add(request.id);
+        return clonedMetadata;
     }
 
     private warn(warning: Parameters<NonNullable<GeometryWarningSink>>[0]): void {
