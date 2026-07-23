@@ -127,7 +127,7 @@ DOM event handlers always consume asynchronous rejections. Errors are sent to
 If the error listener itself throws, Core records a warning and cleanup
 continues.
 
-The editor owns the adapter lifecycle. `dispose()` and `disposeAsync()` remove
+The editor owns the adapter lifecycle. Await `disposeAsync()` to remove
 listeners and subscriptions in reverse order, release resolved elements, and
 make repeated cleanup safe. No event is handled after disposal.
 

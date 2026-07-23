@@ -4,14 +4,13 @@
  * @module
  */
 import type { PluginRef } from './plugin-ref.js';
-import type { EditorPlugin } from './plugin-types.js';
 declare const pluginPlanDefinition: unique symbol;
 interface PluginPlanCompatible {
     readonly ref: PluginRef<unknown>;
 }
 type PluginPlanItem = PluginPlanCompatible | PluginPlan<unknown, PluginPlanCompatible>;
 type PluginPlanDefinitions = Readonly<Record<string, PluginPlanItem>>;
-export interface PluginPlan<TApis, TPlugin extends PluginPlanCompatible = EditorPlugin<unknown>> {
+export interface PluginPlan<TApis, TPlugin extends PluginPlanCompatible = PluginPlanCompatible> {
     readonly plugins: readonly TPlugin[];
     /** Phantom type used to infer the API mapping returned by installation. */
     readonly __apis?: TApis;

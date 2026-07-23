@@ -5,14 +5,17 @@
  */
 
 import { isDangerousStateKey } from '../plugin-kernel/plugin-identifier.js';
-import type { PluginLifecycleContext, PluginSetupContext } from '../plugin-kernel/plugin-types.js';
+import type {
+    EditorPlugin,
+    PluginLifecycleContext,
+    PluginSetupContext,
+} from '../plugin-kernel/plugin-types.js';
 import { isValidSemVer } from '../plugin-kernel/semver.js';
 import {
     CapabilityMissingError,
     CORE_API_VERSION,
     PluginSetupError,
     createCapabilityToken,
-    type EditorPlugin,
     type PluginManifest,
 } from '../sdk/index.js';
 import type {

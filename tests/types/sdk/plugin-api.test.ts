@@ -105,6 +105,20 @@ definePlugin({
     },
 });
 
+const asynchronousDefinition = {
+    ref: definePluginRef<{ readonly ready: true }>('example:async-provider', '1.0.0'),
+    manifest: {
+        id: 'example:async-provider',
+        version: '1.0.0',
+        apiVersion: '1.0.0',
+        engine: '^3.0.0',
+    },
+    setupMode: 'sync' as const,
+    setup: async () => ({ ready: true }) as const,
+};
+// @ts-expect-error The public SDK accepts synchronous Plugin setup only.
+definePlugin(asynchronousDefinition);
+
 void installed;
 void optional;
 void required;

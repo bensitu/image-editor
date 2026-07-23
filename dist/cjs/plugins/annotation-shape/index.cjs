@@ -4,7 +4,7 @@ var foundations_annotation_index = require('../../foundations/annotation/index.c
 var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-P0xuESpm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
 var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');

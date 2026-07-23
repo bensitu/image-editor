@@ -98,6 +98,24 @@ test('plugin identities, manifests, dependency lists, and permissions are immuta
     assert.equal(Object.isFrozen(plugin.manifest.permissions), true);
 });
 
+test('public SDK requires the synchronous Plugin installation contract', () => {
+    const ref = definePluginRef('example:missing-sync-contract', '1.0.0');
+    assert.throws(
+        () =>
+            definePlugin({
+                ref,
+                manifest: {
+                    id: ref.id,
+                    version: '1.0.0',
+                    apiVersion: ref.apiVersion,
+                    engine: '^3.0.0',
+                },
+                setup: () => Object.freeze({ ready: true }),
+            }),
+        /setupMode "sync"/,
+    );
+});
+
 test('manifest validation rejects identity, API, engine, and permission failures before setup', async (t) => {
     const scenarios = [
         {

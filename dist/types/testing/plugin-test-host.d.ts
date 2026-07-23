@@ -3,7 +3,8 @@
  *
  * @module
  */
-import type { CapabilityToken, EditorPlugin, PluginPermission, PluginRef, SynchronousEditorPlugin } from '../sdk/index.js';
+import type { EditorPlugin } from '../plugin-kernel/plugin-types.js';
+import type { CapabilityToken, PluginPermission, PluginRef, SynchronousEditorPlugin } from '../sdk/index.js';
 export interface PluginTestCapabilityProvider<TPort = unknown> {
     readonly token: CapabilityToken<TPort>;
     readonly implementation: TPort;

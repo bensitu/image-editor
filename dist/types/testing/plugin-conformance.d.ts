@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { type EditorPlugin } from '../sdk/index.js';
+import type { EditorPlugin } from '../plugin-kernel/plugin-types.js';
 import type { ConformanceAssertionResult } from './conformance-types.js';
 import { type PluginTestCapabilityProvider } from './plugin-test-host.js';
 import { type ResponsibilityAssertionOptions } from './responsibility-assertions.js';

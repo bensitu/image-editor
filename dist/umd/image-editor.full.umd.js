@@ -7350,7 +7350,14 @@
                 this.observeDetachedDisposal(disposal);
                 return;
             }
-            this.completeDisposal(errors, 'Core disposal');
+            try {
+                this.completeDisposal(errors, 'Core disposal');
+            }
+            catch (error) {
+                this.recordDiagnostic(error, 'Synchronous Core disposal completed with failures.');
+                this.reportError(error, 'Synchronous Core disposal completed with failures.');
+                throw error;
+            }
         }
         disposeAsync() {
             var _a;
@@ -8081,6 +8088,9 @@
         }
         if (typeof definition.setup !== 'function') {
             throw new InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must define setup().`, definition.ref.id);
+        }
+        if (definition.setupMode !== 'sync') {
+            throw new InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must declare setupMode "sync" for the public SDK.`, definition.ref.id);
         }
         const manifest = validatePluginManifest(definition.ref, definition.manifest);
         return Object.freeze({ ...definition, manifest });

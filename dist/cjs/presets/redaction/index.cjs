@@ -18,7 +18,7 @@ require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');
 require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-require('../../chunks/plugin-definition-P0xuESpm.cjs');
+require('../../chunks/plugin-definition-C87dytjB.cjs');
 require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/error-Cg6SL3PT.cjs');
 require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');

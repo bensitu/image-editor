@@ -63,23 +63,24 @@ Fabric canvas; all Plugins must be installed first.
 
 Main methods:
 
-| Method                                     | Contract                                                         |
-| ------------------------------------------ | ---------------------------------------------------------------- |
-| `use(plugin)`                              | Atomically install one synchronous Plugin and infer its API      |
-| `install(pluginOrPlan)`                    | Atomically install a tuple/plan and preserve result inference    |
-| `getPlugin(ref)` / `requirePlugin(ref)`    | Resolve `TApi \| null` or require `TApi`                         |
-| `init(elements)`                           | Initialize one canvas and run Plugin lifecycle hooks             |
-| `loadImage(source, options?)`              | Transactionally load a PNG/JPEG/WebP data URL                    |
-| `loadImageFile(file, options?)`            | Validate/decode a browser file, including EXIF orientation       |
-| `saveState()`                              | Serialize the current schema `image-editor.state@3`              |
-| `loadFromState(value, options?)`           | Validate then atomically restore; migrations are explicit        |
-| `exportImageBase64(options?)`              | Render isolated PNG/JPEG/WebP output                             |
-| `exportImageFile(options?)`                | Return the same isolated output as a browser `File`              |
-| `getImageInfo()` / `isImageLoaded()`       | Read immutable committed image status                            |
-| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand` for future image loads        |
-| `getLifecycleState()` / `getDiagnostics()` | Read lifecycle and bounded diagnostics                           |
-| `emergencyReset()` / `forceDispose()`      | Explicit recovery for a faulted runtime                          |
-| `dispose()` / `disposeAsync()`             | Idempotently release Plugins, Fabric canvas, and owned resources |
+| Method                                     | Contract                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| `use(plugin)`                              | Atomically install one synchronous Plugin and infer its API                     |
+| `install(pluginOrPlan)`                    | Atomically install a tuple/plan and preserve result inference                   |
+| `getPlugin(ref)` / `requirePlugin(ref)`    | Resolve `TApi \| null` or require `TApi`                                        |
+| `init(elements)`                           | Initialize one canvas and run Plugin lifecycle hooks                            |
+| `loadImage(source, options?)`              | Transactionally load a PNG/JPEG/WebP data URL                                   |
+| `loadImageFile(file, options?)`            | Validate/decode a browser file, including EXIF orientation                      |
+| `saveState()`                              | Serialize the current schema `image-editor.state@3`                             |
+| `loadFromState(value, options?)`           | Validate then atomically restore; migrations are explicit                       |
+| `exportImageBase64(options?)`              | Render isolated PNG/JPEG/WebP output                                            |
+| `exportImageFile(options?)`                | Return the same isolated output as a browser `File`                             |
+| `getImageInfo()` / `isImageLoaded()`       | Read immutable committed image status                                           |
+| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand` for future image loads                       |
+| `getLifecycleState()` / `getDiagnostics()` | Read lifecycle and bounded diagnostics                                          |
+| `emergencyReset()` / `forceDispose()`      | Explicit recovery for a faulted runtime                                         |
+| `disposeAsync()`                           | Authoritative, awaitable release path; rejects with aggregated cleanup failures |
+| `dispose()`                                | Deprecated best-effort starter; may return before asynchronous cleanup settles  |
 
 Core rejects operations in invalid lifecycle states. Failed image/State loads
 restore the prior document before their promises reject. Snapshot validation
@@ -92,7 +93,8 @@ a browser or an explicitly supplied compatible Fabric DOM environment.
 ## SDK and installation
 
 `definePluginRef<TApi>(id, apiVersion)` creates a typed identity.
-`definePlugin()` validates a manifest and returns a Plugin definition.
+`definePlugin()` validates and returns a synchronous Plugin definition; the
+public RC contract requires `setupMode: 'sync'`.
 `composePlugins()` creates a dependency-aware plan without erasing tuple API
 types. Manifests declare implementation version, API version, Core engine range,
 required/optional Plugins, required/optional Capabilities, and privileged

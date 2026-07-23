@@ -13,9 +13,12 @@ function definePlugin(definition) {
     if (typeof definition.setup !== 'function') {
         throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must define setup().`, definition.ref.id);
     }
+    if (definition.setupMode !== 'sync') {
+        throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must declare setupMode "sync" for the public SDK.`, definition.ref.id);
+    }
     const manifest = pluginManifest.validatePluginManifest(definition.ref, definition.manifest);
     return Object.freeze({ ...definition, manifest });
 }
 
 exports.definePlugin = definePlugin;
-//# sourceMappingURL=plugin-definition-P0xuESpm.cjs.map
+//# sourceMappingURL=plugin-definition-C87dytjB.cjs.map

@@ -5,9 +5,9 @@
  */
 
 import { PluginManager } from '../plugin-kernel/plugin-manager.js';
+import type { EditorPlugin } from '../plugin-kernel/plugin-types.js';
 import type {
     CapabilityToken,
-    EditorPlugin,
     PluginPermission,
     PluginRef,
     SynchronousEditorPlugin,

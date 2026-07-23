@@ -44,7 +44,6 @@ export type {
     CapabilityProviderOptions,
     ConfigurablePluginApi,
     DisposableScope,
-    EditorPlugin,
     PluginManifest,
     OptionalCapabilityStatus,
     PluginPermission,

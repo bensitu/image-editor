@@ -15,7 +15,7 @@ import type { HistoryPort, HistoryStatus } from '../history/index.js';
 import type { MaskPluginApi } from '../mask/index.js';
 import type { MosaicEnterOptions, MosaicPluginApi, MosaicStatus } from '../mosaic/index.js';
 import type { TransformPluginApi, TransformPluginState } from '../transform/index.js';
-import type { EditorPlugin, PluginRef } from '../../sdk/index.js';
+import type { PluginRef, SynchronousEditorPlugin } from '../../sdk/index.js';
 export type DomElementTarget<TElement extends Element = HTMLElement> = TElement | string;
 export type DomButtonTarget = DomElementTarget<HTMLButtonElement>;
 export type DomInputTarget = DomElementTarget<HTMLInputElement>;
@@ -146,4 +146,4 @@ export interface DomControlsPluginApi {
     refresh(): void;
     getStatus(): DomControlsStatus;
 }
-export type DomControlsPlugin = EditorPlugin<DomControlsPluginApi, CoreEventMap>;
+export type DomControlsPlugin = SynchronousEditorPlugin<DomControlsPluginApi, CoreEventMap>;

@@ -10,7 +10,7 @@ var pluginPlan = require('../../chunks/plugin-plan-BBOVkUMI.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
 require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
-require('../../chunks/plugin-definition-P0xuESpm.cjs');
+require('../../chunks/plugin-definition-C87dytjB.cjs');
 require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
 require('../../chunks/plugin-manager-CXW0nIYm.cjs');

@@ -1,7 +1,7 @@
 'use strict';
 
 var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-P0xuESpm.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
 var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 

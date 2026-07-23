@@ -181,7 +181,9 @@ run the public [Conformance Kit](docs/api.md#testing-and-conformance).
 - Fabric.js v7 is a peer dependency; the package does not bundle Fabric.
 - Core, Plugin, and Preset entries publish ESM, CommonJS, and TypeScript declarations.
 - Optional DOM Controls accept selectors or element instances in section-based options.
-- `dispose()` and `disposeAsync()` support framework lifecycle cleanup.
+- `disposeAsync()` is the authoritative framework cleanup path. The deprecated
+  `dispose()` method only starts best-effort cleanup and may return before
+  asynchronous resources are released.
 
 ## Demo and Examples
 

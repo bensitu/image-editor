@@ -11,6 +11,9 @@ export function definePlugin(definition) {
     if (typeof definition.setup !== 'function') {
         throw new InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must define setup().`, definition.ref.id);
     }
+    if (definition.setupMode !== 'sync') {
+        throw new InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must declare setupMode "sync" for the public SDK.`, definition.ref.id);
+    }
     const manifest = validatePluginManifest(definition.ref, definition.manifest);
     return Object.freeze({ ...definition, manifest });
 }

@@ -16,7 +16,7 @@ var pluginPlan = require('../../chunks/plugin-plan-BBOVkUMI.cjs');
 require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');
 require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-require('../../chunks/plugin-definition-P0xuESpm.cjs');
+require('../../chunks/plugin-definition-C87dytjB.cjs');
 require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');

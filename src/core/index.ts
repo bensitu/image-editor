@@ -90,7 +90,6 @@ export {
     type CapabilityRequirement,
     type CapabilityToken,
     type Disposable,
-    type EditorPlugin,
     type PluginLifecycleContext,
     type PluginRef,
     type PluginSetupContext,

@@ -5,6 +5,11 @@ Plugin defines one typed API, declares all dependencies and privileges before
 setup, and owns every registration it creates. The host provides coordination;
 it is not a security sandbox for untrusted code.
 
+The v3 RC public SDK supports synchronous Plugin definitions only. Declare
+`setupMode: 'sync'`, return the API directly from `setup()`, and place
+asynchronous teardown in scoped `Disposable` resources so `disposeAsync()` can
+await it.
+
 ## Package contract
 
 Publish runtime code and declarations for the environments you support. Keep

@@ -3675,7 +3675,14 @@ class ImageEditorCore {
             this.observeDetachedDisposal(disposal);
             return;
         }
-        this.completeDisposal(errors, 'Core disposal');
+        try {
+            this.completeDisposal(errors, 'Core disposal');
+        }
+        catch (error) {
+            this.recordDiagnostic(error, 'Synchronous Core disposal completed with failures.');
+            this.reportError(error, 'Synchronous Core disposal completed with failures.');
+            throw error;
+        }
     }
     disposeAsync() {
         var _a;

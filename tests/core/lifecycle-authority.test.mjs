@@ -179,6 +179,23 @@ test('synchronous dispose remains disposing until asynchronous Canvas cleanup se
     assert.equal(editor.getLifecycleState(), 'disposed');
 });
 
+test('best-effort dispose records detached cleanup failures for later inspection', async () => {
+    const { editor, ids } = createCore();
+    await editor.init({ canvas: ids.canvas });
+    editor.snapshots.dispose = () => {
+        throw new Error('synthetic detached cleanup failure');
+    };
+
+    editor.dispose();
+    await assert.rejects(editor.disposeAsync(), /cleanup error/i);
+
+    assert.ok(
+        editor
+            .getDiagnostics()
+            .some((diagnostic) => /detached Core disposal/i.test(diagnostic.message)),
+    );
+});
+
 test('asynchronous disposal aggregates synchronous cleanup failures and still completes lifecycle', async () => {
     const { editor, ids } = createCore();
     await editor.init({ canvas: ids.canvas });

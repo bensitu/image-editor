@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Plugin definitions during initialization recovery or emergency reset.
 - Delegate Mask registrations to the Plugin scope so asynchronous and thenable
   cleanup failures are awaited, aggregated, and reported by Core disposal.
+- Limit the public RC Plugin factory contract to synchronous definitions while
+  retaining asynchronous lifecycle primitives inside the Plugin Kernel.
+- Make `disposeAsync()` the authoritative observable cleanup path and deprecate
+  the best-effort `dispose()` starter, which can return before cleanup settles.
 - Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
   produced and DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.

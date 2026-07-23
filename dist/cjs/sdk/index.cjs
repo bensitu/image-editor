@@ -5,7 +5,7 @@ var visibleRasterBake = require('../chunks/visible-raster-bake-DtHxH8kh.cjs');
 var pluginManifest = require('../chunks/plugin-manifest-DNqSyjh2.cjs');
 var disposable = require('../chunks/disposable-pTo80E0l.cjs');
 var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
-var pluginDefinition = require('../chunks/plugin-definition-P0xuESpm.cjs');
+var pluginDefinition = require('../chunks/plugin-definition-C87dytjB.cjs');
 var pluginPlan = require('../chunks/plugin-plan-BBOVkUMI.cjs');
 
 

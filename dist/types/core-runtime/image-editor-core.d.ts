@@ -74,6 +74,11 @@ export declare class ImageEditorCore {
     setLayoutMode(mode: LayoutMode): void;
     emergencyReset(): Promise<void>;
     forceDispose(): Promise<void>;
+    /**
+     * Starts best-effort disposal and may return before asynchronous cleanup settles.
+     *
+     * @deprecated Use `disposeAsync()` to await completion and observe cleanup failures.
+     */
     dispose(): void;
     disposeAsync(): Promise<void>;
     private performEmergencyReset;

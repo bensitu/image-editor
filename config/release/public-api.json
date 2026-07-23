@@ -267,12 +267,6 @@
                     ]
                 },
                 {
-                    "name": "EditorPlugin",
-                    "kinds": [
-                        "InterfaceDeclaration"
-                    ]
-                },
-                {
                     "name": "EditorSnapshot",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -981,12 +975,6 @@
                     ]
                 },
                 {
-                    "name": "EditorPlugin",
-                    "kinds": [
-                        "InterfaceDeclaration"
-                    ]
-                },
-                {
                     "name": "EditorSnapshot",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -1624,12 +1612,6 @@
                     "name": "DOCUMENT_MUTATION_CAPABILITY",
                     "kinds": [
                         "VariableDeclaration"
-                    ]
-                },
-                {
-                    "name": "EditorPlugin",
-                    "kinds": [
-                        "InterfaceDeclaration"
                     ]
                 },
                 {
@@ -4236,7 +4218,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "2359aeb96dfaebc362e89b7624e0784ecd3394e006c6e33ba27eac7d48bc957e",
+        "graphSha256": "e5b5aea8e736c85bb2782e83ebe7eae693dda2ac0f74a0cfea6050ce6c068db9",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4260,7 +4242,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "11c8311a34b19ff72ad2b7d2cda7fe254c6b307d21aefe1d1fff8cb36e83b6dd"
+                "sha256": "a8b729721de19868eec92e33802e27b7808457779367885a80ca042ec73b97b6"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
@@ -4316,7 +4298,7 @@
             },
             {
                 "file": "dist/types/core/index.d.ts",
-                "sha256": "6a6d14a50f58f73095b0d34c4983ed10281a52f3f827208b14ca01368b8aeeb4"
+                "sha256": "0a191b49f7879b4fe0f8cc7de7f31cf9037e07d912fdaff53a192ccfc07af48c"
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
@@ -4404,7 +4386,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-plan.d.ts",
-                "sha256": "dad58b11f05dbdea8711e52e475ba450fe7f922d231198499bb649fe06da1007"
+                "sha256": "0f628a05e0b0027fd7960dc1cf1375d7521d2455d40b8685559d8d0633a71a26"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-ref.d.ts",
@@ -4480,7 +4462,7 @@
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-types.d.ts",
-                "sha256": "e5cb63751f23ab71f4654366caf921c5493717d9e894fbe7fbc5508aa2e4eadd"
+                "sha256": "e399239979b002819dcd885c8ac532bfdfea1dd412de0c943d25bd2b4ea4c062"
             },
             {
                 "file": "dist/types/plugins/dom-controls/index.d.ts",
@@ -4588,11 +4570,11 @@
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "28d3835036e1cdb649d1fdb70ee7795c62936fad28493440c1b9c5908f8e01d9"
+                "sha256": "130b09ac14128db77ddff2bde2bb1ed20efc7400a9a02f14d9669bb27b158b0b"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",
-                "sha256": "c00108867ff9c3c4cc3df7a54b9ad6ec4317649764ea32b12e77747512484ef7"
+                "sha256": "6f190ff03820f5b3712d3cbc92877895179560ec82c12bb246598e1322740c56"
             },
             {
                 "file": "dist/types/sdk/plugin-manifest.d.ts",
@@ -4624,11 +4606,11 @@
             },
             {
                 "file": "dist/types/testing/plugin-conformance.d.ts",
-                "sha256": "f505af7ef8679cba5a51ecae6f68a2552d4ae84f126c021f2ae6382c3f7d77a9"
+                "sha256": "7d96b71145488f8a426bbd933a90fa5bbd04278fdfa5c0594e343f8c84ec149c"
             },
             {
                 "file": "dist/types/testing/plugin-test-host.d.ts",
-                "sha256": "646ccf408226a794dfced8c2d81ec5ac29728db83d1f4619fd8f739e738e2a2a"
+                "sha256": "eb5aa7b92a60a20458052de237cd5d6fdd3f4c31d84e78ee686e3fe7f13a6117"
             },
             {
                 "file": "dist/types/testing/responsibility-assertions.d.ts",
@@ -5625,12 +5607,6 @@
                 "name": "DrawSubMode",
                 "kinds": [
                     "TypeAliasDeclaration"
-                ]
-            },
-            {
-                "name": "EditorPlugin",
-                "kinds": [
-                    "InterfaceDeclaration"
                 ]
             },
             {
