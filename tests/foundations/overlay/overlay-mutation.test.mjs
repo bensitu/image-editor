@@ -183,6 +183,22 @@ test('move, scale, and rotate previews commit one transaction only at gesture en
     }
 });
 
+test('repeated gesture targets are idempotent while changed targets abort', async () => {
+    const { committed, editor, history, overlay } = await createEditor();
+    const first = addRect(editor, 'rect:gesture:first');
+    const second = addRect(editor, 'rect:gesture:second');
+
+    beginGesture(editor, first, 'drag');
+    const transaction = overlay.waitForIdle();
+    beginGesture(editor, first, 'drag');
+    beginGesture(editor, second, 'drag');
+
+    await assert.rejects(transaction, /superseded by another target/u);
+    assert.equal(history.getState().size, 0);
+    assert.equal(committed.length, 0);
+    await dispose(editor);
+});
+
 test('programmatic delete commits once and keeps the overlay index coherent', async () => {
     const { committed, editor, history, overlay } = await createEditor();
     addRect(editor, 'rect:delete');

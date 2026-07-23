@@ -1269,9 +1269,13 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         const targets = this.resolveOverlayTargets(target);
         if (targets.length === 0) return;
         if (this.activeGesture) {
-            const currentIds = this.activeGesture.targets.map((entry) => entry.persistentId);
-            const nextIds = targets.map((entry) => entry.persistentId);
-            if (JSON.stringify(currentIds) === JSON.stringify(nextIds)) return;
+            const currentTargets = this.activeGesture.targets;
+            const sameTargets =
+                currentTargets.length === targets.length &&
+                currentTargets.every(
+                    (entry, index) => entry.persistentId === targets[index]?.persistentId,
+                );
+            if (sameTargets) return;
             this.failGesture(
                 this.activeGesture,
                 abortError('Overlay gesture was superseded by another target.'),

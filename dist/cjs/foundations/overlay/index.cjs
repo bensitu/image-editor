@@ -1235,9 +1235,10 @@ class OverlayFoundationController {
         if (targets.length === 0)
             return;
         if (this.activeGesture) {
-            const currentIds = this.activeGesture.targets.map((entry) => entry.persistentId);
-            const nextIds = targets.map((entry) => entry.persistentId);
-            if (JSON.stringify(currentIds) === JSON.stringify(nextIds))
+            const currentTargets = this.activeGesture.targets;
+            const sameTargets = currentTargets.length === targets.length &&
+                currentTargets.every((entry, index) => { var _a; return entry.persistentId === ((_a = targets[index]) === null || _a === void 0 ? void 0 : _a.persistentId); });
+            if (sameTargets)
                 return;
             this.failGesture(this.activeGesture, abortError('Overlay gesture was superseded by another target.'));
             return;
