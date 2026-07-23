@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ImageEditorCore, definePluginRef } from '../../src/core/index.js';
+import {
+    EditorInitializationInProgressError,
+    ImageEditorCore,
+    definePluginRef,
+} from '../../src/core/index.js';
 import { transformPlugin, transformPluginRef } from '../../src/plugins/transform/index.js';
 import {
     disposeEditor,
@@ -19,6 +23,90 @@ function createCore(options = {}) {
     });
     return { editor, ids };
 }
+
+test('init resolves only after the configured initial image and Plugin hooks complete', async () => {
+    resetEditorDom();
+    const initialImageBase64 = makeImageDataUrl({ width: 96, height: 64 });
+    const { editor, ids } = createCore({ initialImageBase64 });
+    let hookCompleted = false;
+    editor.use({
+        ref: definePluginRef('example-test:initial-image-observer', '1.0.0'),
+        version: '1.0.0',
+        setupMode: 'sync',
+        setup: () => Object.freeze({}),
+        async onImageLoaded() {
+            await Promise.resolve();
+            hookCompleted = true;
+        },
+    });
+
+    const initialization = editor.init({ canvas: ids.canvas });
+    assert.throws(() => editor.disposeAsync(), EditorInitializationInProgressError);
+    await initialization;
+
+    assert.equal(editor.getLifecycleState(), 'initialized');
+    assert.equal(editor.isImageLoaded(), true);
+    assert.equal(editor.getImageInfo().naturalWidth, 96);
+    assert.equal(editor.getImageInfo().naturalHeight, 64);
+    assert.equal(hookCompleted, true);
+    await editor.disposeAsync();
+});
+
+test('initial image failure reports once, rolls back, and permits a clean retry', async () => {
+    resetEditorDom();
+    const initialImageBase64 = makeImageDataUrl({ width: 80, height: 50 });
+    const errors = [];
+    const { editor, ids } = createCore({
+        initialImageBase64,
+        onError: (error, message) => errors.push({ error, message }),
+    });
+    let setupCount = 0;
+    let failImageHook = true;
+    editor.use({
+        ref: definePluginRef('example-test:initial-image-failure', '1.0.0'),
+        version: '1.0.0',
+        setupMode: 'sync',
+        setup() {
+            setupCount += 1;
+            return Object.freeze({});
+        },
+        onImageLoaded() {
+            if (failImageHook) throw new Error('synthetic initial image hook failure');
+        },
+    });
+
+    await assert.rejects(
+        editor.init({ canvas: ids.canvas }),
+        (error) => error.cause?.cause?.message === 'synthetic initial image hook failure',
+    );
+    assert.equal(editor.getLifecycleState(), 'configured');
+    assert.equal(editor.getCanvas(), null);
+    assert.equal(editor.isImageLoaded(), false);
+    assert.equal(errors.length, 1);
+    assert.equal(setupCount, 2);
+
+    failImageHook = false;
+    await editor.init({ canvas: ids.canvas });
+    assert.equal(editor.getLifecycleState(), 'initialized');
+    assert.equal(editor.isImageLoaded(), true);
+    assert.equal(setupCount, 2);
+    await editor.disposeAsync();
+});
+
+test('invalid configured initial image rejects init without an unhandled background task', async () => {
+    const errors = [];
+    const { editor, ids } = createCore({
+        initialImageBase64: 'not-a-data-url',
+        onError: (error, message) => errors.push({ error, message }),
+    });
+
+    await assert.rejects(editor.init({ canvas: ids.canvas }), /unsupported image data url/i);
+
+    assert.equal(editor.getLifecycleState(), 'configured');
+    assert.equal(editor.getCanvas(), null);
+    assert.equal(errors.length, 1);
+    await editor.disposeAsync();
+});
 
 test('ImageEditorCore installs typed plugins before init and loads a core-only image', async () => {
     const { editor, ids } = createCore();

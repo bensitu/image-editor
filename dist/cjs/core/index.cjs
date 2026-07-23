@@ -3135,6 +3135,7 @@ class ImageEditorCore {
         this.loadSequence = 0;
         this.latestLoadSequence = 0;
         this.stateLoadSequence = 0;
+        this.initialImageLoadActive = false;
         this.disposePromise = null;
         this.emergencyResetPromise = null;
         this.diagnostics = [];
@@ -3208,14 +3209,18 @@ class ImageEditorCore {
             state: {
                 requestRender: () => this.requestRender(),
                 isDisposed: () => this.lifecycle.current === 'disposed',
-                assertOperational: (operation) => this.lifecycle.assertOperational(operation),
+                assertOperational: (operation) => this.assertDocumentMutationOperational(operation),
             },
             history: this.history,
             events: {
                 emitCommitted: (descriptor) => this.emitDocumentCommitted(descriptor),
             },
             warningSink: (warning) => this.reportWarning(warning.cause, warning.message),
-            errorSink: (error) => this.reportError(error, 'Document mutation failed.'),
+            errorSink: (error) => {
+                if (!this.initialImageLoadActive) {
+                    this.reportError(error, 'Document mutation failed.');
+                }
+            },
             faultSink: (error) => this.enterFaulted(error),
         });
         this.geometry = new GeometryMutationCoordinator({
@@ -3296,14 +3301,31 @@ class ImageEditorCore {
     async init(elements) {
         this.lifecycle.beginInitialization();
         let pluginInitializationStarted = false;
+        let pluginInitializationCompleted = false;
+        let initialImageLoadStarted = false;
         try {
             this.createCanvas(elements);
             pluginInitializationStarted = true;
             await this.plugins.initialize();
+            pluginInitializationCompleted = true;
+            if (this.options.initialImageBase64) {
+                initialImageLoadStarted = true;
+                this.initialImageLoadActive = true;
+                try {
+                    await this.performImageLoad(this.options.initialImageBase64);
+                }
+                finally {
+                    this.initialImageLoadActive = false;
+                }
+            }
+            else {
+                this.updatePlaceholder();
+            }
             this.lifecycle.completeInitialization();
         }
         catch (error) {
-            const cleanupErrors = await this.rollbackInitialization(error, pluginInitializationStarted);
+            this.initialImageLoadActive = false;
+            const cleanupErrors = await this.rollbackInitialization(error, pluginInitializationStarted, pluginInitializationCompleted);
             if (cleanupErrors.length > 0) {
                 this.lifecycle.failInitialization();
                 this.recordDiagnostic(error, 'Initialization failed and cleanup was incomplete.');
@@ -3314,9 +3336,10 @@ class ImageEditorCore {
             else {
                 this.lifecycle.recoverInitialization();
             }
+            if (initialImageLoadStarted)
+                this.reportError(error, 'Initial image load failed.');
             throw error;
         }
-        this.finishInitialization();
     }
     createCanvas(elements) {
         var _a, _b, _c, _d, _e, _f;
@@ -3349,16 +3372,11 @@ class ImageEditorCore {
             preserveObjectStacking: true,
         });
     }
-    finishInitialization() {
-        if (this.options.initialImageBase64) {
-            void this.loadImage(this.options.initialImageBase64).catch(() => undefined);
-        }
-        else {
-            this.updatePlaceholder();
-        }
-    }
     async loadImage(source, options = {}) {
         this.assertReady('load an image');
+        await this.performImageLoad(source, options);
+    }
+    async performImageLoad(source, options = {}) {
         const encodedImage = inspectEncodedImageDataUrl(source);
         if (!inferMimeType(source) || !encodedImage) {
             throw new errors.CoreRuntimeError('[ImageEditor] Unsupported image Data URL.');
@@ -3420,7 +3438,7 @@ class ImageEditorCore {
                             await this.plugins.notifyImageCleared();
                             this.assertCurrentLoad(sequence, commitContext.signal);
                         }
-                        const canvas = this.requireCanvas('loadImage');
+                        const canvas = this.requireCanvasForImageLoad('loadImage');
                         canvas.discardActiveObject();
                         canvas.clear();
                         canvas.backgroundColor = this.options.backgroundColor;
@@ -3470,8 +3488,9 @@ class ImageEditorCore {
             }, { signal: options.signal });
         }
         catch (error) {
-            if (!isLoadCancellation(error))
+            if (!isLoadCancellation(error) && !this.initialImageLoadActive) {
                 this.reportError(error, 'loadImage failed.');
+            }
             throw error;
         }
     }
@@ -3895,9 +3914,17 @@ class ImageEditorCore {
         });
         return manager;
     }
-    async rollbackInitialization(failure, pluginInitializationStarted) {
+    async rollbackInitialization(failure, pluginInitializationStarted, pluginInitializationCompleted) {
         const cleanupErrors = this.getInitializationCleanupErrors(failure);
         const canvas = this.canvas;
+        if (pluginInitializationCompleted) {
+            try {
+                await this.plugins.dispose();
+            }
+            catch (error) {
+                cleanupErrors.push(error);
+            }
+        }
         this.clearRuntimeReferences();
         if (canvas) {
             try {
@@ -4261,6 +4288,14 @@ class ImageEditorCore {
             throw new errors.CoreRuntimeError(`[ImageEditor] Cannot ${operation} without Canvas.`);
         return this.canvas;
     }
+    requireCanvasForImageLoad(operation) {
+        if (!this.initialImageLoadActive || this.lifecycle.current !== 'initializing') {
+            return this.requireCanvas(operation);
+        }
+        if (!this.canvas)
+            throw new errors.CoreRuntimeError(`[ImageEditor] Cannot ${operation} without Canvas.`);
+        return this.canvas;
+    }
     requireCanvasForPlugin(operation) {
         if (this.lifecycle.current !== 'initializing')
             this.lifecycle.assertOperational(operation);
@@ -4331,6 +4366,11 @@ class ImageEditorCore {
         this.lifecycle.assertOperational(operation);
         if (!this.canvas)
             throw new errors.CoreRuntimeError(`[ImageEditor] Cannot ${operation} without Canvas.`);
+    }
+    assertDocumentMutationOperational(operation) {
+        if (this.initialImageLoadActive && this.lifecycle.current === 'initializing')
+            return;
+        this.lifecycle.assertOperational(operation);
     }
     assertNotDisposed(operation) {
         this.lifecycle.assertAvailable(operation);

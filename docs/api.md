@@ -63,24 +63,24 @@ Fabric canvas; all Plugins must be installed first.
 
 Main methods:
 
-| Method                                     | Contract                                                                        |
-| ------------------------------------------ | ------------------------------------------------------------------------------- |
-| `use(plugin)`                              | Atomically install one synchronous Plugin and infer its API                     |
-| `install(pluginOrPlan)`                    | Atomically install a tuple/plan and preserve result inference                   |
-| `getPlugin(ref)` / `requirePlugin(ref)`    | Resolve `TApi \| null` or require `TApi`                                        |
-| `init(elements)`                           | Initialize one canvas and run Plugin lifecycle hooks                            |
-| `loadImage(source, options?)`              | Transactionally load a PNG/JPEG/WebP data URL                                   |
-| `loadImageFile(file, options?)`            | Validate/decode a browser file, including EXIF orientation                      |
-| `saveState()`                              | Serialize the current schema `image-editor.state@3`                             |
-| `loadFromState(value, options?)`           | Validate then atomically restore; migrations are explicit                       |
-| `exportImageBase64(options?)`              | Render isolated PNG/JPEG/WebP output                                            |
-| `exportImageFile(options?)`                | Return the same isolated output as a browser `File`                             |
-| `getImageInfo()` / `isImageLoaded()`       | Read immutable committed image status                                           |
-| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand` for future image loads                       |
-| `getLifecycleState()` / `getDiagnostics()` | Read lifecycle and bounded diagnostics                                          |
-| `emergencyReset()` / `forceDispose()`      | Explicit recovery for a faulted runtime                                         |
-| `disposeAsync()`                           | Authoritative, awaitable release path; rejects with aggregated cleanup failures |
-| `dispose()`                                | Deprecated best-effort starter; may return before asynchronous cleanup settles  |
+| Method                                     | Contract                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------------------- |
+| `use(plugin)`                              | Atomically install one synchronous Plugin and infer its API                      |
+| `install(pluginOrPlan)`                    | Atomically install a tuple/plan and preserve result inference                    |
+| `getPlugin(ref)` / `requirePlugin(ref)`    | Resolve `TApi \| null` or require `TApi`                                         |
+| `init(elements)`                           | Initialize Canvas and Plugins, then await any configured initial image and hooks |
+| `loadImage(source, options?)`              | Transactionally load a PNG/JPEG/WebP data URL                                    |
+| `loadImageFile(file, options?)`            | Validate/decode a browser file, including EXIF orientation                       |
+| `saveState()`                              | Serialize the current schema `image-editor.state@3`                              |
+| `loadFromState(value, options?)`           | Validate then atomically restore; migrations are explicit                        |
+| `exportImageBase64(options?)`              | Render isolated PNG/JPEG/WebP output                                             |
+| `exportImageFile(options?)`                | Return the same isolated output as a browser `File`                              |
+| `getImageInfo()` / `isImageLoaded()`       | Read immutable committed image status                                            |
+| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand` for future image loads                        |
+| `getLifecycleState()` / `getDiagnostics()` | Read lifecycle and bounded diagnostics                                           |
+| `emergencyReset()` / `forceDispose()`      | Explicit recovery for a faulted runtime                                          |
+| `disposeAsync()`                           | Authoritative, awaitable release path; rejects with aggregated cleanup failures  |
+| `dispose()`                                | Deprecated best-effort starter; may return before asynchronous cleanup settles   |
 
 Core rejects operations in invalid lifecycle states. Failed image/State loads
 restore the prior document before their promises reject. Snapshot validation

@@ -45,6 +45,7 @@ export declare class ImageEditorCore {
     private loadSequence;
     private latestLoadSequence;
     private stateLoadSequence;
+    private initialImageLoadActive;
     private disposePromise;
     private emergencyResetPromise;
     private readonly diagnostics;
@@ -61,8 +62,8 @@ export declare class ImageEditorCore {
     getDiagnostics(): readonly CoreDiagnostic[];
     init(elements: CoreElementMap): Promise<void>;
     private createCanvas;
-    private finishInitialization;
     loadImage(source: string, options?: LoadImageOptions): Promise<void>;
+    private performImageLoad;
     loadImageFile(file: File, options?: LoadImageOptions): Promise<void>;
     saveState(): string;
     loadFromState(input: string | unknown, options?: LoadStateOptions): Promise<void>;
@@ -115,6 +116,7 @@ export declare class ImageEditorCore {
     private emitDocumentCommitted;
     private assertCurrentLoad;
     private requireCanvas;
+    private requireCanvasForImageLoad;
     private requireCanvasForPlugin;
     private requestRender;
     private updatePlaceholder;
@@ -123,6 +125,7 @@ export declare class ImageEditorCore {
     private enterFaulted;
     private recordDiagnostic;
     private assertReady;
+    private assertDocumentMutationOperational;
     private assertNotDisposed;
     private isDisposingOrDisposed;
     private clearRuntimeReferences;

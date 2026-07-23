@@ -429,6 +429,7 @@ export class ImageEditorCore {
     declare private loadSequence: number;
     declare private latestLoadSequence: number;
     declare private stateLoadSequence: number;
+    declare private initialImageLoadActive: boolean;
     declare private disposePromise: Promise<void> | null;
     declare private emergencyResetPromise: Promise<void> | null;
     declare private readonly diagnostics: CoreDiagnostic[];
@@ -457,6 +458,7 @@ export class ImageEditorCore {
         this.loadSequence = 0;
         this.latestLoadSequence = 0;
         this.stateLoadSequence = 0;
+        this.initialImageLoadActive = false;
         this.disposePromise = null;
         this.emergencyResetPromise = null;
         this.diagnostics = [];
@@ -562,14 +564,18 @@ export class ImageEditorCore {
             state: {
                 requestRender: () => this.requestRender(),
                 isDisposed: () => this.lifecycle.current === 'disposed',
-                assertOperational: (operation) => this.lifecycle.assertOperational(operation),
+                assertOperational: (operation) => this.assertDocumentMutationOperational(operation),
             },
             history: this.history,
             events: {
                 emitCommitted: (descriptor) => this.emitDocumentCommitted(descriptor),
             },
             warningSink: (warning) => this.reportWarning(warning.cause, warning.message),
-            errorSink: (error) => this.reportError(error, 'Document mutation failed.'),
+            errorSink: (error) => {
+                if (!this.initialImageLoadActive) {
+                    this.reportError(error, 'Document mutation failed.');
+                }
+            },
             faultSink: (error) => this.enterFaulted(error),
         });
         this.geometry = new GeometryMutationCoordinator({
@@ -674,15 +680,31 @@ export class ImageEditorCore {
     async init(elements: CoreElementMap): Promise<void> {
         this.lifecycle.beginInitialization();
         let pluginInitializationStarted = false;
+        let pluginInitializationCompleted = false;
+        let initialImageLoadStarted = false;
         try {
             this.createCanvas(elements);
             pluginInitializationStarted = true;
             await this.plugins.initialize();
+            pluginInitializationCompleted = true;
+            if (this.options.initialImageBase64) {
+                initialImageLoadStarted = true;
+                this.initialImageLoadActive = true;
+                try {
+                    await this.performImageLoad(this.options.initialImageBase64);
+                } finally {
+                    this.initialImageLoadActive = false;
+                }
+            } else {
+                this.updatePlaceholder();
+            }
             this.lifecycle.completeInitialization();
         } catch (error) {
+            this.initialImageLoadActive = false;
             const cleanupErrors = await this.rollbackInitialization(
                 error,
                 pluginInitializationStarted,
+                pluginInitializationCompleted,
             );
             if (cleanupErrors.length > 0) {
                 this.lifecycle.failInitialization();
@@ -693,9 +715,9 @@ export class ImageEditorCore {
             } else {
                 this.lifecycle.recoverInitialization();
             }
+            if (initialImageLoadStarted) this.reportError(error, 'Initial image load failed.');
             throw error;
         }
-        this.finishInitialization();
     }
 
     private createCanvas(elements: CoreElementMap): void {
@@ -738,16 +760,12 @@ export class ImageEditorCore {
         });
     }
 
-    private finishInitialization(): void {
-        if (this.options.initialImageBase64) {
-            void this.loadImage(this.options.initialImageBase64).catch(() => undefined);
-        } else {
-            this.updatePlaceholder();
-        }
-    }
-
     async loadImage(source: string, options: LoadImageOptions = {}): Promise<void> {
         this.assertReady('load an image');
+        await this.performImageLoad(source, options);
+    }
+
+    private async performImageLoad(source: string, options: LoadImageOptions = {}): Promise<void> {
         const encodedImage = inspectEncodedImageDataUrl(source);
         if (!inferMimeType(source) || !encodedImage) {
             throw new CoreRuntimeError('[ImageEditor] Unsupported image Data URL.');
@@ -831,7 +849,7 @@ export class ImageEditorCore {
                                 await this.plugins.notifyImageCleared();
                                 this.assertCurrentLoad(sequence, commitContext.signal);
                             }
-                            const canvas = this.requireCanvas('loadImage');
+                            const canvas = this.requireCanvasForImageLoad('loadImage');
                             canvas.discardActiveObject();
                             canvas.clear();
                             canvas.backgroundColor = this.options.backgroundColor;
@@ -882,7 +900,9 @@ export class ImageEditorCore {
                 { signal: options.signal },
             );
         } catch (error) {
-            if (!isLoadCancellation(error)) this.reportError(error, 'loadImage failed.');
+            if (!isLoadCancellation(error) && !this.initialImageLoadActive) {
+                this.reportError(error, 'loadImage failed.');
+            }
             throw error;
         }
     }
@@ -1372,9 +1392,17 @@ export class ImageEditorCore {
     private async rollbackInitialization(
         failure: unknown,
         pluginInitializationStarted: boolean,
+        pluginInitializationCompleted: boolean,
     ): Promise<readonly unknown[]> {
         const cleanupErrors = this.getInitializationCleanupErrors(failure);
         const canvas = this.canvas;
+        if (pluginInitializationCompleted) {
+            try {
+                await this.plugins.dispose();
+            } catch (error) {
+                cleanupErrors.push(error);
+            }
+        }
         this.clearRuntimeReferences();
         if (canvas) {
             try {
@@ -1809,6 +1837,15 @@ export class ImageEditorCore {
         return this.canvas;
     }
 
+    private requireCanvasForImageLoad(operation: string): FabricNS.Canvas {
+        if (!this.initialImageLoadActive || this.lifecycle.current !== 'initializing') {
+            return this.requireCanvas(operation);
+        }
+        if (!this.canvas)
+            throw new CoreRuntimeError(`[ImageEditor] Cannot ${operation} without Canvas.`);
+        return this.canvas;
+    }
+
     private requireCanvasForPlugin(operation: string): FabricNS.Canvas {
         if (this.lifecycle.current !== 'initializing') this.lifecycle.assertOperational(operation);
         if (!this.canvas)
@@ -1882,6 +1919,11 @@ export class ImageEditorCore {
         this.lifecycle.assertOperational(operation);
         if (!this.canvas)
             throw new CoreRuntimeError(`[ImageEditor] Cannot ${operation} without Canvas.`);
+    }
+
+    private assertDocumentMutationOperational(operation: string): void {
+        if (this.initialImageLoadActive && this.lifecycle.current === 'initializing') return;
+        this.lifecycle.assertOperational(operation);
     }
 
     private assertNotDisposed(operation: string): void {
