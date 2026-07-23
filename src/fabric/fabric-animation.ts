@@ -27,7 +27,8 @@
  *   `isDisposed` (via `OperationGuard.isDisposed()`)
  *   before touching the canvas. {@link animateProps} short-circuits the
  *   `onChange` invocation when the editor has been disposed and still
- *   settles its Promise so queued callers never hang
+ *   settles its Promise after a bounded cancellation-quiescence window so
+ *   queued callers never hang and rollback remains the final image write
  *   (the `AnimationQueue` contract).
  * - Rotation animations temporarily set the image
  *   origin to `'center'/'center'` so Fabric tweens around the visual
@@ -49,6 +50,7 @@
 
 import type * as FabricNS from 'fabric';
 const ANIMATION_SETTLE_GRACE_MS = 1000;
+const ANIMATION_ABORT_QUIESCENCE_MS = 50;
 
 type AbortableAnimation = {
     abort?: () => void;
@@ -95,6 +97,9 @@ export interface AnimateOptions {
  * - When the editor is disposed mid-animation, {@link AnimateOptions.onChange}
  *   becomes a no-op so canvas references that may already be torn down
  *   are not touched.
+ * - Cancellation waits for a short quiet period after the last late frame,
+ *   bounded by the overall settlement grace. This keeps the owning mutation
+ *   active until rollback can safely become authoritative.
  * - The Promise still settles (resolves) so the
  *   `AnimationQueue` can drain queued
  *   callers without hanging.
@@ -138,12 +143,24 @@ export function animateProps<T extends FabricNS.FabricObject>(
         let settled = false;
         let aborters: Array<() => void> = [];
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let abortDeadlineId: ReturnType<typeof setTimeout> | null = null;
+        let quiescenceTimeoutId: ReturnType<typeof setTimeout> | null = null;
         let unregisterAborter: (() => void) | null = null;
+        let aborting = false;
+        let abortedHandleCount = 0;
 
         const cleanup = (): void => {
             if (timeoutId !== null) {
                 clearTimeout(timeoutId);
                 timeoutId = null;
+            }
+            if (abortDeadlineId !== null) {
+                clearTimeout(abortDeadlineId);
+                abortDeadlineId = null;
+            }
+            if (quiescenceTimeoutId !== null) {
+                clearTimeout(quiescenceTimeoutId);
+                quiescenceTimeoutId = null;
             }
             unregisterAborter?.();
             unregisterAborter = null;
@@ -163,20 +180,44 @@ export function animateProps<T extends FabricNS.FabricObject>(
             reject(error);
         };
 
-        const abortAndSettle = (): void => {
-            for (const abort of aborters) {
+        const abortAnimationHandles = (): void => {
+            for (
+                let index = abortedHandleCount;
+                index < aborters.length;
+                index += 1, abortedHandleCount += 1
+            ) {
+                const abort = aborters[index];
+                if (!abort) continue;
                 try {
                     abort();
                 } catch {
-                    /* ignore */
+                    // Cancellation must continue across independent Fabric handles.
                 }
             }
-            settle();
+        };
+
+        const scheduleQuiescenceSettlement = (): void => {
+            if (quiescenceTimeoutId !== null) clearTimeout(quiescenceTimeoutId);
+            quiescenceTimeoutId = setTimeout(settle, ANIMATION_ABORT_QUIESCENCE_MS);
+        };
+
+        const abortAndQuiesce = (): void => {
+            if (settled) return;
+            if (!aborting) {
+                aborting = true;
+                if (timeoutId !== null) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                abortDeadlineId = setTimeout(settle, ANIMATION_SETTLE_GRACE_MS);
+            }
+            abortAnimationHandles();
+            scheduleQuiescenceSettlement();
         };
 
         const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
-        timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
-        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
+        timeoutId = setTimeout(abortAndQuiesce, duration + ANIMATION_SETTLE_GRACE_MS);
+        unregisterAborter = guard.registerAnimationAborter(abortAndQuiesce);
 
         try {
             // `animate` returns `Record<string, TAnimation>` (one
@@ -185,10 +226,18 @@ export function animateProps<T extends FabricNS.FabricObject>(
             const animationResult = object.animate(props, {
                 duration,
                 onChange: () => {
+                    if (aborting) {
+                        scheduleQuiescenceSettlement();
+                        return;
+                    }
                     if (guard.isDisposed()) return;
                     options.onChange?.();
                 },
                 onComplete: () => {
+                    if (aborting) {
+                        scheduleQuiescenceSettlement();
+                        return;
+                    }
                     // Settle the wrapper Promise even when disposed so the
                     // AnimationQueue does not hang. The orchestrator's
                     // post-animation snap (set/setCoords) already self-guards
@@ -197,6 +246,7 @@ export function animateProps<T extends FabricNS.FabricObject>(
                 },
             });
             aborters = collectAnimationAborters(animationResult);
+            if (aborting) abortAnimationHandles();
         } catch (error) {
             // `object.animate` is not documented to throw synchronously, but
             // a corrupted Fabric prototype or a bad property name could

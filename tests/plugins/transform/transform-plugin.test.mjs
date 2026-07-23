@@ -7,7 +7,10 @@ import {
     MEMENTO_HISTORY_CAPABILITY,
 } from '../../../src/core-runtime/internal-capabilities.js';
 import { transformPlugin, transformPluginRef } from '../../../src/plugins/transform/index.js';
-import { resolveTransformOptions } from '../../../src/plugins/transform/transform-controller.js';
+import {
+    resolveTransformOptions,
+    TransformPluginController,
+} from '../../../src/plugins/transform/transform-controller.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
 async function createEditor(transformOptions = {}, coreOptions = {}) {
@@ -29,6 +32,14 @@ async function load(editor) {
 async function dispose(editor) {
     await editor.disposeAsync();
     document.body.innerHTML = '';
+}
+
+function createDeferred() {
+    let resolve;
+    const promise = new Promise((settle) => {
+        resolve = settle;
+    });
+    return Object.freeze({ promise, resolve });
 }
 
 test('transform options normalize finite bounds without entering snapshot state', async () => {
@@ -250,4 +261,77 @@ test('dispose during animation aborts promptly, restores state, and releases the
     });
     assert.equal(editor.getCanvas(), null);
     document.body.innerHTML = '';
+});
+
+test('rollback remains authoritative after an aborted Fabric animation writes one late frame', async () => {
+    const image = new fabric.Rect({
+        left: 10,
+        top: 12,
+        width: 80,
+        height: 60,
+        scaleX: 1,
+        scaleY: 1,
+    });
+    const animationStarted = createDeferred();
+    const lateFrame = createDeferred();
+    let lateFrameScheduled = false;
+    image.animate = (_properties, options) => {
+        animationStarted.resolve();
+        const handle = {
+            abort() {
+                if (lateFrameScheduled) return;
+                lateFrameScheduled = true;
+                setTimeout(() => {
+                    image.set({ scaleX: 1.5, scaleY: 1.5 });
+                    options.onChange?.();
+                    lateFrame.resolve();
+                }, 10);
+            },
+        };
+        return { scaleX: handle, scaleY: handle };
+    };
+
+    const abortController = new AbortController();
+    const geometry = {
+        registerParticipant() {
+            throw new Error('Unexpected participant registration.');
+        },
+        run(request) {
+            return (async () => {
+                const mutation = request.mutateBase({
+                    signal: abortController.signal,
+                    transaction: Object.freeze({}),
+                });
+                await animationStarted.promise;
+                const failure = new DOMException('late-frame abort', 'AbortError');
+                abortController.abort(failure);
+                try {
+                    await mutation;
+                    assert.fail('The aborted transform unexpectedly completed.');
+                } catch (error) {
+                    await request.rollbackBase?.({
+                        signal: new AbortController().signal,
+                        cause: error,
+                    });
+                    throw error;
+                }
+            })();
+        },
+    };
+    const controller = new TransformPluginController(
+        { fabric, isDisposed: () => false },
+        { getBaseImage: () => image, getBaseImageScale: () => 1 },
+        { requestRender: () => undefined },
+        geometry,
+        resolveTransformOptions({ animationDuration: 100 }),
+    );
+
+    await assert.rejects(controller.scale(1.5), /late-frame abort/u);
+    assert.equal(image.scaleX, 1);
+    assert.equal(image.scaleY, 1);
+    await lateFrame.promise;
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    assert.equal(image.scaleX, 1);
+    assert.equal(image.scaleY, 1);
+    controller.dispose();
 });

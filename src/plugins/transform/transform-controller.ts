@@ -105,37 +105,96 @@ function cloneState(state: MutableTransformState): TransformPluginState {
     return Object.freeze({ ...state });
 }
 
-class PluginAnimationControl implements AnimationControl {
-    private disposed = false;
+class MutationAnimationScope implements AnimationControl {
+    private cancelled = false;
     private readonly aborters = new Set<() => void>();
+    private readonly idleWaiters = new Set<() => void>();
+
+    constructor(
+        private readonly owner: PluginAnimationControl,
+        private readonly unregisterScope: () => void,
+    ) {}
+
+    isDisposed(): boolean {
+        return this.cancelled || this.owner.isDisposed();
+    }
+
+    registerAnimationAborter(abort: () => void): () => void {
+        if (this.isDisposed()) {
+            abort();
+            return () => undefined;
+        }
+        this.aborters.add(abort);
+        return () => {
+            this.aborters.delete(abort);
+            this.resolveIdleWaiters();
+        };
+    }
+
+    cancelAnimations(): Promise<void> {
+        if (this.cancelled) return this.waitForIdle();
+        this.cancelled = true;
+        for (const abort of [...this.aborters]) {
+            try {
+                abort();
+            } catch {
+                this.aborters.delete(abort);
+            }
+        }
+        return this.waitForIdle();
+    }
+
+    dispose(): void {
+        if (!this.cancelled) {
+            this.cancelled = true;
+            for (const abort of [...this.aborters]) {
+                try {
+                    abort();
+                } catch {
+                    // Disposal must continue across independent Fabric handles.
+                }
+            }
+        }
+        this.aborters.clear();
+        this.resolveIdleWaiters();
+        this.unregisterScope();
+    }
+
+    private waitForIdle(): Promise<void> {
+        if (this.aborters.size === 0) return Promise.resolve();
+        return new Promise<void>((resolve) => this.idleWaiters.add(resolve));
+    }
+
+    private resolveIdleWaiters(): void {
+        if (this.aborters.size > 0) return;
+        for (const resolve of this.idleWaiters) resolve();
+        this.idleWaiters.clear();
+    }
+}
+
+class PluginAnimationControl {
+    private disposed = false;
+    private readonly scopes = new Set<MutationAnimationScope>();
 
     isDisposed(): boolean {
         return this.disposed;
     }
 
-    registerAnimationAborter(abort: () => void): () => void {
+    createScope(): MutationAnimationScope {
+        const scope = new MutationAnimationScope(this, () => this.scopes.delete(scope));
         if (this.disposed) {
-            abort();
-            return () => undefined;
+            scope.dispose();
+        } else {
+            this.scopes.add(scope);
         }
-        this.aborters.add(abort);
-        return () => this.aborters.delete(abort);
-    }
-
-    cancelAnimations(): void {
-        for (const abort of [...this.aborters]) {
-            try {
-                abort();
-            } catch {
-                // Cancellation must continue across independent Fabric handles.
-            }
-        }
-        this.aborters.clear();
+        return scope;
     }
 
     dispose(): void {
+        if (this.disposed) return;
         this.disposed = true;
-        this.cancelAnimations();
+        for (const scope of [...this.scopes]) scope.dispose();
+        this.scopes.clear();
     }
 }
 
@@ -169,10 +228,10 @@ export class TransformPluginController {
         if (!Number.isFinite(factor)) return Promise.resolve();
         return this.enqueue(
             operationId,
-            async (signal) => {
+            async (signal, animations) => {
                 const image = this.baseImage.getBaseImage();
                 if (!image) return;
-                await this.applyScale(image, factor, signal);
+                await this.applyScale(image, factor, signal, animations);
             },
             options,
         );
@@ -198,10 +257,10 @@ export class TransformPluginController {
         if (!Number.isFinite(degrees)) return Promise.resolve();
         return this.enqueue(
             'transform:rotate',
-            async (signal) => {
+            async (signal, animations) => {
                 const image = this.baseImage.getBaseImage();
                 if (!image) return;
-                await this.applyRotation(image, degrees, signal);
+                await this.applyRotation(image, degrees, signal, animations);
             },
             options,
         );
@@ -218,11 +277,11 @@ export class TransformPluginController {
     resetImageTransform(options: TransformMutationOptions = {}): Promise<void> {
         return this.enqueue(
             'transform:reset',
-            async (signal) => {
+            async (signal, animations) => {
                 const image = this.baseImage.getBaseImage();
                 if (!image) return;
-                await this.applyScale(image, 1, signal);
-                await this.applyRotation(image, 0, signal);
+                await this.applyScale(image, 1, signal, animations);
+                await this.applyRotation(image, 0, signal, animations);
                 image.set({ flipX: false, flipY: false });
                 image.setCoords();
                 this.state.flipX = false;
@@ -282,7 +341,7 @@ export class TransformPluginController {
 
     private enqueue(
         operationId: string,
-        mutate: (signal: AbortSignal) => Promise<void>,
+        mutate: (signal: AbortSignal, animations: MutationAnimationScope) => Promise<void>,
         options: TransformMutationOptions,
     ): Promise<void> {
         if (this.animations.isDisposed()) return Promise.resolve();
@@ -290,25 +349,35 @@ export class TransformPluginController {
         if (!image) return Promise.resolve();
         const rollback = this.captureRollback(image);
         const mutationId = `${operationId}:${++this.mutationSequence}`;
-        return this.geometry
-            .run({
+        const animations = this.animations.createScope();
+        let operation: ReturnType<GeometryMutationPort['run']>;
+        try {
+            operation = this.geometry.run({
                 id: mutationId,
                 kind: 'transform',
                 operationId,
                 ...(options.parent ? { parent: options.parent } : {}),
                 mutateBase: async ({ signal }) => {
-                    await mutate(signal);
+                    await mutate(signal, animations);
                 },
-                rollbackBase: () => this.restoreRollback(image, rollback),
+                rollbackBase: async () => {
+                    await animations.cancelAnimations();
+                    this.restoreRollback(image, rollback);
+                },
                 metadata: Object.freeze({ pluginId: 'plugin:transform' }),
-            })
-            .then(() => undefined);
+            });
+        } catch (error) {
+            animations.dispose();
+            return Promise.reject(error);
+        }
+        return operation.then(() => undefined).finally(() => animations.dispose());
     }
 
     private async applyScale(
         image: FabricNS.FabricImage,
         factor: number,
         signal: AbortSignal,
+        animations: MutationAnimationScope,
     ): Promise<void> {
         this.throwIfAborted(signal);
         const scale = Math.max(this.options.minScale, Math.min(this.options.maxScale, factor));
@@ -317,16 +386,19 @@ export class TransformPluginController {
         image.setPositionByOrigin(topLeft, 'left', 'top');
         image.setCoords();
         const target = this.baseImage.getBaseImageScale() * scale;
-        await this.runAnimation(signal, () =>
-            animateProps(
-                image,
-                { scaleX: target, scaleY: target },
-                {
-                    duration: this.options.animationDuration,
-                    onChange: () => this.render.requestRender(),
-                },
-                this.animations,
-            ),
+        await this.runAnimation(
+            signal,
+            () =>
+                animateProps(
+                    image,
+                    { scaleX: target, scaleY: target },
+                    {
+                        duration: this.options.animationDuration,
+                        onChange: () => this.render.requestRender(),
+                    },
+                    animations,
+                ),
+            animations,
         );
         this.throwIfAborted(signal);
         image.set({ scaleX: target, scaleY: target });
@@ -338,6 +410,7 @@ export class TransformPluginController {
         image: FabricNS.FabricImage,
         degrees: number,
         signal: AbortSignal,
+        animations: MutationAnimationScope,
     ): Promise<void> {
         this.throwIfAborted(signal);
         const center = image.getCenterPoint();
@@ -345,16 +418,19 @@ export class TransformPluginController {
         image.setPositionByOrigin(center, 'center', 'center');
         image.setCoords();
         try {
-            await this.runAnimation(signal, () =>
-                animateProps(
-                    image,
-                    { angle: degrees },
-                    {
-                        duration: this.options.animationDuration,
-                        onChange: () => this.render.requestRender(),
-                    },
-                    this.animations,
-                ),
+            await this.runAnimation(
+                signal,
+                () =>
+                    animateProps(
+                        image,
+                        { angle: degrees },
+                        {
+                            duration: this.options.animationDuration,
+                            onChange: () => this.render.requestRender(),
+                        },
+                        animations,
+                    ),
+                animations,
             );
             this.throwIfAborted(signal);
             image.set('angle', degrees);
@@ -411,8 +487,14 @@ export class TransformPluginController {
         if (this.animations.isDisposed()) throw new Error('Transform plugin is disposed.');
     }
 
-    private async runAnimation(signal: AbortSignal, animation: () => Promise<void>): Promise<void> {
-        const cancel = (): void => this.animations.cancelAnimations();
+    private async runAnimation(
+        signal: AbortSignal,
+        animation: () => Promise<void>,
+        animations: MutationAnimationScope,
+    ): Promise<void> {
+        const cancel = (): void => {
+            animations.cancelAnimations().catch(() => undefined);
+        };
         signal.addEventListener('abort', cancel, { once: true });
         if (signal.aborted) cancel();
         try {
