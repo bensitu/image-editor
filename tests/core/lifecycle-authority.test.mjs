@@ -229,6 +229,8 @@ test('Core Presentation capability reads the current layout mode', () => {
     assert.equal(probe.getLayoutMode(), 'fit');
     editor.setLayoutMode('cover');
     assert.equal(probe.getLayoutMode(), 'cover');
+    assert.throws(() => editor.setLayoutMode('stretch'), TypeError);
+    assert.equal(probe.getLayoutMode(), 'cover');
     editor.dispose();
 });
 

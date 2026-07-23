@@ -78,6 +78,8 @@ test('Full UMD supports load, edit, history, export, rollback, and disposal', as
     await preset.editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
     await preset.editor.loadImage(makeImageDataUrl({ width: 120, height: 80 }));
 
+    assert.throws(() => preset.editor.setLayoutMode('stretch'), TypeError);
+    preset.editor.setLayoutMode('fit');
     await preset.transform.rotate(90);
     assert.equal(preset.transform.getState().rotationDegrees, 90);
     await preset.history.undo();

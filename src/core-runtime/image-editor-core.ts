@@ -144,16 +144,17 @@ function positiveInteger(value: number | undefined, fallback: number): number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 
+function isLayoutMode(value: unknown): value is LayoutMode {
+    return value === 'fit' || value === 'cover' || value === 'expand';
+}
+
 function resolveOptions(options: ImageEditorCoreOptions): ResolvedImageEditorCoreOptions {
     const layoutMode = options.defaultLayoutMode;
     return Object.freeze({
         canvasWidth: positiveFinite(options.canvasWidth, DEFAULT_CORE_OPTIONS.canvasWidth),
         canvasHeight: positiveFinite(options.canvasHeight, DEFAULT_CORE_OPTIONS.canvasHeight),
         backgroundColor: options.backgroundColor ?? DEFAULT_CORE_OPTIONS.backgroundColor,
-        layoutMode:
-            layoutMode === 'fit' || layoutMode === 'cover' || layoutMode === 'expand'
-                ? layoutMode
-                : DEFAULT_CORE_OPTIONS.layoutMode,
+        layoutMode: isLayoutMode(layoutMode) ? layoutMode : DEFAULT_CORE_OPTIONS.layoutMode,
         groupSelection: options.groupSelection ?? DEFAULT_CORE_OPTIONS.groupSelection,
         maxInputBytes: positiveInteger(options.maxInputBytes, DEFAULT_CORE_OPTIONS.maxInputBytes),
         maxInputPixels: positiveInteger(
@@ -1034,6 +1035,9 @@ export class ImageEditorCore {
 
     setLayoutMode(mode: LayoutMode): void {
         this.assertNotDisposed('set layout mode');
+        if (!isLayoutMode(mode)) {
+            throw new TypeError('[ImageEditor] Layout mode must be "fit", "cover", or "expand".');
+        }
         this.layoutMode = mode;
         this.viewportCache.clear();
     }

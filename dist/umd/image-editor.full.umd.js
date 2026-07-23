@@ -6824,6 +6824,9 @@
     function positiveInteger(value, fallback) {
         return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : fallback;
     }
+    function isLayoutMode(value) {
+        return value === 'fit' || value === 'cover' || value === 'expand';
+    }
     function resolveOptions(options) {
         var _a, _b, _c;
         const layoutMode = options.defaultLayoutMode;
@@ -6831,9 +6834,7 @@
             canvasWidth: positiveFinite(options.canvasWidth, DEFAULT_CORE_OPTIONS.canvasWidth),
             canvasHeight: positiveFinite(options.canvasHeight, DEFAULT_CORE_OPTIONS.canvasHeight),
             backgroundColor: (_a = options.backgroundColor) !== null && _a !== void 0 ? _a : DEFAULT_CORE_OPTIONS.backgroundColor,
-            layoutMode: layoutMode === 'fit' || layoutMode === 'cover' || layoutMode === 'expand'
-                ? layoutMode
-                : DEFAULT_CORE_OPTIONS.layoutMode,
+            layoutMode: isLayoutMode(layoutMode) ? layoutMode : DEFAULT_CORE_OPTIONS.layoutMode,
             groupSelection: (_b = options.groupSelection) !== null && _b !== void 0 ? _b : DEFAULT_CORE_OPTIONS.groupSelection,
             maxInputBytes: positiveInteger(options.maxInputBytes, DEFAULT_CORE_OPTIONS.maxInputBytes),
             maxInputPixels: positiveInteger(options.maxInputPixels, DEFAULT_CORE_OPTIONS.maxInputPixels),
@@ -7506,6 +7507,9 @@
         }
         setLayoutMode(mode) {
             this.assertNotDisposed('set layout mode');
+            if (!isLayoutMode(mode)) {
+                throw new TypeError('[ImageEditor] Layout mode must be "fit", "cover", or "expand".');
+            }
             this.layoutMode = mode;
             this.viewportCache.clear();
         }

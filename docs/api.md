@@ -76,7 +76,7 @@ Main methods:
 | `exportImageBase64(options?)`              | Render isolated PNG/JPEG/WebP output                                             |
 | `exportImageFile(options?)`                | Return the same isolated output as a browser `File`                              |
 | `getImageInfo()` / `isImageLoaded()`       | Read immutable committed image status                                            |
-| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand` for future image loads                        |
+| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand`; invalid JavaScript values throw `TypeError`  |
 | `getLifecycleState()` / `getDiagnostics()` | Read lifecycle and bounded diagnostics                                           |
 | `emergencyReset()` / `forceDispose()`      | Explicit recovery for a faulted runtime                                          |
 | `disposeAsync()`                           | Authoritative, awaitable release path; rejects with aggregated cleanup failures  |
