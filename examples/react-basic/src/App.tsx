@@ -5,6 +5,7 @@ import type { CoreImageInfo, ImageEditorCore } from '@bensitu/image-editor';
 import type { HistoryPort, HistoryStatus } from '@bensitu/image-editor/plugins/history';
 import type { TransformPluginApi } from '@bensitu/image-editor/plugins/transform';
 import { createMinimalPreset } from '@bensitu/image-editor/presets/minimal';
+import { createSerializedEditorMountCoordinator } from '../../shared/serialized-editor-mount.mjs';
 
 const emptyHistory: HistoryStatus = {
     isEnabled: true,
@@ -37,6 +38,7 @@ export default function App() {
     const editorRef = useRef<ImageEditorCore | null>(null);
     const transformRef = useRef<TransformPluginApi | null>(null);
     const historyRef = useRef<HistoryPort | null>(null);
+    const mountCoordinatorRef = useRef(createSerializedEditorMountCoordinator());
     const [ready, setReady] = useState(false);
     const [running, setRunning] = useState(false);
     const [imageInfo, setImageInfo] = useState<CoreImageInfo | null>(null);
@@ -46,45 +48,56 @@ export default function App() {
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        let active = true;
-
-        const preset = createMinimalPreset(fabric, {
-            core: {
-                defaultLayoutMode: 'fit',
-                onError(error, detail) {
-                    console.error(detail, error);
-                    setMessage(`Error: ${detail}`);
-                },
-                onWarning(error, detail) {
-                    console.warn(detail, error);
-                    setMessage(`Warning: ${detail}`);
-                },
+        let mounted = true;
+        const coordinator = mountCoordinatorRef.current;
+        const lease = coordinator.mount({
+            create: () =>
+                createMinimalPreset(fabric, {
+                    core: {
+                        defaultLayoutMode: 'fit',
+                        onError(error, detail) {
+                            console.error(detail, error);
+                            if (mounted) setMessage(`Error: ${detail}`);
+                        },
+                        onWarning(error, detail) {
+                            console.warn(detail, error);
+                            if (mounted) setMessage(`Warning: ${detail}`);
+                        },
+                    },
+                    transform: { animationDuration: 0 },
+                    history: {
+                        onChange(status) {
+                            if (mounted) setHistoryState(status);
+                        },
+                    },
+                }),
+            initialize: (preset) =>
+                preset.editor.init({ canvas, canvasContainer: containerRef.current }),
+            publish(preset) {
+                editorRef.current = preset.editor;
+                transformRef.current = preset.transform;
+                historyRef.current = preset.history;
+                setReady(true);
             },
-            transform: { animationDuration: 0 },
-            history: { onChange: setHistoryState },
+            clear() {
+                editorRef.current = null;
+                transformRef.current = null;
+                historyRef.current = null;
+            },
+            dispose: (preset) => preset.editor.disposeAsync(),
+            onInitializationError(error) {
+                console.error('Editor initialization failed.', error);
+                if (mounted) setMessage(`Initialization failed: ${errorMessage(error)}`);
+            },
+            onDisposalError(error) {
+                console.error('Editor disposal failed.', error);
+            },
         });
-        editorRef.current = preset.editor;
-        transformRef.current = preset.transform;
-        historyRef.current = preset.history;
-
-        void preset.editor
-            .init({ canvas, canvasContainer: containerRef.current })
-            .then(() => {
-                if (active) setReady(true);
-            })
-            .catch((error: unknown) => {
-                if (active) setMessage(`Initialization failed: ${errorMessage(error)}`);
-            });
 
         return () => {
-            active = false;
             setReady(false);
-            editorRef.current = null;
-            transformRef.current = null;
-            historyRef.current = null;
-            void preset.editor.disposeAsync().catch((error: unknown) => {
-                console.error('Editor disposal failed.', error);
-            });
+            mounted = false;
+            lease.release();
         };
     }, []);
 

@@ -6,6 +6,7 @@ import type { CropPluginApi } from '@bensitu/image-editor/plugins/crop';
 import type { HistoryPort, HistoryStatus } from '@bensitu/image-editor/plugins/history';
 import type { MaskPluginApi } from '@bensitu/image-editor/plugins/mask';
 import { createRedactionPreset } from '@bensitu/image-editor/presets/redaction';
+import { createSerializedEditorMountCoordinator } from '../../shared/serialized-editor-mount.mjs';
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const containerRef = ref<HTMLElement | null>(null);
@@ -29,6 +30,8 @@ let masks: MaskPluginApi | null = null;
 let crop: CropPluginApi | null = null;
 let history: HistoryPort | null = null;
 let mounted = false;
+const mountCoordinator = createSerializedEditorMountCoordinator();
+let mountLease: ReturnType<typeof mountCoordinator.mount> | null = null;
 
 function readFileAsDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -56,46 +59,56 @@ onMounted(() => {
     mounted = true;
     const canvas = canvasRef.value;
     if (!canvas) return;
-    const preset = createRedactionPreset(fabric, {
-        core: {
-            defaultLayoutMode: 'fit',
-            onError(error, detail) {
-                console.error(detail, error);
-                message.value = `Error: ${detail}`;
-            },
-        },
-        transform: { animationDuration: 0 },
-        history: { onChange: (status) => (historyState.value = status) },
-        masks: { label: false },
-        crop: { paddingPx: 0 },
-    });
-    editor = preset.editor;
-    masks = preset.masks;
-    crop = preset.crop;
-    history = preset.history;
-    void preset.editor
-        .init({ canvas, canvasContainer: containerRef.value })
-        .then(() => {
-            if (!mounted) return;
+    mountLease = mountCoordinator.mount({
+        create: () =>
+            createRedactionPreset(fabric, {
+                core: {
+                    defaultLayoutMode: 'fit',
+                    onError(error, detail) {
+                        console.error(detail, error);
+                        if (mounted) message.value = `Error: ${detail}`;
+                    },
+                },
+                transform: { animationDuration: 0 },
+                history: {
+                    onChange(status) {
+                        if (mounted) historyState.value = status;
+                    },
+                },
+                masks: { label: false },
+                crop: { paddingPx: 0 },
+            }),
+        initialize: (preset) => preset.editor.init({ canvas, canvasContainer: containerRef.value }),
+        publish(preset) {
+            editor = preset.editor;
+            masks = preset.masks;
+            crop = preset.crop;
+            history = preset.history;
             ready.value = true;
             refreshState();
-        })
-        .catch((error: unknown) => {
+        },
+        clear() {
+            editor = null;
+            masks = null;
+            crop = null;
+            history = null;
+        },
+        dispose: (preset) => preset.editor.disposeAsync(),
+        onInitializationError(error) {
+            console.error('Editor initialization failed.', error);
             if (mounted) message.value = `Initialization failed: ${errorMessage(error)}`;
-        });
+        },
+        onDisposalError(error) {
+            console.error('Editor disposal failed.', error);
+        },
+    });
 });
 
 onBeforeUnmount(() => {
-    mounted = false;
     ready.value = false;
-    const current = editor;
-    editor = null;
-    masks = null;
-    crop = null;
-    history = null;
-    void current?.disposeAsync().catch((error: unknown) => {
-        console.error('Editor disposal failed.', error);
-    });
+    mounted = false;
+    mountLease?.release();
+    mountLease = null;
 });
 
 async function run(action: () => Promise<unknown>) {
