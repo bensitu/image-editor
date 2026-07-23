@@ -14,6 +14,7 @@ import {
 } from '../errors.js';
 import { cloneStateValue } from '../state/clone-state-value.js';
 import type { CoreMemento } from '../state/state-types.js';
+import { BoundedReplayIdTracker } from './bounded-replay-id-tracker.js';
 import type {
     DocumentMutationContext,
     DocumentMutationCoordinatorOptions,
@@ -77,7 +78,7 @@ function immutableMetadata(
 }
 
 export class DocumentMutationCoordinator implements DocumentMutationPort, Disposable {
-    private readonly usedTransactionIds = new Set<string>();
+    private readonly usedTransactionIds = new BoundedReplayIdTracker();
     private readonly contextRecords = new WeakMap<DocumentMutationContext, ContextRecord>();
     private readonly activeControllers = new Set<AbortController>();
     private readonly activePromises = new Set<Promise<unknown>>();
@@ -118,28 +119,44 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
             return Promise.reject(error);
         }
 
+        if (!this.usedTransactionIds.start(normalized.id)) {
+            return Promise.reject(
+                new DocumentMutationRegistrationError(
+                    `Transaction id "${normalized.id}" has already been used.`,
+                    normalized.id,
+                ),
+            );
+        }
         const controller = new AbortController();
         const abort = (): void => controller.abort(normalized.signal?.reason);
-        if (normalized.signal?.aborted) abort();
-        else normalized.signal?.addEventListener('abort', abort, { once: true });
-        this.activeControllers.add(controller);
-
-        const operation = this.options.operations.run<TResult>(
-            normalized.operationId,
-            (operationContext) =>
-                parentRecord
-                    ? this.performNested(normalized, operationContext.token, parentRecord)
-                    : this.performTopLevel(normalized, operationContext.token),
-            {
-                signal: controller.signal,
-                ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
-            },
-        );
+        let operation: Promise<TResult>;
+        try {
+            if (normalized.signal?.aborted) abort();
+            else normalized.signal?.addEventListener('abort', abort, { once: true });
+            this.activeControllers.add(controller);
+            operation = this.options.operations.run<TResult>(
+                normalized.operationId,
+                (operationContext) =>
+                    parentRecord
+                        ? this.performNested(normalized, operationContext.token, parentRecord)
+                        : this.performTopLevel(normalized, operationContext.token),
+                {
+                    signal: controller.signal,
+                    ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
+                },
+            );
+        } catch (error) {
+            normalized.signal?.removeEventListener('abort', abort);
+            this.activeControllers.delete(controller);
+            this.usedTransactionIds.complete(normalized.id);
+            return Promise.reject(error);
+        }
         this.activePromises.add(operation);
         return operation.finally(() => {
             normalized.signal?.removeEventListener('abort', abort);
             this.activeControllers.delete(controller);
             this.activePromises.delete(operation);
+            this.usedTransactionIds.complete(normalized.id);
         });
     }
 
@@ -576,7 +593,6 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
                 request.id,
             );
         }
-        this.usedTransactionIds.add(request.id);
         return Object.freeze({
             ...request,
             conflictDomains: Object.freeze([...request.conflictDomains]),

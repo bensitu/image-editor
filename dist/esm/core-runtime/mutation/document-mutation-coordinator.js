@@ -1,5 +1,6 @@
 import { DocumentMutationError, DocumentMutationInvariantError, DocumentMutationRegistrationError, DocumentMutationUnrecoverableError, } from '../errors.js';
 import { cloneStateValue } from '../state/clone-state-value.js';
+import { BoundedReplayIdTracker } from './bounded-replay-id-tracker.js';
 const DEFAULT_ROLLBACK_TIMEOUT_MS = 30000;
 function isCancellation(error) {
     return (typeof error === 'object' &&
@@ -32,7 +33,7 @@ export class DocumentMutationCoordinator {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new Set()
+            value: new BoundedReplayIdTracker()
         });
         Object.defineProperty(this, "contextRecords", {
             enumerable: true,
@@ -73,7 +74,7 @@ export class DocumentMutationCoordinator {
         }
     }
     run(request) {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         let normalized;
         let parentRecord;
         try {
@@ -85,25 +86,38 @@ export class DocumentMutationCoordinator {
         catch (error) {
             return Promise.reject(error);
         }
+        if (!this.usedTransactionIds.start(normalized.id)) {
+            return Promise.reject(new DocumentMutationRegistrationError(`Transaction id "${normalized.id}" has already been used.`, normalized.id));
+        }
         const controller = new AbortController();
         const abort = () => { var _a; return controller.abort((_a = normalized.signal) === null || _a === void 0 ? void 0 : _a.reason); };
-        if ((_c = normalized.signal) === null || _c === void 0 ? void 0 : _c.aborted)
-            abort();
-        else
-            (_d = normalized.signal) === null || _d === void 0 ? void 0 : _d.addEventListener('abort', abort, { once: true });
-        this.activeControllers.add(controller);
-        const operation = this.options.operations.run(normalized.operationId, (operationContext) => parentRecord
-            ? this.performNested(normalized, operationContext.token, parentRecord)
-            : this.performTopLevel(normalized, operationContext.token), {
-            signal: controller.signal,
-            ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
-        });
+        let operation;
+        try {
+            if ((_c = normalized.signal) === null || _c === void 0 ? void 0 : _c.aborted)
+                abort();
+            else
+                (_d = normalized.signal) === null || _d === void 0 ? void 0 : _d.addEventListener('abort', abort, { once: true });
+            this.activeControllers.add(controller);
+            operation = this.options.operations.run(normalized.operationId, (operationContext) => parentRecord
+                ? this.performNested(normalized, operationContext.token, parentRecord)
+                : this.performTopLevel(normalized, operationContext.token), {
+                signal: controller.signal,
+                ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
+            });
+        }
+        catch (error) {
+            (_e = normalized.signal) === null || _e === void 0 ? void 0 : _e.removeEventListener('abort', abort);
+            this.activeControllers.delete(controller);
+            this.usedTransactionIds.complete(normalized.id);
+            return Promise.reject(error);
+        }
         this.activePromises.add(operation);
         return operation.finally(() => {
             var _a;
             (_a = normalized.signal) === null || _a === void 0 ? void 0 : _a.removeEventListener('abort', abort);
             this.activeControllers.delete(controller);
             this.activePromises.delete(operation);
+            this.usedTransactionIds.complete(normalized.id);
         });
     }
     async dispose() {
@@ -457,7 +471,6 @@ export class DocumentMutationCoordinator {
         if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
             throw new DocumentMutationRegistrationError(`Mutation metadata exceeds ${maxMetadataBytes} bytes.`, request.id);
         }
-        this.usedTransactionIds.add(request.id);
         return Object.freeze({
             ...request,
             conflictDomains: Object.freeze([...request.conflictDomains]),

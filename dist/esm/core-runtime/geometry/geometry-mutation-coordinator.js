@@ -1,6 +1,7 @@
 import { createDisposable } from '../../plugin-kernel/disposable.js';
 import { DocumentMutationError, DocumentMutationUnrecoverableError } from '../errors.js';
 import { cloneStateValue } from '../state/clone-state-value.js';
+import { BoundedReplayIdTracker } from '../mutation/bounded-replay-id-tracker.js';
 import { GeometryMutationError, GeometryRecoverableObjectError, GeometryRegistrationError, GeometryUnrecoverableError, } from '../errors.js';
 import { IDENTITY_AFFINE_MATRIX, computeAffineDelta, hasAffineReflection, isFiniteAffineMatrix, } from './affine-matrix.js';
 function assertIdentifier(value, label) {
@@ -59,7 +60,7 @@ export class GeometryMutationCoordinator {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new Set()
+            value: new BoundedReplayIdTracker()
         });
         Object.defineProperty(this, "activeControllers", {
             enumerable: true,
@@ -118,6 +119,9 @@ export class GeometryMutationCoordinator {
         catch (error) {
             return Promise.reject(error);
         }
+        if (!this.usedMutationIds.start(request.id)) {
+            return Promise.reject(new GeometryMutationError(request.id, 'mutation id has already been used.'));
+        }
         const controller = new AbortController();
         this.activeControllers.add(controller);
         const operation = this.performRun(request, metadata, controller.signal);
@@ -125,6 +129,7 @@ export class GeometryMutationCoordinator {
         return operation.finally(() => {
             this.activePromises.delete(operation);
             this.activeControllers.delete(controller);
+            this.usedMutationIds.complete(request.id);
         });
     }
     async dispose() {
@@ -355,7 +360,6 @@ export class GeometryMutationCoordinator {
         if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
             throw new GeometryMutationError(request.id, `metadata exceeds ${maxMetadataBytes} bytes.`);
         }
-        this.usedMutationIds.add(request.id);
         return clonedMetadata;
     }
     warn(warning) {

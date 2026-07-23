@@ -1,5 +1,8 @@
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const HEADER_PROBE_BYTES = 256 * 1024;
+const HEADER_PROBE_BASE64_CHARACTERS = Math.ceil(HEADER_PROBE_BYTES / 3) * 4;
+const MAX_DATA_URL_HEADER_LENGTH = 64;
+const ASCII_CHUNK_SIZE = 8 * 1024;
 function matchesAscii(bytes, offset, value) {
     if (offset < 0 || offset + value.length > bytes.length)
         return false;
@@ -97,8 +100,7 @@ function readWebpDimensions(bytes) {
     }
     return null;
 }
-function decodePrefix(base64) {
-    const encoded = base64.slice(0, Math.ceil(HEADER_PROBE_BYTES / 3) * 4).replace(/\s+/g, '');
+function decodePrefix(encoded) {
     if (!encoded)
         return new Uint8Array();
     const remainder = encoded.length % 4;
@@ -110,22 +112,88 @@ function decodePrefix(base64) {
         return buffer.from(padded, 'base64');
     if (typeof globalThis.atob !== 'function')
         return null;
-    const binary = globalThis.atob(padded);
-    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    try {
+        const binary = globalThis.atob(padded);
+        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    }
+    catch {
+        return null;
+    }
+}
+function isBase64Character(code) {
+    return ((code >= 0x41 && code <= 0x5a) ||
+        (code >= 0x61 && code <= 0x7a) ||
+        (code >= 0x30 && code <= 0x39) ||
+        code === 0x2b ||
+        code === 0x2f);
+}
+function prefixToString(prefix, length) {
+    let result = '';
+    for (let offset = 0; offset < length; offset += ASCII_CHUNK_SIZE) {
+        result += String.fromCharCode(...prefix.subarray(offset, Math.min(length, offset + ASCII_CHUNK_SIZE)));
+    }
+    return result;
+}
+function scanBase64Payload(value, payloadOffset) {
+    const prefix = new Uint8Array(HEADER_PROBE_BASE64_CHARACTERS);
+    let prefixLength = 0;
+    let encodedLength = 0;
+    let padding = 0;
+    let sawPadding = false;
+    for (let index = payloadOffset; index < value.length; index += 1) {
+        const code = value.charCodeAt(index);
+        if (isBase64Character(code)) {
+            if (sawPadding)
+                return null;
+        }
+        else if (code === 0x3d) {
+            sawPadding = true;
+            padding += 1;
+            if (padding > 2)
+                return null;
+        }
+        else if (/\s/u.test(value[index])) {
+            continue;
+        }
+        else {
+            return null;
+        }
+        encodedLength += 1;
+        if (prefixLength < prefix.length) {
+            prefix[prefixLength] = code;
+            prefixLength += 1;
+        }
+    }
+    const remainder = encodedLength % 4;
+    if (remainder === 1 || (padding > 0 && remainder !== 0))
+        return null;
+    return Object.freeze({
+        encodedBytes: Math.max(0, Math.floor((encodedLength * 3) / 4) - padding),
+        prefix: prefixToString(prefix, prefixLength),
+    });
 }
 export function inspectEncodedImageDataUrl(value) {
     var _a, _b;
-    const match = /^data:(image\/(?:png|jpeg|webp));base64,([\s\S]*)$/i.exec(value);
-    if (!match)
+    const commaIndex = value.indexOf(',');
+    if (commaIndex < 0 || commaIndex > MAX_DATA_URL_HEADER_LENGTH)
         return null;
-    const mimeType = match[1].toLowerCase();
-    const base64 = match[2].replace(/\s+/g, '');
-    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-    const encodedBytes = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-    const prefix = decodePrefix(base64);
-    const dimensions = prefix
-        ? ((_b = (_a = readPngDimensions(prefix)) !== null && _a !== void 0 ? _a : readJpegDimensions(prefix)) !== null && _b !== void 0 ? _b : readWebpDimensions(prefix))
+    const header = value.slice(0, commaIndex).toLowerCase();
+    let mimeType;
+    if (header === 'data:image/png;base64')
+        mimeType = 'image/png';
+    else if (header === 'data:image/jpeg;base64')
+        mimeType = 'image/jpeg';
+    else if (header === 'data:image/webp;base64')
+        mimeType = 'image/webp';
+    else
+        return null;
+    const payload = scanBase64Payload(value, commaIndex + 1);
+    if (!payload)
+        return null;
+    const decodedPrefix = decodePrefix(payload.prefix);
+    const dimensions = decodedPrefix
+        ? ((_b = (_a = readPngDimensions(decodedPrefix)) !== null && _a !== void 0 ? _a : readJpegDimensions(decodedPrefix)) !== null && _b !== void 0 ? _b : readWebpDimensions(decodedPrefix))
         : null;
-    return Object.freeze({ mimeType, encodedBytes, dimensions });
+    return Object.freeze({ mimeType, encodedBytes: payload.encodedBytes, dimensions });
 }
 //# sourceMappingURL=image-data-url.js.map

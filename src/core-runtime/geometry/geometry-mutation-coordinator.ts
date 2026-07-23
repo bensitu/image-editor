@@ -13,6 +13,7 @@ import type {
     DocumentMutationRollbackContext,
 } from '../mutation/index.js';
 import { cloneStateValue } from '../state/clone-state-value.js';
+import { BoundedReplayIdTracker } from '../mutation/bounded-replay-id-tracker.js';
 import {
     GeometryMutationError,
     GeometryRecoverableObjectError,
@@ -114,7 +115,7 @@ function createDescriptor(
 
 export class GeometryMutationCoordinator implements GeometryMutationPort, Disposable {
     private readonly participants = new Map<string, ParticipantRecord>();
-    private readonly usedMutationIds = new Set<string>();
+    private readonly usedMutationIds = new BoundedReplayIdTracker();
     private readonly activeControllers = new Set<AbortController>();
     private readonly activePromises = new Set<Promise<GeometryMutationDescriptor>>();
     private registrationCounter = 0;
@@ -163,6 +164,11 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
         } catch (error) {
             return Promise.reject(error);
         }
+        if (!this.usedMutationIds.start(request.id)) {
+            return Promise.reject(
+                new GeometryMutationError(request.id, 'mutation id has already been used.'),
+            );
+        }
         const controller = new AbortController();
         this.activeControllers.add(controller);
         const operation = this.performRun(request, metadata, controller.signal);
@@ -170,6 +176,7 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
         return operation.finally(() => {
             this.activePromises.delete(operation);
             this.activeControllers.delete(controller);
+            this.usedMutationIds.complete(request.id);
         });
     }
 
@@ -471,7 +478,6 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
                 `metadata exceeds ${maxMetadataBytes} bytes.`,
             );
         }
-        this.usedMutationIds.add(request.id);
         return clonedMetadata;
     }
 

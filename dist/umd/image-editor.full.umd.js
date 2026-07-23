@@ -4494,6 +4494,63 @@
         seen.delete(value);
     }
 
+    const DEFAULT_RECENT_REPLAY_ID_LIMIT = 10000;
+    class BoundedReplayIdTracker {
+        constructor(recentLimit = DEFAULT_RECENT_REPLAY_ID_LIMIT) {
+            Object.defineProperty(this, "recentLimit", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: recentLimit
+            });
+            Object.defineProperty(this, "activeIds", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: new Set()
+            });
+            Object.defineProperty(this, "recentCompletedIds", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: new Set()
+            });
+            if (!Number.isSafeInteger(recentLimit) || recentLimit <= 0) {
+                throw new RangeError('recentLimit must be a positive safe integer.');
+            }
+        }
+        get activeSize() {
+            return this.activeIds.size;
+        }
+        get recentSize() {
+            return this.recentCompletedIds.size;
+        }
+        has(id) {
+            return this.activeIds.has(id) || this.recentCompletedIds.has(id);
+        }
+        start(id) {
+            if (this.has(id))
+                return false;
+            this.activeIds.add(id);
+            return true;
+        }
+        complete(id) {
+            if (!this.activeIds.delete(id))
+                return;
+            this.recentCompletedIds.add(id);
+            while (this.recentCompletedIds.size > this.recentLimit) {
+                const oldest = this.recentCompletedIds.values().next().value;
+                if (oldest === undefined)
+                    break;
+                this.recentCompletedIds.delete(oldest);
+            }
+        }
+        clear() {
+            this.activeIds.clear();
+            this.recentCompletedIds.clear();
+        }
+    }
+
     function assertIdentifier$2(value, label) {
         if (value.trim().length === 0 || value.trim() !== value) {
             throw new GeometryMutationError(value || 'unknown', `${label} must be non-empty and trimmed.`);
@@ -4550,7 +4607,7 @@
                 enumerable: true,
                 configurable: true,
                 writable: true,
-                value: new Set()
+                value: new BoundedReplayIdTracker()
             });
             Object.defineProperty(this, "activeControllers", {
                 enumerable: true,
@@ -4609,6 +4666,9 @@
             catch (error) {
                 return Promise.reject(error);
             }
+            if (!this.usedMutationIds.start(request.id)) {
+                return Promise.reject(new GeometryMutationError(request.id, 'mutation id has already been used.'));
+            }
             const controller = new AbortController();
             this.activeControllers.add(controller);
             const operation = this.performRun(request, metadata, controller.signal);
@@ -4616,6 +4676,7 @@
             return operation.finally(() => {
                 this.activePromises.delete(operation);
                 this.activeControllers.delete(controller);
+                this.usedMutationIds.complete(request.id);
             });
         }
         async dispose() {
@@ -4846,7 +4907,6 @@
             if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
                 throw new GeometryMutationError(request.id, `metadata exceeds ${maxMetadataBytes} bytes.`);
             }
-            this.usedMutationIds.add(request.id);
             return clonedMetadata;
         }
         warn(warning) {
@@ -5190,7 +5250,7 @@
                 enumerable: true,
                 configurable: true,
                 writable: true,
-                value: new Set()
+                value: new BoundedReplayIdTracker()
             });
             Object.defineProperty(this, "contextRecords", {
                 enumerable: true,
@@ -5231,7 +5291,7 @@
             }
         }
         run(request) {
-            var _a, _b, _c, _d;
+            var _a, _b, _c, _d, _e;
             let normalized;
             let parentRecord;
             try {
@@ -5243,25 +5303,38 @@
             catch (error) {
                 return Promise.reject(error);
             }
+            if (!this.usedTransactionIds.start(normalized.id)) {
+                return Promise.reject(new DocumentMutationRegistrationError(`Transaction id "${normalized.id}" has already been used.`, normalized.id));
+            }
             const controller = new AbortController();
             const abort = () => { var _a; return controller.abort((_a = normalized.signal) === null || _a === void 0 ? void 0 : _a.reason); };
-            if ((_c = normalized.signal) === null || _c === void 0 ? void 0 : _c.aborted)
-                abort();
-            else
-                (_d = normalized.signal) === null || _d === void 0 ? void 0 : _d.addEventListener('abort', abort, { once: true });
-            this.activeControllers.add(controller);
-            const operation = this.options.operations.run(normalized.operationId, (operationContext) => parentRecord
-                ? this.performNested(normalized, operationContext.token, parentRecord)
-                : this.performTopLevel(normalized, operationContext.token), {
-                signal: controller.signal,
-                ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
-            });
+            let operation;
+            try {
+                if ((_c = normalized.signal) === null || _c === void 0 ? void 0 : _c.aborted)
+                    abort();
+                else
+                    (_d = normalized.signal) === null || _d === void 0 ? void 0 : _d.addEventListener('abort', abort, { once: true });
+                this.activeControllers.add(controller);
+                operation = this.options.operations.run(normalized.operationId, (operationContext) => parentRecord
+                    ? this.performNested(normalized, operationContext.token, parentRecord)
+                    : this.performTopLevel(normalized, operationContext.token), {
+                    signal: controller.signal,
+                    ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
+                });
+            }
+            catch (error) {
+                (_e = normalized.signal) === null || _e === void 0 ? void 0 : _e.removeEventListener('abort', abort);
+                this.activeControllers.delete(controller);
+                this.usedTransactionIds.complete(normalized.id);
+                return Promise.reject(error);
+            }
             this.activePromises.add(operation);
             return operation.finally(() => {
                 var _a;
                 (_a = normalized.signal) === null || _a === void 0 ? void 0 : _a.removeEventListener('abort', abort);
                 this.activeControllers.delete(controller);
                 this.activePromises.delete(operation);
+                this.usedTransactionIds.complete(normalized.id);
             });
         }
         async dispose() {
@@ -5614,7 +5687,6 @@
             if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) {
                 throw new DocumentMutationRegistrationError(`Mutation metadata exceeds ${maxMetadataBytes} bytes.`, request.id);
             }
-            this.usedTransactionIds.add(request.id);
             return Object.freeze({
                 ...request,
                 conflictDomains: Object.freeze([...request.conflictDomains]),
@@ -5997,6 +6069,9 @@
 
     const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
     const HEADER_PROBE_BYTES = 256 * 1024;
+    const HEADER_PROBE_BASE64_CHARACTERS = Math.ceil(HEADER_PROBE_BYTES / 3) * 4;
+    const MAX_DATA_URL_HEADER_LENGTH = 64;
+    const ASCII_CHUNK_SIZE = 8 * 1024;
     function matchesAscii(bytes, offset, value) {
         if (offset < 0 || offset + value.length > bytes.length)
             return false;
@@ -6094,8 +6169,7 @@
         }
         return null;
     }
-    function decodePrefix(base64) {
-        const encoded = base64.slice(0, Math.ceil(HEADER_PROBE_BYTES / 3) * 4).replace(/\s+/g, '');
+    function decodePrefix(encoded) {
         if (!encoded)
             return new Uint8Array();
         const remainder = encoded.length % 4;
@@ -6107,23 +6181,89 @@
             return buffer.from(padded, 'base64');
         if (typeof globalThis.atob !== 'function')
             return null;
-        const binary = globalThis.atob(padded);
-        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        try {
+            const binary = globalThis.atob(padded);
+            return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        }
+        catch {
+            return null;
+        }
+    }
+    function isBase64Character(code) {
+        return ((code >= 0x41 && code <= 0x5a) ||
+            (code >= 0x61 && code <= 0x7a) ||
+            (code >= 0x30 && code <= 0x39) ||
+            code === 0x2b ||
+            code === 0x2f);
+    }
+    function prefixToString(prefix, length) {
+        let result = '';
+        for (let offset = 0; offset < length; offset += ASCII_CHUNK_SIZE) {
+            result += String.fromCharCode(...prefix.subarray(offset, Math.min(length, offset + ASCII_CHUNK_SIZE)));
+        }
+        return result;
+    }
+    function scanBase64Payload(value, payloadOffset) {
+        const prefix = new Uint8Array(HEADER_PROBE_BASE64_CHARACTERS);
+        let prefixLength = 0;
+        let encodedLength = 0;
+        let padding = 0;
+        let sawPadding = false;
+        for (let index = payloadOffset; index < value.length; index += 1) {
+            const code = value.charCodeAt(index);
+            if (isBase64Character(code)) {
+                if (sawPadding)
+                    return null;
+            }
+            else if (code === 0x3d) {
+                sawPadding = true;
+                padding += 1;
+                if (padding > 2)
+                    return null;
+            }
+            else if (/\s/u.test(value[index])) {
+                continue;
+            }
+            else {
+                return null;
+            }
+            encodedLength += 1;
+            if (prefixLength < prefix.length) {
+                prefix[prefixLength] = code;
+                prefixLength += 1;
+            }
+        }
+        const remainder = encodedLength % 4;
+        if (remainder === 1 || (padding > 0 && remainder !== 0))
+            return null;
+        return Object.freeze({
+            encodedBytes: Math.max(0, Math.floor((encodedLength * 3) / 4) - padding),
+            prefix: prefixToString(prefix, prefixLength),
+        });
     }
     function inspectEncodedImageDataUrl(value) {
         var _a, _b;
-        const match = /^data:(image\/(?:png|jpeg|webp));base64,([\s\S]*)$/i.exec(value);
-        if (!match)
+        const commaIndex = value.indexOf(',');
+        if (commaIndex < 0 || commaIndex > MAX_DATA_URL_HEADER_LENGTH)
             return null;
-        const mimeType = match[1].toLowerCase();
-        const base64 = match[2].replace(/\s+/g, '');
-        const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-        const encodedBytes = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-        const prefix = decodePrefix(base64);
-        const dimensions = prefix
-            ? ((_b = (_a = readPngDimensions(prefix)) !== null && _a !== void 0 ? _a : readJpegDimensions(prefix)) !== null && _b !== void 0 ? _b : readWebpDimensions(prefix))
+        const header = value.slice(0, commaIndex).toLowerCase();
+        let mimeType;
+        if (header === 'data:image/png;base64')
+            mimeType = 'image/png';
+        else if (header === 'data:image/jpeg;base64')
+            mimeType = 'image/jpeg';
+        else if (header === 'data:image/webp;base64')
+            mimeType = 'image/webp';
+        else
+            return null;
+        const payload = scanBase64Payload(value, commaIndex + 1);
+        if (!payload)
+            return null;
+        const decodedPrefix = decodePrefix(payload.prefix);
+        const dimensions = decodedPrefix
+            ? ((_b = (_a = readPngDimensions(decodedPrefix)) !== null && _a !== void 0 ? _a : readJpegDimensions(decodedPrefix)) !== null && _b !== void 0 ? _b : readWebpDimensions(decodedPrefix))
             : null;
-        return Object.freeze({ mimeType, encodedBytes, dimensions });
+        return Object.freeze({ mimeType, encodedBytes: payload.encodedBytes, dimensions });
     }
 
     const EXTERNAL_RESOURCE_KEYS = new Set(['href', 'source', 'src', 'url']);
