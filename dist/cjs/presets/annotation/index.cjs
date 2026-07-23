@@ -22,7 +22,7 @@ require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-CXW0nIYm.cjs');
+require('../../chunks/plugin-manager-DhGvZdpX.cjs');
 
 function createAnnotationPreset(fabric, options = {}) {
     const editor = new core_index.ImageEditorCore(fabric, options.core);

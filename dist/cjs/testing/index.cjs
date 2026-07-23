@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginManager = require('../chunks/plugin-manager-CXW0nIYm.cjs');
+var pluginManager = require('../chunks/plugin-manager-DhGvZdpX.cjs');
 var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
 var pluginManifest = require('../chunks/plugin-manifest-DNqSyjh2.cjs');
 require('../chunks/disposable-pTo80E0l.cjs');

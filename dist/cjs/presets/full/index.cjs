@@ -28,7 +28,7 @@ require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
 require('../../chunks/error-Cg6SL3PT.cjs');
 require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-CXW0nIYm.cjs');
+require('../../chunks/plugin-manager-DhGvZdpX.cjs');
 
 function createFullPreset(fabric, options = {}) {
     const editor = new core_index.ImageEditorCore(fabric, options.core);

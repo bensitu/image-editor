@@ -121,6 +121,12 @@ Lifecycle hooks have distinct responsibilities:
 - `onDispose` releases resources not already represented by the disposable
   scope.
 
+Committed event listeners are post-commit observers, not transaction
+participants. The Kernel preserves their registration order and gives each
+listener a 5-second internal execution budget. A timeout or rejection produces
+a structured warning and later listeners continue; a listener must not use this
+channel for required transactional work.
+
 Expose mutable configuration through `ConfigurablePluginApi<T>` conventions:
 `configure(patch)` validates and atomically applies a patch, and
 `getConfiguration()` returns immutable data. Configuration changes that alter

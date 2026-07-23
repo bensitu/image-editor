@@ -4218,7 +4218,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "e5b5aea8e736c85bb2782e83ebe7eae693dda2ac0f74a0cfea6050ce6c068db9",
+        "graphSha256": "54c7f99cf324f002734f06b2dcc2766271fc31dcbe46952fca2b37e7931d44e2",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4350,7 +4350,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/committed-event-bus.d.ts",
-                "sha256": "388c1ad12ca4e7c98484a3df72ea45e253369d831163c8b6d4f29ea6ebd47ed8"
+                "sha256": "0ee2d8a6719770cdaa4b4af78805234ec097b978b1f1a812b6ead11c873144cd"
             },
             {
                 "file": "dist/types/plugin-kernel/compose-plugins.d.ts",

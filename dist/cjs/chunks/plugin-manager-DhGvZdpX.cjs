@@ -243,8 +243,10 @@ class CapabilityRegistry {
     }
 }
 
+const DEFAULT_COMMITTED_EVENT_LISTENER_TIMEOUT_MS = 5000;
 class CommittedEventBus {
     constructor(options = {}) {
+        var _a;
         Object.defineProperty(this, "options", {
             enumerable: true,
             configurable: true,
@@ -263,12 +265,23 @@ class CommittedEventBus {
             writable: true,
             value: new Map()
         });
+        Object.defineProperty(this, "listenerTimeoutMs", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
+        const timeout = (_a = options.listenerTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_COMMITTED_EVENT_LISTENER_TIMEOUT_MS;
+        if (!Number.isSafeInteger(timeout) || timeout <= 0) {
+            throw new pluginIdentifier.InvalidPluginDefinitionError('Committed event listener timeout must be a positive safe integer.');
+        }
+        this.listenerTimeoutMs = timeout;
     }
     on(eventName, listener) {
         this.assertActive('register a committed event listener');
@@ -308,20 +321,58 @@ class CommittedEventBus {
         }
     }
     async dispatch(eventName, payload) {
-        var _a, _b;
+        var _a;
         const snapshot = [...((_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : [])];
         for (let index = 0; index < snapshot.length; index += 1) {
-            try {
-                await ((_b = snapshot[index]) === null || _b === void 0 ? void 0 : _b.call(snapshot, payload));
-            }
-            catch (error) {
+            const listener = snapshot[index];
+            if (listener)
+                await this.invokeListener(eventName, index, listener, payload);
+        }
+    }
+    async invokeListener(eventName, listenerIndex, listener, payload) {
+        const settlement = Promise.resolve()
+            .then(() => listener(payload))
+            .then(() => Object.freeze({ status: 'fulfilled' }), (error) => Object.freeze({ status: 'rejected', error }));
+        let timeoutHandle;
+        const timeout = new Promise((resolve) => {
+            timeoutHandle = setTimeout(resolve, this.listenerTimeoutMs, null);
+        });
+        const outcome = await Promise.race([settlement, timeout]);
+        if (timeoutHandle !== undefined)
+            clearTimeout(timeoutHandle);
+        if (outcome === null) {
+            disposable.reportWarningSafely(this.options.warningSink, this.options.errorSink, {
+                code: 'COMMITTED_EVENT_LISTENER_TIMEOUT',
+                message: `Committed event listener ${listenerIndex} for "${eventName}" exceeded ${this.listenerTimeoutMs} ms; remaining listeners continued.`,
+                details: {
+                    eventName,
+                    listenerIndex,
+                    timeoutMs: this.listenerTimeoutMs,
+                },
+            });
+            void settlement.then((lateOutcome) => {
+                if (lateOutcome.status !== 'rejected')
+                    return;
                 disposable.reportWarningSafely(this.options.warningSink, this.options.errorSink, {
-                    code: 'COMMITTED_EVENT_LISTENER_FAILED',
-                    message: `Committed event listener ${index} for "${eventName}" failed; remaining listeners continued.`,
-                    cause: error,
-                    details: { eventName, listenerIndex: index },
+                    code: 'COMMITTED_EVENT_LISTENER_LATE_FAILURE',
+                    message: `Timed-out committed event listener ${listenerIndex} for "${eventName}" later rejected.`,
+                    cause: lateOutcome.error,
+                    details: {
+                        eventName,
+                        listenerIndex,
+                        timeoutMs: this.listenerTimeoutMs,
+                    },
                 });
-            }
+            });
+            return;
+        }
+        if (outcome.status === 'rejected') {
+            disposable.reportWarningSafely(this.options.warningSink, this.options.errorSink, {
+                code: 'COMMITTED_EVENT_LISTENER_FAILED',
+                message: `Committed event listener ${listenerIndex} for "${eventName}" failed; remaining listeners continued.`,
+                cause: outcome.error,
+                details: { eventName, listenerIndex },
+            });
         }
     }
     listenerCount(eventName) {
@@ -340,6 +391,7 @@ class CommittedEventBus {
         if (this.disposed)
             return;
         this.listeners.clear();
+        this.emissionTails.clear();
         this.disposed = true;
     }
     assertActive(operation) {
@@ -2432,4 +2484,4 @@ class PluginManager {
 
 exports.PluginManager = PluginManager;
 exports.aliasPluginDefinitionIdentity = aliasPluginDefinitionIdentity;
-//# sourceMappingURL=plugin-manager-CXW0nIYm.cjs.map
+//# sourceMappingURL=plugin-manager-DhGvZdpX.cjs.map

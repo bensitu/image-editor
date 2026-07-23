@@ -58,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retaining asynchronous lifecycle primitives inside the Plugin Kernel.
 - Make `disposeAsync()` the authoritative observable cleanup path and deprecate
   the best-effort `dispose()` starter, which can return before cleanup settles.
+- Bound each committed-event listener to a documented five-second execution
+  window so stalled observers cannot starve later listeners or emissions.
 - Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
   produced and DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.

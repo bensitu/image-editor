@@ -7,7 +7,7 @@ var errors = require('./chunks/errors-DeAfrgDC.cjs');
 var core_index = require('./core/index.cjs');
 var pluginManifest = require('./chunks/plugin-manifest-DNqSyjh2.cjs');
 var pluginIdentifier = require('./chunks/plugin-identifier-DPwx4Gkd.cjs');
-require('./chunks/plugin-manager-CXW0nIYm.cjs');
+require('./chunks/plugin-manager-DhGvZdpX.cjs');
 require('./chunks/disposable-pTo80E0l.cjs');
 require('./chunks/plugin-plan-BBOVkUMI.cjs');
 require('./chunks/image-budget-DZeZeVWW.cjs');

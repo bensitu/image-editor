@@ -301,3 +301,77 @@ test('CommittedEventBus serializes recursive same-name emissions', async () => {
     assert.equal(maximumActiveListeners, 1);
     assert.deepEqual(calls, ['start:outer', 'end:outer', 'start:inner', 'end:inner']);
 });
+
+test('CommittedEventBus bounds stalled listeners and releases same-name emissions', async () => {
+    const calls = [];
+    const warnings = [];
+    const bus = new CommittedEventBus({
+        listenerTimeoutMs: 10,
+        warningSink: (warning) => warnings.push(warning),
+    });
+    bus.on('test:bounded', () => new Promise(() => undefined));
+    bus.on('test:bounded', (payload) => calls.push(payload));
+
+    await bus.emitCommitted('test:bounded', 'first');
+    await bus.emitCommitted('test:bounded', 'second');
+
+    assert.deepEqual(calls, ['first', 'second']);
+    const timeoutWarnings = warnings.filter(
+        (warning) => warning.code === 'COMMITTED_EVENT_LISTENER_TIMEOUT',
+    );
+    assert.equal(timeoutWarnings.length, 2);
+    assert.deepEqual(timeoutWarnings[0].details, {
+        eventName: 'test:bounded',
+        listenerIndex: 0,
+        timeoutMs: 10,
+    });
+    bus.dispose();
+});
+
+test('CommittedEventBus observes a timed-out listener rejection and isolates event names', async () => {
+    const calls = [];
+    const warnings = [];
+    let rejectLate;
+    const lateFailure = new Error('synthetic late listener rejection');
+    const lateResult = new Promise((resolve, reject) => {
+        void resolve;
+        rejectLate = reject;
+    });
+    const bus = new CommittedEventBus({
+        listenerTimeoutMs: 20,
+        warningSink: (warning) => warnings.push(warning),
+    });
+    bus.on('test:slow-event', () => lateResult);
+    bus.on('test:fast-event', (payload) => calls.push(payload));
+
+    const slowEmission = bus.emitCommitted('test:slow-event', 'slow');
+    await bus.emitCommitted('test:fast-event', 'fast');
+    assert.deepEqual(calls, ['fast']);
+    await slowEmission;
+    rejectLate(lateFailure);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(
+        warnings.filter((warning) => warning.code === 'COMMITTED_EVENT_LISTENER_TIMEOUT').length,
+        1,
+    );
+    const lateWarning = warnings.find(
+        (warning) => warning.code === 'COMMITTED_EVENT_LISTENER_LATE_FAILURE',
+    );
+    assert.equal(lateWarning.cause, lateFailure);
+    assert.deepEqual(lateWarning.details, {
+        eventName: 'test:slow-event',
+        listenerIndex: 0,
+        timeoutMs: 20,
+    });
+    bus.dispose();
+});
+
+test('CommittedEventBus validates explicit listener timeout policy', () => {
+    for (const timeout of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+        assert.throws(
+            () => new CommittedEventBus({ listenerTimeoutMs: timeout }),
+            /positive safe integer/,
+        );
+    }
+});
