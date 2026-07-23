@@ -4,7 +4,7 @@
  * @module
  */
 import { type DefaultMaskConfig, type LabelConfig, type MaskConfig, type MaskObject, type OverlayListOrder } from '../../core/index.js';
-import type { CanvasReadPort, CanvasResizePort, CoreDiagnosticsPort, CorePresentationPort, Disposable, FabricRuntimePort, RenderRequestPort, SnapshotRegistrationPort } from '../../sdk/index.js';
+import type { CanvasReadPort, CanvasResizePort, CoreDiagnosticsPort, CorePresentationPort, Disposable, DisposableScope, FabricRuntimePort, RenderRequestPort, SnapshotRegistrationPort } from '../../sdk/index.js';
 import { type OverlayFoundationApi } from '../../foundations/overlay/index.js';
 export interface MaskPluginOptions {
     readonly defaultWidth?: number;
@@ -46,6 +46,7 @@ export declare function resolveMaskPluginOptions(options?: MaskPluginOptions): R
 export declare class MaskPluginController implements MaskPluginApi, Disposable {
     private readonly host;
     private readonly overlay;
+    private readonly disposables;
     readonly options: ResolvedMaskPluginOptions;
     private counter;
     private lastMask;
@@ -54,9 +55,8 @@ export declare class MaskPluginController implements MaskPluginApi, Disposable {
     private selectedMaskBeforeGeometry;
     private mutationSequence;
     private lastInteractionNotification;
-    private readonly registrations;
     private readonly factoryOptions;
-    constructor(host: MaskCoreAccess, state: SnapshotRegistrationPort, overlay: OverlayFoundationApi, options: ResolvedMaskPluginOptions);
+    constructor(host: MaskCoreAccess, state: SnapshotRegistrationPort, overlay: OverlayFoundationApi, disposables: DisposableScope, options: ResolvedMaskPluginOptions);
     attach(): void;
     create(config?: MaskConfig): Promise<MaskObject>;
     getAll(): readonly MaskObject[];

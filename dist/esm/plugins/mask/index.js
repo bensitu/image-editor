@@ -56,7 +56,7 @@ export function maskPlugin(options = {}) {
                     reentrancy: 'reject',
                 });
             }
-            controller = new MaskPluginController(host, state, Object.freeze({ ...overlay, ...overlayRegistration }), resolved);
+            controller = new MaskPluginController(host, state, Object.freeze({ ...overlay, ...overlayRegistration }), context.disposables, resolved);
             return controller;
         },
         onInit() {

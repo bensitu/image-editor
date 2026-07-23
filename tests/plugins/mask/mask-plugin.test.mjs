@@ -8,7 +8,12 @@ import {
     overlayFoundationRef,
 } from '../../../src/foundations/overlay/index.js';
 import { maskPlugin, maskPluginRef } from '../../../src/plugins/mask/index.js';
+import {
+    MaskPluginController,
+    resolveMaskPluginOptions,
+} from '../../../src/plugins/mask/mask-controller.js';
 import { transformPlugin } from '../../../src/plugins/transform/index.js';
+import { disposeInReverse } from '../../../src/plugin-kernel/disposable.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
 async function createEditor(
@@ -39,6 +44,83 @@ async function dispose(editor) {
     await editor.disposeAsync();
     document.body.innerHTML = '';
 }
+
+test('Mask registrations use Plugin scope disposal with complete async error aggregation', async () => {
+    const disposalOrder = [];
+    const owned = [];
+    const synchronousFailure = new Error('synthetic synchronous cleanup failure');
+    const promiseFailure = new Error('synthetic Promise cleanup failure');
+    const thenableFailure = new Error('synthetic thenable cleanup failure');
+    const registration = (name, failure = null) => ({
+        dispose() {
+            disposalOrder.push(name);
+            if (failure === 'sync') throw synchronousFailure;
+            if (failure === 'promise') return Promise.reject(promiseFailure);
+            if (failure === 'thenable') {
+                return {
+                    then(resolve, reject) {
+                        void resolve;
+                        reject(thenableFailure);
+                    },
+                };
+            }
+            return undefined;
+        },
+    });
+    const disposables = {
+        active: true,
+        add(disposable) {
+            owned.push(disposable);
+            return disposable;
+        },
+    };
+    const overlay = {
+        registerKind: () => registration('kind'),
+        registerGeometryPolicy: () => registration('geometry', 'sync'),
+        registerExportRenderer: () => registration('export'),
+        registerInteractionPolicy: () => registration('interaction'),
+        onSelectionChange: () => registration('selection', 'promise'),
+    };
+    const state = {
+        registerTransientObject: () => registration('transient', 'thenable'),
+        registerSlice: () => registration('slice'),
+    };
+    const host = {
+        fabric,
+        backgroundColor: '#ffffff',
+        layoutMode: 'fit',
+        getCanvas: () => null,
+        requireCanvas: () => {
+            throw new Error('Canvas is unavailable in the disposal fixture.');
+        },
+        requestRender: () => undefined,
+        resizeCanvas: () => undefined,
+        reportWarning: () => undefined,
+        reportError: () => undefined,
+    };
+    const controller = new MaskPluginController(
+        host,
+        state,
+        overlay,
+        disposables,
+        resolveMaskPluginOptions({ label: false }),
+    );
+
+    controller.dispose();
+    assert.deepEqual(disposalOrder, []);
+    const errors = await disposeInReverse(owned);
+
+    assert.deepEqual(disposalOrder, [
+        'selection',
+        'slice',
+        'transient',
+        'interaction',
+        'export',
+        'geometry',
+        'kind',
+    ]);
+    assert.deepEqual(errors, [promiseFailure, thenableFailure, synchronousFailure]);
+});
 
 test('Mask Plugin creates every built-in shape and custom Fabric generators with stable ids', async () => {
     const changes = [];

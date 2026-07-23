@@ -4236,7 +4236,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "d3a02b613802d95f19cc645af69117d5b0b9ac5d10e309e71e8513e12dccbebb",
+        "graphSha256": "2359aeb96dfaebc362e89b7624e0784ecd3394e006c6e33ba27eac7d48bc957e",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4520,7 +4520,7 @@
             },
             {
                 "file": "dist/types/plugins/mask/mask-controller.d.ts",
-                "sha256": "11522b9337c37a8cdddf23e4a8261f0e048e6dd8e68bb387848bc0263301b531"
+                "sha256": "ec2f4003daec07b83accbbd52203e8d77736d8cc3f6b89321e32f7ddc4099f56"
             },
             {
                 "file": "dist/types/plugins/mosaic/index.d.ts",

@@ -13249,7 +13249,7 @@
             typeof value.evented === 'boolean');
     }
     class MaskPluginController {
-        constructor(host, state, overlay, options) {
+        constructor(host, state, overlay, disposables, options) {
             Object.defineProperty(this, "host", {
                 enumerable: true,
                 configurable: true,
@@ -13261,6 +13261,12 @@
                 configurable: true,
                 writable: true,
                 value: overlay
+            });
+            Object.defineProperty(this, "disposables", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: disposables
             });
             Object.defineProperty(this, "options", {
                 enumerable: true,
@@ -13310,12 +13316,6 @@
                 writable: true,
                 value: null
             });
-            Object.defineProperty(this, "registrations", {
-                enumerable: true,
-                configurable: true,
-                writable: true,
-                value: []
-            });
             Object.defineProperty(this, "factoryOptions", {
                 enumerable: true,
                 configurable: true,
@@ -13335,7 +13335,7 @@
                 label: options.label === false ? DEFAULT_LABEL : options.label,
                 onWarning: (error, message) => host.reportWarning(error, message),
             });
-            this.registrations.push(overlay.registerKind({
+            this.disposables.add(overlay.registerKind({
                 id: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 classify: isMaskObject,
@@ -13452,7 +13452,7 @@
                     },
                 },
             }));
-            this.registrations.push(overlay.registerGeometryPolicy({
+            this.disposables.add(overlay.registerGeometryPolicy({
                 id: 'mask:geometry',
                 kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
@@ -13461,7 +13461,7 @@
                 prepare: () => this.captureSelectionBeforeGeometry(),
                 synchronize: () => this.synchronizeAfterGeometry(),
             }));
-            this.registrations.push(overlay.registerExportRenderer({
+            this.disposables.add(overlay.registerExportRenderer({
                 id: 'mask:export',
                 kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
@@ -13480,7 +13480,7 @@
                     targetCanvas.add(clone);
                 },
             }));
-            this.registrations.push(overlay.registerInteractionPolicy({
+            this.disposables.add(overlay.registerInteractionPolicy({
                 id: 'mask:interaction',
                 kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
@@ -13498,11 +13498,11 @@
                     }
                 },
             }));
-            this.registrations.push(state.registerTransientObject(MASK_PLUGIN_ID, (object) => {
+            this.disposables.add(state.registerTransientObject(MASK_PLUGIN_ID, (object) => {
                 const candidate = object;
                 return candidate.maskLabel === true;
             }));
-            this.registrations.push(state.registerSlice({
+            this.disposables.add(state.registerSlice({
                 id: MASK_PLUGIN_ID,
                 version: 1,
                 capturePolicy: 'always',
@@ -13526,7 +13526,7 @@
                     this.removeLabels();
                 },
             }));
-            this.registrations.push(overlay.onSelectionChange(() => this.synchronizeSelection()));
+            this.disposables.add(overlay.onSelectionChange(() => this.synchronizeSelection()));
             if (host.getCanvas())
                 this.attach();
         }
@@ -13629,23 +13629,8 @@
                 if (isMaskObject(object))
                     detachMaskHoverHandlers(object);
             }
-            const errors = [];
-            for (let index = this.registrations.length - 1; index >= 0; index -= 1) {
-                try {
-                    const result = this.registrations[index].dispose();
-                    if (result instanceof Promise)
-                        void result.catch((error) => errors.push(error));
-                }
-                catch (error) {
-                    errors.push(error);
-                }
-            }
-            this.registrations.length = 0;
             this.attached = false;
             this.disposed = true;
-            if (errors.length > 0) {
-                throw new CoreRuntimeError(`[ImageEditor] Mask disposal had ${errors.length} cleanup error(s).`);
-            }
         }
         createContext() {
             return {
@@ -13872,7 +13857,7 @@
                         reentrancy: 'reject',
                     });
                 }
-                controller = new MaskPluginController(host, state, Object.freeze({ ...overlay, ...overlayRegistration }), resolved);
+                controller = new MaskPluginController(host, state, Object.freeze({ ...overlay, ...overlayRegistration }), context.disposables, resolved);
                 return controller;
             },
             onInit() {

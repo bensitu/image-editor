@@ -21,6 +21,7 @@ import type {
     CoreDiagnosticsPort,
     CorePresentationPort,
     Disposable,
+    DisposableScope,
     FabricRuntimePort,
     RenderRequestPort,
     SnapshotRegistrationPort,
@@ -316,13 +317,13 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
     private selectedMaskBeforeGeometry: string | null = null;
     private mutationSequence = 0;
     private lastInteractionNotification: string | null = null;
-    private readonly registrations: Disposable[] = [];
     private readonly factoryOptions: CreateMaskContext['options'];
 
     constructor(
         private readonly host: MaskCoreAccess,
         state: SnapshotRegistrationPort,
         private readonly overlay: OverlayFoundationApi,
+        private readonly disposables: DisposableScope,
         readonly options: ResolvedMaskPluginOptions,
     ) {
         this.factoryOptions = Object.freeze({
@@ -339,7 +340,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             onWarning: (error: unknown, message: string) => host.reportWarning(error, message),
         } as CreateMaskContext['options']);
 
-        this.registrations.push(
+        this.disposables.add(
             overlay.registerKind({
                 id: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
@@ -480,7 +481,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 },
             }),
         );
-        this.registrations.push(
+        this.disposables.add(
             overlay.registerGeometryPolicy({
                 id: 'mask:geometry',
                 kind: 'mask:object',
@@ -492,7 +493,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 synchronize: () => this.synchronizeAfterGeometry(),
             }),
         );
-        this.registrations.push(
+        this.disposables.add(
             overlay.registerExportRenderer({
                 id: 'mask:export',
                 kind: 'mask:object',
@@ -513,7 +514,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 },
             }),
         );
-        this.registrations.push(
+        this.disposables.add(
             overlay.registerInteractionPolicy({
                 id: 'mask:interaction',
                 kind: 'mask:object',
@@ -532,13 +533,13 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 },
             }),
         );
-        this.registrations.push(
+        this.disposables.add(
             state.registerTransientObject(MASK_PLUGIN_ID, (object) => {
                 const candidate = object as FabricNS.FabricObject & { maskLabel?: boolean };
                 return candidate.maskLabel === true;
             }),
         );
-        this.registrations.push(
+        this.disposables.add(
             state.registerSlice({
                 id: MASK_PLUGIN_ID,
                 version: 1,
@@ -563,7 +564,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 },
             }),
         );
-        this.registrations.push(overlay.onSelectionChange(() => this.synchronizeSelection()));
+        this.disposables.add(overlay.onSelectionChange(() => this.synchronizeSelection()));
         if (host.getCanvas()) this.attach();
     }
 
@@ -669,24 +670,8 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         for (const object of canvas?.getObjects() ?? []) {
             if (isMaskObject(object)) detachMaskHoverHandlers(object);
         }
-        const errors: unknown[] = [];
-        for (let index = this.registrations.length - 1; index >= 0; index -= 1) {
-            try {
-                const result = this.registrations[index]!.dispose();
-                if (result instanceof Promise)
-                    void result.catch((error: unknown) => errors.push(error));
-            } catch (error) {
-                errors.push(error);
-            }
-        }
-        this.registrations.length = 0;
         this.attached = false;
         this.disposed = true;
-        if (errors.length > 0) {
-            throw new CoreRuntimeError(
-                `[ImageEditor] Mask disposal had ${errors.length} cleanup error(s).`,
-            );
-        }
     }
 
     private createContext(): CreateMaskContext {

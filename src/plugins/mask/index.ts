@@ -94,6 +94,7 @@ export function maskPlugin(
                 host,
                 state,
                 Object.freeze({ ...overlay, ...overlayRegistration }),
+                context.disposables,
                 resolved,
             );
             return controller;

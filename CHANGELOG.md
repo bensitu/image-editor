@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lease after rollback or disposal.
 - Keep public Plugin and Preset API object references stable when Core replays
   Plugin definitions during initialization recovery or emergency reset.
+- Delegate Mask registrations to the Plugin scope so asynchronous and thenable
+  cleanup failures are awaited, aggregated, and reported by Core disposal.
 - Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
   produced and DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.
