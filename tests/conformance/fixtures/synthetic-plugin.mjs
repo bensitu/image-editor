@@ -122,6 +122,7 @@ export function createSyntheticPlugin() {
             ],
             permissions: ['fabric:custom-class'],
         },
+        setupMode: 'sync',
         setup(context) {
             const clock = context.capabilities.require(clockCapability);
             const state = context.capabilities.require(stateRegistrationCapability);

@@ -2,13 +2,13 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var affineMatrix = require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginIdentifier = require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/disposable-pTo80E0l.cjs');
+require('../../chunks/disposable-y_ve7ZXe.cjs');
 
 class OverlayStateValidationError extends TypeError {
     constructor(issues) {
@@ -445,7 +445,8 @@ function validateImage(value, limits, issues) {
             addIssue(issues, 'image.dimensionInvalid', `$.image.${key}`, 'Image dimensions must be positive safe integers.');
         }
     }
-    if (value.mimeType !== undefined && !MIME_TYPES.has(String(value.mimeType))) {
+    if (value.mimeType !== undefined &&
+        (typeof value.mimeType !== 'string' || !MIME_TYPES.has(value.mimeType))) {
         addIssue(issues, 'image.mimeTypeInvalid', '$.image.mimeType', 'MIME type is invalid.');
     }
     for (const key of ['sourceId', 'checksum']) {
@@ -771,7 +772,7 @@ class OverlayStateController {
         const missingKindPolicy = (_c = options.missingKindPolicy) !== null && _c !== void 0 ? _c : 'error';
         const validated = this.validate(payload, {
             missingKindPolicy,
-            limits: options.limits,
+            ...(options.limits ? { limits: options.limits } : {}),
         });
         if (!validated.valid || !validated.document) {
             throw new OverlayStateValidationError(validated.errors);

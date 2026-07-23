@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-DWQ7SALj.cjs');
 
 const SOURCE_SCHEMA = 'image-editor.canvas@2';
 const TARGET_SCHEMA = 'image-editor.state@3';
@@ -641,7 +641,7 @@ function migrateV2Snapshot(input, options = {}) {
     const source = requireSource(input, options);
     const context = {
         policy: (_a = options.unsupportedFieldPolicy) !== null && _a !== void 0 ? _a : 'error',
-        onWarning: options.onWarning,
+        ...(options.onWarning ? { onWarning: options.onWarning } : {}),
     };
     reportUnknownKeys(source, TOP_LEVEL_KEYS, '$', context);
     const state = source._editorState;
@@ -776,8 +776,8 @@ async function loadV2Snapshot(editor, input, options = {}) {
     const { missingPluginPolicy = 'error', signal, ...conversionOptions } = options;
     await editor.loadFromState(input, {
         missingPluginPolicy,
-        signal,
         migrations: [v2SnapshotMigration(conversionOptions)],
+        ...(signal ? { signal } : {}),
     });
 }
 

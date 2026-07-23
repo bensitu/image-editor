@@ -1,7 +1,7 @@
 'use strict';
 
-var pluginIdentifier = require('./plugin-identifier-DPwx4Gkd.cjs');
-var pluginManifest = require('./plugin-manifest-DNqSyjh2.cjs');
+var pluginIdentifier = require('./plugin-identifier-DWQ7SALj.cjs');
+var pluginManifest = require('./plugin-manifest-5BctrtYS.cjs');
 
 function definePlugin(definition) {
     if (typeof definition !== 'object' || definition === null) {
@@ -21,4 +21,4 @@ function definePlugin(definition) {
 }
 
 exports.definePlugin = definePlugin;
-//# sourceMappingURL=plugin-definition-C87dytjB.cjs.map
+//# sourceMappingURL=plugin-definition-DtyrZUJz.cjs.map

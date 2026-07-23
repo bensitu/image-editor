@@ -134,7 +134,14 @@ function result(
     message?: string,
     details?: Readonly<Record<string, unknown>>,
 ): ConformanceAssertionResult {
-    return Object.freeze({ id, contract, required: true, status, message, details });
+    return Object.freeze({
+        id,
+        contract,
+        required: true,
+        status,
+        ...(message === undefined ? {} : { message }),
+        ...(details === undefined ? {} : { details }),
+    });
 }
 
 function unavailable(id: string, contract: string): ConformanceAssertionResult {

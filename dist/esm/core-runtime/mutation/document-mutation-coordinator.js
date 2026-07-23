@@ -95,8 +95,8 @@ export class DocumentMutationCoordinator {
         const operation = this.options.operations.run(normalized.operationId, (operationContext) => parentRecord
             ? this.performNested(normalized, operationContext.token, parentRecord)
             : this.performTopLevel(normalized, operationContext.token), {
-            parent: parentRecord === null || parentRecord === void 0 ? void 0 : parentRecord.operationToken,
             signal: controller.signal,
+            ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
         });
         this.activePromises.add(operation);
         return operation.finally(() => {

@@ -25,6 +25,9 @@ function isPromiseLike(value) {
         value !== null &&
         typeof value.then === 'function');
 }
+function observePromise(promise, onRejected) {
+    Promise.resolve(promise).catch(onRejected);
+}
 function disposeInReverseSync(disposables, options = {}) {
     var _a;
     const errors = [];
@@ -38,7 +41,7 @@ function disposeInReverseSync(disposables, options = {}) {
                     reportWarningSafely(options.warningSink, options.errorSink, {
                         code: 'PLUGIN_CLEANUP_FAILED',
                         message: `Asynchronous cleanup item ${index} failed after synchronous disposal returned.`,
-                        pluginId: options.pluginId,
+                        ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                         cause: cleanupError,
                         details: { cleanupIndex: index },
                     });
@@ -50,7 +53,7 @@ function disposeInReverseSync(disposables, options = {}) {
             reportWarningSafely(options.warningSink, options.errorSink, {
                 code: 'PLUGIN_CLEANUP_FAILED',
                 message: `Plugin cleanup item ${index} failed; remaining cleanup continued.`,
-                pluginId: options.pluginId,
+                ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                 cause: error,
                 details: { cleanupIndex: index },
             });
@@ -111,7 +114,7 @@ async function disposeInReverse(disposables, options = {}) {
             reportWarningSafely(options.warningSink, options.errorSink, {
                 code: 'PLUGIN_CLEANUP_FAILED',
                 message: `Plugin cleanup item ${index} failed; remaining cleanup continued.`,
-                pluginId: options.pluginId,
+                ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                 cause: error,
                 details: { cleanupIndex: index },
             });
@@ -125,6 +128,7 @@ exports.createNoopDisposable = createNoopDisposable;
 exports.disposeInReverse = disposeInReverse;
 exports.disposeInReverseSync = disposeInReverseSync;
 exports.isPromiseLike = isPromiseLike;
+exports.observePromise = observePromise;
 exports.reportErrorSafely = reportErrorSafely;
 exports.reportWarningSafely = reportWarningSafely;
-//# sourceMappingURL=disposable-pTo80E0l.cjs.map
+//# sourceMappingURL=disposable-y_ve7ZXe.cjs.map

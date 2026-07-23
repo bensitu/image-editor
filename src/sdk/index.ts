@@ -15,6 +15,7 @@ export {
 export {
     createDisposable,
     disposeInReverseSync,
+    observePromise,
     type Disposable,
     type MaybePromise,
 } from '../plugin-kernel/disposable.js';

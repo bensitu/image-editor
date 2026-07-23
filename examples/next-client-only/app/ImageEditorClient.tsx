@@ -87,10 +87,10 @@ export default function ImageEditorClient() {
             setReady(true);
         }
 
-        void setup().catch((error: unknown) => {
+        setup().catch((error: unknown) => {
             const current = ownedEditor;
             ownedEditor = null;
-            void current?.disposeAsync().catch((disposeError: unknown) => {
+            current?.disposeAsync().catch((disposeError: unknown) => {
                 console.error('Editor disposal failed.', disposeError);
             });
             if (!disposed) setMessage(`Initialization failed: ${errorMessage(error)}`);
@@ -105,7 +105,7 @@ export default function ImageEditorClient() {
             historyRef.current = null;
             const current = ownedEditor;
             ownedEditor = null;
-            void current?.disposeAsync().catch((error: unknown) => {
+            current?.disposeAsync().catch((error: unknown) => {
                 console.error('Editor disposal failed.', error);
             });
         };
@@ -140,39 +140,39 @@ export default function ImageEditorClient() {
 
     function addMask() {
         const api = masksRef.current;
-        if (api) void run(() => api.create());
+        if (api) run(() => api.create()).catch(console.error);
     }
 
     function enterCrop() {
         const api = cropRef.current;
-        if (api) void run(() => api.enter());
+        if (api) run(() => api.enter()).catch(console.error);
     }
 
     function cancelCrop() {
         const api = cropRef.current;
-        if (api) void run(() => api.cancel());
+        if (api) run(() => api.cancel()).catch(console.error);
     }
 
     function undo() {
         const api = historyRef.current;
-        if (api) void run(() => api.undo());
+        if (api) run(() => api.undo()).catch(console.error);
     }
 
     function redo() {
         const api = historyRef.current;
-        if (api) void run(() => api.redo());
+        if (api) run(() => api.redo()).catch(console.error);
     }
 
     function exportImage(format: 'png' | 'jpeg') {
         const editor = editorRef.current;
         if (!editor) return;
-        void run(async () => {
+        run(async () => {
             const dataUrl = await editor.exportImageBase64({ area: 'image', format });
             const anchor = document.createElement('a');
             anchor.href = dataUrl;
             anchor.download = `next-edited.${format === 'jpeg' ? 'jpg' : 'png'}`;
             anchor.click();
-        });
+        }).catch(console.error);
     }
 
     const canUseImage = ready && imageInfo !== null && !running;

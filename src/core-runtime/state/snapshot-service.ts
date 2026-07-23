@@ -319,7 +319,7 @@ export class SnapshotService implements Disposable {
             candidate.canMigrate(immutableInput),
         );
         if (!migration) return this.prepareParsed(parsed, options);
-        const context: SnapshotMigrationContext = { signal: options.signal };
+        const context: SnapshotMigrationContext = options.signal ? { signal: options.signal } : {};
         const migrated = await migration.migrate(immutableInput, context);
         return this.prepareParsed(parseInput(migrated, this.limits), options);
     }

@@ -229,6 +229,6 @@ test('change listener failures are isolated and dispose releases History capabil
     assert.equal(calls, 1);
     assert.equal(editor.getPlugin(historyPluginRef), history);
     await dispose(editor);
-    assert.equal(history.isAvailable(), false);
-    assert.throws(() => history.onChange(() => undefined), /History disposal/);
+    assert.throws(() => history.isAvailable(), /after the editor has been disposed/u);
+    assert.throws(() => history.onChange(() => undefined), /after the editor has been disposed/u);
 });

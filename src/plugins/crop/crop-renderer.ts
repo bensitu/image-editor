@@ -68,7 +68,7 @@ export function normalizeCropApplyOptions(
     }
     return Object.freeze({
         format,
-        quality: format === 'png' ? undefined : (quality as number | undefined),
+        ...(format !== 'png' && quality !== undefined ? { quality: quality as number } : {}),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         bakeVisibleFilters: record.bakeVisibleFilters !== false,
     });

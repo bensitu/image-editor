@@ -25,6 +25,16 @@ export function isPromiseLike(value: unknown): value is PromiseLike<void> {
     );
 }
 
+/**
+ * Detaches Promise-like work while routing every rejection to an explicit observer.
+ */
+export function observePromise<T>(
+    promise: PromiseLike<T>,
+    onRejected: (error: unknown) => void,
+): void {
+    Promise.resolve(promise).catch(onRejected);
+}
+
 export function disposeInReverseSync(
     disposables: readonly Disposable[],
     options: DisposeInReverseOptions = {},
@@ -42,7 +52,7 @@ export function disposeInReverseSync(
                     reportWarningSafely(options.warningSink, options.errorSink, {
                         code: 'PLUGIN_CLEANUP_FAILED',
                         message: `Asynchronous cleanup item ${index} failed after synchronous disposal returned.`,
-                        pluginId: options.pluginId,
+                        ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                         cause: cleanupError,
                         details: { cleanupIndex: index },
                     });
@@ -53,7 +63,7 @@ export function disposeInReverseSync(
             reportWarningSafely(options.warningSink, options.errorSink, {
                 code: 'PLUGIN_CLEANUP_FAILED',
                 message: `Plugin cleanup item ${index} failed; remaining cleanup continued.`,
-                pluginId: options.pluginId,
+                ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                 cause: error,
                 details: { cleanupIndex: index },
             });
@@ -122,7 +132,7 @@ export async function disposeInReverse(
             reportWarningSafely(options.warningSink, options.errorSink, {
                 code: 'PLUGIN_CLEANUP_FAILED',
                 message: `Plugin cleanup item ${index} failed; remaining cleanup continued.`,
-                pluginId: options.pluginId,
+                ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                 cause: error,
                 details: { cleanupIndex: index },
             });
@@ -138,9 +148,11 @@ export function createCompositeDisposable(
     return createDisposable(async () => {
         const errors = await disposeInReverse(disposables, options);
         if (errors.length > 0) {
-            throw new PluginAggregateError('One or more composite cleanup items failed.', errors, {
-                pluginId: options.pluginId,
-            });
+            throw new PluginAggregateError(
+                'One or more composite cleanup items failed.',
+                errors,
+                options.pluginId ? { pluginId: options.pluginId } : {},
+            );
         }
     });
 }

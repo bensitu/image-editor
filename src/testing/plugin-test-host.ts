@@ -56,8 +56,10 @@ export function createPluginTestHost<TEvents extends object = object>(
         hostCapabilities: (options.hostCapabilities ?? []).map((provider) => ({
             token: provider.token,
             implementation: provider.implementation,
-            providerId: provider.providerId,
-            requiredPermission: provider.requiredPermission,
+            ...(provider.providerId ? { providerId: provider.providerId } : {}),
+            ...(provider.requiredPermission
+                ? { requiredPermission: provider.requiredPermission }
+                : {}),
         })),
     });
 

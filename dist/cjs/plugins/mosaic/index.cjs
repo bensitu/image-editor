@@ -2,12 +2,12 @@
 
 var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
 var error = require('../../chunks/error-Cg6SL3PT.cjs');
-var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
-require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
+var disposable = require('../../chunks/disposable-y_ve7ZXe.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-C1mtU9Tv.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
+require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
 
 function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
     const deltaX = x - centerX;
@@ -282,7 +282,7 @@ function normalizeMosaicCommitOptions(value, configuration, sourceMimeType) {
     }
     return Object.freeze({
         format,
-        quality: format === 'png' ? undefined : quality,
+        ...(format === 'png' ? {} : { quality }),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         bakeVisibleFilters: record.bakeVisibleFilters !== false,
     });

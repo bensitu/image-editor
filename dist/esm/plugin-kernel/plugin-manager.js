@@ -97,7 +97,7 @@ export class PluginManager {
             value: null
         });
         this.capabilityRegistry = new CapabilityRegistry(options);
-        this.toolCoordinator = new ToolCoordinator({ errorSink: options.errorSink });
+        this.toolCoordinator = new ToolCoordinator(options.errorSink ? { errorSink: options.errorSink } : {});
         this.eventBus = new CommittedEventBus(options);
         for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) {
             this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
@@ -514,7 +514,9 @@ export class PluginManager {
             dependencyId: dependency.id,
             requiredApiVersion: dependency.apiVersion,
             availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
-            packageHint: pluginPackageHints.get(dependency.id),
+            ...(pluginPackageHints.has(dependency.id)
+                ? { packageHint: pluginPackageHints.get(dependency.id) }
+                : {}),
             planHint: 'Pass the dependency to install([...]) or include it in composePlugins(...).',
         });
     }
@@ -849,9 +851,9 @@ export class PluginManager {
                 version: plugin.version,
                 apiVersion: plugin.ref.apiVersion,
                 engine: '*',
-                requires: plugin.requires,
-                optional: plugin.optional,
-                permissions: plugin.permissions,
+                ...(plugin.requires ? { requires: plugin.requires } : {}),
+                ...(plugin.optional ? { optional: plugin.optional } : {}),
+                ...(plugin.permissions ? { permissions: plugin.permissions } : {}),
             });
         return Object.freeze({
             ...plugin,

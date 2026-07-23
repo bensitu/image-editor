@@ -1,8 +1,8 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-DNqSyjh2.cjs');
-var disposable = require('./disposable-pTo80E0l.cjs');
-var pluginIdentifier = require('./plugin-identifier-DPwx4Gkd.cjs');
+var pluginManifest = require('./plugin-manifest-5BctrtYS.cjs');
+var disposable = require('./disposable-y_ve7ZXe.cjs');
+var pluginIdentifier = require('./plugin-identifier-DWQ7SALj.cjs');
 
 function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
     var _a, _b;
@@ -350,7 +350,7 @@ class CommittedEventBus {
                     timeoutMs: this.listenerTimeoutMs,
                 },
             });
-            void settlement.then((lateOutcome) => {
+            disposable.observePromise(settlement.then((lateOutcome) => {
                 if (lateOutcome.status !== 'rejected')
                     return;
                 disposable.reportWarningSafely(this.options.warningSink, this.options.errorSink, {
@@ -362,6 +362,12 @@ class CommittedEventBus {
                         listenerIndex,
                         timeoutMs: this.listenerTimeoutMs,
                     },
+                });
+            }), (error) => {
+                disposable.reportWarningSafely(this.options.warningSink, this.options.errorSink, {
+                    code: 'COMMITTED_EVENT_LATE_OBSERVER_FAILURE',
+                    message: `Late listener observation for "${eventName}" failed.`,
+                    cause: error,
                 });
             });
             return;
@@ -1571,7 +1577,7 @@ class PluginManager {
             value: null
         });
         this.capabilityRegistry = new CapabilityRegistry(options);
-        this.toolCoordinator = new ToolCoordinator({ errorSink: options.errorSink });
+        this.toolCoordinator = new ToolCoordinator(options.errorSink ? { errorSink: options.errorSink } : {});
         this.eventBus = new CommittedEventBus(options);
         for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) {
             this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
@@ -1988,7 +1994,9 @@ class PluginManager {
             dependencyId: dependency.id,
             requiredApiVersion: dependency.apiVersion,
             availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
-            packageHint: pluginPackageHints.get(dependency.id),
+            ...(pluginPackageHints.has(dependency.id)
+                ? { packageHint: pluginPackageHints.get(dependency.id) }
+                : {}),
             planHint: 'Pass the dependency to install([...]) or include it in composePlugins(...).',
         });
     }
@@ -2323,9 +2331,9 @@ class PluginManager {
                 version: plugin.version,
                 apiVersion: plugin.ref.apiVersion,
                 engine: '*',
-                requires: plugin.requires,
-                optional: plugin.optional,
-                permissions: plugin.permissions,
+                ...(plugin.requires ? { requires: plugin.requires } : {}),
+                ...(plugin.optional ? { optional: plugin.optional } : {}),
+                ...(plugin.permissions ? { permissions: plugin.permissions } : {}),
             });
         return Object.freeze({
             ...plugin,
@@ -2484,4 +2492,4 @@ class PluginManager {
 
 exports.PluginManager = PluginManager;
 exports.aliasPluginDefinitionIdentity = aliasPluginDefinitionIdentity;
-//# sourceMappingURL=plugin-manager-DhGvZdpX.cjs.map
+//# sourceMappingURL=plugin-manager-CfbKlLDK.cjs.map

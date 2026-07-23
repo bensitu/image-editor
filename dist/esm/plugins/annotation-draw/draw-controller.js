@@ -129,7 +129,6 @@ function normalizePoints(value, maximumCount) {
     }
 }
 function isSerializedDraw(value) {
-    var _a;
     if (!isPlainRecord(value))
         return false;
     try {
@@ -146,7 +145,8 @@ function isSerializedDraw(value) {
         const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
         return (points.length >= 2 &&
             bytes <= MAX_DRAW_OBJECT_BYTES &&
-            String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'path');
+            typeof serializedObject.type === 'string' &&
+            serializedObject.type.toLowerCase() === 'path');
     }
     catch {
         return false;

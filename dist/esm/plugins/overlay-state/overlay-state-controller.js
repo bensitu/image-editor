@@ -195,7 +195,7 @@ export class OverlayStateController {
         const missingKindPolicy = (_c = options.missingKindPolicy) !== null && _c !== void 0 ? _c : 'error';
         const validated = this.validate(payload, {
             missingKindPolicy,
-            limits: options.limits,
+            ...(options.limits ? { limits: options.limits } : {}),
         });
         if (!validated.valid || !validated.document) {
             throw new OverlayStateValidationError(validated.errors);

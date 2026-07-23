@@ -175,7 +175,7 @@ export function resolveMaskPluginOptions(
         listOrder: options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back',
         bindToImageTransform: options.bindToImageTransform === true,
         namePrefix: options.namePrefix?.trim() || 'mask',
-        onChange: options.onChange,
+        ...(options.onChange ? { onChange: options.onChange } : {}),
     });
 }
 
@@ -434,7 +434,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                             strokeWidth: context.toCanvasScalar(data.strokeWidth),
                             strokeDashArray: data.strokeDashArray
                                 ? data.strokeDashArray.map((entry) => context.toCanvasScalar(entry))
-                                : undefined,
+                                : null,
                             hasControls: data.hasControls,
                             selectable: data.selectable,
                             evented: data.evented,
@@ -712,9 +712,15 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             maskUid: object.maskUid,
             maskName: object.maskName,
             originalAlpha: object.originalAlpha,
-            originalStroke: object.originalStroke,
-            originalStrokeWidth: object.originalStrokeWidth,
-            overlayPersistentId: serializedMask.overlayPersistentId,
+            ...(object.originalStroke === undefined
+                ? {}
+                : { originalStroke: object.originalStroke }),
+            ...(object.originalStrokeWidth === undefined
+                ? {}
+                : { originalStrokeWidth: object.originalStrokeWidth }),
+            ...(serializedMask.overlayPersistentId === undefined
+                ? {}
+                : { overlayPersistentId: serializedMask.overlayPersistentId }),
             overlayMetadata: serializedMask.overlayMetadata,
         });
     }
@@ -738,13 +744,16 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         mask.maskUid = data.maskUid;
         mask.maskName = data.maskName;
         mask.originalAlpha = data.originalAlpha;
-        mask.originalStroke = data.originalStroke;
-        mask.originalStrokeWidth = data.originalStrokeWidth;
+        if (data.originalStroke === undefined) delete mask.originalStroke;
+        else mask.originalStroke = data.originalStroke;
+        if (data.originalStrokeWidth === undefined) delete mask.originalStrokeWidth;
+        else mask.originalStrokeWidth = data.originalStrokeWidth;
         const serializedMask = mask as MaskObject & {
             overlayPersistentId?: string;
             overlayMetadata?: unknown;
         };
-        serializedMask.overlayPersistentId = data.overlayPersistentId;
+        if (data.overlayPersistentId === undefined) delete serializedMask.overlayPersistentId;
+        else serializedMask.overlayPersistentId = data.overlayPersistentId;
         serializedMask.overlayMetadata = data.overlayMetadata;
         mask.lockRotation = !this.options.rotatable;
         reattachMaskHoverHandlers(mask);

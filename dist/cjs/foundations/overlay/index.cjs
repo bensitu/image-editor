@@ -2,11 +2,11 @@
 
 var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
-var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
-var pluginIdentifier = require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+var disposable = require('../../chunks/disposable-y_ve7ZXe.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
 
 function isFiniteTransformMatrix(matrix) {
     return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
@@ -267,8 +267,8 @@ function parseExportOptions(value) {
         ? value.excludeKinds.filter((kind) => typeof kind === 'string')
         : undefined;
     return Object.freeze({
-        includeKinds: includeKinds ? Object.freeze(includeKinds) : undefined,
-        excludeKinds: excludeKinds ? Object.freeze(excludeKinds) : undefined,
+        ...(includeKinds ? { includeKinds: Object.freeze(includeKinds) } : {}),
+        ...(excludeKinds ? { excludeKinds: Object.freeze(excludeKinds) } : {}),
         includeHidden: value.includeHidden === true,
     });
 }
@@ -537,11 +537,9 @@ class OverlayFoundationController {
             typeof definition.getPersistentId !== 'function' ||
             (definition.setPersistentId !== undefined &&
                 typeof definition.setPersistentId !== 'function')) {
-            throw new pluginIdentifier.PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', {
-                pluginId: isRecord(definition) && typeof definition.ownerPluginId === 'string'
-                    ? definition.ownerPluginId
-                    : undefined,
-            });
+            throw new pluginIdentifier.PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', isRecord(definition) && typeof definition.ownerPluginId === 'string'
+                ? { pluginId: definition.ownerPluginId }
+                : {});
         }
         this.assertRuntimeIdentifier(definition.id, 'Overlay kind id');
         this.assertRuntimeIdentifier(definition.ownerPluginId, 'Overlay kind owner');
@@ -726,7 +724,7 @@ class OverlayFoundationController {
                     continue;
                 if (--record[2])
                     continue;
-                target.preview = undefined;
+                delete target.preview;
                 target.object.visible = record[0];
                 restored = true;
             }
@@ -783,8 +781,8 @@ class OverlayFoundationController {
             kind: 'overlay',
             operationId: request.operationId,
             conflictDomains: ['document', 'overlay', 'selection', 'state'],
-            parent: request.parent,
-            metadata: request.metadata,
+            ...(request.parent ? { parent: request.parent } : {}),
+            ...(request.metadata ? { metadata: request.metadata } : {}),
             mutate: async (transaction) => {
                 const context = this.createMutationContext(transaction, request.action, initialTargets);
                 return request.mutate(context);

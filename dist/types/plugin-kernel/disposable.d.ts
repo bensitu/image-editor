@@ -12,6 +12,10 @@ export interface CommitAwareDisposable extends Disposable {
     commit(): void;
 }
 export declare function isPromiseLike(value: unknown): value is PromiseLike<void>;
+/**
+ * Detaches Promise-like work while routing every rejection to an explicit observer.
+ */
+export declare function observePromise<T>(promise: PromiseLike<T>, onRejected: (error: unknown) => void): void;
 export declare function disposeInReverseSync(disposables: readonly Disposable[], options?: DisposeInReverseOptions): readonly unknown[];
 export declare function createDisposable(cleanup: () => MaybePromise<void>): Disposable;
 export declare function createNoopDisposable(): Disposable;

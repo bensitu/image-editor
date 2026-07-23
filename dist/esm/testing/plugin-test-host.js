@@ -9,8 +9,10 @@ export function createPluginTestHost(options = {}) {
         hostCapabilities: ((_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []).map((provider) => ({
             token: provider.token,
             implementation: provider.implementation,
-            providerId: provider.providerId,
-            requiredPermission: provider.requiredPermission,
+            ...(provider.providerId ? { providerId: provider.providerId } : {}),
+            ...(provider.requiredPermission
+                ? { requiredPermission: provider.requiredPermission }
+                : {}),
         })),
     });
     return Object.freeze({

@@ -290,8 +290,7 @@ export class FiltersController {
                 this.committedState = createState(this.normalizeDefinitions(definitions));
                 return this.committedState;
             },
-            synchronize: async (result, context) => {
-                void result;
+            synchronize: async (_result, context) => {
                 if (
                     usesPreview &&
                     this.previewDefinitions !== null &&
@@ -304,12 +303,14 @@ export class FiltersController {
             },
             validate: () => this.validateBaseImageInvariant(transactionId),
             describeCommit: () => Object.freeze({ filterCount: definitions.length }),
-            rollback: usesPreview
-                ? () => {
-                      this.committedState = previousState;
-                      promotePreviewAfterCommit = false;
+            ...(usesPreview
+                ? {
+                      rollback: () => {
+                          this.committedState = previousState;
+                          promotePreviewAfterCommit = false;
+                      },
                   }
-                : undefined,
+                : {}),
         });
         if (promotePreviewAfterCommit) this.promotePreview();
         this.emitStatus();
@@ -377,7 +378,7 @@ export class FiltersController {
                 kind: 'compound',
                 operationId: parent?.operationId ?? 'filters:bake',
                 conflictDomains: mutationConflictDomains,
-                parent: parent ?? undefined,
+                ...(parent ? { parent } : {}),
                 metadata: Object.freeze({ filterCount: definitions.length }),
                 mutate: async (context) => {
                     const baked = await renderBakedImage(
@@ -460,7 +461,7 @@ export class FiltersController {
             return {
                 valid: false,
                 message: error instanceof Error ? error.message : 'Filters state is malformed.',
-                path: error instanceof FilterDefinitionError ? error.path : undefined,
+                ...(error instanceof FilterDefinitionError ? { path: error.path } : {}),
             };
         }
     }

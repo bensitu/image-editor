@@ -53,8 +53,8 @@ function resolveOptions(options) {
         maxExportDimension: positiveInteger(options.maxExportDimension, DEFAULT_CORE_OPTIONS.maxExportDimension),
         exportMultiplier: positiveFinite(options.exportMultiplier, DEFAULT_CORE_OPTIONS.exportMultiplier),
         initialImageBase64: (_c = options.initialImageBase64) !== null && _c !== void 0 ? _c : '',
-        onError: options.onError,
-        onWarning: options.onWarning,
+        ...(options.onError ? { onError: options.onError } : {}),
+        ...(options.onWarning ? { onWarning: options.onWarning } : {}),
     });
 }
 function resolveElement(target, ownerDocument) {
@@ -175,33 +175,45 @@ function freezePluginDefinition(definition) {
     if (!('manifest' in definition)) {
         return aliasPluginDefinitionIdentity(Object.freeze({
             ...definition,
-            requires: definition.requires
-                ? Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            optional: definition.optional
-                ? Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            permissions: definition.permissions
-                ? Object.freeze([...definition.permissions])
-                : undefined,
+            ...(definition.requires
+                ? {
+                    requires: Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.optional
+                ? {
+                    optional: Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.permissions
+                ? { permissions: Object.freeze([...definition.permissions]) }
+                : {}),
         }), definition);
     }
     return aliasPluginDefinitionIdentity(Object.freeze({
         ...definition,
         manifest: Object.freeze({
             ...definition.manifest,
-            requiresPlugins: definition.manifest.requiresPlugins
-                ? Object.freeze([...definition.manifest.requiresPlugins])
-                : undefined,
-            requires: definition.manifest.requires
-                ? Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            optional: definition.manifest.optional
-                ? Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            permissions: definition.manifest.permissions
-                ? Object.freeze([...definition.manifest.permissions])
-                : undefined,
+            ...(definition.manifest.requiresPlugins
+                ? {
+                    requiresPlugins: Object.freeze([...definition.manifest.requiresPlugins]),
+                }
+                : {}),
+            ...(definition.manifest.requires
+                ? {
+                    requires: Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.manifest.optional
+                ? {
+                    optional: Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.manifest.permissions
+                ? {
+                    permissions: Object.freeze([...definition.manifest.permissions]),
+                }
+                : {}),
         }),
     }), definition);
 }
@@ -504,7 +516,7 @@ export class ImageEditorCore {
                 if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
                     const budgetError = new CoreRuntimeError('[ImageEditor] Decoded image dimensions exceed the configured budget.');
                     try {
-                        await image.dispose();
+                        image.dispose();
                     }
                     catch (cleanupError) {
                         throw new CoreRuntimeError('[ImageEditor] Rejected image cleanup failed.', { cause: Object.freeze([budgetError, cleanupError]) });
@@ -584,7 +596,7 @@ export class ImageEditorCore {
                     this.containerElement.scrollTop = previousScroll.top;
                 }
                 this.updatePlaceholder();
-            }, { signal: options.signal });
+            }, options.signal ? { signal: options.signal } : {});
         }
         catch (error) {
             if (!isLoadCancellation(error) && !this.initialImageLoadActive) {
@@ -637,9 +649,11 @@ export class ImageEditorCore {
         this.assertReady('load state');
         try {
             const prepared = await this.snapshots.prepareForLoad(input, {
-                missingPluginPolicy: options.missingPluginPolicy,
-                migrations: options.migrations,
-                signal: options.signal,
+                ...(options.missingPluginPolicy
+                    ? { missingPluginPolicy: options.missingPluginPolicy }
+                    : {}),
+                ...(options.migrations ? { migrations: options.migrations } : {}),
+                ...(options.signal ? { signal: options.signal } : {}),
             });
             const sequence = ++this.stateLoadSequence;
             await this.documentMutations.run({
@@ -654,7 +668,7 @@ export class ImageEditorCore {
                     'overlay',
                     'state',
                 ],
-                signal: options.signal,
+                ...(options.signal ? { signal: options.signal } : {}),
                 metadata: Object.freeze({ sequence }),
                 mutate: async (context) => {
                     await this.snapshots.loadPrepared(prepared, {
@@ -1503,7 +1517,7 @@ export class ImageEditorCore {
             () => this.slices.dispose(),
         ]) {
             try {
-                await cleanup();
+                await Promise.resolve(cleanup());
             }
             catch (error) {
                 errors.push(error);

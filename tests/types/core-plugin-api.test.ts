@@ -1,4 +1,8 @@
-import { ImageEditorCore, type FabricModule } from '../../src/core/index.js';
+import {
+    ImageEditorCore,
+    type FabricModule,
+    type ImageEditorCoreOptions,
+} from '../../src/core/index.js';
 import {
     annotationFoundationPlugin,
     annotationFoundationRef,
@@ -71,6 +75,10 @@ type Equal<TLeft, TRight> =
 type Expect<TValue extends true> = TValue;
 
 declare const fabricModule: FabricModule;
+
+const exactOptionalCoreOptions: ImageEditorCoreOptions = {};
+// @ts-expect-error Exact optional properties reject explicitly present undefined values.
+const invalidExactOptionalCoreOptions: ImageEditorCoreOptions = { onError: undefined };
 
 const editor = new ImageEditorCore(fabricModule);
 const overlay = editor.use(overlayFoundationPlugin());
@@ -197,6 +205,8 @@ mosaic.beginStroke({ x: 2, y: 3 });
 overlayState.importState({}, { mode: 'merge' });
 
 void optional;
+void exactOptionalCoreOptions;
+void invalidExactOptionalCoreOptions;
 void overlay;
 void masks;
 void history;

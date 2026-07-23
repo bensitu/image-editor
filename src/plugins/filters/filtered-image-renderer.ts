@@ -80,7 +80,10 @@ export async function createFilteredImageClone(
     try {
         throwIfAborted(signal);
         applyFilterDefinitions(fabric, clone, definitions);
-        copyBaseImagePresentation(baseImage, clone, { backgroundColor, transient: true });
+        copyBaseImagePresentation(baseImage, clone, {
+            ...(backgroundColor === undefined ? {} : { backgroundColor }),
+            transient: true,
+        });
         throwIfAborted(signal);
         return clone;
     } catch (error) {
@@ -124,7 +127,7 @@ export function normalizeFilterBakeOptions(
     }
     return Object.freeze({
         format,
-        quality: quality as number | undefined,
+        ...(quality === undefined ? {} : { quality: quality as number }),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
     });
 }
@@ -207,7 +210,9 @@ export async function renderBakedImage(
         try {
             dataUrl = clone.toDataURL({
                 format: normalizedOptions.format,
-                quality: normalizedOptions.quality,
+                ...(normalizedOptions.quality === undefined
+                    ? {}
+                    : { quality: normalizedOptions.quality }),
                 multiplier: 1,
                 withoutTransform: true,
                 withoutShadow: true,

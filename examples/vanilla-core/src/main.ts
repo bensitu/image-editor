@@ -67,30 +67,32 @@ async function run(action: () => Promise<unknown>): Promise<void> {
 input.addEventListener('change', () => {
     const file = input.files?.[0];
     if (!file) return;
-    void run(async () => {
+    run(async () => {
         await editor.loadImage(await readFileAsDataUrl(file));
         input.value = '';
-    });
+    }).catch(console.error);
 });
-rotateButton.addEventListener('click', () => void run(() => transform.rotate(90)));
-undoButton.addEventListener('click', () => void run(() => history.undo()));
-exportButton.addEventListener(
-    'click',
-    () =>
-        void run(async () => {
-            const anchor = document.createElement('a');
-            anchor.href = await editor.exportImageBase64({ format: 'png', area: 'image' });
-            anchor.download = 'edited-image.png';
-            anchor.click();
-        }),
-);
+rotateButton.addEventListener('click', () => {
+    run(() => transform.rotate(90)).catch(console.error);
+});
+undoButton.addEventListener('click', () => {
+    run(() => history.undo()).catch(console.error);
+});
+exportButton.addEventListener('click', () => {
+    run(async () => {
+        const anchor = document.createElement('a');
+        anchor.href = await editor.exportImageBase64({ format: 'png', area: 'image' });
+        anchor.download = 'edited-image.png';
+        anchor.click();
+    }).catch(console.error);
+});
 
 window.addEventListener(
     'pagehide',
     () => {
         if (disposed) return;
         disposed = true;
-        void editor.disposeAsync().catch((error: unknown) => {
+        editor.disposeAsync().catch((error: unknown) => {
             console.error('Editor disposal failed.', error);
         });
     },

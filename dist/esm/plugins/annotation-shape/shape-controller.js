@@ -203,7 +203,6 @@ function isShapeStateData(value) {
     }
 }
 function isSerializedShape(value) {
-    var _a;
     if (!isPlainRecord(value))
         return false;
     try {
@@ -220,7 +219,7 @@ function isSerializedShape(value) {
         }
         const geometry = normalizeShapeGeometry(value.geometry);
         const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
-        const type = String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+        const type = typeof serializedObject.type === 'string' ? serializedObject.type.toLowerCase() : '';
         return (bytes <= MAX_SHAPE_OBJECT_BYTES &&
             geometry.kind === value.shapeKind &&
             ((geometry.kind === 'rect' && type === 'rect') ||
@@ -463,10 +462,10 @@ export class ShapeAnnotationController {
             kind: SHAPE_ANNOTATION_KIND,
             object,
             name: (_a = definition.name) !== null && _a !== void 0 ? _a : `${this.configuration.namePrefix} ${++this.nameSequence}`,
-            metadata: definition.metadata,
-            hidden: definition.hidden,
-            locked: definition.locked,
-            select: definition.select,
+            ...(definition.metadata === undefined ? {} : { metadata: definition.metadata }),
+            ...(definition.hidden === undefined ? {} : { hidden: definition.hidden }),
+            ...(definition.locked === undefined ? {} : { locked: definition.locked }),
+            ...(definition.select === undefined ? {} : { select: definition.select }),
             operationId,
         });
     }
@@ -532,7 +531,7 @@ export class ShapeAnnotationController {
             strokeWidth: resolved.strokeWidth,
             fill: resolved.fill,
             opacity: resolved.opacity,
-            strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : undefined,
+            strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : null,
             selectable: resolved.selectable,
             evented: resolved.evented,
             strokeLineCap: 'round',

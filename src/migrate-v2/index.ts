@@ -969,7 +969,7 @@ export function migrateV2Snapshot(
     const source = requireSource(input, options);
     const context: ConversionContext = {
         policy: options.unsupportedFieldPolicy ?? 'error',
-        onWarning: options.onWarning,
+        ...(options.onWarning ? { onWarning: options.onWarning } : {}),
     };
     reportUnknownKeys(source, TOP_LEVEL_KEYS, '$', context);
     const state = source._editorState as Record<string, unknown>;
@@ -1123,7 +1123,7 @@ export async function loadV2Snapshot(
     const { missingPluginPolicy = 'error', signal, ...conversionOptions } = options;
     await editor.loadFromState(input, {
         missingPluginPolicy,
-        signal,
         migrations: [v2SnapshotMigration(conversionOptions)],
+        ...(signal ? { signal } : {}),
     });
 }

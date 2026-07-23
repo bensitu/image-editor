@@ -10,6 +10,7 @@ import type { GeometryMutationPort } from '../../core/index.js';
 import type { OverlayRuntimeApi } from '../../foundations/overlay/index.js';
 import {
     createDisposable,
+    observePromise,
     type BaseImageReadPort,
     type CanvasReadPort,
     type CoreDiagnosticsPort,
@@ -104,9 +105,9 @@ function cloneSessionState(state: CropSessionState): Readonly<CropSessionState> 
         rect: Object.freeze({ ...state.rect }),
         overlayPolicy: Object.freeze({
             ...state.overlayPolicy,
-            kinds: state.overlayPolicy.kinds
-                ? Object.freeze([...state.overlayPolicy.kinds])
-                : undefined,
+            ...(state.overlayPolicy.kinds
+                ? { kinds: Object.freeze([...state.overlayPolicy.kinds]) }
+                : {}),
         }),
     });
 }
@@ -443,7 +444,11 @@ export class CropController {
         this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
         const canvas = this.host.requireCanvas('refresh Crop preview');
         canvas.bringObjectToFront(session.preview);
-        session.previewVisibility?.dispose();
+        if (session.previewVisibility) {
+            observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+            });
+        }
         session.previewVisibility = null;
         session.candidates = findCropOverlayCandidates(
             this.overlay,
@@ -466,7 +471,11 @@ export class CropController {
         const session = this.session;
         if (!session) return;
         this.session = null;
-        session.previewVisibility?.dispose();
+        if (session.previewVisibility) {
+            observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+            });
+        }
         const canvas = this.host.getCanvas();
         if (canvas?.getObjects().includes(session.preview)) canvas.remove(session.preview);
         session.preview.dispose();

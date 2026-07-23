@@ -106,8 +106,8 @@ function createDescriptor(
         after,
         affineDelta,
         hasReflection: affineDelta ? hasAffineReflection(affineDelta) : false,
-        sourceRect: request.sourceRect ? Object.freeze({ ...request.sourceRect }) : undefined,
-        targetSize: request.targetSize ? Object.freeze({ ...request.targetSize }) : undefined,
+        ...(request.sourceRect ? { sourceRect: Object.freeze({ ...request.sourceRect }) } : {}),
+        ...(request.targetSize ? { targetSize: Object.freeze({ ...request.targetSize }) } : {}),
         metadata,
     });
 }
@@ -299,8 +299,12 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
                                 message: error.message,
                                 mutationId: request.id,
                                 participantId: entry.record.participant.id,
-                                objectIdentity: error.objectIdentity,
-                                objectKind: error.objectKind,
+                                ...(error.objectIdentity === undefined
+                                    ? {}
+                                    : { objectIdentity: error.objectIdentity }),
+                                ...(error.objectKind === undefined
+                                    ? {}
+                                    : { objectKind: error.objectKind }),
                                 cause: error.cause,
                             });
                             continue;
@@ -309,24 +313,26 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
                     }
                 }
             },
-            rollback: participantSnapshot.some(({ participant }) => participant.rollback)
-                ? async (
-                      prepared: PreparedGeometryMutation,
-                      rollbackContext: DocumentMutationRollbackContext<GeometryMutationDescriptor>,
-                  ) => {
-                      const descriptor = rollbackContext.result ?? provisional;
-                      if (!descriptor) return;
-                      for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
-                          const entry = prepared.entries[index];
-                          if (!entry) continue;
-                          await entry.record.participant.rollback?.(
-                              descriptor,
-                              entry.prepared,
-                              prepared.context,
-                          );
-                      }
+            ...(participantSnapshot.some(({ participant }) => participant.rollback)
+                ? {
+                      rollback: async (
+                          prepared: PreparedGeometryMutation,
+                          rollbackContext: DocumentMutationRollbackContext<GeometryMutationDescriptor>,
+                      ) => {
+                          const descriptor = rollbackContext.result ?? provisional;
+                          if (!descriptor) return;
+                          for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
+                              const entry = prepared.entries[index];
+                              if (!entry) continue;
+                              await entry.record.participant.rollback?.(
+                                  descriptor,
+                                  entry.prepared,
+                                  prepared.context,
+                              );
+                          }
+                      },
                   }
-                : undefined,
+                : {}),
         });
 
         try {
@@ -336,7 +342,7 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
                 operationId: request.operationId,
                 conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
                 signal,
-                parent: request.parent,
+                ...(request.parent ? { parent: request.parent } : {}),
                 metadata,
                 participants: [geometryParticipant],
                 mutate: async (context) => {
@@ -360,14 +366,19 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
                     }
                     return createDescriptor(request, capturedBefore, after, metadata, false);
                 },
-                rollback: request.rollbackBase
-                    ? async (context) => {
-                          await request.rollbackBase?.(
-                              Object.freeze({ signal: context.signal, cause: context.cause }),
-                          );
-                          if (before) await this.options.state.restoreGeometry?.(before);
+                ...(request.rollbackBase
+                    ? {
+                          rollback: async (context) => {
+                              await request.rollbackBase?.(
+                                  Object.freeze({
+                                      signal: context.signal,
+                                      cause: context.cause,
+                                  }),
+                              );
+                              if (before) await this.options.state.restoreGeometry?.(before);
+                          },
                       }
-                    : undefined,
+                    : {}),
             });
         } catch (error) {
             const failure = this.toGeometryFailure(request.id, error);
@@ -387,8 +398,8 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
                     code: 'GEOMETRY_OBJECT_SKIPPED',
                     message: 'An overlay transform skipped a malformed or unsupported object.',
                     mutationId,
-                    objectIdentity,
-                    objectKind,
+                    ...(objectIdentity === undefined ? {} : { objectIdentity }),
+                    ...(objectKind === undefined ? {} : { objectKind }),
                     cause: error,
                 });
             },
@@ -405,8 +416,8 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
             message: error.message,
             mutationId,
             participantId,
-            objectIdentity: error.objectIdentity,
-            objectKind: error.objectKind,
+            ...(error.objectIdentity === undefined ? {} : { objectIdentity: error.objectIdentity }),
+            ...(error.objectKind === undefined ? {} : { objectKind: error.objectKind }),
             cause: error.cause,
         });
     }

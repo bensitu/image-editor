@@ -3,13 +3,13 @@
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var error = require('../../chunks/error-Cg6SL3PT.cjs');
 var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
-var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+var disposable = require('../../chunks/disposable-y_ve7ZXe.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-C1mtU9Tv.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
+require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
 
 class CropError extends Error {
     constructor() {
@@ -219,13 +219,13 @@ function normalizeCropOverlayPolicy(value) {
         }
         kinds = Object.freeze([...new Set(value.kinds)]);
     }
-    return Object.freeze({ preview, apply, kinds });
+    return Object.freeze({ preview, apply, ...(kinds ? { kinds } : {}) });
 }
 function findCropOverlayCandidates(overlay, cropBounds, policy) {
     if (!overlay)
         return Object.freeze({ allIds: Object.freeze([]), intersectingIds: Object.freeze([]) });
     const objects = overlay.list({
-        kinds: policy.kinds,
+        ...(policy.kinds ? { kinds: policy.kinds } : {}),
         includeHidden: true,
         includeLocked: true,
     });
@@ -302,7 +302,7 @@ function normalizeCropApplyOptions(value, sourceMimeType) {
     }
     return Object.freeze({
         format,
-        quality: format === 'png' ? undefined : quality,
+        ...(format !== 'png' && quality !== undefined ? { quality: quality } : {}),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         bakeVisibleFilters: record.bakeVisibleFilters !== false,
     });
@@ -465,9 +465,9 @@ function cloneSessionState(state) {
         rect: Object.freeze({ ...state.rect }),
         overlayPolicy: Object.freeze({
             ...state.overlayPolicy,
-            kinds: state.overlayPolicy.kinds
-                ? Object.freeze([...state.overlayPolicy.kinds])
-                : undefined,
+            ...(state.overlayPolicy.kinds
+                ? { kinds: Object.freeze([...state.overlayPolicy.kinds]) }
+                : {}),
         }),
     });
 }
@@ -790,12 +790,15 @@ class CropController {
         preview.setCoords();
     }
     refreshPreview(session) {
-        var _a;
         const baseImage = this.requireBaseImage();
         this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
         const canvas = this.host.requireCanvas('refresh Crop preview');
         canvas.bringObjectToFront(session.preview);
-        (_a = session.previewVisibility) === null || _a === void 0 ? void 0 : _a.dispose();
+        if (session.previewVisibility) {
+            disposable.observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+            });
+        }
         session.previewVisibility = null;
         session.candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
         if (this.overlay &&
@@ -806,12 +809,15 @@ class CropController {
         this.host.requestRender();
     }
     closeSession(restoreSelection) {
-        var _a;
         const session = this.session;
         if (!session)
             return;
         this.session = null;
-        (_a = session.previewVisibility) === null || _a === void 0 ? void 0 : _a.dispose();
+        if (session.previewVisibility) {
+            disposable.observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+            });
+        }
         const canvas = this.host.getCanvas();
         if (canvas === null || canvas === void 0 ? void 0 : canvas.getObjects().includes(session.preview))
             canvas.remove(session.preview);

@@ -247,8 +247,7 @@ export class FiltersController {
                 this.committedState = createState(this.normalizeDefinitions(definitions));
                 return this.committedState;
             },
-            synchronize: async (result, context) => {
-                void result;
+            synchronize: async (_result, context) => {
                 if (usesPreview &&
                     this.previewDefinitions !== null &&
                     areFilterDefinitionsEqual(this.previewDefinitions, definitions)) {
@@ -259,12 +258,14 @@ export class FiltersController {
             },
             validate: () => this.validateBaseImageInvariant(transactionId),
             describeCommit: () => Object.freeze({ filterCount: definitions.length }),
-            rollback: usesPreview
-                ? () => {
-                    this.committedState = previousState;
-                    promotePreviewAfterCommit = false;
+            ...(usesPreview
+                ? {
+                    rollback: () => {
+                        this.committedState = previousState;
+                        promotePreviewAfterCommit = false;
+                    },
                 }
-                : undefined,
+                : {}),
         });
         if (promotePreviewAfterCommit)
             this.promotePreview();
@@ -330,7 +331,7 @@ export class FiltersController {
                 kind: 'compound',
                 operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : 'filters:bake',
                 conflictDomains: mutationConflictDomains,
-                parent: parent !== null && parent !== void 0 ? parent : undefined,
+                ...(parent ? { parent } : {}),
                 metadata: Object.freeze({ filterCount: definitions.length }),
                 mutate: async (context) => {
                     const baked = await renderBakedImage(this.host.fabric, baseImage, definitions, options, this.host.getImageInfo(), this.host.getImageResourcePolicy(), context.signal);
@@ -407,7 +408,7 @@ export class FiltersController {
             return {
                 valid: false,
                 message: error instanceof Error ? error.message : 'Filters state is malformed.',
-                path: error instanceof FilterDefinitionError ? error.path : undefined,
+                ...(error instanceof FilterDefinitionError ? { path: error.path } : {}),
             };
         }
     }

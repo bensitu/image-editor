@@ -121,12 +121,12 @@ export default function App() {
 
     function runTransform(action: (api: TransformPluginApi) => Promise<void>) {
         const api = transformRef.current;
-        if (api) void run(() => action(api));
+        if (api) run(() => action(api)).catch(console.error);
     }
 
     function runHistory(action: (api: HistoryPort) => Promise<void>) {
         const api = historyRef.current;
-        if (api) void run(() => action(api));
+        if (api) run(() => action(api)).catch(console.error);
     }
 
     const canEdit = ready && !running && imageInfo !== null;

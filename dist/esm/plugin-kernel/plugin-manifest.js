@@ -129,10 +129,10 @@ export function validatePluginManifest(ref, manifest) {
         version: manifest.version,
         apiVersion: manifest.apiVersion,
         engine: manifest.engine,
-        requiresPlugins,
-        requires,
-        optional,
-        permissions,
+        ...(requiresPlugins ? { requiresPlugins } : {}),
+        ...(requires ? { requires } : {}),
+        ...(optional ? { optional } : {}),
+        ...(permissions ? { permissions } : {}),
     });
 }
 //# sourceMappingURL=plugin-manifest.js.map

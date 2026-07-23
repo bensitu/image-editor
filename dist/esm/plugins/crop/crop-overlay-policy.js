@@ -39,13 +39,13 @@ export function normalizeCropOverlayPolicy(value) {
         }
         kinds = Object.freeze([...new Set(value.kinds)]);
     }
-    return Object.freeze({ preview, apply, kinds });
+    return Object.freeze({ preview, apply, ...(kinds ? { kinds } : {}) });
 }
 export function findCropOverlayCandidates(overlay, cropBounds, policy) {
     if (!overlay)
         return Object.freeze({ allIds: Object.freeze([]), intersectingIds: Object.freeze([]) });
     const objects = overlay.list({
-        kinds: policy.kinds,
+        ...(policy.kinds ? { kinds: policy.kinds } : {}),
         includeHidden: true,
         includeLocked: true,
     });

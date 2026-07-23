@@ -36,8 +36,8 @@ function createDescriptor(request, before, after, metadata, provisional) {
         after,
         affineDelta,
         hasReflection: affineDelta ? hasAffineReflection(affineDelta) : false,
-        sourceRect: request.sourceRect ? Object.freeze({ ...request.sourceRect }) : undefined,
-        targetSize: request.targetSize ? Object.freeze({ ...request.targetSize }) : undefined,
+        ...(request.sourceRect ? { sourceRect: Object.freeze({ ...request.sourceRect }) } : {}),
+        ...(request.targetSize ? { targetSize: Object.freeze({ ...request.targetSize }) } : {}),
         metadata,
     });
 }
@@ -219,8 +219,12 @@ export class GeometryMutationCoordinator {
                                 message: error.message,
                                 mutationId: request.id,
                                 participantId: entry.record.participant.id,
-                                objectIdentity: error.objectIdentity,
-                                objectKind: error.objectKind,
+                                ...(error.objectIdentity === undefined
+                                    ? {}
+                                    : { objectIdentity: error.objectIdentity }),
+                                ...(error.objectKind === undefined
+                                    ? {}
+                                    : { objectKind: error.objectKind }),
                                 cause: error.cause,
                             });
                             continue;
@@ -229,20 +233,22 @@ export class GeometryMutationCoordinator {
                     }
                 }
             },
-            rollback: participantSnapshot.some(({ participant }) => participant.rollback)
-                ? async (prepared, rollbackContext) => {
-                    var _a, _b, _c;
-                    const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
-                    if (!descriptor)
-                        return;
-                    for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
-                        const entry = prepared.entries[index];
-                        if (!entry)
-                            continue;
-                        await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
-                    }
+            ...(participantSnapshot.some(({ participant }) => participant.rollback)
+                ? {
+                    rollback: async (prepared, rollbackContext) => {
+                        var _a, _b, _c;
+                        const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
+                        if (!descriptor)
+                            return;
+                        for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
+                            const entry = prepared.entries[index];
+                            if (!entry)
+                                continue;
+                            await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
+                        }
+                    },
                 }
-                : undefined,
+                : {}),
         });
         try {
             return await this.options.mutations.run({
@@ -251,7 +257,7 @@ export class GeometryMutationCoordinator {
                 operationId: request.operationId,
                 conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
                 signal,
-                parent: request.parent,
+                ...(request.parent ? { parent: request.parent } : {}),
                 metadata,
                 participants: [geometryParticipant],
                 mutate: async (context) => {
@@ -267,14 +273,19 @@ export class GeometryMutationCoordinator {
                     }
                     return createDescriptor(request, capturedBefore, after, metadata, false);
                 },
-                rollback: request.rollbackBase
-                    ? async (context) => {
-                        var _a, _b, _c;
-                        await ((_a = request.rollbackBase) === null || _a === void 0 ? void 0 : _a.call(request, Object.freeze({ signal: context.signal, cause: context.cause })));
-                        if (before)
-                            await ((_c = (_b = this.options.state).restoreGeometry) === null || _c === void 0 ? void 0 : _c.call(_b, before));
+                ...(request.rollbackBase
+                    ? {
+                        rollback: async (context) => {
+                            var _a, _b, _c;
+                            await ((_a = request.rollbackBase) === null || _a === void 0 ? void 0 : _a.call(request, Object.freeze({
+                                signal: context.signal,
+                                cause: context.cause,
+                            })));
+                            if (before)
+                                await ((_c = (_b = this.options.state).restoreGeometry) === null || _c === void 0 ? void 0 : _c.call(_b, before));
+                        },
                     }
-                    : undefined,
+                    : {}),
             });
         }
         catch (error) {
@@ -291,8 +302,8 @@ export class GeometryMutationCoordinator {
                     code: 'GEOMETRY_OBJECT_SKIPPED',
                     message: 'An overlay transform skipped a malformed or unsupported object.',
                     mutationId,
-                    objectIdentity,
-                    objectKind,
+                    ...(objectIdentity === undefined ? {} : { objectIdentity }),
+                    ...(objectKind === undefined ? {} : { objectKind }),
                     cause: error,
                 });
             },
@@ -304,8 +315,8 @@ export class GeometryMutationCoordinator {
             message: error.message,
             mutationId,
             participantId,
-            objectIdentity: error.objectIdentity,
-            objectKind: error.objectKind,
+            ...(error.objectIdentity === undefined ? {} : { objectIdentity: error.objectIdentity }),
+            ...(error.objectKind === undefined ? {} : { objectKind: error.objectKind }),
             cause: error.cause,
         });
     }

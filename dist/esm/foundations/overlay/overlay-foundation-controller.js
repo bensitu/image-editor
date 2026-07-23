@@ -156,8 +156,8 @@ function parseExportOptions(value) {
         ? value.excludeKinds.filter((kind) => typeof kind === 'string')
         : undefined;
     return Object.freeze({
-        includeKinds: includeKinds ? Object.freeze(includeKinds) : undefined,
-        excludeKinds: excludeKinds ? Object.freeze(excludeKinds) : undefined,
+        ...(includeKinds ? { includeKinds: Object.freeze(includeKinds) } : {}),
+        ...(excludeKinds ? { excludeKinds: Object.freeze(excludeKinds) } : {}),
         includeHidden: value.includeHidden === true,
     });
 }
@@ -426,11 +426,9 @@ export class OverlayFoundationController {
             typeof definition.getPersistentId !== 'function' ||
             (definition.setPersistentId !== undefined &&
                 typeof definition.setPersistentId !== 'function')) {
-            throw new PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', {
-                pluginId: isRecord(definition) && typeof definition.ownerPluginId === 'string'
-                    ? definition.ownerPluginId
-                    : undefined,
-            });
+            throw new PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', isRecord(definition) && typeof definition.ownerPluginId === 'string'
+                ? { pluginId: definition.ownerPluginId }
+                : {});
         }
         this.assertRuntimeIdentifier(definition.id, 'Overlay kind id');
         this.assertRuntimeIdentifier(definition.ownerPluginId, 'Overlay kind owner');
@@ -615,7 +613,7 @@ export class OverlayFoundationController {
                     continue;
                 if (--record[2])
                     continue;
-                target.preview = undefined;
+                delete target.preview;
                 target.object.visible = record[0];
                 restored = true;
             }
@@ -672,8 +670,8 @@ export class OverlayFoundationController {
             kind: 'overlay',
             operationId: request.operationId,
             conflictDomains: ['document', 'overlay', 'selection', 'state'],
-            parent: request.parent,
-            metadata: request.metadata,
+            ...(request.parent ? { parent: request.parent } : {}),
+            ...(request.metadata ? { metadata: request.metadata } : {}),
             mutate: async (transaction) => {
                 const context = this.createMutationContext(transaction, request.action, initialTargets);
                 return request.mutate(context);

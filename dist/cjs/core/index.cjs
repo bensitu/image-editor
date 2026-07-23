@@ -2,13 +2,13 @@
 
 var errors = require('../chunks/errors-DeAfrgDC.cjs');
 var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
-var pluginManager = require('../chunks/plugin-manager-DhGvZdpX.cjs');
-var pluginPlan = require('../chunks/plugin-plan-BBOVkUMI.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-DWQ7SALj.cjs');
+var pluginManager = require('../chunks/plugin-manager-CfbKlLDK.cjs');
+var pluginPlan = require('../chunks/plugin-plan-Cz0Krduf.cjs');
 var imageBudget = require('../chunks/image-budget-DZeZeVWW.cjs');
-var disposable = require('../chunks/disposable-pTo80E0l.cjs');
-var coreCapabilities = require('../chunks/core-capabilities-CWNPa1MZ.cjs');
+var disposable = require('../chunks/disposable-y_ve7ZXe.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-DryMPZoj.cjs');
 
 function forceReflow(element) {
     if (!element)
@@ -49,9 +49,7 @@ class ViewportCache {
 }
 const OVERFLOW_EPSILON = 0.5;
 function normalizeOverflowValue(value) {
-    return String(value !== null && value !== void 0 ? value : '')
-        .trim()
-        .toLowerCase();
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 function getContainerOverflowValues(container) {
     var _a, _b;
@@ -808,8 +806,8 @@ function createDescriptor(request, before, after, metadata, provisional) {
         after,
         affineDelta,
         hasReflection: affineDelta ? affineMatrix.hasAffineReflection(affineDelta) : false,
-        sourceRect: request.sourceRect ? Object.freeze({ ...request.sourceRect }) : undefined,
-        targetSize: request.targetSize ? Object.freeze({ ...request.targetSize }) : undefined,
+        ...(request.sourceRect ? { sourceRect: Object.freeze({ ...request.sourceRect }) } : {}),
+        ...(request.targetSize ? { targetSize: Object.freeze({ ...request.targetSize }) } : {}),
         metadata,
     });
 }
@@ -991,8 +989,12 @@ class GeometryMutationCoordinator {
                                 message: error.message,
                                 mutationId: request.id,
                                 participantId: entry.record.participant.id,
-                                objectIdentity: error.objectIdentity,
-                                objectKind: error.objectKind,
+                                ...(error.objectIdentity === undefined
+                                    ? {}
+                                    : { objectIdentity: error.objectIdentity }),
+                                ...(error.objectKind === undefined
+                                    ? {}
+                                    : { objectKind: error.objectKind }),
                                 cause: error.cause,
                             });
                             continue;
@@ -1001,20 +1003,22 @@ class GeometryMutationCoordinator {
                     }
                 }
             },
-            rollback: participantSnapshot.some(({ participant }) => participant.rollback)
-                ? async (prepared, rollbackContext) => {
-                    var _a, _b, _c;
-                    const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
-                    if (!descriptor)
-                        return;
-                    for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
-                        const entry = prepared.entries[index];
-                        if (!entry)
-                            continue;
-                        await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
-                    }
+            ...(participantSnapshot.some(({ participant }) => participant.rollback)
+                ? {
+                    rollback: async (prepared, rollbackContext) => {
+                        var _a, _b, _c;
+                        const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
+                        if (!descriptor)
+                            return;
+                        for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
+                            const entry = prepared.entries[index];
+                            if (!entry)
+                                continue;
+                            await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
+                        }
+                    },
                 }
-                : undefined,
+                : {}),
         });
         try {
             return await this.options.mutations.run({
@@ -1023,7 +1027,7 @@ class GeometryMutationCoordinator {
                 operationId: request.operationId,
                 conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
                 signal,
-                parent: request.parent,
+                ...(request.parent ? { parent: request.parent } : {}),
                 metadata,
                 participants: [geometryParticipant],
                 mutate: async (context) => {
@@ -1039,14 +1043,19 @@ class GeometryMutationCoordinator {
                     }
                     return createDescriptor(request, capturedBefore, after, metadata, false);
                 },
-                rollback: request.rollbackBase
-                    ? async (context) => {
-                        var _a, _b, _c;
-                        await ((_a = request.rollbackBase) === null || _a === void 0 ? void 0 : _a.call(request, Object.freeze({ signal: context.signal, cause: context.cause })));
-                        if (before)
-                            await ((_c = (_b = this.options.state).restoreGeometry) === null || _c === void 0 ? void 0 : _c.call(_b, before));
+                ...(request.rollbackBase
+                    ? {
+                        rollback: async (context) => {
+                            var _a, _b, _c;
+                            await ((_a = request.rollbackBase) === null || _a === void 0 ? void 0 : _a.call(request, Object.freeze({
+                                signal: context.signal,
+                                cause: context.cause,
+                            })));
+                            if (before)
+                                await ((_c = (_b = this.options.state).restoreGeometry) === null || _c === void 0 ? void 0 : _c.call(_b, before));
+                        },
                     }
-                    : undefined,
+                    : {}),
             });
         }
         catch (error) {
@@ -1063,8 +1072,8 @@ class GeometryMutationCoordinator {
                     code: 'GEOMETRY_OBJECT_SKIPPED',
                     message: 'An overlay transform skipped a malformed or unsupported object.',
                     mutationId,
-                    objectIdentity,
-                    objectKind,
+                    ...(objectIdentity === undefined ? {} : { objectIdentity }),
+                    ...(objectKind === undefined ? {} : { objectKind }),
                     cause: error,
                 });
             },
@@ -1076,8 +1085,8 @@ class GeometryMutationCoordinator {
             message: error.message,
             mutationId,
             participantId,
-            objectIdentity: error.objectIdentity,
-            objectKind: error.objectKind,
+            ...(error.objectIdentity === undefined ? {} : { objectIdentity: error.objectIdentity }),
+            ...(error.objectKind === undefined ? {} : { objectKind: error.objectKind }),
             cause: error.cause,
         });
     }
@@ -1506,8 +1515,8 @@ class DocumentMutationCoordinator {
         const operation = this.options.operations.run(normalized.operationId, (operationContext) => parentRecord
             ? this.performNested(normalized, operationContext.token, parentRecord)
             : this.performTopLevel(normalized, operationContext.token), {
-            parent: parentRecord === null || parentRecord === void 0 ? void 0 : parentRecord.operationToken,
             signal: controller.signal,
+            ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
         });
         this.activePromises.add(operation);
         return operation.finally(() => {
@@ -2621,7 +2630,7 @@ class SnapshotService {
         const migration = options.migrations.find((candidate) => candidate.canMigrate(immutableInput));
         if (!migration)
             return this.prepareParsed(parsed, options);
-        const context = { signal: options.signal };
+        const context = options.signal ? { signal: options.signal } : {};
         const migrated = await migration.migrate(immutableInput, context);
         return this.prepareParsed(parseInput(migrated, this.limits), options);
     }
@@ -2955,8 +2964,8 @@ function resolveOptions(options) {
         maxExportDimension: positiveInteger(options.maxExportDimension, DEFAULT_CORE_OPTIONS.maxExportDimension),
         exportMultiplier: positiveFinite(options.exportMultiplier, DEFAULT_CORE_OPTIONS.exportMultiplier),
         initialImageBase64: (_c = options.initialImageBase64) !== null && _c !== void 0 ? _c : '',
-        onError: options.onError,
-        onWarning: options.onWarning,
+        ...(options.onError ? { onError: options.onError } : {}),
+        ...(options.onWarning ? { onWarning: options.onWarning } : {}),
     });
 }
 function resolveElement(target, ownerDocument) {
@@ -3077,33 +3086,45 @@ function freezePluginDefinition(definition) {
     if (!('manifest' in definition)) {
         return pluginManager.aliasPluginDefinitionIdentity(Object.freeze({
             ...definition,
-            requires: definition.requires
-                ? Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            optional: definition.optional
-                ? Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            permissions: definition.permissions
-                ? Object.freeze([...definition.permissions])
-                : undefined,
+            ...(definition.requires
+                ? {
+                    requires: Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.optional
+                ? {
+                    optional: Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.permissions
+                ? { permissions: Object.freeze([...definition.permissions]) }
+                : {}),
         }), definition);
     }
     return pluginManager.aliasPluginDefinitionIdentity(Object.freeze({
         ...definition,
         manifest: Object.freeze({
             ...definition.manifest,
-            requiresPlugins: definition.manifest.requiresPlugins
-                ? Object.freeze([...definition.manifest.requiresPlugins])
-                : undefined,
-            requires: definition.manifest.requires
-                ? Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            optional: definition.manifest.optional
-                ? Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement })))
-                : undefined,
-            permissions: definition.manifest.permissions
-                ? Object.freeze([...definition.manifest.permissions])
-                : undefined,
+            ...(definition.manifest.requiresPlugins
+                ? {
+                    requiresPlugins: Object.freeze([...definition.manifest.requiresPlugins]),
+                }
+                : {}),
+            ...(definition.manifest.requires
+                ? {
+                    requires: Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.manifest.optional
+                ? {
+                    optional: Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement }))),
+                }
+                : {}),
+            ...(definition.manifest.permissions
+                ? {
+                    permissions: Object.freeze([...definition.manifest.permissions]),
+                }
+                : {}),
         }),
     }), definition);
 }
@@ -3405,7 +3426,7 @@ class ImageEditorCore {
                 if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
                     const budgetError = new errors.CoreRuntimeError('[ImageEditor] Decoded image dimensions exceed the configured budget.');
                     try {
-                        await image.dispose();
+                        image.dispose();
                     }
                     catch (cleanupError) {
                         throw new errors.CoreRuntimeError('[ImageEditor] Rejected image cleanup failed.', { cause: Object.freeze([budgetError, cleanupError]) });
@@ -3485,7 +3506,7 @@ class ImageEditorCore {
                     this.containerElement.scrollTop = previousScroll.top;
                 }
                 this.updatePlaceholder();
-            }, { signal: options.signal });
+            }, options.signal ? { signal: options.signal } : {});
         }
         catch (error) {
             if (!isLoadCancellation(error) && !this.initialImageLoadActive) {
@@ -3538,9 +3559,11 @@ class ImageEditorCore {
         this.assertReady('load state');
         try {
             const prepared = await this.snapshots.prepareForLoad(input, {
-                missingPluginPolicy: options.missingPluginPolicy,
-                migrations: options.migrations,
-                signal: options.signal,
+                ...(options.missingPluginPolicy
+                    ? { missingPluginPolicy: options.missingPluginPolicy }
+                    : {}),
+                ...(options.migrations ? { migrations: options.migrations } : {}),
+                ...(options.signal ? { signal: options.signal } : {}),
             });
             const sequence = ++this.stateLoadSequence;
             await this.documentMutations.run({
@@ -3555,7 +3578,7 @@ class ImageEditorCore {
                     'overlay',
                     'state',
                 ],
-                signal: options.signal,
+                ...(options.signal ? { signal: options.signal } : {}),
                 metadata: Object.freeze({ sequence }),
                 mutate: async (context) => {
                     await this.snapshots.loadPrepared(prepared, {
@@ -4404,7 +4427,7 @@ class ImageEditorCore {
             () => this.slices.dispose(),
         ]) {
             try {
-                await cleanup();
+                await Promise.resolve(cleanup());
             }
             catch (error) {
                 errors.push(error);

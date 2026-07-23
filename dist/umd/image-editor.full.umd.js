@@ -4,6 +4,12 @@
     (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.ImageEditorFull = {}));
 })(this, (function (exports) { 'use strict';
 
+    function createPluginErrorOptions(pluginId, cause) {
+        return {
+            ...(pluginId ? { pluginId } : {}),
+            ...(cause === undefined ? {} : { cause }),
+        };
+    }
     function derivePluginErrorName(code) {
         const stem = code
             .replace('PLUGIN_DEPENDENCY_MISSING', 'PLUGIN_DEPENDENCY')
@@ -108,7 +114,7 @@
     }
     class PluginDependencyCycleError extends PluginError {
         constructor(cycle) {
-            super('PLUGIN_DEPENDENCY_CYCLE', `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`, { pluginId: cycle[0] });
+            super('PLUGIN_DEPENDENCY_CYCLE', `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`, createPluginErrorOptions(cycle[0]));
             this.cycle = Object.freeze([...cycle]);
         }
     }
@@ -150,10 +156,7 @@
             const consumer = details.consumerPluginId
                 ? ` for Plugin "${details.consumerPluginId}"`
                 : '';
-            super(code, message !== null && message !== void 0 ? message : `[ImageEditor] Capability "${details.capabilityId}" version "${(_a = details.actualVersion) !== null && _a !== void 0 ? _a : 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`, {
-                pluginId: (_b = details.consumerPluginId) !== null && _b !== void 0 ? _b : details.providerPluginId,
-                cause: details.cause,
-            });
+            super(code, message !== null && message !== void 0 ? message : `[ImageEditor] Capability "${details.capabilityId}" version "${(_a = details.actualVersion) !== null && _a !== void 0 ? _a : 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`, createPluginErrorOptions((_b = details.consumerPluginId) !== null && _b !== void 0 ? _b : details.providerPluginId, details.cause));
             this.capabilityId = details.capabilityId;
             this.expectedRange = details.expectedRange;
             this.actualVersion = details.actualVersion;
@@ -198,7 +201,7 @@
     }
     class InvalidPluginDefinitionError extends PluginManifestError {
         constructor(message, pluginId, cause) {
-            super(message, { pluginId, cause });
+            super(message, createPluginErrorOptions(pluginId, cause));
             Object.defineProperty(this, "name", {
                 enumerable: true,
                 configurable: true,
@@ -225,25 +228,22 @@
     }
     class OperationRegistrationError extends PluginError {
         constructor(message, pluginId) {
-            super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+            super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
         }
     }
     class OperationConflictError extends PluginError {
         constructor(message, pluginId) {
-            super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, { pluginId });
+            super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
         }
     }
     class ToolRegistrationError extends PluginError {
         constructor(message, pluginId) {
-            super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+            super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
         }
     }
     class ToolTransitionError extends PluginError {
         constructor(toolId, message, pluginId, cause) {
-            super('TOOL_TRANSITION_ERROR', `[ImageEditor] Tool "${toolId}" ${message}.`, {
-                pluginId,
-                cause,
-            });
+            super('TOOL_TRANSITION_ERROR', `[ImageEditor] Tool "${toolId}" ${message}.`, createPluginErrorOptions(pluginId, cause));
             this.toolId = toolId;
         }
     }
@@ -528,6 +528,9 @@
             value !== null &&
             typeof value.then === 'function');
     }
+    function observePromise(promise, onRejected) {
+        Promise.resolve(promise).catch(onRejected);
+    }
     function disposeInReverseSync(disposables, options = {}) {
         var _a;
         const errors = [];
@@ -541,7 +544,7 @@
                         reportWarningSafely(options.warningSink, options.errorSink, {
                             code: 'PLUGIN_CLEANUP_FAILED',
                             message: `Asynchronous cleanup item ${index} failed after synchronous disposal returned.`,
-                            pluginId: options.pluginId,
+                            ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                             cause: cleanupError,
                             details: { cleanupIndex: index },
                         });
@@ -553,7 +556,7 @@
                 reportWarningSafely(options.warningSink, options.errorSink, {
                     code: 'PLUGIN_CLEANUP_FAILED',
                     message: `Plugin cleanup item ${index} failed; remaining cleanup continued.`,
-                    pluginId: options.pluginId,
+                    ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                     cause: error,
                     details: { cleanupIndex: index },
                 });
@@ -614,7 +617,7 @@
                 reportWarningSafely(options.warningSink, options.errorSink, {
                     code: 'PLUGIN_CLEANUP_FAILED',
                     message: `Plugin cleanup item ${index} failed; remaining cleanup continued.`,
-                    pluginId: options.pluginId,
+                    ...(options.pluginId ? { pluginId: options.pluginId } : {}),
                     cause: error,
                     details: { cleanupIndex: index },
                 });
@@ -768,10 +771,10 @@
             version: manifest.version,
             apiVersion: manifest.apiVersion,
             engine: manifest.engine,
-            requiresPlugins,
-            requires,
-            optional,
-            permissions,
+            ...(requiresPlugins ? { requiresPlugins } : {}),
+            ...(requires ? { requires } : {}),
+            ...(optional ? { optional } : {}),
+            ...(permissions ? { permissions } : {}),
         });
     }
 
@@ -1121,7 +1124,7 @@
                         timeoutMs: this.listenerTimeoutMs,
                     },
                 });
-                void settlement.then((lateOutcome) => {
+                observePromise(settlement.then((lateOutcome) => {
                     if (lateOutcome.status !== 'rejected')
                         return;
                     reportWarningSafely(this.options.warningSink, this.options.errorSink, {
@@ -1133,6 +1136,12 @@
                             listenerIndex,
                             timeoutMs: this.listenerTimeoutMs,
                         },
+                    });
+                }), (error) => {
+                    reportWarningSafely(this.options.warningSink, this.options.errorSink, {
+                        code: 'COMMITTED_EVENT_LATE_OBSERVER_FAILURE',
+                        message: `Late listener observation for "${eventName}" failed.`,
+                        cause: error,
                     });
                 });
                 return;
@@ -2342,7 +2351,7 @@
                 value: null
             });
             this.capabilityRegistry = new CapabilityRegistry(options);
-            this.toolCoordinator = new ToolCoordinator({ errorSink: options.errorSink });
+            this.toolCoordinator = new ToolCoordinator(options.errorSink ? { errorSink: options.errorSink } : {});
             this.eventBus = new CommittedEventBus(options);
             for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) {
                 this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
@@ -2759,7 +2768,9 @@
                 dependencyId: dependency.id,
                 requiredApiVersion: dependency.apiVersion,
                 availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
-                packageHint: pluginPackageHints.get(dependency.id),
+                ...(pluginPackageHints.has(dependency.id)
+                    ? { packageHint: pluginPackageHints.get(dependency.id) }
+                    : {}),
                 planHint: 'Pass the dependency to install([...]) or include it in composePlugins(...).',
             });
         }
@@ -3094,9 +3105,9 @@
                     version: plugin.version,
                     apiVersion: plugin.ref.apiVersion,
                     engine: '*',
-                    requires: plugin.requires,
-                    optional: plugin.optional,
-                    permissions: plugin.permissions,
+                    ...(plugin.requires ? { requires: plugin.requires } : {}),
+                    ...(plugin.optional ? { optional: plugin.optional } : {}),
+                    ...(plugin.permissions ? { permissions: plugin.permissions } : {}),
                 });
             return Object.freeze({
                 ...plugin,
@@ -3338,9 +3349,7 @@
     }
     const OVERFLOW_EPSILON = 0.5;
     function normalizeOverflowValue(value) {
-        return String(value !== null && value !== void 0 ? value : '')
-            .trim()
-            .toLowerCase();
+        return typeof value === 'string' ? value.trim().toLowerCase() : '';
     }
     function getContainerOverflowValues(container) {
         var _a, _b;
@@ -4518,8 +4527,8 @@
             after,
             affineDelta,
             hasReflection: affineDelta ? hasAffineReflection(affineDelta) : false,
-            sourceRect: request.sourceRect ? Object.freeze({ ...request.sourceRect }) : undefined,
-            targetSize: request.targetSize ? Object.freeze({ ...request.targetSize }) : undefined,
+            ...(request.sourceRect ? { sourceRect: Object.freeze({ ...request.sourceRect }) } : {}),
+            ...(request.targetSize ? { targetSize: Object.freeze({ ...request.targetSize }) } : {}),
             metadata,
         });
     }
@@ -4701,8 +4710,12 @@
                                     message: error.message,
                                     mutationId: request.id,
                                     participantId: entry.record.participant.id,
-                                    objectIdentity: error.objectIdentity,
-                                    objectKind: error.objectKind,
+                                    ...(error.objectIdentity === undefined
+                                        ? {}
+                                        : { objectIdentity: error.objectIdentity }),
+                                    ...(error.objectKind === undefined
+                                        ? {}
+                                        : { objectKind: error.objectKind }),
                                     cause: error.cause,
                                 });
                                 continue;
@@ -4711,20 +4724,22 @@
                         }
                     }
                 },
-                rollback: participantSnapshot.some(({ participant }) => participant.rollback)
-                    ? async (prepared, rollbackContext) => {
-                        var _a, _b, _c;
-                        const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
-                        if (!descriptor)
-                            return;
-                        for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
-                            const entry = prepared.entries[index];
-                            if (!entry)
-                                continue;
-                            await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
-                        }
+                ...(participantSnapshot.some(({ participant }) => participant.rollback)
+                    ? {
+                        rollback: async (prepared, rollbackContext) => {
+                            var _a, _b, _c;
+                            const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
+                            if (!descriptor)
+                                return;
+                            for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
+                                const entry = prepared.entries[index];
+                                if (!entry)
+                                    continue;
+                                await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
+                            }
+                        },
                     }
-                    : undefined,
+                    : {}),
             });
             try {
                 return await this.options.mutations.run({
@@ -4733,7 +4748,7 @@
                     operationId: request.operationId,
                     conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
                     signal,
-                    parent: request.parent,
+                    ...(request.parent ? { parent: request.parent } : {}),
                     metadata,
                     participants: [geometryParticipant],
                     mutate: async (context) => {
@@ -4749,14 +4764,19 @@
                         }
                         return createDescriptor(request, capturedBefore, after, metadata, false);
                     },
-                    rollback: request.rollbackBase
-                        ? async (context) => {
-                            var _a, _b, _c;
-                            await ((_a = request.rollbackBase) === null || _a === void 0 ? void 0 : _a.call(request, Object.freeze({ signal: context.signal, cause: context.cause })));
-                            if (before)
-                                await ((_c = (_b = this.options.state).restoreGeometry) === null || _c === void 0 ? void 0 : _c.call(_b, before));
+                    ...(request.rollbackBase
+                        ? {
+                            rollback: async (context) => {
+                                var _a, _b, _c;
+                                await ((_a = request.rollbackBase) === null || _a === void 0 ? void 0 : _a.call(request, Object.freeze({
+                                    signal: context.signal,
+                                    cause: context.cause,
+                                })));
+                                if (before)
+                                    await ((_c = (_b = this.options.state).restoreGeometry) === null || _c === void 0 ? void 0 : _c.call(_b, before));
+                            },
                         }
-                        : undefined,
+                        : {}),
                 });
             }
             catch (error) {
@@ -4773,8 +4793,8 @@
                         code: 'GEOMETRY_OBJECT_SKIPPED',
                         message: 'An overlay transform skipped a malformed or unsupported object.',
                         mutationId,
-                        objectIdentity,
-                        objectKind,
+                        ...(objectIdentity === undefined ? {} : { objectIdentity }),
+                        ...(objectKind === undefined ? {} : { objectKind }),
                         cause: error,
                     });
                 },
@@ -4786,8 +4806,8 @@
                 message: error.message,
                 mutationId,
                 participantId,
-                objectIdentity: error.objectIdentity,
-                objectKind: error.objectKind,
+                ...(error.objectIdentity === undefined ? {} : { objectIdentity: error.objectIdentity }),
+                ...(error.objectKind === undefined ? {} : { objectKind: error.objectKind }),
                 cause: error.cause,
             });
         }
@@ -5233,8 +5253,8 @@
             const operation = this.options.operations.run(normalized.operationId, (operationContext) => parentRecord
                 ? this.performNested(normalized, operationContext.token, parentRecord)
                 : this.performTopLevel(normalized, operationContext.token), {
-                parent: parentRecord === null || parentRecord === void 0 ? void 0 : parentRecord.operationToken,
                 signal: controller.signal,
+                ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
             });
             this.activePromises.add(operation);
             return operation.finally(() => {
@@ -6348,7 +6368,7 @@
             const migration = options.migrations.find((candidate) => candidate.canMigrate(immutableInput));
             if (!migration)
                 return this.prepareParsed(parsed, options);
-            const context = { signal: options.signal };
+            const context = options.signal ? { signal: options.signal } : {};
             const migrated = await migration.migrate(immutableInput, context);
             return this.prepareParsed(parseInput(migrated, this.limits), options);
         }
@@ -6682,8 +6702,8 @@
             maxExportDimension: positiveInteger(options.maxExportDimension, DEFAULT_CORE_OPTIONS.maxExportDimension),
             exportMultiplier: positiveFinite(options.exportMultiplier, DEFAULT_CORE_OPTIONS.exportMultiplier),
             initialImageBase64: (_c = options.initialImageBase64) !== null && _c !== void 0 ? _c : '',
-            onError: options.onError,
-            onWarning: options.onWarning,
+            ...(options.onError ? { onError: options.onError } : {}),
+            ...(options.onWarning ? { onWarning: options.onWarning } : {}),
         });
     }
     function resolveElement$1(target, ownerDocument) {
@@ -6804,33 +6824,45 @@
         if (!('manifest' in definition)) {
             return aliasPluginDefinitionIdentity(Object.freeze({
                 ...definition,
-                requires: definition.requires
-                    ? Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement })))
-                    : undefined,
-                optional: definition.optional
-                    ? Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement })))
-                    : undefined,
-                permissions: definition.permissions
-                    ? Object.freeze([...definition.permissions])
-                    : undefined,
+                ...(definition.requires
+                    ? {
+                        requires: Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement }))),
+                    }
+                    : {}),
+                ...(definition.optional
+                    ? {
+                        optional: Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement }))),
+                    }
+                    : {}),
+                ...(definition.permissions
+                    ? { permissions: Object.freeze([...definition.permissions]) }
+                    : {}),
             }), definition);
         }
         return aliasPluginDefinitionIdentity(Object.freeze({
             ...definition,
             manifest: Object.freeze({
                 ...definition.manifest,
-                requiresPlugins: definition.manifest.requiresPlugins
-                    ? Object.freeze([...definition.manifest.requiresPlugins])
-                    : undefined,
-                requires: definition.manifest.requires
-                    ? Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement })))
-                    : undefined,
-                optional: definition.manifest.optional
-                    ? Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement })))
-                    : undefined,
-                permissions: definition.manifest.permissions
-                    ? Object.freeze([...definition.manifest.permissions])
-                    : undefined,
+                ...(definition.manifest.requiresPlugins
+                    ? {
+                        requiresPlugins: Object.freeze([...definition.manifest.requiresPlugins]),
+                    }
+                    : {}),
+                ...(definition.manifest.requires
+                    ? {
+                        requires: Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement }))),
+                    }
+                    : {}),
+                ...(definition.manifest.optional
+                    ? {
+                        optional: Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement }))),
+                    }
+                    : {}),
+                ...(definition.manifest.permissions
+                    ? {
+                        permissions: Object.freeze([...definition.manifest.permissions]),
+                    }
+                    : {}),
             }),
         }), definition);
     }
@@ -7132,7 +7164,7 @@
                     if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
                         const budgetError = new CoreRuntimeError('[ImageEditor] Decoded image dimensions exceed the configured budget.');
                         try {
-                            await image.dispose();
+                            image.dispose();
                         }
                         catch (cleanupError) {
                             throw new CoreRuntimeError('[ImageEditor] Rejected image cleanup failed.', { cause: Object.freeze([budgetError, cleanupError]) });
@@ -7212,7 +7244,7 @@
                         this.containerElement.scrollTop = previousScroll.top;
                     }
                     this.updatePlaceholder();
-                }, { signal: options.signal });
+                }, options.signal ? { signal: options.signal } : {});
             }
             catch (error) {
                 if (!isLoadCancellation(error) && !this.initialImageLoadActive) {
@@ -7265,9 +7297,11 @@
             this.assertReady('load state');
             try {
                 const prepared = await this.snapshots.prepareForLoad(input, {
-                    missingPluginPolicy: options.missingPluginPolicy,
-                    migrations: options.migrations,
-                    signal: options.signal,
+                    ...(options.missingPluginPolicy
+                        ? { missingPluginPolicy: options.missingPluginPolicy }
+                        : {}),
+                    ...(options.migrations ? { migrations: options.migrations } : {}),
+                    ...(options.signal ? { signal: options.signal } : {}),
                 });
                 const sequence = ++this.stateLoadSequence;
                 await this.documentMutations.run({
@@ -7282,7 +7316,7 @@
                         'overlay',
                         'state',
                     ],
-                    signal: options.signal,
+                    ...(options.signal ? { signal: options.signal } : {}),
                     metadata: Object.freeze({ sequence }),
                     mutate: async (context) => {
                         await this.snapshots.loadPrepared(prepared, {
@@ -8131,7 +8165,7 @@
                 () => this.slices.dispose(),
             ]) {
                 try {
-                    await cleanup();
+                    await Promise.resolve(cleanup());
                 }
                 catch (error) {
                     errors.push(error);
@@ -8447,8 +8481,8 @@
             ? value.excludeKinds.filter((kind) => typeof kind === 'string')
             : undefined;
         return Object.freeze({
-            includeKinds: includeKinds ? Object.freeze(includeKinds) : undefined,
-            excludeKinds: excludeKinds ? Object.freeze(excludeKinds) : undefined,
+            ...(includeKinds ? { includeKinds: Object.freeze(includeKinds) } : {}),
+            ...(excludeKinds ? { excludeKinds: Object.freeze(excludeKinds) } : {}),
             includeHidden: value.includeHidden === true,
         });
     }
@@ -8717,11 +8751,9 @@
                 typeof definition.getPersistentId !== 'function' ||
                 (definition.setPersistentId !== undefined &&
                     typeof definition.setPersistentId !== 'function')) {
-                throw new PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', {
-                    pluginId: isRecord$8(definition) && typeof definition.ownerPluginId === 'string'
-                        ? definition.ownerPluginId
-                        : undefined,
-                });
+                throw new PluginManifestError('Overlay Kind registration requires callable classify and persistent identity members.', isRecord$8(definition) && typeof definition.ownerPluginId === 'string'
+                    ? { pluginId: definition.ownerPluginId }
+                    : {});
             }
             this.assertRuntimeIdentifier(definition.id, 'Overlay kind id');
             this.assertRuntimeIdentifier(definition.ownerPluginId, 'Overlay kind owner');
@@ -8906,7 +8938,7 @@
                         continue;
                     if (--record[2])
                         continue;
-                    target.preview = undefined;
+                    delete target.preview;
                     target.object.visible = record[0];
                     restored = true;
                 }
@@ -8963,8 +8995,8 @@
                 kind: 'overlay',
                 operationId: request.operationId,
                 conflictDomains: ['document', 'overlay', 'selection', 'state'],
-                parent: request.parent,
-                metadata: request.metadata,
+                ...(request.parent ? { parent: request.parent } : {}),
+                ...(request.metadata ? { metadata: request.metadata } : {}),
                 mutate: async (transaction) => {
                     const context = this.createMutationContext(transaction, request.action, initialTargets);
                     return request.mutate(context);
@@ -10549,10 +10581,14 @@
                 ? { metadata: normalizeAnnotationMetadata(value.metadata) }
                 : {}),
             ...(value.hidden !== undefined
-                ? { hidden: validateBoolean$1(value.hidden, 'Annotation hidden state') }
+                ? {
+                    hidden: validateBoolean$1(value.hidden, 'Annotation hidden state'),
+                }
                 : {}),
             ...(value.locked !== undefined
-                ? { locked: validateBoolean$1(value.locked, 'Annotation locked state') }
+                ? {
+                    locked: validateBoolean$1(value.locked, 'Annotation locked state'),
+                }
                 : {}),
         });
     }
@@ -10657,12 +10693,7 @@
         list(query = {}) {
             this.assertActive('list Annotations');
             const normalized = this.normalizeQuery(query);
-            const objects = this.overlay.list({
-                kinds: normalized.kinds,
-                ids: normalized.ids,
-                includeHidden: normalized.includeHidden,
-                includeLocked: normalized.includeLocked,
-            });
+            const objects = this.overlay.list(normalized);
             const selected = new Set(this.overlay.getSelection().ids);
             const allLayers = this.persistentOverlayObjects();
             return Object.freeze(objects
@@ -11144,9 +11175,21 @@
             }
             return Object.freeze({
                 kinds: kinds !== null && kinds !== void 0 ? kinds : Object.freeze([...this.features.keys()]),
-                ids: validateStringList(query.ids, 'Annotation query ids'),
-                includeHidden: validateBoolean$1(query.includeHidden, 'Query includeHidden'),
-                includeLocked: validateBoolean$1(query.includeLocked, 'Query includeLocked'),
+                ...(query.ids === undefined
+                    ? {}
+                    : {
+                        ids: validateStringList(query.ids, 'Annotation query ids'),
+                    }),
+                ...(query.includeHidden === undefined
+                    ? {}
+                    : {
+                        includeHidden: validateBoolean$1(query.includeHidden, 'Query includeHidden'),
+                    }),
+                ...(query.includeLocked === undefined
+                    ? {}
+                    : {
+                        includeLocked: validateBoolean$1(query.includeLocked, 'Query includeLocked'),
+                    }),
             });
         }
         describe(object, selected, layers) {
@@ -11699,7 +11742,7 @@
                 id: mutationId,
                 kind: 'transform',
                 operationId,
-                parent: options.parent,
+                ...(options.parent ? { parent: options.parent } : {}),
                 mutateBase: async ({ signal }) => {
                     await mutate(signal);
                 },
@@ -12957,7 +13000,12 @@
                 originY: 'top',
             };
             switch (shapeType) {
-                case 'circle':
+                case 'circle': {
+                    if (radius === undefined) {
+                        rollbackCanvasExpansion();
+                        reportWarning(options, radius, 'createMask skipped: circle radius is missing.');
+                        return null;
+                    }
                     mask = new fabricModule.Circle({
                         left,
                         top,
@@ -12969,6 +13017,7 @@
                         ...resolvedConfig.styles,
                     });
                     break;
+                }
                 case 'ellipse':
                     mask = new fabricModule.Ellipse({
                         left,
@@ -13234,7 +13283,7 @@
             listOrder: options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back',
             bindToImageTransform: options.bindToImageTransform === true,
             namePrefix: ((_b = options.namePrefix) === null || _b === void 0 ? void 0 : _b.trim()) || 'mask',
-            onChange: options.onChange,
+            ...(options.onChange ? { onChange: options.onChange } : {}),
         });
     }
     function isMaskObject(value) {
@@ -13513,7 +13562,7 @@
                             strokeWidth: context.toCanvasScalar(data.strokeWidth),
                             strokeDashArray: data.strokeDashArray
                                 ? data.strokeDashArray.map((entry) => context.toCanvasScalar(entry))
-                                : undefined,
+                                : null,
                             hasControls: data.hasControls,
                             selectable: data.selectable,
                             evented: data.evented,
@@ -13767,9 +13816,15 @@
                 maskUid: object.maskUid,
                 maskName: object.maskName,
                 originalAlpha: object.originalAlpha,
-                originalStroke: object.originalStroke,
-                originalStrokeWidth: object.originalStrokeWidth,
-                overlayPersistentId: serializedMask.overlayPersistentId,
+                ...(object.originalStroke === undefined
+                    ? {}
+                    : { originalStroke: object.originalStroke }),
+                ...(object.originalStrokeWidth === undefined
+                    ? {}
+                    : { originalStrokeWidth: object.originalStrokeWidth }),
+                ...(serializedMask.overlayPersistentId === undefined
+                    ? {}
+                    : { overlayPersistentId: serializedMask.overlayPersistentId }),
                 overlayMetadata: serializedMask.overlayMetadata,
             });
         }
@@ -13789,10 +13844,19 @@
             mask.maskUid = data.maskUid;
             mask.maskName = data.maskName;
             mask.originalAlpha = data.originalAlpha;
-            mask.originalStroke = data.originalStroke;
-            mask.originalStrokeWidth = data.originalStrokeWidth;
+            if (data.originalStroke === undefined)
+                delete mask.originalStroke;
+            else
+                mask.originalStroke = data.originalStroke;
+            if (data.originalStrokeWidth === undefined)
+                delete mask.originalStrokeWidth;
+            else
+                mask.originalStrokeWidth = data.originalStrokeWidth;
             const serializedMask = mask;
-            serializedMask.overlayPersistentId = data.overlayPersistentId;
+            if (data.overlayPersistentId === undefined)
+                delete serializedMask.overlayPersistentId;
+            else
+                serializedMask.overlayPersistentId = data.overlayPersistentId;
             serializedMask.overlayMetadata = data.overlayMetadata;
             mask.lockRotation = !this.options.rotatable;
             reattachMaskHoverHandlers(mask);
@@ -14326,7 +14390,10 @@
         try {
             throwIfAborted(signal);
             applyFilterDefinitions(fabric, clone, definitions);
-            copyBaseImagePresentation(baseImage, clone, { backgroundColor, transient: true });
+            copyBaseImagePresentation(baseImage, clone, {
+                ...(backgroundColor === undefined ? {} : { backgroundColor }),
+                transient: true,
+            });
             throwIfAborted(signal);
             return clone;
         }
@@ -14363,7 +14430,7 @@
         }
         return Object.freeze({
             format,
-            quality: quality,
+            ...(quality === undefined ? {} : { quality: quality }),
             mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         });
     }
@@ -14425,7 +14492,9 @@
             try {
                 dataUrl = clone.toDataURL({
                     format: normalizedOptions.format,
-                    quality: normalizedOptions.quality,
+                    ...(normalizedOptions.quality === undefined
+                        ? {}
+                        : { quality: normalizedOptions.quality }),
                     multiplier: 1,
                     withoutTransform: true,
                     withoutShadow: true,
@@ -14700,7 +14769,7 @@
                     this.committedState = createState(this.normalizeDefinitions(definitions));
                     return this.committedState;
                 },
-                synchronize: async (result, context) => {
+                synchronize: async (_result, context) => {
                     if (usesPreview &&
                         this.previewDefinitions !== null &&
                         areFilterDefinitionsEqual(this.previewDefinitions, definitions)) {
@@ -14711,12 +14780,14 @@
                 },
                 validate: () => this.validateBaseImageInvariant(transactionId),
                 describeCommit: () => Object.freeze({ filterCount: definitions.length }),
-                rollback: usesPreview
-                    ? () => {
-                        this.committedState = previousState;
-                        promotePreviewAfterCommit = false;
+                ...(usesPreview
+                    ? {
+                        rollback: () => {
+                            this.committedState = previousState;
+                            promotePreviewAfterCommit = false;
+                        },
                     }
-                    : undefined,
+                    : {}),
             });
             if (promotePreviewAfterCommit)
                 this.promotePreview();
@@ -14782,7 +14853,7 @@
                     kind: 'compound',
                     operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : 'filters:bake',
                     conflictDomains: mutationConflictDomains,
-                    parent: parent !== null && parent !== void 0 ? parent : undefined,
+                    ...(parent ? { parent } : {}),
                     metadata: Object.freeze({ filterCount: definitions.length }),
                     mutate: async (context) => {
                         const baked = await renderBakedImage(this.host.fabric, baseImage, definitions, options, this.host.getImageInfo(), this.host.getImageResourcePolicy(), context.signal);
@@ -14859,7 +14930,7 @@
                 return {
                     valid: false,
                     message: error instanceof Error ? error.message : 'Filters state is malformed.',
-                    path: error instanceof FilterDefinitionError ? error.path : undefined,
+                    ...(error instanceof FilterDefinitionError ? { path: error.path } : {}),
                 };
             }
         }
@@ -15498,13 +15569,13 @@
             }
             kinds = Object.freeze([...new Set(value.kinds)]);
         }
-        return Object.freeze({ preview, apply, kinds });
+        return Object.freeze({ preview, apply, ...(kinds ? { kinds } : {}) });
     }
     function findCropOverlayCandidates(overlay, cropBounds, policy) {
         if (!overlay)
             return Object.freeze({ allIds: Object.freeze([]), intersectingIds: Object.freeze([]) });
         const objects = overlay.list({
-            kinds: policy.kinds,
+            ...(policy.kinds ? { kinds: policy.kinds } : {}),
             includeHidden: true,
             includeLocked: true,
         });
@@ -15581,7 +15652,7 @@
         }
         return Object.freeze({
             format,
-            quality: format === 'png' ? undefined : quality,
+            ...(format !== 'png' && quality !== undefined ? { quality: quality } : {}),
             mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
             bakeVisibleFilters: record.bakeVisibleFilters !== false,
         });
@@ -15744,9 +15815,9 @@
             rect: Object.freeze({ ...state.rect }),
             overlayPolicy: Object.freeze({
                 ...state.overlayPolicy,
-                kinds: state.overlayPolicy.kinds
-                    ? Object.freeze([...state.overlayPolicy.kinds])
-                    : undefined,
+                ...(state.overlayPolicy.kinds
+                    ? { kinds: Object.freeze([...state.overlayPolicy.kinds]) }
+                    : {}),
             }),
         });
     }
@@ -16069,12 +16140,15 @@
             preview.setCoords();
         }
         refreshPreview(session) {
-            var _a;
             const baseImage = this.requireBaseImage();
             this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
             const canvas = this.host.requireCanvas('refresh Crop preview');
             canvas.bringObjectToFront(session.preview);
-            (_a = session.previewVisibility) === null || _a === void 0 ? void 0 : _a.dispose();
+            if (session.previewVisibility) {
+                observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                    this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+                });
+            }
             session.previewVisibility = null;
             session.candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
             if (this.overlay &&
@@ -16085,12 +16159,15 @@
             this.host.requestRender();
         }
         closeSession(restoreSelection) {
-            var _a;
             const session = this.session;
             if (!session)
                 return;
             this.session = null;
-            (_a = session.previewVisibility) === null || _a === void 0 ? void 0 : _a.dispose();
+            if (session.previewVisibility) {
+                observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                    this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+                });
+            }
             const canvas = this.host.getCanvas();
             if (canvas === null || canvas === void 0 ? void 0 : canvas.getObjects().includes(session.preview))
                 canvas.remove(session.preview);
@@ -16619,7 +16696,7 @@
         }
         return Object.freeze({
             format,
-            quality: format === 'png' ? undefined : quality,
+            ...(format === 'png' ? {} : { quality }),
             mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
             bakeVisibleFilters: record.bakeVisibleFilters !== false,
         });
@@ -17584,14 +17661,13 @@
         });
     }
     function isSerializedText(value) {
-        var _a;
         if (!isPlainRecord$3(value))
             return false;
         try {
             if (!isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] }))
                 return false;
             const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
-            const type = String((_a = value.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+            const type = typeof value.type === 'string' ? value.type.toLowerCase() : '';
             return (bytes <= MAX_TEXT_OBJECT_BYTES &&
                 type === 'textbox' &&
                 typeof value.text === 'string' &&
@@ -17819,10 +17895,10 @@
                 kind: TEXT_ANNOTATION_KIND,
                 object,
                 name: (_r = creation.name) !== null && _r !== void 0 ? _r : `${this.configuration.namePrefix} ${++this.nameSequence}`,
-                metadata: creation.metadata,
-                hidden: creation.hidden,
-                locked: creation.locked,
-                select: creation.select,
+                ...(creation.metadata === undefined ? {} : { metadata: creation.metadata }),
+                ...(creation.hidden === undefined ? {} : { hidden: creation.hidden }),
+                ...(creation.locked === undefined ? {} : { locked: creation.locked }),
+                ...(creation.select === undefined ? {} : { select: creation.select }),
                 operationId: 'annotation-text:create',
             });
         }
@@ -17866,7 +17942,7 @@
                         preview.dispose();
                 }
                 finally {
-                    visibility === null || visibility === void 0 ? void 0 : visibility.dispose();
+                    await Promise.resolve(visibility === null || visibility === void 0 ? void 0 : visibility.dispose());
                 }
                 throw error;
             }
@@ -17973,7 +18049,9 @@
             this.session = null;
             (_b = (_a = session.preview).exitEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
             this.authoring.removePreview([session.previewId]);
-            session.visibility.dispose();
+            observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
+                this.host.reportWarning(error, 'Text Annotation preview visibility cleanup failed.');
+            });
             this.emitStatus();
         }
         emitStatus() {
@@ -18330,7 +18408,6 @@
         }
     }
     function isSerializedShape(value) {
-        var _a;
         if (!isPlainRecord$2(value))
             return false;
         try {
@@ -18347,7 +18424,7 @@
             }
             const geometry = normalizeShapeGeometry(value.geometry);
             const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
-            const type = String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+            const type = typeof serializedObject.type === 'string' ? serializedObject.type.toLowerCase() : '';
             return (bytes <= MAX_SHAPE_OBJECT_BYTES &&
                 geometry.kind === value.shapeKind &&
                 ((geometry.kind === 'rect' && type === 'rect') ||
@@ -18590,10 +18667,10 @@
                 kind: SHAPE_ANNOTATION_KIND,
                 object,
                 name: (_a = definition.name) !== null && _a !== void 0 ? _a : `${this.configuration.namePrefix} ${++this.nameSequence}`,
-                metadata: definition.metadata,
-                hidden: definition.hidden,
-                locked: definition.locked,
-                select: definition.select,
+                ...(definition.metadata === undefined ? {} : { metadata: definition.metadata }),
+                ...(definition.hidden === undefined ? {} : { hidden: definition.hidden }),
+                ...(definition.locked === undefined ? {} : { locked: definition.locked }),
+                ...(definition.select === undefined ? {} : { select: definition.select }),
                 operationId,
             });
         }
@@ -18659,7 +18736,7 @@
                 strokeWidth: resolved.strokeWidth,
                 fill: resolved.fill,
                 opacity: resolved.opacity,
-                strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : undefined,
+                strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : null,
                 selectable: resolved.selectable,
                 evented: resolved.evented,
                 strokeLineCap: 'round',
@@ -19090,7 +19167,6 @@
         }
     }
     function isSerializedDraw(value) {
-        var _a;
         if (!isPlainRecord$1(value))
             return false;
         try {
@@ -19107,7 +19183,8 @@
             const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
             return (points.length >= 2 &&
                 bytes <= MAX_DRAW_OBJECT_BYTES &&
-                String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'path');
+                typeof serializedObject.type === 'string' &&
+                serializedObject.type.toLowerCase() === 'path');
         }
         catch {
             return false;
@@ -20068,7 +20145,8 @@
                 addIssue(issues, 'image.dimensionInvalid', `$.image.${key}`, 'Image dimensions must be positive safe integers.');
             }
         }
-        if (value.mimeType !== undefined && !MIME_TYPES.has(String(value.mimeType))) {
+        if (value.mimeType !== undefined &&
+            (typeof value.mimeType !== 'string' || !MIME_TYPES.has(value.mimeType))) {
             addIssue(issues, 'image.mimeTypeInvalid', '$.image.mimeType', 'MIME type is invalid.');
         }
         for (const key of ['sourceId', 'checksum']) {
@@ -20394,7 +20472,7 @@
             const missingKindPolicy = (_c = options.missingKindPolicy) !== null && _c !== void 0 ? _c : 'error';
             const validated = this.validate(payload, {
                 missingKindPolicy,
-                limits: options.limits,
+                ...(options.limits ? { limits: options.limits } : {}),
             });
             if (!validated.valid || !validated.document) {
                 throw new OverlayStateValidationError(validated.errors);
@@ -21440,6 +21518,7 @@
     exports.mosaicPluginRef = mosaicPluginRef;
     exports.normalizeFilterDefinitions = normalizeFilterDefinitions;
     exports.objectPointToCanvas = objectPointToCanvas;
+    exports.observePromise = observePromise;
     exports.overlayFoundationPlugin = overlayFoundationPlugin;
     exports.overlayFoundationRef = overlayFoundationRef;
     exports.overlayStatePlugin = overlayStatePlugin;

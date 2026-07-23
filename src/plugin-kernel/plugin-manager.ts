@@ -204,7 +204,9 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
 
     constructor(private readonly options: PluginManagerOptions = {}) {
         this.capabilityRegistry = new CapabilityRegistry(options);
-        this.toolCoordinator = new ToolCoordinator({ errorSink: options.errorSink });
+        this.toolCoordinator = new ToolCoordinator(
+            options.errorSink ? { errorSink: options.errorSink } : {},
+        );
         this.eventBus = new CommittedEventBus<TEvents>(options);
         for (const provider of options.hostCapabilities ?? []) {
             this.capabilityRegistry.provideHost(
@@ -724,7 +726,9 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             dependencyId: dependency.id,
             requiredApiVersion: dependency.apiVersion,
             availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
-            packageHint: pluginPackageHints.get(dependency.id),
+            ...(pluginPackageHints.has(dependency.id)
+                ? { packageHint: pluginPackageHints.get(dependency.id)! }
+                : {}),
             planHint: 'Pass the dependency to install([...]) or include it in composePlugins(...).',
         });
     }
@@ -1183,9 +1187,9 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                       version: plugin.version,
                       apiVersion: plugin.ref.apiVersion,
                       engine: '*',
-                      requires: plugin.requires,
-                      optional: plugin.optional,
-                      permissions: plugin.permissions,
+                      ...(plugin.requires ? { requires: plugin.requires } : {}),
+                      ...(plugin.optional ? { optional: plugin.optional } : {}),
+                      ...(plugin.permissions ? { permissions: plugin.permissions } : {}),
                   },
         );
         return Object.freeze({

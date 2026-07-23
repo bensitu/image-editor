@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginIdentifier = require('./plugin-identifier-DPwx4Gkd.cjs');
+var pluginIdentifier = require('./plugin-identifier-DWQ7SALj.cjs');
 
 const numericIdentifier = '(?:0|[1-9]\\d*)';
 const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
@@ -375,10 +375,10 @@ function validatePluginManifest(ref, manifest) {
         version: manifest.version,
         apiVersion: manifest.apiVersion,
         engine: manifest.engine,
-        requiresPlugins,
-        requires,
-        optional,
-        permissions,
+        ...(requiresPlugins ? { requiresPlugins } : {}),
+        ...(requires ? { requires } : {}),
+        ...(optional ? { optional } : {}),
+        ...(permissions ? { permissions } : {}),
     });
 }
 
@@ -392,4 +392,4 @@ exports.isPluginRef = isPluginRef;
 exports.isValidSemVer = isValidSemVer;
 exports.satisfiesSemVer = satisfiesSemVer;
 exports.validatePluginManifest = validatePluginManifest;
-//# sourceMappingURL=plugin-manifest-DNqSyjh2.cjs.map
+//# sourceMappingURL=plugin-manifest-5BctrtYS.cjs.map

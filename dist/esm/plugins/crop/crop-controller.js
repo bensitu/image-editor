@@ -1,4 +1,4 @@
-import { createDisposable, } from '../../sdk/index.js';
+import { createDisposable, observePromise, } from '../../sdk/index.js';
 import { CropIntegrationError, CropSessionError, CropValidationError } from './crop-errors.js';
 import { fitCropRectToAspectRatio, normalizeCropAspectRatio, normalizeCropRect, } from './crop-geometry.js';
 import { applyCropOverlayPolicy, findCropOverlayCandidates, normalizeCropOverlayPolicy, } from './crop-overlay-policy.js';
@@ -43,9 +43,9 @@ function cloneSessionState(state) {
         rect: Object.freeze({ ...state.rect }),
         overlayPolicy: Object.freeze({
             ...state.overlayPolicy,
-            kinds: state.overlayPolicy.kinds
-                ? Object.freeze([...state.overlayPolicy.kinds])
-                : undefined,
+            ...(state.overlayPolicy.kinds
+                ? { kinds: Object.freeze([...state.overlayPolicy.kinds]) }
+                : {}),
         }),
     });
 }
@@ -368,12 +368,15 @@ export class CropController {
         preview.setCoords();
     }
     refreshPreview(session) {
-        var _a;
         const baseImage = this.requireBaseImage();
         this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
         const canvas = this.host.requireCanvas('refresh Crop preview');
         canvas.bringObjectToFront(session.preview);
-        (_a = session.previewVisibility) === null || _a === void 0 ? void 0 : _a.dispose();
+        if (session.previewVisibility) {
+            observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+            });
+        }
         session.previewVisibility = null;
         session.candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
         if (this.overlay &&
@@ -384,12 +387,15 @@ export class CropController {
         this.host.requestRender();
     }
     closeSession(restoreSelection) {
-        var _a;
         const session = this.session;
         if (!session)
             return;
         this.session = null;
-        (_a = session.previewVisibility) === null || _a === void 0 ? void 0 : _a.dispose();
+        if (session.previewVisibility) {
+            observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
+                this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
+            });
+        }
         const canvas = this.host.getCanvas();
         if (canvas === null || canvas === void 0 ? void 0 : canvas.getObjects().includes(session.preview))
             canvas.remove(session.preview);

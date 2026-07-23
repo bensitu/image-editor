@@ -246,7 +246,7 @@ export class OverlayStateController implements OverlayStatePluginApi, Disposable
         const missingKindPolicy = options.missingKindPolicy ?? 'error';
         const validated = this.validate(payload, {
             missingKindPolicy,
-            limits: options.limits,
+            ...(options.limits ? { limits: options.limits } : {}),
         });
         if (!validated.valid || !validated.document) {
             throw new OverlayStateValidationError(validated.errors);

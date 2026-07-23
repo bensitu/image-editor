@@ -371,12 +371,7 @@ test('bindings are document-scoped and disposal removes listeners idempotently',
     foreignButton.click();
     await tick();
     assert.equal(actions, 1);
-    assert.deepEqual(dom.getStatus(), {
-        isBound: false,
-        isBusy: false,
-        isDisposed: true,
-        bindingCount: 0,
-    });
+    assert.throws(() => dom.getStatus(), /after the editor has been disposed/u);
     foreign.window.close();
 });
 

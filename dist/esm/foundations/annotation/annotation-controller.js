@@ -89,10 +89,14 @@ function normalizeSharedUpdate(value) {
             ? { metadata: normalizeAnnotationMetadata(value.metadata) }
             : {}),
         ...(value.hidden !== undefined
-            ? { hidden: validateBoolean(value.hidden, 'Annotation hidden state') }
+            ? {
+                hidden: validateBoolean(value.hidden, 'Annotation hidden state'),
+            }
             : {}),
         ...(value.locked !== undefined
-            ? { locked: validateBoolean(value.locked, 'Annotation locked state') }
+            ? {
+                locked: validateBoolean(value.locked, 'Annotation locked state'),
+            }
             : {}),
     });
 }
@@ -197,12 +201,7 @@ export class AnnotationController {
     list(query = {}) {
         this.assertActive('list Annotations');
         const normalized = this.normalizeQuery(query);
-        const objects = this.overlay.list({
-            kinds: normalized.kinds,
-            ids: normalized.ids,
-            includeHidden: normalized.includeHidden,
-            includeLocked: normalized.includeLocked,
-        });
+        const objects = this.overlay.list(normalized);
         const selected = new Set(this.overlay.getSelection().ids);
         const allLayers = this.persistentOverlayObjects();
         return Object.freeze(objects
@@ -684,9 +683,21 @@ export class AnnotationController {
         }
         return Object.freeze({
             kinds: kinds !== null && kinds !== void 0 ? kinds : Object.freeze([...this.features.keys()]),
-            ids: validateStringList(query.ids, 'Annotation query ids'),
-            includeHidden: validateBoolean(query.includeHidden, 'Query includeHidden'),
-            includeLocked: validateBoolean(query.includeLocked, 'Query includeLocked'),
+            ...(query.ids === undefined
+                ? {}
+                : {
+                    ids: validateStringList(query.ids, 'Annotation query ids'),
+                }),
+            ...(query.includeHidden === undefined
+                ? {}
+                : {
+                    includeHidden: validateBoolean(query.includeHidden, 'Query includeHidden'),
+                }),
+            ...(query.includeLocked === undefined
+                ? {}
+                : {
+                    includeLocked: validateBoolean(query.includeLocked, 'Query includeLocked'),
+                }),
         });
     }
     describe(object, selected, layers) {

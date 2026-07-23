@@ -1,5 +1,11 @@
 'use strict';
 
+function createPluginErrorOptions(pluginId, cause) {
+    return {
+        ...(pluginId ? { pluginId } : {}),
+        ...(cause === undefined ? {} : { cause }),
+    };
+}
 function derivePluginErrorName(code) {
     const stem = code
         .replace('PLUGIN_DEPENDENCY_MISSING', 'PLUGIN_DEPENDENCY')
@@ -104,7 +110,7 @@ class PluginDependencyError extends PluginError {
 }
 class PluginDependencyCycleError extends PluginError {
     constructor(cycle) {
-        super('PLUGIN_DEPENDENCY_CYCLE', `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`, { pluginId: cycle[0] });
+        super('PLUGIN_DEPENDENCY_CYCLE', `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`, createPluginErrorOptions(cycle[0]));
         this.cycle = Object.freeze([...cycle]);
     }
 }
@@ -146,10 +152,7 @@ class CapabilityVersionError extends PluginError {
         const consumer = details.consumerPluginId
             ? ` for Plugin "${details.consumerPluginId}"`
             : '';
-        super(code, message !== null && message !== void 0 ? message : `[ImageEditor] Capability "${details.capabilityId}" version "${(_a = details.actualVersion) !== null && _a !== void 0 ? _a : 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`, {
-            pluginId: (_b = details.consumerPluginId) !== null && _b !== void 0 ? _b : details.providerPluginId,
-            cause: details.cause,
-        });
+        super(code, message !== null && message !== void 0 ? message : `[ImageEditor] Capability "${details.capabilityId}" version "${(_a = details.actualVersion) !== null && _a !== void 0 ? _a : 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`, createPluginErrorOptions((_b = details.consumerPluginId) !== null && _b !== void 0 ? _b : details.providerPluginId, details.cause));
         this.capabilityId = details.capabilityId;
         this.expectedRange = details.expectedRange;
         this.actualVersion = details.actualVersion;
@@ -194,7 +197,7 @@ class PluginSetupError extends PluginError {
 }
 class InvalidPluginDefinitionError extends PluginManifestError {
     constructor(message, pluginId, cause) {
-        super(message, { pluginId, cause });
+        super(message, createPluginErrorOptions(pluginId, cause));
         Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,
@@ -221,25 +224,22 @@ class PluginVersionMismatchError extends PluginError {
 }
 class OperationRegistrationError extends PluginError {
     constructor(message, pluginId) {
-        super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+        super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
     }
 }
 class OperationConflictError extends PluginError {
     constructor(message, pluginId) {
-        super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, { pluginId });
+        super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
     }
 }
 class ToolRegistrationError extends PluginError {
     constructor(message, pluginId) {
-        super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+        super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
     }
 }
 class ToolTransitionError extends PluginError {
     constructor(toolId, message, pluginId, cause) {
-        super('TOOL_TRANSITION_ERROR', `[ImageEditor] Tool "${toolId}" ${message}.`, {
-            pluginId,
-            cause,
-        });
+        super('TOOL_TRANSITION_ERROR', `[ImageEditor] Tool "${toolId}" ${message}.`, createPluginErrorOptions(pluginId, cause));
         this.toolId = toolId;
     }
 }
@@ -303,4 +303,4 @@ exports.ToolTransitionError = ToolTransitionError;
 exports.assertPluginIdentifier = assertPluginIdentifier;
 exports.isDangerousStateKey = isDangerousStateKey;
 exports.isRuntimeIdentifier = isRuntimeIdentifier;
-//# sourceMappingURL=plugin-identifier-DPwx4Gkd.cjs.map
+//# sourceMappingURL=plugin-identifier-DWQ7SALj.cjs.map

@@ -1687,6 +1687,12 @@
                     ]
                 },
                 {
+                    "name": "observePromise",
+                    "kinds": [
+                        "FunctionDeclaration"
+                    ]
+                },
+                {
                     "name": "OptionalCapabilityStatus",
                     "kinds": [
                         "TypeAliasDeclaration"
@@ -1928,6 +1934,7 @@
                 "disposeInReverseSync",
                 "isRuntimeIdentifier",
                 "isValidSemVer",
+                "observePromise",
                 "validatePluginManifest"
             ]
         },
@@ -4218,7 +4225,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "e44119fc21f207334a2378d801185c3758a51bc27b6e202ead476070eb02d922",
+        "graphSha256": "4bf832f5c1860c675e05c70cc28edfd736eba6bfa0bc03740b0eee7c9197a536",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4358,7 +4365,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/disposable.d.ts",
-                "sha256": "1421a34a72028891cb00c2735b57b6c93b2db0d889de4d766536d03135b91361"
+                "sha256": "50fea638cfb2f930828d5b087365df05c9898a9050e5b92460a9e9eae359d6fc"
             },
             {
                 "file": "dist/types/plugin-kernel/errors.d.ts",
@@ -4366,7 +4373,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/index.d.ts",
-                "sha256": "669188f5a905907ace291069ceb154fe63206cd2f3af36972eef1380f4c39cbb"
+                "sha256": "93fbe9716466bc2da026842545074b25ec75f5b4d5cb3d36e7981771510379cf"
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
@@ -4570,7 +4577,7 @@
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "130b09ac14128db77ddff2bde2bb1ed20efc7400a9a02f14d9669bb27b158b0b"
+                "sha256": "341c0741fa56c691dd0f1357dc8421c3a3dcf2a28b0dbdb311fbf79e8c226ed0"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",
@@ -4911,6 +4918,7 @@
             "mosaicPluginRef",
             "normalizeFilterDefinitions",
             "objectPointToCanvas",
+            "observePromise",
             "overlayFoundationPlugin",
             "overlayFoundationRef",
             "overlayStatePlugin",
@@ -6085,6 +6093,12 @@
             },
             {
                 "name": "objectPointToCanvas",
+                "kinds": [
+                    "FunctionDeclaration"
+                ]
+            },
+            {
+                "name": "observePromise",
                 "kinds": [
                     "FunctionDeclaration"
                 ]

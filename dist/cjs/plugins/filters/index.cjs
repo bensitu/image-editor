@@ -1,13 +1,13 @@
 'use strict';
 
-var pluginIdentifier = require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
 var error = require('../../chunks/error-Cg6SL3PT.cjs');
 var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
-var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');
+var disposable = require('../../chunks/disposable-y_ve7ZXe.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-C1mtU9Tv.cjs');
 
 class FilterDefinitionError extends TypeError {
     constructor(message, path = '$') {
@@ -317,7 +317,10 @@ async function createFilteredImageClone(fabric, baseImage, definitions, signal, 
     try {
         throwIfAborted(signal);
         applyFilterDefinitions(fabric, clone, definitions);
-        copyBaseImagePresentation(baseImage, clone, { backgroundColor, transient: true });
+        copyBaseImagePresentation(baseImage, clone, {
+            ...(backgroundColor === undefined ? {} : { backgroundColor }),
+            transient: true,
+        });
         throwIfAborted(signal);
         return clone;
     }
@@ -354,7 +357,7 @@ function normalizeFilterBakeOptions(options, sourceMimeType) {
     }
     return Object.freeze({
         format,
-        quality: quality,
+        ...(quality === undefined ? {} : { quality: quality }),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
     });
 }
@@ -416,7 +419,9 @@ async function renderBakedImage(fabric, baseImage, definitions, options, imageIn
         try {
             dataUrl = clone.toDataURL({
                 format: normalizedOptions.format,
-                quality: normalizedOptions.quality,
+                ...(normalizedOptions.quality === undefined
+                    ? {}
+                    : { quality: normalizedOptions.quality }),
                 multiplier: 1,
                 withoutTransform: true,
                 withoutShadow: true,
@@ -691,7 +696,7 @@ class FiltersController {
                 this.committedState = createState(this.normalizeDefinitions(definitions));
                 return this.committedState;
             },
-            synchronize: async (result, context) => {
+            synchronize: async (_result, context) => {
                 if (usesPreview &&
                     this.previewDefinitions !== null &&
                     areFilterDefinitionsEqual(this.previewDefinitions, definitions)) {
@@ -702,12 +707,14 @@ class FiltersController {
             },
             validate: () => this.validateBaseImageInvariant(transactionId),
             describeCommit: () => Object.freeze({ filterCount: definitions.length }),
-            rollback: usesPreview
-                ? () => {
-                    this.committedState = previousState;
-                    promotePreviewAfterCommit = false;
+            ...(usesPreview
+                ? {
+                    rollback: () => {
+                        this.committedState = previousState;
+                        promotePreviewAfterCommit = false;
+                    },
                 }
-                : undefined,
+                : {}),
         });
         if (promotePreviewAfterCommit)
             this.promotePreview();
@@ -773,7 +780,7 @@ class FiltersController {
                 kind: 'compound',
                 operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : 'filters:bake',
                 conflictDomains: mutationConflictDomains,
-                parent: parent !== null && parent !== void 0 ? parent : undefined,
+                ...(parent ? { parent } : {}),
                 metadata: Object.freeze({ filterCount: definitions.length }),
                 mutate: async (context) => {
                     const baked = await renderBakedImage(this.host.fabric, baseImage, definitions, options, this.host.getImageInfo(), this.host.getImageResourcePolicy(), context.signal);
@@ -850,7 +857,7 @@ class FiltersController {
             return {
                 valid: false,
                 message: error instanceof Error ? error.message : 'Filters state is malformed.',
-                path: error instanceof FilterDefinitionError ? error.path : undefined,
+                ...(error instanceof FilterDefinitionError ? { path: error.path } : {}),
             };
         }
     }

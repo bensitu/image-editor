@@ -245,7 +245,8 @@ function isSerializedDraw(value: unknown): value is SerializedDraw {
         return (
             points.length >= 2 &&
             bytes <= MAX_DRAW_OBJECT_BYTES &&
-            String(serializedObject.type ?? '').toLowerCase() === 'path'
+            typeof serializedObject.type === 'string' &&
+            serializedObject.type.toLowerCase() === 'path'
         );
     } catch {
         return false;

@@ -1,9 +1,9 @@
 'use strict';
 
-var pluginManager = require('../chunks/plugin-manager-DhGvZdpX.cjs');
-var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-DNqSyjh2.cjs');
-require('../chunks/disposable-pTo80E0l.cjs');
+var pluginManager = require('../chunks/plugin-manager-CfbKlLDK.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-DWQ7SALj.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-5BctrtYS.cjs');
+require('../chunks/disposable-y_ve7ZXe.cjs');
 
 function createDeferredOperation() {
     let settled = false;
@@ -121,8 +121,10 @@ function createPluginTestHost(options = {}) {
         hostCapabilities: ((_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []).map((provider) => ({
             token: provider.token,
             implementation: provider.implementation,
-            providerId: provider.providerId,
-            requiredPermission: provider.requiredPermission,
+            ...(provider.providerId ? { providerId: provider.providerId } : {}),
+            ...(provider.requiredPermission
+                ? { requiredPermission: provider.requiredPermission }
+                : {}),
         })),
     });
     return Object.freeze({
@@ -149,7 +151,14 @@ function createPluginTestHost(options = {}) {
 }
 
 function result(id, contract, status, message, details) {
-    return Object.freeze({ id, contract, required: true, status, message, details });
+    return Object.freeze({
+        id,
+        contract,
+        required: true,
+        status,
+        ...(message === undefined ? {} : { message }),
+        ...(details === undefined ? {} : { details }),
+    });
 }
 function unavailable$1(id, contract) {
     return result(id, contract, 'NOT_AVAILABLE', 'No proof adapter was supplied.');
@@ -485,7 +494,13 @@ function describeError(error) {
     return String(error);
 }
 function assertionResult(id, contract, status, message) {
-    return Object.freeze({ id, contract, required: true, status, message });
+    return Object.freeze({
+        id,
+        contract,
+        required: true,
+        status,
+        ...(message === undefined ? {} : { message }),
+    });
 }
 function unavailable(message) {
     return Object.freeze({ status: 'NOT_AVAILABLE', message });
@@ -884,7 +899,7 @@ async function assertTypeInferenceFixtures(runFixtures) {
 async function runPluginConformance(plugin, options) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (options.profile !== CONFORMANCE_PROFILE) {
-        throw new RangeError(`Unsupported Plugin conformance profile "${options.profile}".`);
+        throw new RangeError('Unsupported Plugin conformance profile.');
     }
     const assertions = [];
     assertions.push(await assertInstallRollback(plugin, options));

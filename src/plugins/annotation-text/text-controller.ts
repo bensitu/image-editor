@@ -13,7 +13,7 @@ import type {
     Disposable,
     FabricRuntimePort,
 } from '../../sdk/index.js';
-import { createDisposable } from '../../sdk/index.js';
+import { createDisposable, observePromise } from '../../sdk/index.js';
 import type {
     AnnotationAuthoringPort,
     AnnotationFeatureDefinition,
@@ -318,7 +318,7 @@ function isSerializedText(value: unknown): value is Record<string, unknown> {
     try {
         if (!isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] })) return false;
         const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
-        const type = String(value.type ?? '').toLowerCase();
+        const type = typeof value.type === 'string' ? value.type.toLowerCase() : '';
         return (
             bytes <= MAX_TEXT_OBJECT_BYTES &&
             type === 'textbox' &&
@@ -551,10 +551,10 @@ export class TextAnnotationController implements Disposable {
             kind: TEXT_ANNOTATION_KIND,
             object,
             name: creation.name ?? `${this.configuration.namePrefix} ${++this.nameSequence}`,
-            metadata: creation.metadata,
-            hidden: creation.hidden,
-            locked: creation.locked,
-            select: creation.select,
+            ...(creation.metadata === undefined ? {} : { metadata: creation.metadata }),
+            ...(creation.hidden === undefined ? {} : { hidden: creation.hidden }),
+            ...(creation.locked === undefined ? {} : { locked: creation.locked }),
+            ...(creation.select === undefined ? {} : { select: creation.select }),
             operationId: 'annotation-text:create',
         });
     }
@@ -594,7 +594,7 @@ export class TextAnnotationController implements Disposable {
                 if (added) this.authoring.removePreview([previewId]);
                 else preview.dispose();
             } finally {
-                visibility?.dispose();
+                await Promise.resolve(visibility?.dispose());
             }
             throw error;
         }
@@ -703,7 +703,9 @@ export class TextAnnotationController implements Disposable {
         this.session = null;
         session.preview.exitEditing?.();
         this.authoring.removePreview([session.previewId]);
-        session.visibility.dispose();
+        observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
+            this.host.reportWarning(error, 'Text Annotation preview visibility cleanup failed.');
+        });
         this.emitStatus();
     }
 

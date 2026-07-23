@@ -638,7 +638,7 @@ export function migrateV2Snapshot(input, options = {}) {
     const source = requireSource(input, options);
     const context = {
         policy: (_a = options.unsupportedFieldPolicy) !== null && _a !== void 0 ? _a : 'error',
-        onWarning: options.onWarning,
+        ...(options.onWarning ? { onWarning: options.onWarning } : {}),
     };
     reportUnknownKeys(source, TOP_LEVEL_KEYS, '$', context);
     const state = source._editorState;
@@ -773,8 +773,8 @@ export async function loadV2Snapshot(editor, input, options = {}) {
     const { missingPluginPolicy = 'error', signal, ...conversionOptions } = options;
     await editor.loadFromState(input, {
         missingPluginPolicy,
-        signal,
         migrations: [v2SnapshotMigration(conversionOptions)],
+        ...(signal ? { signal } : {}),
     });
 }
 //# sourceMappingURL=index.js.map

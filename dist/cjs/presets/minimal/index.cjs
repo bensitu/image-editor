@@ -6,15 +6,15 @@ var plugins_history_index = require('../../plugins/history/index.cjs');
 var plugins_transform_index = require('../../plugins/transform/index.cjs');
 var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
 var core_index = require('../../core/index.cjs');
-var pluginPlan = require('../../chunks/plugin-plan-BBOVkUMI.cjs');
+var pluginPlan = require('../../chunks/plugin-plan-Cz0Krduf.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
-require('../../chunks/plugin-definition-C87dytjB.cjs');
-require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
+require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+require('../../chunks/core-capabilities-DryMPZoj.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-DhGvZdpX.cjs');
-require('../../chunks/disposable-pTo80E0l.cjs');
+require('../../chunks/plugin-manager-CfbKlLDK.cjs');
+require('../../chunks/disposable-y_ve7ZXe.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 
 function createMinimalPreset(fabric, options = {}) {

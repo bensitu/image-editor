@@ -4,7 +4,12 @@
  * @module
  */
 
-import { createDisposable, type Disposable, type MaybePromise } from './disposable.js';
+import {
+    createDisposable,
+    observePromise,
+    type Disposable,
+    type MaybePromise,
+} from './disposable.js';
 import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 import { isRuntimeIdentifier } from './plugin-identifier.js';
@@ -118,19 +123,28 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
                     timeoutMs: this.listenerTimeoutMs,
                 },
             });
-            void settlement.then((lateOutcome) => {
-                if (lateOutcome.status !== 'rejected') return;
-                reportWarningSafely(this.options.warningSink, this.options.errorSink, {
-                    code: 'COMMITTED_EVENT_LISTENER_LATE_FAILURE',
-                    message: `Timed-out committed event listener ${listenerIndex} for "${eventName}" later rejected.`,
-                    cause: lateOutcome.error,
-                    details: {
-                        eventName,
-                        listenerIndex,
-                        timeoutMs: this.listenerTimeoutMs,
-                    },
-                });
-            });
+            observePromise(
+                settlement.then((lateOutcome) => {
+                    if (lateOutcome.status !== 'rejected') return;
+                    reportWarningSafely(this.options.warningSink, this.options.errorSink, {
+                        code: 'COMMITTED_EVENT_LISTENER_LATE_FAILURE',
+                        message: `Timed-out committed event listener ${listenerIndex} for "${eventName}" later rejected.`,
+                        cause: lateOutcome.error,
+                        details: {
+                            eventName,
+                            listenerIndex,
+                            timeoutMs: this.listenerTimeoutMs,
+                        },
+                    });
+                }),
+                (error) => {
+                    reportWarningSafely(this.options.warningSink, this.options.errorSink, {
+                        code: 'COMMITTED_EVENT_LATE_OBSERVER_FAILURE',
+                        message: `Late listener observation for "${eventName}" failed.`,
+                        cause: error,
+                    });
+                },
+            );
             return;
         }
         if (outcome.status === 'rejected') {

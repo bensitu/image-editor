@@ -165,10 +165,10 @@ test('History installs enabled by default and can be installed disabled before i
         position: 0,
     });
     await dispose(disabledFixture.editor);
-    assert.equal(disabledFixture.history.isEnabled, false);
+    assert.throws(() => disabledFixture.history.isEnabled, /after the editor has been disposed/u);
     assert.throws(
         () => disabledFixture.history.enable({ baseline: 'current' }),
-        /History disposal/u,
+        /after the editor has been disposed/u,
     );
 });
 

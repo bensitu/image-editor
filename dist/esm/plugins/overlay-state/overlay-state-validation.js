@@ -303,7 +303,8 @@ function validateImage(value, limits, issues) {
             addIssue(issues, 'image.dimensionInvalid', `$.image.${key}`, 'Image dimensions must be positive safe integers.');
         }
     }
-    if (value.mimeType !== undefined && !MIME_TYPES.has(String(value.mimeType))) {
+    if (value.mimeType !== undefined &&
+        (typeof value.mimeType !== 'string' || !MIME_TYPES.has(value.mimeType))) {
         addIssue(issues, 'image.mimeTypeInvalid', '$.image.mimeType', 'MIME type is invalid.');
     }
     for (const key of ['sourceId', 'checksum']) {

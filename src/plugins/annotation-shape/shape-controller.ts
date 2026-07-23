@@ -329,7 +329,8 @@ function isSerializedShape(value: unknown): value is SerializedShape {
         }
         const geometry = normalizeShapeGeometry(value.geometry);
         const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
-        const type = String(serializedObject.type ?? '').toLowerCase();
+        const type =
+            typeof serializedObject.type === 'string' ? serializedObject.type.toLowerCase() : '';
         return (
             bytes <= MAX_SHAPE_OBJECT_BYTES &&
             geometry.kind === value.shapeKind &&
@@ -581,10 +582,10 @@ export class ShapeAnnotationController {
             kind: SHAPE_ANNOTATION_KIND,
             object,
             name: definition.name ?? `${this.configuration.namePrefix} ${++this.nameSequence}`,
-            metadata: definition.metadata,
-            hidden: definition.hidden,
-            locked: definition.locked,
-            select: definition.select,
+            ...(definition.metadata === undefined ? {} : { metadata: definition.metadata }),
+            ...(definition.hidden === undefined ? {} : { hidden: definition.hidden }),
+            ...(definition.locked === undefined ? {} : { locked: definition.locked }),
+            ...(definition.select === undefined ? {} : { select: definition.select }),
             operationId,
         });
     }
@@ -657,7 +658,7 @@ export class ShapeAnnotationController {
             strokeWidth: resolved.strokeWidth,
             fill: resolved.fill,
             opacity: resolved.opacity,
-            strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : undefined,
+            strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : null,
             selectable: resolved.selectable,
             evented: resolved.evented,
             strokeLineCap: 'round' as const,

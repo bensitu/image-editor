@@ -1,13 +1,13 @@
 'use strict';
 
 var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
-var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
+var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-BWO2g1AV.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
-require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
-require('../../chunks/disposable-pTo80E0l.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
+require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
+require('../../chunks/disposable-y_ve7ZXe.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
@@ -246,7 +246,6 @@ function normalizePoints(value, maximumCount) {
     }
 }
 function isSerializedDraw(value) {
-    var _a;
     if (!isPlainRecord(value))
         return false;
     try {
@@ -263,7 +262,8 @@ function isSerializedDraw(value) {
         const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
         return (points.length >= 2 &&
             bytes <= MAX_DRAW_OBJECT_BYTES &&
-            String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'path');
+            typeof serializedObject.type === 'string' &&
+            serializedObject.type.toLowerCase() === 'path');
     }
     catch {
         return false;

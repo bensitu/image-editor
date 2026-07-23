@@ -156,9 +156,7 @@ interface LayoutResult {
 const OVERFLOW_EPSILON = 0.5;
 
 function normalizeOverflowValue(value: unknown): string {
-    return String(value ?? '')
-        .trim()
-        .toLowerCase();
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function getContainerOverflowValues(container: HTMLElement): {

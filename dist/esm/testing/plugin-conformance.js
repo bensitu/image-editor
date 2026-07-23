@@ -11,7 +11,13 @@ function describeError(error) {
     return String(error);
 }
 function assertionResult(id, contract, status, message) {
-    return Object.freeze({ id, contract, required: true, status, message });
+    return Object.freeze({
+        id,
+        contract,
+        required: true,
+        status,
+        ...(message === undefined ? {} : { message }),
+    });
 }
 function unavailable(message) {
     return Object.freeze({ status: 'NOT_AVAILABLE', message });
@@ -410,7 +416,7 @@ export async function assertTypeInferenceFixtures(runFixtures) {
 export async function runPluginConformance(plugin, options) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (options.profile !== CONFORMANCE_PROFILE) {
-        throw new RangeError(`Unsupported Plugin conformance profile "${options.profile}".`);
+        throw new RangeError('Unsupported Plugin conformance profile.');
     }
     const assertions = [];
     assertions.push(await assertInstallRollback(plugin, options));

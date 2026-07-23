@@ -1,4 +1,4 @@
-import { createDisposable } from './disposable.js';
+import { createDisposable, observePromise, } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
 import { reportWarningSafely } from './reporting.js';
 import { isRuntimeIdentifier } from './plugin-identifier.js';
@@ -109,7 +109,7 @@ export class CommittedEventBus {
                     timeoutMs: this.listenerTimeoutMs,
                 },
             });
-            void settlement.then((lateOutcome) => {
+            observePromise(settlement.then((lateOutcome) => {
                 if (lateOutcome.status !== 'rejected')
                     return;
                 reportWarningSafely(this.options.warningSink, this.options.errorSink, {
@@ -121,6 +121,12 @@ export class CommittedEventBus {
                         listenerIndex,
                         timeoutMs: this.listenerTimeoutMs,
                     },
+                });
+            }), (error) => {
+                reportWarningSafely(this.options.warningSink, this.options.errorSink, {
+                    code: 'COMMITTED_EVENT_LATE_OBSERVER_FAILURE',
+                    message: `Late listener observation for "${eventName}" failed.`,
+                    cause: error,
                 });
             });
             return;

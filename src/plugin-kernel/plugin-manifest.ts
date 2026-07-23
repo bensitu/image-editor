@@ -219,9 +219,9 @@ export function validatePluginManifest(
         version: manifest.version,
         apiVersion: manifest.apiVersion,
         engine: manifest.engine,
-        requiresPlugins,
-        requires,
-        optional,
-        permissions,
+        ...(requiresPlugins ? { requiresPlugins } : {}),
+        ...(requires ? { requires } : {}),
+        ...(optional ? { optional } : {}),
+        ...(permissions ? { permissions } : {}),
     });
 }

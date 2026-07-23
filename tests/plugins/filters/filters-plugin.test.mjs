@@ -359,6 +359,11 @@ test('dispose during preview suppresses the late clone and releases Canvas state
 
 test('dispose during commit aborts the transaction before document publication', async () => {
     const { editor, filters, history, observer } = await createEditor();
+    const observedEvents = observer.events;
+    let historyChanges = 0;
+    history.onChange(() => {
+        historyChanges += 1;
+    });
     const baseImage = editor.getCanvas().getObjects()[0];
     const candidate = await baseImage.clone();
     const commitGate = deferred();
@@ -371,8 +376,9 @@ test('dispose during commit aborts the transaction before document publication',
 
     assert.equal(commitResult.status, 'rejected');
     assert.equal(disposalResult.status, 'fulfilled');
-    assert.equal(history.length, 0);
-    assert.equal(observer.events.length, 0);
+    assert.equal(historyChanges, 0);
+    assert.equal(observedEvents.length, 0);
+    assert.throws(() => history.length, /after the editor has been disposed/u);
     assert.equal(editor.getCanvas(), null);
     document.body.innerHTML = '';
 });
@@ -835,9 +841,10 @@ test('bake restore failure escalates the editor to the faulted lifecycle', async
 
 test('bake applies Core dimension limits before Raster mutation', async () => {
     const { editor, filters, history, observer } = await createEditor({
-        coreOptions: { maxExportDimension: 100 },
+        coreOptions: { maxExportDimension: 340 },
     });
     await filters.commit([{ type: 'grayscale' }]);
+    editor.getCanvas().getObjects()[0].set({ width: 341 });
     const beforeState = filters.getState();
     const beforeSnapshot = editor.saveState();
 

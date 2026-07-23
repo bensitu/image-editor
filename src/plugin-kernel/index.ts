@@ -37,6 +37,7 @@ export {
     disposeInReverse,
     disposeInReverseSync,
     isPromiseLike,
+    observePromise,
     type CommitAwareDisposable,
     type Disposable,
     type DisposeInReverseOptions,

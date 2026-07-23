@@ -177,8 +177,8 @@ function resolveOptions(options: ImageEditorCoreOptions): ResolvedImageEditorCor
             DEFAULT_CORE_OPTIONS.exportMultiplier,
         ),
         initialImageBase64: options.initialImageBase64 ?? '',
-        onError: options.onError,
-        onWarning: options.onWarning,
+        ...(options.onError ? { onError: options.onError } : {}),
+        ...(options.onWarning ? { onWarning: options.onWarning } : {}),
     });
 }
 
@@ -347,23 +347,27 @@ function freezePluginDefinition(
         return aliasPluginDefinitionIdentity(
             Object.freeze({
                 ...definition,
-                requires: definition.requires
-                    ? Object.freeze(
-                          definition.requires.map((requirement) =>
-                              Object.freeze({ ...requirement }),
+                ...(definition.requires
+                    ? {
+                          requires: Object.freeze(
+                              definition.requires.map((requirement) =>
+                                  Object.freeze({ ...requirement }),
+                              ),
                           ),
-                      )
-                    : undefined,
-                optional: definition.optional
-                    ? Object.freeze(
-                          definition.optional.map((requirement) =>
-                              Object.freeze({ ...requirement }),
+                      }
+                    : {}),
+                ...(definition.optional
+                    ? {
+                          optional: Object.freeze(
+                              definition.optional.map((requirement) =>
+                                  Object.freeze({ ...requirement }),
+                              ),
                           ),
-                      )
-                    : undefined,
-                permissions: definition.permissions
-                    ? Object.freeze([...definition.permissions])
-                    : undefined,
+                      }
+                    : {}),
+                ...(definition.permissions
+                    ? { permissions: Object.freeze([...definition.permissions]) }
+                    : {}),
             }),
             definition,
         );
@@ -373,26 +377,34 @@ function freezePluginDefinition(
             ...definition,
             manifest: Object.freeze({
                 ...definition.manifest,
-                requiresPlugins: definition.manifest.requiresPlugins
-                    ? Object.freeze([...definition.manifest.requiresPlugins])
-                    : undefined,
-                requires: definition.manifest.requires
-                    ? Object.freeze(
-                          definition.manifest.requires.map((requirement) =>
-                              Object.freeze({ ...requirement }),
+                ...(definition.manifest.requiresPlugins
+                    ? {
+                          requiresPlugins: Object.freeze([...definition.manifest.requiresPlugins]),
+                      }
+                    : {}),
+                ...(definition.manifest.requires
+                    ? {
+                          requires: Object.freeze(
+                              definition.manifest.requires.map((requirement) =>
+                                  Object.freeze({ ...requirement }),
+                              ),
                           ),
-                      )
-                    : undefined,
-                optional: definition.manifest.optional
-                    ? Object.freeze(
-                          definition.manifest.optional.map((requirement) =>
-                              Object.freeze({ ...requirement }),
+                      }
+                    : {}),
+                ...(definition.manifest.optional
+                    ? {
+                          optional: Object.freeze(
+                              definition.manifest.optional.map((requirement) =>
+                                  Object.freeze({ ...requirement }),
+                              ),
                           ),
-                      )
-                    : undefined,
-                permissions: definition.manifest.permissions
-                    ? Object.freeze([...definition.manifest.permissions])
-                    : undefined,
+                      }
+                    : {}),
+                ...(definition.manifest.permissions
+                    ? {
+                          permissions: Object.freeze([...definition.manifest.permissions]),
+                      }
+                    : {}),
             }),
         }),
         definition,
@@ -813,7 +825,7 @@ export class ImageEditorCore {
                             '[ImageEditor] Decoded image dimensions exceed the configured budget.',
                         );
                         try {
-                            await image.dispose();
+                            image.dispose();
                         } catch (cleanupError) {
                             throw new CoreRuntimeError(
                                 '[ImageEditor] Rejected image cleanup failed.',
@@ -897,7 +909,7 @@ export class ImageEditorCore {
                     }
                     this.updatePlaceholder();
                 },
-                { signal: options.signal },
+                options.signal ? { signal: options.signal } : {},
             );
         } catch (error) {
             if (!isLoadCancellation(error) && !this.initialImageLoadActive) {
@@ -948,9 +960,11 @@ export class ImageEditorCore {
         this.assertReady('load state');
         try {
             const prepared = await this.snapshots.prepareForLoad(input, {
-                missingPluginPolicy: options.missingPluginPolicy,
-                migrations: options.migrations,
-                signal: options.signal,
+                ...(options.missingPluginPolicy
+                    ? { missingPluginPolicy: options.missingPluginPolicy }
+                    : {}),
+                ...(options.migrations ? { migrations: options.migrations } : {}),
+                ...(options.signal ? { signal: options.signal } : {}),
             });
             const sequence = ++this.stateLoadSequence;
             await this.documentMutations.run({
@@ -965,7 +979,7 @@ export class ImageEditorCore {
                     'overlay',
                     'state',
                 ],
-                signal: options.signal,
+                ...(options.signal ? { signal: options.signal } : {}),
                 metadata: Object.freeze({ sequence }),
                 mutate: async (context) => {
                     await this.snapshots.loadPrepared(prepared, {
@@ -1961,7 +1975,7 @@ export class ImageEditorCore {
             () => this.slices.dispose(),
         ]) {
             try {
-                await cleanup();
+                await Promise.resolve(cleanup());
             } catch (error) {
                 errors.push(error);
             }

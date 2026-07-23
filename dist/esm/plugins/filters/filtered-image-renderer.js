@@ -48,7 +48,10 @@ export async function createFilteredImageClone(fabric, baseImage, definitions, s
     try {
         throwIfAborted(signal);
         applyFilterDefinitions(fabric, clone, definitions);
-        copyBaseImagePresentation(baseImage, clone, { backgroundColor, transient: true });
+        copyBaseImagePresentation(baseImage, clone, {
+            ...(backgroundColor === undefined ? {} : { backgroundColor }),
+            transient: true,
+        });
         throwIfAborted(signal);
         return clone;
     }
@@ -85,7 +88,7 @@ export function normalizeFilterBakeOptions(options, sourceMimeType) {
     }
     return Object.freeze({
         format,
-        quality: quality,
+        ...(quality === undefined ? {} : { quality: quality }),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
     });
 }
@@ -147,7 +150,9 @@ export async function renderBakedImage(fabric, baseImage, definitions, options, 
         try {
             dataUrl = clone.toDataURL({
                 format: normalizedOptions.format,
-                quality: normalizedOptions.quality,
+                ...(normalizedOptions.quality === undefined
+                    ? {}
+                    : { quality: normalizedOptions.quality }),
                 multiplier: 1,
                 withoutTransform: true,
                 withoutShadow: true,

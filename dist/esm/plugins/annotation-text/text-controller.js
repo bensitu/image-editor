@@ -1,5 +1,5 @@
 import { isSafeSerializedFabricObject } from '../../fabric/safe-fabric-serialization.js';
-import { createDisposable } from '../../sdk/index.js';
+import { createDisposable, observePromise } from '../../sdk/index.js';
 import { AnnotationValidationError } from '../../foundations/annotation/index.js';
 import { captureOverlayStateBounds, isOverlayStateBoundsGeometry, restoreOverlayStateBounds, } from '../../foundations/overlay/index.js';
 export const TEXT_ANNOTATION_KIND = 'annotation:text';
@@ -196,14 +196,13 @@ function featureUpdate(value) {
     });
 }
 function isSerializedText(value) {
-    var _a;
     if (!isPlainRecord(value))
         return false;
     try {
         if (!isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] }))
             return false;
         const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
-        const type = String((_a = value.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+        const type = typeof value.type === 'string' ? value.type.toLowerCase() : '';
         return (bytes <= MAX_TEXT_OBJECT_BYTES &&
             type === 'textbox' &&
             typeof value.text === 'string' &&
@@ -431,10 +430,10 @@ export class TextAnnotationController {
             kind: TEXT_ANNOTATION_KIND,
             object,
             name: (_r = creation.name) !== null && _r !== void 0 ? _r : `${this.configuration.namePrefix} ${++this.nameSequence}`,
-            metadata: creation.metadata,
-            hidden: creation.hidden,
-            locked: creation.locked,
-            select: creation.select,
+            ...(creation.metadata === undefined ? {} : { metadata: creation.metadata }),
+            ...(creation.hidden === undefined ? {} : { hidden: creation.hidden }),
+            ...(creation.locked === undefined ? {} : { locked: creation.locked }),
+            ...(creation.select === undefined ? {} : { select: creation.select }),
             operationId: 'annotation-text:create',
         });
     }
@@ -478,7 +477,7 @@ export class TextAnnotationController {
                     preview.dispose();
             }
             finally {
-                visibility === null || visibility === void 0 ? void 0 : visibility.dispose();
+                await Promise.resolve(visibility === null || visibility === void 0 ? void 0 : visibility.dispose());
             }
             throw error;
         }
@@ -585,7 +584,9 @@ export class TextAnnotationController {
         this.session = null;
         (_b = (_a = session.preview).exitEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         this.authoring.removePreview([session.previewId]);
-        session.visibility.dispose();
+        observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
+            this.host.reportWarning(error, 'Text Annotation preview visibility cleanup failed.');
+        });
         this.emitStatus();
     }
     emitStatus() {

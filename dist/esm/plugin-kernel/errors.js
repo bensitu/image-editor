@@ -1,3 +1,9 @@
+function createPluginErrorOptions(pluginId, cause) {
+    return {
+        ...(pluginId ? { pluginId } : {}),
+        ...(cause === undefined ? {} : { cause }),
+    };
+}
 function derivePluginErrorName(code) {
     const stem = code
         .replace('PLUGIN_DEPENDENCY_MISSING', 'PLUGIN_DEPENDENCY')
@@ -102,7 +108,7 @@ export class PluginDependencyError extends PluginError {
 }
 export class PluginDependencyCycleError extends PluginError {
     constructor(cycle) {
-        super('PLUGIN_DEPENDENCY_CYCLE', `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`, { pluginId: cycle[0] });
+        super('PLUGIN_DEPENDENCY_CYCLE', `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`, createPluginErrorOptions(cycle[0]));
         this.cycle = Object.freeze([...cycle]);
     }
 }
@@ -144,10 +150,7 @@ export class CapabilityVersionError extends PluginError {
         const consumer = details.consumerPluginId
             ? ` for Plugin "${details.consumerPluginId}"`
             : '';
-        super(code, message !== null && message !== void 0 ? message : `[ImageEditor] Capability "${details.capabilityId}" version "${(_a = details.actualVersion) !== null && _a !== void 0 ? _a : 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`, {
-            pluginId: (_b = details.consumerPluginId) !== null && _b !== void 0 ? _b : details.providerPluginId,
-            cause: details.cause,
-        });
+        super(code, message !== null && message !== void 0 ? message : `[ImageEditor] Capability "${details.capabilityId}" version "${(_a = details.actualVersion) !== null && _a !== void 0 ? _a : 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`, createPluginErrorOptions((_b = details.consumerPluginId) !== null && _b !== void 0 ? _b : details.providerPluginId, details.cause));
         this.capabilityId = details.capabilityId;
         this.expectedRange = details.expectedRange;
         this.actualVersion = details.actualVersion;
@@ -192,7 +195,7 @@ export class PluginSetupError extends PluginError {
 }
 export class InvalidPluginDefinitionError extends PluginManifestError {
     constructor(message, pluginId, cause) {
-        super(message, { pluginId, cause });
+        super(message, createPluginErrorOptions(pluginId, cause));
         Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,
@@ -219,25 +222,22 @@ export class PluginVersionMismatchError extends PluginError {
 }
 export class OperationRegistrationError extends PluginError {
     constructor(message, pluginId) {
-        super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+        super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
     }
 }
 export class OperationConflictError extends PluginError {
     constructor(message, pluginId) {
-        super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, { pluginId });
+        super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
     }
 }
 export class ToolRegistrationError extends PluginError {
     constructor(message, pluginId) {
-        super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+        super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
     }
 }
 export class ToolTransitionError extends PluginError {
     constructor(toolId, message, pluginId, cause) {
-        super('TOOL_TRANSITION_ERROR', `[ImageEditor] Tool "${toolId}" ${message}.`, {
-            pluginId,
-            cause,
-        });
+        super('TOOL_TRANSITION_ERROR', `[ImageEditor] Tool "${toolId}" ${message}.`, createPluginErrorOptions(pluginId, cause));
         this.toolId = toolId;
     }
 }

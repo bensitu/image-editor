@@ -1,13 +1,13 @@
 'use strict';
 
 var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
-var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
+var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-BWO2g1AV.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
-require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
-require('../../chunks/disposable-pTo80E0l.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
+require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
+require('../../chunks/disposable-y_ve7ZXe.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
@@ -213,7 +213,6 @@ function isShapeStateData(value) {
     }
 }
 function isSerializedShape(value) {
-    var _a;
     if (!isPlainRecord(value))
         return false;
     try {
@@ -230,7 +229,7 @@ function isSerializedShape(value) {
         }
         const geometry = normalizeShapeGeometry(value.geometry);
         const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
-        const type = String((_a = serializedObject.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+        const type = typeof serializedObject.type === 'string' ? serializedObject.type.toLowerCase() : '';
         return (bytes <= MAX_SHAPE_OBJECT_BYTES &&
             geometry.kind === value.shapeKind &&
             ((geometry.kind === 'rect' && type === 'rect') ||
@@ -473,10 +472,10 @@ class ShapeAnnotationController {
             kind: SHAPE_ANNOTATION_KIND,
             object,
             name: (_a = definition.name) !== null && _a !== void 0 ? _a : `${this.configuration.namePrefix} ${++this.nameSequence}`,
-            metadata: definition.metadata,
-            hidden: definition.hidden,
-            locked: definition.locked,
-            select: definition.select,
+            ...(definition.metadata === undefined ? {} : { metadata: definition.metadata }),
+            ...(definition.hidden === undefined ? {} : { hidden: definition.hidden }),
+            ...(definition.locked === undefined ? {} : { locked: definition.locked }),
+            ...(definition.select === undefined ? {} : { select: definition.select }),
             operationId,
         });
     }
@@ -542,7 +541,7 @@ class ShapeAnnotationController {
             strokeWidth: resolved.strokeWidth,
             fill: resolved.fill,
             opacity: resolved.opacity,
-            strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : undefined,
+            strokeDashArray: resolved.strokeDashArray ? [...resolved.strokeDashArray] : null,
             selectable: resolved.selectable,
             evented: resolved.evented,
             strokeLineCap: 'round',

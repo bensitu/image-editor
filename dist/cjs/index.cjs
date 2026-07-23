@@ -5,13 +5,13 @@ Object.defineProperty(exports, '__esModule', { value: true });
 var affineMatrix = require('./chunks/affine-matrix-DRJ0b89x.cjs');
 var errors = require('./chunks/errors-DeAfrgDC.cjs');
 var core_index = require('./core/index.cjs');
-var pluginManifest = require('./chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginIdentifier = require('./chunks/plugin-identifier-DPwx4Gkd.cjs');
-require('./chunks/plugin-manager-DhGvZdpX.cjs');
-require('./chunks/disposable-pTo80E0l.cjs');
-require('./chunks/plugin-plan-BBOVkUMI.cjs');
+var pluginManifest = require('./chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginIdentifier = require('./chunks/plugin-identifier-DWQ7SALj.cjs');
+require('./chunks/plugin-manager-CfbKlLDK.cjs');
+require('./chunks/disposable-y_ve7ZXe.cjs');
+require('./chunks/plugin-plan-Cz0Krduf.cjs');
 require('./chunks/image-budget-DZeZeVWW.cjs');
-require('./chunks/core-capabilities-CWNPa1MZ.cjs');
+require('./chunks/core-capabilities-DryMPZoj.cjs');
 
 
 

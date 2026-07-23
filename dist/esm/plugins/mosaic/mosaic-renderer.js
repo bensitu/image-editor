@@ -37,7 +37,7 @@ export function normalizeMosaicCommitOptions(value, configuration, sourceMimeTyp
     }
     return Object.freeze({
         format,
-        quality: format === 'png' ? undefined : quality,
+        ...(format === 'png' ? {} : { quality }),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         bakeVisibleFilters: record.bakeVisibleFilters !== false,
     });

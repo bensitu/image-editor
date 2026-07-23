@@ -124,15 +124,15 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
         else normalized.signal?.addEventListener('abort', abort, { once: true });
         this.activeControllers.add(controller);
 
-        const operation = this.options.operations.run(
+        const operation = this.options.operations.run<TResult>(
             normalized.operationId,
             (operationContext) =>
                 parentRecord
                     ? this.performNested(normalized, operationContext.token, parentRecord)
                     : this.performTopLevel(normalized, operationContext.token),
             {
-                parent: parentRecord?.operationToken,
                 signal: controller.signal,
+                ...(parentRecord ? { parent: parentRecord.operationToken } : {}),
             },
         );
         this.activePromises.add(operation);

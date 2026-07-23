@@ -1,11 +1,11 @@
 'use strict';
 
 var foundations_overlay_index = require('../overlay/index.cjs');
-var pluginIdentifier = require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
-var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
+var disposable = require('../../chunks/disposable-y_ve7ZXe.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
@@ -325,10 +325,14 @@ function normalizeSharedUpdate(value) {
             ? { metadata: normalizeAnnotationMetadata(value.metadata) }
             : {}),
         ...(value.hidden !== undefined
-            ? { hidden: validateBoolean(value.hidden, 'Annotation hidden state') }
+            ? {
+                hidden: validateBoolean(value.hidden, 'Annotation hidden state'),
+            }
             : {}),
         ...(value.locked !== undefined
-            ? { locked: validateBoolean(value.locked, 'Annotation locked state') }
+            ? {
+                locked: validateBoolean(value.locked, 'Annotation locked state'),
+            }
             : {}),
     });
 }
@@ -433,12 +437,7 @@ class AnnotationController {
     list(query = {}) {
         this.assertActive('list Annotations');
         const normalized = this.normalizeQuery(query);
-        const objects = this.overlay.list({
-            kinds: normalized.kinds,
-            ids: normalized.ids,
-            includeHidden: normalized.includeHidden,
-            includeLocked: normalized.includeLocked,
-        });
+        const objects = this.overlay.list(normalized);
         const selected = new Set(this.overlay.getSelection().ids);
         const allLayers = this.persistentOverlayObjects();
         return Object.freeze(objects
@@ -920,9 +919,21 @@ class AnnotationController {
         }
         return Object.freeze({
             kinds: kinds !== null && kinds !== void 0 ? kinds : Object.freeze([...this.features.keys()]),
-            ids: validateStringList(query.ids, 'Annotation query ids'),
-            includeHidden: validateBoolean(query.includeHidden, 'Query includeHidden'),
-            includeLocked: validateBoolean(query.includeLocked, 'Query includeLocked'),
+            ...(query.ids === undefined
+                ? {}
+                : {
+                    ids: validateStringList(query.ids, 'Annotation query ids'),
+                }),
+            ...(query.includeHidden === undefined
+                ? {}
+                : {
+                    includeHidden: validateBoolean(query.includeHidden, 'Query includeHidden'),
+                }),
+            ...(query.includeLocked === undefined
+                ? {}
+                : {
+                    includeLocked: validateBoolean(query.includeLocked, 'Query includeLocked'),
+                }),
         });
     }
     describe(object, selected, layers) {

@@ -22,7 +22,9 @@
         "noImplicitOverride": true,
         "noImplicitReturns": true,
         "noFallthroughCasesInSwitch": true,
-        "exactOptionalPropertyTypes": false /* Allow undefined for optional fields */,
+        "exactOptionalPropertyTypes": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
         /* ── Interop ─────────────────────────────────────────────────────── */
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,

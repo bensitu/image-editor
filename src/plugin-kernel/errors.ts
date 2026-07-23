@@ -9,6 +9,13 @@ export interface PluginErrorOptions {
     readonly cause?: unknown;
 }
 
+function createPluginErrorOptions(pluginId?: string, cause?: unknown): PluginErrorOptions {
+    return {
+        ...(pluginId ? { pluginId } : {}),
+        ...(cause === undefined ? {} : { cause }),
+    };
+}
+
 function derivePluginErrorName(code: string): string {
     const stem = code
         .replace('PLUGIN_DEPENDENCY_MISSING', 'PLUGIN_DEPENDENCY')
@@ -182,7 +189,7 @@ export class PluginDependencyCycleError extends PluginError {
         super(
             'PLUGIN_DEPENDENCY_CYCLE',
             `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`,
-            { pluginId: cycle[0] },
+            createPluginErrorOptions(cycle[0]),
         );
         this.cycle = Object.freeze([...cycle]);
     }
@@ -310,10 +317,10 @@ export class CapabilityVersionError extends PluginError {
             code,
             message ??
                 `[ImageEditor] Capability "${details.capabilityId}" version "${details.actualVersion ?? 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`,
-            {
-                pluginId: details.consumerPluginId ?? details.providerPluginId,
-                cause: details.cause,
-            },
+            createPluginErrorOptions(
+                details.consumerPluginId ?? details.providerPluginId,
+                details.cause,
+            ),
         );
         this.capabilityId = details.capabilityId;
         this.expectedRange = details.expectedRange;
@@ -408,7 +415,7 @@ export class InvalidPluginDefinitionError extends PluginManifestError {
     public override readonly name = 'InvalidPluginDefinitionError';
 
     constructor(message: string, pluginId?: string, cause?: unknown) {
-        super(message, { pluginId, cause });
+        super(message, createPluginErrorOptions(pluginId, cause));
     }
 }
 
@@ -449,19 +456,27 @@ export class PluginVersionMismatchError extends PluginError {
 
 export class OperationRegistrationError extends PluginError {
     constructor(message: string, pluginId?: string) {
-        super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+        super(
+            'OPERATION_REGISTRATION_ERROR',
+            `[ImageEditor] ${message}`,
+            createPluginErrorOptions(pluginId),
+        );
     }
 }
 
 export class OperationConflictError extends PluginError {
     constructor(message: string, pluginId?: string) {
-        super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, { pluginId });
+        super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
     }
 }
 
 export class ToolRegistrationError extends PluginError {
     constructor(message: string, pluginId?: string) {
-        super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
+        super(
+            'TOOL_REGISTRATION_ERROR',
+            `[ImageEditor] ${message}`,
+            createPluginErrorOptions(pluginId),
+        );
     }
 }
 
@@ -469,10 +484,11 @@ export class ToolTransitionError extends PluginError {
     declare public readonly toolId: string;
 
     constructor(toolId: string, message: string, pluginId?: string, cause?: unknown) {
-        super('TOOL_TRANSITION_ERROR', `[ImageEditor] Tool "${toolId}" ${message}.`, {
-            pluginId,
-            cause,
-        });
+        super(
+            'TOOL_TRANSITION_ERROR',
+            `[ImageEditor] Tool "${toolId}" ${message}.`,
+            createPluginErrorOptions(pluginId, cause),
+        );
         this.toolId = toolId;
     }
 }

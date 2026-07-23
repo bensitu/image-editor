@@ -32,9 +32,7 @@ export class ViewportCache {
 }
 const OVERFLOW_EPSILON = 0.5;
 function normalizeOverflowValue(value) {
-    return String(value !== null && value !== void 0 ? value : '')
-        .trim()
-        .toLowerCase();
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 function getContainerOverflowValues(container) {
     var _a, _b;

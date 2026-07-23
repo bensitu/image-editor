@@ -89,13 +89,13 @@ window.__domControlsTest = Object.freeze({
     },
     async load() {
         if (!editor) throw new Error('Editor is not available.');
-        await editor.loadImage(await createFixtureDataUrl('test-image.png'));
+        await editor.loadImage(createFixtureDataUrl('test-image.png'));
     },
     scale(value: number) {
         return requireTransform().scale(value);
     },
     async dispose() {
-        await editor?.disposeAsync();
+        if (editor) await editor.disposeAsync();
     },
     state() {
         const input = document.querySelector<HTMLInputElement>('#scale');

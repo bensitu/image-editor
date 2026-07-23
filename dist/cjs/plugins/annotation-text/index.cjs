@@ -1,13 +1,13 @@
 'use strict';
 
 var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
-var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
-var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
+var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-BWO2g1AV.cjs');
+var disposable = require('../../chunks/disposable-y_ve7ZXe.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-C87dytjB.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
-require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-5BctrtYS.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-DtyrZUJz.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-DryMPZoj.cjs');
+require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
@@ -205,14 +205,13 @@ function featureUpdate(value) {
     });
 }
 function isSerializedText(value) {
-    var _a;
     if (!isPlainRecord(value))
         return false;
     try {
         if (!safeFabricSerialization.isSafeSerializedFabricObject(value, { rootTypes: ['textbox'] }))
             return false;
         const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
-        const type = String((_a = value.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+        const type = typeof value.type === 'string' ? value.type.toLowerCase() : '';
         return (bytes <= MAX_TEXT_OBJECT_BYTES &&
             type === 'textbox' &&
             typeof value.text === 'string' &&
@@ -440,10 +439,10 @@ class TextAnnotationController {
             kind: TEXT_ANNOTATION_KIND,
             object,
             name: (_r = creation.name) !== null && _r !== void 0 ? _r : `${this.configuration.namePrefix} ${++this.nameSequence}`,
-            metadata: creation.metadata,
-            hidden: creation.hidden,
-            locked: creation.locked,
-            select: creation.select,
+            ...(creation.metadata === undefined ? {} : { metadata: creation.metadata }),
+            ...(creation.hidden === undefined ? {} : { hidden: creation.hidden }),
+            ...(creation.locked === undefined ? {} : { locked: creation.locked }),
+            ...(creation.select === undefined ? {} : { select: creation.select }),
             operationId: 'annotation-text:create',
         });
     }
@@ -487,7 +486,7 @@ class TextAnnotationController {
                     preview.dispose();
             }
             finally {
-                visibility === null || visibility === void 0 ? void 0 : visibility.dispose();
+                await Promise.resolve(visibility === null || visibility === void 0 ? void 0 : visibility.dispose());
             }
             throw error;
         }
@@ -594,7 +593,9 @@ class TextAnnotationController {
         this.session = null;
         (_b = (_a = session.preview).exitEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         this.authoring.removePreview([session.previewId]);
-        session.visibility.dispose();
+        disposable.observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
+            this.host.reportWarning(error, 'Text Annotation preview visibility cleanup failed.');
+        });
         this.emitStatus();
     }
     emitStatus() {

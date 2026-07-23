@@ -33,7 +33,7 @@ export function normalizeCropApplyOptions(value, sourceMimeType) {
     }
     return Object.freeze({
         format,
-        quality: format === 'png' ? undefined : quality,
+        ...(format !== 'png' && quality !== undefined ? { quality: quality } : {}),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         bakeVisibleFilters: record.bakeVisibleFilters !== false,
     });

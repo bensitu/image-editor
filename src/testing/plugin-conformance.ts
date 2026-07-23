@@ -139,7 +139,13 @@ function assertionResult(
     status: ConformanceAssertionStatus,
     message?: string,
 ): ConformanceAssertionResult {
-    return Object.freeze({ id, contract, required: true, status, message });
+    return Object.freeze({
+        id,
+        contract,
+        required: true,
+        status,
+        ...(message === undefined ? {} : { message }),
+    });
 }
 
 function unavailable(message: string): AssertionOutcome {
@@ -654,7 +660,7 @@ export async function runPluginConformance<TApi, TEvents extends object = object
     options: PluginConformanceOptions<TApi, TEvents, TState>,
 ): Promise<PluginConformanceReport> {
     if (options.profile !== CONFORMANCE_PROFILE) {
-        throw new RangeError(`Unsupported Plugin conformance profile "${options.profile}".`);
+        throw new RangeError('Unsupported Plugin conformance profile.');
     }
     const assertions: ConformanceAssertionResult[] = [];
     assertions.push(await assertInstallRollback(plugin, options));

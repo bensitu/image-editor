@@ -473,7 +473,12 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
         };
 
         switch (shapeType) {
-            case 'circle':
+            case 'circle': {
+                if (radius === undefined) {
+                    rollbackCanvasExpansion();
+                    reportWarning(options, radius, 'createMask skipped: circle radius is missing.');
+                    return null;
+                }
                 mask = new fabricModule.Circle({
                     left,
                     top,
@@ -485,6 +490,7 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
                     ...resolvedConfig.styles,
                 });
                 break;
+            }
             case 'ellipse':
                 mask = new fabricModule.Ellipse({
                     left,

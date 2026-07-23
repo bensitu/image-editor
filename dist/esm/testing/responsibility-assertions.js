@@ -1,5 +1,12 @@
 function result(id, contract, status, message, details) {
-    return Object.freeze({ id, contract, required: true, status, message, details });
+    return Object.freeze({
+        id,
+        contract,
+        required: true,
+        status,
+        ...(message === undefined ? {} : { message }),
+        ...(details === undefined ? {} : { details }),
+    });
 }
 function unavailable(id, contract) {
     return result(id, contract, 'NOT_AVAILABLE', 'No proof adapter was supplied.');

@@ -295,7 +295,7 @@ export class TransformPluginController {
                 id: mutationId,
                 kind: 'transform',
                 operationId,
-                parent: options.parent,
+                ...(options.parent ? { parent: options.parent } : {}),
                 mutateBase: async ({ signal }) => {
                     await mutate(signal);
                 },
