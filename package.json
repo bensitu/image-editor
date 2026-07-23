@@ -315,6 +315,7 @@
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "check:architecture": "node scripts/check-architecture.mjs",
         "check:bundle-size": "node scripts/check-bundle-size.mjs",
+        "check:docs": "node scripts/check-current-docs.mjs",
         "check:npm-pack-contents": "node scripts/check-npm-pack-contents.mjs",
         "check:source-quality": "node scripts/check-source-quality.mjs",
         "check:repository-hygiene": "node scripts/check-repository-hygiene.mjs",

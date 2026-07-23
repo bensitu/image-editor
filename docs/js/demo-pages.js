@@ -82,8 +82,8 @@
             queue: Promise.resolve(),
         },
         bindingOptions: {
-            bindMasksToImageTransform: false,
-            bindAnnotationsToImageTransform: false,
+            masksFollowTransform: false,
+            annotationsFollowTransform: false,
         },
     };
 
@@ -186,27 +186,24 @@
 
     function readBindingOptionsFromControls() {
         return {
-            bindMasksToImageTransform:
+            masksFollowTransform:
                 isIntegratedEditorPage &&
-                getOptionalElement('bindMasksToImageTransformInput')?.checked === true,
-            bindAnnotationsToImageTransform:
+                getOptionalElement('maskTransformBindingInput')?.checked === true,
+            annotationsFollowTransform:
                 isIntegratedEditorPage &&
-                getOptionalElement('bindAnnotationsToImageTransformInput')?.checked === true,
+                getOptionalElement('annotationTransformBindingInput')?.checked === true,
         };
     }
 
     function syncBindingControls(options) {
-        setControlChecked('bindMasksToImageTransformInput', options.bindMasksToImageTransform);
-        setControlChecked(
-            'bindAnnotationsToImageTransformInput',
-            options.bindAnnotationsToImageTransform,
-        );
+        setControlChecked('maskTransformBindingInput', options.masksFollowTransform);
+        setControlChecked('annotationTransformBindingInput', options.annotationsFollowTransform);
     }
 
     function haveSameBindingOptions(left, right) {
         return (
-            left.bindMasksToImageTransform === right.bindMasksToImageTransform &&
-            left.bindAnnotationsToImageTransform === right.bindAnnotationsToImageTransform
+            left.masksFollowTransform === right.masksFollowTransform &&
+            left.annotationsFollowTransform === right.annotationsFollowTransform
         );
     }
 
@@ -230,7 +227,7 @@
                 rotatable: true,
                 namePrefix: 'redaction',
                 listOrder: 'front-to-back',
-                bindToImageTransform: bindingOptions.bindMasksToImageTransform,
+                bindToImageTransform: bindingOptions.masksFollowTransform,
                 defaultConfig: maskShapeBase,
             },
             filters: {},
@@ -252,7 +249,7 @@
                 fill: '#b45309',
                 backgroundColor: 'rgba(255,255,255,0)',
                 namePrefix: 'note',
-                bindToImageTransform: bindingOptions.bindAnnotationsToImageTransform,
+                bindToImageTransform: bindingOptions.annotationsFollowTransform,
                 reflectionBehavior: 'preserve-readable',
             },
             shape: {
@@ -261,7 +258,7 @@
                 fill: 'rgba(245,158,11,0.16)',
                 arrowHeadLength: 20,
                 namePrefix: 'shape',
-                bindToImageTransform: bindingOptions.bindAnnotationsToImageTransform,
+                bindToImageTransform: bindingOptions.annotationsFollowTransform,
             },
             draw: {
                 brush: {
@@ -269,7 +266,7 @@
                     width: 8,
                     opacity: 0.92,
                     namePrefix: 'stroke',
-                    bindToImageTransform: bindingOptions.bindAnnotationsToImageTransform,
+                    bindToImageTransform: bindingOptions.annotationsFollowTransform,
                 },
                 eraser: {
                     radius: 18,
@@ -555,8 +552,8 @@
             setLayoutModeFromControl(false);
             if (snapshot) await nextEditor.loadFromState(snapshot);
 
-            const maskBehavior = nextOptions.bindMasksToImageTransform ? 'follow' : 'stay fixed';
-            const annotationBehavior = nextOptions.bindAnnotationsToImageTransform
+            const maskBehavior = nextOptions.masksFollowTransform ? 'follow' : 'stay fixed';
+            const annotationBehavior = nextOptions.annotationsFollowTransform
                 ? 'follow'
                 : 'stay fixed';
             showMessage(
@@ -638,11 +635,11 @@
         setText('statusAnnotations', String(annotations.length));
         setText(
             'statusMaskBinding',
-            demoState.bindingOptions.bindMasksToImageTransform ? 'Follow' : 'Fixed',
+            demoState.bindingOptions.masksFollowTransform ? 'Follow' : 'Fixed',
         );
         setText(
             'statusAnnotationBinding',
-            demoState.bindingOptions.bindAnnotationsToImageTransform ? 'Follow' : 'Fixed',
+            demoState.bindingOptions.annotationsFollowTransform ? 'Follow' : 'Fixed',
         );
         setText(
             'statusMosaic',
@@ -664,11 +661,11 @@
         setDisabled('imageInput', !canLoad);
         setDisabled('layoutModeSelect', !canLoad);
         setDisabled(
-            'bindMasksToImageTransformInput',
+            'maskTransformBindingInput',
             !isIntegratedEditorPage || !editor || busy || activeToolMode !== null,
         );
         setDisabled(
-            'bindAnnotationsToImageTransformInput',
+            'annotationTransformBindingInput',
             !isIntegratedEditorPage || !editor || busy || activeToolMode !== null,
         );
         setDisabled('createMaskButton', !canUseIdleImage);
@@ -1697,8 +1694,8 @@
             ['deleteSelectedObjectButton', 'click', deleteSelectedObject],
             ['exportImageButton', 'click', exportImage],
             ['downloadExportButton', 'click', downloadExport],
-            ['bindMasksToImageTransformInput', 'change', applyBindingOptionsFromControls],
-            ['bindAnnotationsToImageTransformInput', 'change', applyBindingOptionsFromControls],
+            ['maskTransformBindingInput', 'change', applyBindingOptionsFromControls],
+            ['annotationTransformBindingInput', 'change', applyBindingOptionsFromControls],
         ].forEach(([id, eventName, handler]) => {
             getOptionalElement(id)?.addEventListener(eventName, handler);
         });

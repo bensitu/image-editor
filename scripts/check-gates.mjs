@@ -33,6 +33,7 @@ const excludedDirectories = new Set([
 const pullRequestChecks = Object.freeze([
     ['source quality and Node product tests', 'check'],
     ['source module headers', 'check:source-quality'],
+    ['current documentation boundaries', 'check:docs'],
     ['architecture ownership', 'check:architecture'],
     ['repository hygiene', 'check:repository-hygiene'],
     ['testing entry isolation', 'check:testing-isolation'],
@@ -44,6 +45,7 @@ const pullRequestChecks = Object.freeze([
 const releaseChecks = Object.freeze([
     ['source quality and Node product tests', 'check'],
     ['source module headers', 'check:source-quality'],
+    ['current documentation boundaries', 'check:docs'],
     ['architecture ownership', 'check:architecture'],
     ['repository hygiene', 'check:repository-hygiene'],
     ['testing entry isolation', 'check:testing-isolation'],

@@ -7,5 +7,5 @@
         "noEmit": true,
         "skipLibCheck": false
     },
-    "include": ["esm-consumer.mts", "cjs-consumer.cts"]
+    "include": ["esm-consumer.mts", "cjs-consumer.cts", "current-v3-docs.mts"]
 }

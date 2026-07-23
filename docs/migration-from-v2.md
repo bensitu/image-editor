@@ -1,5 +1,9 @@
 # Migration from 2.x
 
+> **Migration source only:** “Before” examples on this page intentionally use
+> the 2.x facade. Do not copy them into a 3.x application; use the paired
+> “After” examples and current [options reference](./options.md).
+
 The 3.0 candidate is a breaking major release. The former monolithic
 `ImageEditor` facade is replaced by `ImageEditorCore`, public Feature Plugins,
 and typed Presets. Existing applications can migrate incrementally, but must not
