@@ -10,6 +10,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
+import { findCredentialKinds } from './credential-policy.mjs';
 import { inspectMainPackageContents } from './package-content-policy.mjs';
 import { inspectPackagedSourceMap } from './source-map-policy.mjs';
 
@@ -62,8 +63,6 @@ const failures = [];
 const forbiddenFilePattern =
     /(?:^|\/)(?:\.env(?:\.|$)|credentials?(?:\.|$)|secrets?(?:\.|$)|[^/]+\.(?:key|pem|p12|pfx)|[^/]+\.tgz)$/iu;
 const privatePathPattern = /(?:^|\/)(?:\.internal|implementation|release-candidate)(?:\/|$)/iu;
-const credentialPattern =
-    /(?:-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----|\bAKIA[A-Z0-9]{16}\b|\b(?:ghp_|sk-)[A-Za-z0-9_-]{20,}\b)/u;
 const absoluteLocalPathPattern = /(?:\b[A-Za-z]:\\Users\\|\/Users\/[^/]+\/|\/home\/[^/]+\/)/u;
 const textFilePattern = /\.(?:c?js|mjs|json|map|md|css|d\.ts|d\.cts)$/u;
 let sourceMapCount = 0;
@@ -90,8 +89,12 @@ for (const entry of entries) {
     }
     if (!textFilePattern.test(entry.path)) continue;
     const source = await readFile(path.join(repoRoot, entry.path), 'utf8');
-    if (credentialPattern.test(source)) {
-        failures.push(`npm pack file ${entry.path} contains credential-like material.`);
+    const credentialKinds = findCredentialKinds(source);
+    if (credentialKinds.length > 0) {
+        failures.push(
+            `npm pack file ${entry.path} contains credential-like material ` +
+                `(${credentialKinds.join(', ')}).`,
+        );
     }
     if (absoluteLocalPathPattern.test(source)) {
         failures.push(`npm pack file ${entry.path} contains an absolute local user path.`);

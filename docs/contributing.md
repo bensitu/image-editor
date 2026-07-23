@@ -75,8 +75,10 @@ npm run check:pr
 ```
 
 This profile runs source formatting, linting, type checking, every Node product
-test, architecture and repository policies, official Plugin checks, public type
-fixtures, and Chromium E2E. CI runs this profile on Node.js 24 with Chromium.
+test, architecture and repository policies, official Plugin checks, the built
+package surface, security checks, public type fixtures, and Chromium E2E. CI
+checks the minimum supported Node.js 22.12 runtime and runs the full gate on
+Node.js 24.
 
 For distribution and release responsibilities, run from a clean commit:
 

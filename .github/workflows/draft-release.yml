@@ -17,8 +17,9 @@ concurrency:
 
 jobs:
     minimum-node:
-        name: Minimum Node compatibility (Node 20)
+        name: Minimum Node compatibility (Node 22.12)
         runs-on: ubuntu-latest
+        timeout-minutes: 30
 
         steps:
             - name: Check out repository
@@ -27,7 +28,7 @@ jobs:
             - name: Set up Node.js
               uses: actions/setup-node@v7
               with:
-                  node-version: '20.x'
+                  node-version: '22.12.0'
                   cache: npm
                   cache-dependency-path: |
                       package-lock.json
@@ -53,10 +54,17 @@ jobs:
             - name: Run Node product tests
               run: npm test
 
+            - name: Build the distribution
+              run: npm run build
+
+            - name: Verify package runtime entries
+              run: npm run test:package-entries
+
     draft-release:
         name: Release gate and draft artifacts (Node 24)
         needs: minimum-node
         runs-on: ubuntu-latest
+        timeout-minutes: 60
 
         steps:
             - name: Check out repository

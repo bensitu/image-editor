@@ -316,6 +316,7 @@
         "check:architecture": "node scripts/check-architecture.mjs",
         "check:bundle-size": "node scripts/check-bundle-size.mjs",
         "check:docs": "node scripts/check-current-docs.mjs",
+        "check:node-ci-policy": "node scripts/check-node-ci-policy.mjs",
         "check:npm-pack-contents": "node scripts/check-npm-pack-contents.mjs",
         "check:source-quality": "node scripts/check-source-quality.mjs",
         "check:repository-hygiene": "node scripts/check-repository-hygiene.mjs",
@@ -336,7 +337,7 @@
         "fabric": ">=7.4.0 <8"
     },
     "devDependencies": {
-        "@types/node": "^26.0.0",
+        "@types/node": "^22.0.0",
         "@eslint/js": "^10.0.1",
         "@playwright/test": "^1.61.1",
         "@rollup/plugin-commonjs": "^29.0.3",
@@ -373,7 +374,7 @@
         "typescript"
     ],
     "engines": {
-        "node": ">=20"
+        "node": ">=22.12.0"
     },
     "sideEffects": false
 }

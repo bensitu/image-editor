@@ -274,7 +274,7 @@ the linked Feature documents and declaration files for their complete contracts.
 
 ## Requirements
 
-- **Node.js**: `>= 20` for development and building from source.
+- **Node.js**: `>=22.12.0` for development and building from source.
 - **Fabric.js**: peer dependency `>=7.4.0 <8`.
 - **Browsers**: Chrome 100+, Firefox 100+, Safari 15+, Edge 100+.
 - **JavaScript target**: distributed files target ES2019 and modern DOM APIs.

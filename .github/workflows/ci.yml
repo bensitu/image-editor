@@ -14,9 +14,170 @@ permissions:
     contents: read
 
 jobs:
-    pull-request-gate:
-        name: Pull-request gate (Node 24, Chromium)
+    minimum-node:
+        name: Minimum Node compatibility (Node 22.12)
         runs-on: ubuntu-latest
+        timeout-minutes: 30
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: '22.12.0'
+                  cache: npm
+                  cache-dependency-path: |
+                      package-lock.json
+                      examples/next-client-only/package-lock.json
+
+            - name: Install native canvas dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                    build-essential \
+                    libcairo2-dev \
+                    libpango1.0-dev \
+                    libjpeg-dev \
+                    libgif-dev \
+                    librsvg2-dev
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Check types
+              run: npm run typecheck
+
+            - name: Run Node product tests
+              run: npm test
+
+            - name: Build the distribution
+              run: npm run build
+
+            - name: Verify package runtime entries
+              run: npm run test:package-entries
+
+    source-gate:
+        name: Source and architecture gate (Node 24)
+        runs-on: ubuntu-latest
+        timeout-minutes: 35
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: '24.x'
+                  cache: npm
+                  cache-dependency-path: |
+                      package-lock.json
+                      examples/next-client-only/package-lock.json
+
+            - name: Install native canvas dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                    build-essential \
+                    libcairo2-dev \
+                    libpango1.0-dev \
+                    libjpeg-dev \
+                    libgif-dev \
+                    librsvg2-dev
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run source checks and Node tests
+              run: npm run check
+
+            - name: Check source module headers
+              run: npm run check:source-quality
+
+            - name: Check current documentation
+              run: npm run check:docs
+
+            - name: Check Node and CI policy
+              run: npm run check:node-ci-policy
+
+            - name: Check architecture ownership
+              run: npm run check:architecture
+
+            - name: Check repository hygiene
+              run: npm run check:repository-hygiene
+
+            - name: Check testing entry isolation
+              run: npm run check:testing-isolation
+
+            - name: Check official Plugin compliance
+              run: npm run check:official-plugins
+
+            - name: Check public type fixtures
+              run: npm run test:types
+
+    package-gate:
+        name: Built package and security gate (Node 24)
+        runs-on: ubuntu-latest
+        timeout-minutes: 35
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: '24.x'
+                  cache: npm
+                  cache-dependency-path: |
+                      package-lock.json
+                      examples/next-client-only/package-lock.json
+
+            - name: Install native canvas dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                    build-essential \
+                    libcairo2-dev \
+                    libpango1.0-dev \
+                    libjpeg-dev \
+                    libgif-dev \
+                    librsvg2-dev
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build the distribution
+              run: npm run build
+
+            - name: Verify runtime and declaration entries
+              run: |
+                  npm run test:package-entries
+                  npm run test:package-types
+                  npm run test:packed-entries
+
+            - name: Verify package isolation and metadata
+              run: |
+                  npm run test:package-isolation
+                  npm run package:check
+                  npm run check:npm-pack-contents
+                  npm run check:public-api
+
+            - name: Verify bundle, examples, and security policy
+              run: |
+                  npm run check:bundle-size
+                  npm run check:examples
+                  npm run check:security
+
+            - name: Verify deterministic generated output
+              run: npm run check:deterministic-build
+
+    chromium-gate:
+        name: Chromium and UMD gate (Node 24)
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
 
         steps:
             - name: Check out repository
@@ -48,5 +209,31 @@ jobs:
             - name: Install Chromium
               run: npx playwright install --with-deps chromium
 
-            - name: Run pull-request gate
-              run: npm run check:pr
+            - name: Build the distribution
+              run: npm run build
+
+            - name: Run Chromium product behavior
+              run: npm run test:e2e
+
+            - name: Run Full UMD policy and browser behavior
+              run: npm run test:umd
+
+    pull-request-gate:
+        name: Pull-request gate
+        if: ${{ always() }}
+        needs:
+            - minimum-node
+            - source-gate
+            - package-gate
+            - chromium-gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+
+        steps:
+            - name: Require every parallel gate
+              shell: bash
+              run: |
+                  test "${{ needs.minimum-node.result }}" = "success"
+                  test "${{ needs.source-gate.result }}" = "success"
+                  test "${{ needs.package-gate.result }}" = "success"
+                  test "${{ needs.chromium-gate.result }}" = "success"

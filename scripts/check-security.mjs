@@ -10,6 +10,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
+import { findCredentialKinds } from './credential-policy.mjs';
+
 const execFileAsync = promisify(execFile);
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
@@ -32,19 +34,20 @@ const textExtensions = new Set([
     '.yaml',
     '.yml',
 ]);
-const credentialPattern =
-    /-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----|\b(?:ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|sk-(?:live|proj)-[A-Za-z0-9_-]{20,})\b/u;
-
 if (!npmCliPath) throw new Error('npm_execpath is unavailable; run through an npm script.');
 
-async function readAudit(auditRoot) {
+async function readAudit(auditRoot, additionalArguments = []) {
     try {
-        const { stdout } = await execFileAsync(process.execPath, [npmCliPath, 'audit', '--json'], {
-            cwd: auditRoot,
-            encoding: 'utf8',
-            maxBuffer: 32 * 1024 * 1024,
-            windowsHide: true,
-        });
+        const { stdout } = await execFileAsync(
+            process.execPath,
+            [npmCliPath, 'audit', '--json', ...additionalArguments],
+            {
+                cwd: auditRoot,
+                encoding: 'utf8',
+                maxBuffer: 32 * 1024 * 1024,
+                windowsHide: true,
+            },
+        );
         return JSON.parse(stdout);
     } catch (error) {
         if (typeof error.stdout === 'string' && error.stdout.trim().startsWith('{')) {
@@ -77,8 +80,11 @@ async function checkTrackedFiles() {
             continue;
         }
         try {
-            if (credentialPattern.test(await readFile(path.join(repositoryRoot, file), 'utf8'))) {
-                exposed.push(file);
+            const kinds = findCredentialKinds(
+                await readFile(path.join(repositoryRoot, file), 'utf8'),
+            );
+            if (kinds.length > 0) {
+                exposed.push(`${file} (${kinds.join(', ')})`);
             }
         } catch (error) {
             if (error?.code !== 'ENOENT') throw error;
@@ -93,16 +99,34 @@ async function checkTrackedFiles() {
 const trackedFiles = await checkTrackedFiles();
 const auditSummaries = [];
 for (const [label, auditRoot] of auditRoots) {
-    const audit = await readAudit(auditRoot);
-    const summary = audit.metadata?.vulnerabilities;
-    if (!summary) throw new Error(`npm audit returned no vulnerability summary for ${label}.`);
-    if ((summary.high ?? 0) > 0 || (summary.critical ?? 0) > 0) {
+    const [productionAudit, fullAudit] = await Promise.all([
+        readAudit(auditRoot, ['--omit=dev']),
+        readAudit(auditRoot),
+    ]);
+    const production = productionAudit.metadata?.vulnerabilities;
+    const full = fullAudit.metadata?.vulnerabilities;
+    if (!production || !full) {
+        throw new Error(`npm audit returned no vulnerability summary for ${label}.`);
+    }
+    if (
+        (production.moderate ?? 0) > 0 ||
+        (production.high ?? 0) > 0 ||
+        (production.critical ?? 0) > 0
+    ) {
         throw new Error(
-            `${label} npm audit reports ${summary.high ?? 0} high and ${summary.critical ?? 0} critical vulnerabilities.`,
+            `${label} production audit reports ${production.moderate ?? 0} moderate, ` +
+                `${production.high ?? 0} high, and ${production.critical ?? 0} critical vulnerabilities.`,
+        );
+    }
+    if ((full.high ?? 0) > 0 || (full.critical ?? 0) > 0) {
+        throw new Error(
+            `${label} full audit reports ${full.high ?? 0} high and ` +
+                `${full.critical ?? 0} critical vulnerabilities.`,
         );
     }
     auditSummaries.push(
-        `${label}: ${summary.low ?? 0} low, ${summary.moderate ?? 0} moderate, 0 high, 0 critical`,
+        `${label}: production has 0 moderate/high/critical; full tree has ` +
+            `${full.low ?? 0} low, ${full.moderate ?? 0} moderate, 0 high, 0 critical`,
     );
 }
 

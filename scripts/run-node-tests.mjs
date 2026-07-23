@@ -1,5 +1,5 @@
 /**
- * Runs Node's test runner with an explicit test-file list for Node.js 20.
+ * Runs Node's test runner with an explicit, deterministic test-file list.
  *
  * @module
  */
