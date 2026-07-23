@@ -27,8 +27,7 @@ async function readRepositoryFile(relativePath) {
 const workflowEntries = await readdir(workflowsRoot, { withFileTypes: true });
 const workflowPaths = workflowEntries
     .filter(
-        (entry) =>
-            entry.isFile() && (entry.name.endsWith('.yml') || entry.name.endsWith('.yaml')),
+        (entry) => entry.isFile() && (entry.name.endsWith('.yml') || entry.name.endsWith('.yaml')),
     )
     .map((entry) => path.join(workflowsRoot, entry.name))
     .sort();
