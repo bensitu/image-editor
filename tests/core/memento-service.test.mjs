@@ -49,6 +49,25 @@ test('MementoService captures empty/core-only state without retaining aliases', 
     assert.deepEqual(Object.keys(memento.plugins), []);
 });
 
+test('externally fabricated mementos fail the runtime trust check without mutating state', async () => {
+    const harness = createHarness();
+    harness.setCore({ value: 7 });
+    const fabricated = Object.freeze({
+        revision: 999,
+        capturedAt: Date.now(),
+        core: Object.freeze({ value: 99 }),
+        plugins: Object.freeze({}),
+    });
+
+    assert.equal(harness.service.isTrusted(fabricated), false);
+    await assert.rejects(harness.service.restore(fabricated), (error) => {
+        assert.equal(error instanceof MementoRestoreError, true);
+        assert.match(error.cause?.message ?? '', /Untrusted memento/u);
+        return true;
+    });
+    assert.deepEqual(harness.getCore(), { value: 7 });
+});
+
 test('state slices capture and restore in deterministic registration order', async () => {
     const harness = createHarness();
     const calls = [];

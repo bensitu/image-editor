@@ -2,11 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ImageEditorCore, definePluginRef } from '../../../src/core/index.js';
-import { SNAPSHOT_REGISTRATION_CAPABILITY } from '../../../src/core-runtime/internal-capabilities.js';
 import { overlayFoundationPlugin } from '../../../src/foundations/overlay/index.js';
 import { historyPlugin, historyPluginRef } from '../../../src/plugins/history/index.js';
 import { maskPlugin } from '../../../src/plugins/mask/index.js';
 import { transformPlugin } from '../../../src/plugins/transform/index.js';
+import {
+    MEMENTO_HISTORY_CAPABILITY,
+    SNAPSHOT_REGISTRATION_CAPABILITY,
+    definePlugin,
+} from '../../../src/sdk/index.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
 async function createEditor({ historyOptions = {}, maskOptions = {}, stateFailure } = {}) {
@@ -33,6 +37,54 @@ async function load(editor) {
 async function dispose(editor) {
     await editor.disposeAsync();
     document.body.innerHTML = '';
+}
+
+function installHistoryTrustProbe(editor) {
+    const providerRef = definePluginRef('example-test:history-trust-probe', '1.0.0');
+    return editor.use(
+        definePlugin({
+            ref: providerRef,
+            manifest: {
+                id: providerRef.id,
+                version: '1.0.0',
+                apiVersion: providerRef.apiVersion,
+                engine: '^3.0.0',
+                requires: [{ token: MEMENTO_HISTORY_CAPABILITY, range: '^1.0.0' }],
+            },
+            setupMode: 'sync',
+            setup(context) {
+                const state = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
+                const records = [];
+                const mutationErrors = [];
+                context.disposables.add(
+                    state.registerHistoryProvider(providerRef.id, {
+                        isAvailable: () => true,
+                        commit: (record) => {
+                            records.push(record);
+                            try {
+                                record.operationId = 'external:forged';
+                            } catch (error) {
+                                mutationErrors.push(error);
+                            }
+                            const transformState = record.after.plugins['plugin:transform']?.data;
+                            if (typeof transformState === 'object' && transformState !== null) {
+                                try {
+                                    transformState.scale = 99;
+                                } catch (error) {
+                                    mutationErrors.push(error);
+                                }
+                            }
+                        },
+                    }),
+                );
+                return Object.freeze({
+                    capabilitySurface: Object.freeze(Object.keys(state).sort()),
+                    mutationErrors,
+                    records,
+                });
+            },
+        }),
+    );
 }
 
 test('History starts empty after image load and records one entry per transform/reset', async () => {
@@ -75,6 +127,73 @@ test('History starts empty after image load and records one entry per transform/
     assert.equal(transform.getState().scale, 1);
     assert.equal(history.getState().position, 2);
     assert.ok(states.length >= 4);
+    await dispose(editor);
+});
+
+test('Core mutation records are immutable before provider delivery with no SDK commit ingress', async () => {
+    const ids = resetEditorDom({ containerWidth: 340, containerHeight: 250 });
+    const editor = new ImageEditorCore(fabric, {
+        canvasWidth: 340,
+        canvasHeight: 250,
+    });
+    const probe = installHistoryTrustProbe(editor);
+    const transform = editor.use(transformPlugin({ animationDuration: 0 }));
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await load(editor);
+    probe.records.length = 0;
+    probe.mutationErrors.length = 0;
+
+    await transform.scale(1.25);
+
+    assert.equal(probe.records.length, 1);
+    const record = probe.records[0];
+    assert.equal(record.operationId, 'transform:scale');
+    assert.equal(Object.isFrozen(record), true);
+    assert.equal(Object.isFrozen(record.before), true);
+    assert.equal(Object.isFrozen(record.after), true);
+    assert.equal(Object.isFrozen(record.after.core), true);
+    assert.equal(Object.isFrozen(record.after.plugins), true);
+    assert.equal(Object.isFrozen(record.after.plugins['plugin:transform'].data), true);
+    assert.equal(Object.isFrozen(record.detail), true);
+    assert.equal(record.after.plugins['plugin:transform'].data.scale, 1.25);
+    assert.equal(transform.getState().scale, 1.25);
+    assert.equal(probe.mutationErrors.length, 2);
+    assert.deepEqual(probe.capabilitySurface, [
+        'captureMemento',
+        'registerHistoryProvider',
+        'reportFatal',
+        'restoreMemento',
+    ]);
+    await dispose(editor);
+});
+
+test('History replays Core-captured mementos and rejects a fabricated public record', async () => {
+    const { editor, history, transform } = await createEditor();
+    await load(editor);
+    const before = transform.getState();
+    const fabricated = Object.freeze({
+        revision: 999,
+        capturedAt: Date.now(),
+        core: Object.freeze({ injected: true }),
+        plugins: Object.freeze({}),
+    });
+    history.push(
+        Object.freeze({
+            operationId: 'external:forged-history',
+            before: fabricated,
+            after: fabricated,
+            timestamp: Date.now(),
+        }),
+    );
+
+    await assert.rejects(history.undo(), /History undo failed/u);
+    assert.deepEqual(transform.getState(), before);
+    assert.equal(history.getState().position, 1);
+
+    history.clear();
+    await transform.rotate(25);
+    await history.undo();
+    assert.equal(transform.getState().rotationDegrees, 0);
     await dispose(editor);
 });
 
