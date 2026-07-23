@@ -2,6 +2,7 @@ import { CapabilityRegistry } from './capability-registry.js';
 import { CommittedEventBus, } from './committed-event-bus.js';
 import { createDisposable, isPromiseLike } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginAggregateError, PluginAlreadyInstalledError, PluginBatchInstallError, PluginCapabilityError, PluginDefinitionConflictError, PluginDependencyCycleError, PluginDependencyError, PluginKernelDisposedError, PluginKernelStateError, PluginLifecycleError, PluginNotInstalledError, PluginPermissionError, PluginSetupError, PluginVersionMismatchError, } from './errors.js';
+import { acquirePluginDefinitionLease, releasePluginDefinitionLease, resolvePluginDefinitionIdentity, } from './plugin-definition-lease.js';
 import { OperationRegistry, } from './operation-registry.js';
 import { validatePluginManifest } from './plugin-manifest.js';
 import { isPluginRef } from './plugin-ref.js';
@@ -456,6 +457,7 @@ export class PluginManager {
             throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
         }
         const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, plugin.ref.id);
         const scope = new RegistrationScope(plugin.ref.id, this.options);
         visibleTransactions.add(scope.transactionId);
         try {
@@ -480,6 +482,7 @@ export class PluginManager {
         catch (error) {
             visibleTransactions.delete(scope.transactionId);
             const cleanupErrors = scope.rollbackSync();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new PluginSetupError(plugin.ref.id, error, cleanupErrors);
         }
     }
@@ -501,6 +504,7 @@ export class PluginManager {
                 }
             }
             cleanupErrors.push(...record.scope.rollbackSync());
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         return Object.freeze(cleanupErrors);
     }
@@ -541,6 +545,7 @@ export class PluginManager {
         }
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
         const scope = new RegistrationScope(pluginId, this.options);
         const stack = [...parentStack, pluginId];
         try {
@@ -563,6 +568,7 @@ export class PluginManager {
         }
         catch (error) {
             const cleanupErrors = await scope.rollback();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -587,6 +593,7 @@ export class PluginManager {
         }
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
         const scope = new RegistrationScope(pluginId, this.options);
         try {
             const contexts = this.createContexts(plugin.ref, scope, required, optional, [
@@ -613,6 +620,7 @@ export class PluginManager {
         }
         catch (error) {
             const cleanupErrors = scope.rollbackSync();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -819,6 +827,7 @@ export class PluginManager {
         catch (error) {
             errors.push(error);
         }
+        releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         if (errors.length > 0) {
             throw new PluginAggregateError(`[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`, errors, { pluginId });
         }
@@ -844,7 +853,12 @@ export class PluginManager {
                 optional: plugin.optional,
                 permissions: plugin.permissions,
             });
-        return Object.freeze({ ...plugin, ref: plugin.ref, manifest });
+        return Object.freeze({
+            ...plugin,
+            ref: plugin.ref,
+            manifest,
+            leaseIdentity: resolvePluginDefinitionIdentity(plugin),
+        });
     }
     async performDispose() {
         const errors = await this.cleanupAll();
@@ -886,6 +900,7 @@ export class PluginManager {
                 errors.push(error);
                 reportErrorSafely(this.options.errorSink, error);
             }
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         this.installed.clear();
         this.installationOrder.length = 0;
@@ -941,6 +956,7 @@ export class PluginManager {
                 errors.push(error);
                 reportErrorSafely(this.options.errorSink, error);
             }
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         this.installed.clear();
         this.installationOrder.length = 0;

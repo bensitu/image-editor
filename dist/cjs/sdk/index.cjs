@@ -1,12 +1,12 @@
 'use strict';
 
-var coreCapabilities = require('../chunks/core-capabilities-DVJQ8w-Z.cjs');
-var visibleRasterBake = require('../chunks/visible-raster-bake-DRW-_VAM.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-B4W6-2BB.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-CWNPa1MZ.cjs');
+var visibleRasterBake = require('../chunks/visible-raster-bake-DtHxH8kh.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-DNqSyjh2.cjs');
 var disposable = require('../chunks/disposable-pTo80E0l.cjs');
-var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
-var pluginDefinition = require('../chunks/plugin-definition-CT9AOCE7.cjs');
-var pluginPlan = require('../chunks/plugin-plan-7_a5v9uF.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
+var pluginDefinition = require('../chunks/plugin-definition-P0xuESpm.cjs');
+var pluginPlan = require('../chunks/plugin-plan-BBOVkUMI.cjs');
 
 
 
@@ -39,6 +39,7 @@ exports.CapabilityMissingError = pluginIdentifier.CapabilityMissingError;
 exports.CapabilityVersionError = pluginIdentifier.CapabilityVersionError;
 exports.PluginApiVersionError = pluginIdentifier.PluginApiVersionError;
 exports.PluginBatchInstallError = pluginIdentifier.PluginBatchInstallError;
+exports.PluginDefinitionAlreadyBoundError = pluginIdentifier.PluginDefinitionAlreadyBoundError;
 exports.PluginDefinitionConflictError = pluginIdentifier.PluginDefinitionConflictError;
 exports.PluginDependencyCycleError = pluginIdentifier.PluginDependencyCycleError;
 exports.PluginDependencyError = pluginIdentifier.PluginDependencyError;

@@ -80,6 +80,12 @@
             super('PLUGIN_ALREADY_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is already installed. Direct duplicate installation is not allowed.`, { pluginId });
         }
     }
+    class PluginDefinitionAlreadyBoundError extends PluginError {
+        constructor(pluginId, boundHostState) {
+            super('PLUGIN_DEFINITION_ALREADY_BOUND', `[ImageEditor] Plugin Definition "${pluginId}" is already bound to another Host in state "${boundHostState}". Dispose that Host before reusing the same Definition object.`, { pluginId });
+            this.boundHostState = boundHostState;
+        }
+    }
     class PluginNotInstalledError extends PluginError {
         constructor(pluginId) {
             super('PLUGIN_NOT_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is not installed.`, {
@@ -1703,6 +1709,35 @@
         }
     }
 
+    const definitionAliases = new WeakMap();
+    const definitionLeases = new WeakMap();
+    function resolvePluginDefinitionIdentity(definition) {
+        let current = definition;
+        const visited = new Set();
+        while (definitionAliases.has(current) && !visited.has(current)) {
+            visited.add(current);
+            current = definitionAliases.get(current);
+        }
+        return current;
+    }
+    function aliasPluginDefinitionIdentity(snapshot, source) {
+        definitionAliases.set(snapshot, resolvePluginDefinitionIdentity(source));
+        return snapshot;
+    }
+    function acquirePluginDefinitionLease(definition, host, pluginId) {
+        const identity = resolvePluginDefinitionIdentity(definition);
+        const boundHost = definitionLeases.get(identity);
+        if (boundHost && boundHost !== host) {
+            throw new PluginDefinitionAlreadyBoundError(pluginId, boundHost.state);
+        }
+        definitionLeases.set(identity, host);
+        return identity;
+    }
+    function releasePluginDefinitionLease(identity, host) {
+        if (definitionLeases.get(identity) === host)
+            definitionLeases.delete(identity);
+    }
+
     function assertStateKey(key) {
         if (key.trim().length === 0 || key.trim() !== key) {
             throw new InvalidPluginDefinitionError('Plugin state keys must be non-empty trimmed strings.');
@@ -2615,6 +2650,7 @@
                 throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
             }
             const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
+            acquirePluginDefinitionLease(plugin.leaseIdentity, this, plugin.ref.id);
             const scope = new RegistrationScope(plugin.ref.id, this.options);
             visibleTransactions.add(scope.transactionId);
             try {
@@ -2639,6 +2675,7 @@
             catch (error) {
                 visibleTransactions.delete(scope.transactionId);
                 const cleanupErrors = scope.rollbackSync();
+                releasePluginDefinitionLease(plugin.leaseIdentity, this);
                 throw new PluginSetupError(plugin.ref.id, error, cleanupErrors);
             }
         }
@@ -2660,6 +2697,7 @@
                     }
                 }
                 cleanupErrors.push(...record.scope.rollbackSync());
+                releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
             }
             return Object.freeze(cleanupErrors);
         }
@@ -2700,6 +2738,7 @@
             }
             this.assertPluginDependenciesInstalled(plugin);
             const { required, optional } = this.resolveCapabilities(plugin);
+            acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
             const scope = new RegistrationScope(pluginId, this.options);
             const stack = [...parentStack, pluginId];
             try {
@@ -2722,6 +2761,7 @@
             }
             catch (error) {
                 const cleanupErrors = await scope.rollback();
+                releasePluginDefinitionLease(plugin.leaseIdentity, this);
                 throw new PluginSetupError(pluginId, error, cleanupErrors);
             }
         }
@@ -2746,6 +2786,7 @@
             }
             this.assertPluginDependenciesInstalled(plugin);
             const { required, optional } = this.resolveCapabilities(plugin);
+            acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
             const scope = new RegistrationScope(pluginId, this.options);
             try {
                 const contexts = this.createContexts(plugin.ref, scope, required, optional, [
@@ -2772,6 +2813,7 @@
             }
             catch (error) {
                 const cleanupErrors = scope.rollbackSync();
+                releasePluginDefinitionLease(plugin.leaseIdentity, this);
                 throw new PluginSetupError(pluginId, error, cleanupErrors);
             }
         }
@@ -2978,6 +3020,7 @@
             catch (error) {
                 errors.push(error);
             }
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
             if (errors.length > 0) {
                 throw new PluginAggregateError(`[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`, errors, { pluginId });
             }
@@ -3003,7 +3046,12 @@
                     optional: plugin.optional,
                     permissions: plugin.permissions,
                 });
-            return Object.freeze({ ...plugin, ref: plugin.ref, manifest });
+            return Object.freeze({
+                ...plugin,
+                ref: plugin.ref,
+                manifest,
+                leaseIdentity: resolvePluginDefinitionIdentity(plugin),
+            });
         }
         async performDispose() {
             const errors = await this.cleanupAll();
@@ -3045,6 +3093,7 @@
                     errors.push(error);
                     reportErrorSafely(this.options.errorSink, error);
                 }
+                releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
             }
             this.installed.clear();
             this.installationOrder.length = 0;
@@ -3100,6 +3149,7 @@
                     errors.push(error);
                     reportErrorSafely(this.options.errorSink, error);
                 }
+                releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
             }
             this.installed.clear();
             this.installationOrder.length = 0;
@@ -6585,7 +6635,7 @@
     }
     function freezePluginDefinition(definition) {
         if (!('manifest' in definition)) {
-            return Object.freeze({
+            return aliasPluginDefinitionIdentity(Object.freeze({
                 ...definition,
                 requires: definition.requires
                     ? Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement })))
@@ -6596,9 +6646,9 @@
                 permissions: definition.permissions
                     ? Object.freeze([...definition.permissions])
                     : undefined,
-            });
+            }), definition);
         }
-        return Object.freeze({
+        return aliasPluginDefinitionIdentity(Object.freeze({
             ...definition,
             manifest: Object.freeze({
                 ...definition.manifest,
@@ -6615,7 +6665,7 @@
                     ? Object.freeze([...definition.manifest.permissions])
                     : undefined,
             }),
-        });
+        }), definition);
     }
     class ImageEditorCore {
         constructor(fabric, options = {}) {
@@ -21099,6 +21149,7 @@
     exports.OverlayStateValidationError = OverlayStateValidationError;
     exports.PluginApiVersionError = PluginApiVersionError;
     exports.PluginBatchInstallError = PluginBatchInstallError;
+    exports.PluginDefinitionAlreadyBoundError = PluginDefinitionAlreadyBoundError;
     exports.PluginDefinitionConflictError = PluginDefinitionConflictError;
     exports.PluginDependencyCycleError = PluginDependencyCycleError;
     exports.PluginDependencyError = PluginDependencyError;

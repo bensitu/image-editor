@@ -1,8 +1,8 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-B4W6-2BB.cjs');
+var pluginManifest = require('./plugin-manifest-DNqSyjh2.cjs');
 var disposable = require('./disposable-pTo80E0l.cjs');
-var pluginIdentifier = require('./plugin-identifier-CjVVyVRY.cjs');
+var pluginIdentifier = require('./plugin-identifier-DPwx4Gkd.cjs');
 
 function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
     var _a, _b;
@@ -938,6 +938,35 @@ class OperationRegistry {
     }
 }
 
+const definitionAliases = new WeakMap();
+const definitionLeases = new WeakMap();
+function resolvePluginDefinitionIdentity(definition) {
+    let current = definition;
+    const visited = new Set();
+    while (definitionAliases.has(current) && !visited.has(current)) {
+        visited.add(current);
+        current = definitionAliases.get(current);
+    }
+    return current;
+}
+function aliasPluginDefinitionIdentity(snapshot, source) {
+    definitionAliases.set(snapshot, resolvePluginDefinitionIdentity(source));
+    return snapshot;
+}
+function acquirePluginDefinitionLease(definition, host, pluginId) {
+    const identity = resolvePluginDefinitionIdentity(definition);
+    const boundHost = definitionLeases.get(identity);
+    if (boundHost && boundHost !== host) {
+        throw new pluginIdentifier.PluginDefinitionAlreadyBoundError(pluginId, boundHost.state);
+    }
+    definitionLeases.set(identity, host);
+    return identity;
+}
+function releasePluginDefinitionLease(identity, host) {
+    if (definitionLeases.get(identity) === host)
+        definitionLeases.delete(identity);
+}
+
 function assertStateKey(key) {
     if (key.trim().length === 0 || key.trim() !== key) {
         throw new pluginIdentifier.InvalidPluginDefinitionError('Plugin state keys must be non-empty trimmed strings.');
@@ -1850,6 +1879,7 @@ class PluginManager {
             throw new pluginIdentifier.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
         }
         const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, plugin.ref.id);
         const scope = new RegistrationScope(plugin.ref.id, this.options);
         visibleTransactions.add(scope.transactionId);
         try {
@@ -1874,6 +1904,7 @@ class PluginManager {
         catch (error) {
             visibleTransactions.delete(scope.transactionId);
             const cleanupErrors = scope.rollbackSync();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new pluginIdentifier.PluginSetupError(plugin.ref.id, error, cleanupErrors);
         }
     }
@@ -1895,6 +1926,7 @@ class PluginManager {
                 }
             }
             cleanupErrors.push(...record.scope.rollbackSync());
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         return Object.freeze(cleanupErrors);
     }
@@ -1935,6 +1967,7 @@ class PluginManager {
         }
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
         const scope = new RegistrationScope(pluginId, this.options);
         const stack = [...parentStack, pluginId];
         try {
@@ -1957,6 +1990,7 @@ class PluginManager {
         }
         catch (error) {
             const cleanupErrors = await scope.rollback();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new pluginIdentifier.PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -1981,6 +2015,7 @@ class PluginManager {
         }
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
         const scope = new RegistrationScope(pluginId, this.options);
         try {
             const contexts = this.createContexts(plugin.ref, scope, required, optional, [
@@ -2007,6 +2042,7 @@ class PluginManager {
         }
         catch (error) {
             const cleanupErrors = scope.rollbackSync();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new pluginIdentifier.PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -2213,6 +2249,7 @@ class PluginManager {
         catch (error) {
             errors.push(error);
         }
+        releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         if (errors.length > 0) {
             throw new pluginIdentifier.PluginAggregateError(`[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`, errors, { pluginId });
         }
@@ -2238,7 +2275,12 @@ class PluginManager {
                 optional: plugin.optional,
                 permissions: plugin.permissions,
             });
-        return Object.freeze({ ...plugin, ref: plugin.ref, manifest });
+        return Object.freeze({
+            ...plugin,
+            ref: plugin.ref,
+            manifest,
+            leaseIdentity: resolvePluginDefinitionIdentity(plugin),
+        });
     }
     async performDispose() {
         const errors = await this.cleanupAll();
@@ -2280,6 +2322,7 @@ class PluginManager {
                 errors.push(error);
                 disposable.reportErrorSafely(this.options.errorSink, error);
             }
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         this.installed.clear();
         this.installationOrder.length = 0;
@@ -2335,6 +2378,7 @@ class PluginManager {
                 errors.push(error);
                 disposable.reportErrorSafely(this.options.errorSink, error);
             }
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         this.installed.clear();
         this.installationOrder.length = 0;
@@ -2387,4 +2431,5 @@ class PluginManager {
 }
 
 exports.PluginManager = PluginManager;
-//# sourceMappingURL=plugin-manager-BLzAzBA9.cjs.map
+exports.aliasPluginDefinitionIdentity = aliasPluginDefinitionIdentity;
+//# sourceMappingURL=plugin-manager-CXW0nIYm.cjs.map

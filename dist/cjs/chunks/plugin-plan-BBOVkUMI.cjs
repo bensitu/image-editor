@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginIdentifier = require('./plugin-identifier-CjVVyVRY.cjs');
+var pluginIdentifier = require('./plugin-identifier-DPwx4Gkd.cjs');
 
 const pluginPlanDefinition = Symbol('image-editor.plugin-plan.definition');
 function isPluginPlan(value) {
@@ -51,4 +51,4 @@ function resolvePluginPlanApis(plan, resolveApi) {
 exports.composePlugins = composePlugins;
 exports.isPluginPlan = isPluginPlan;
 exports.resolvePluginPlanApis = resolvePluginPlanApis;
-//# sourceMappingURL=plugin-plan-7_a5v9uF.cjs.map
+//# sourceMappingURL=plugin-plan-BBOVkUMI.cjs.map

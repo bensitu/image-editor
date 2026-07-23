@@ -1,9 +1,9 @@
 'use strict';
 
-var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
-require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-P0xuESpm.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 
 const ANIMATION_SETTLE_GRACE_MS = 1000;
 function animateProps(object, props, options, guard) {

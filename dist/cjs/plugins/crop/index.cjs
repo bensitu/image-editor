@@ -4,12 +4,12 @@ var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var error = require('../../chunks/error-Cg6SL3PT.cjs');
 var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
 var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-DRW-_VAM.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-P0xuESpm.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 
 class CropError extends Error {
     constructor() {

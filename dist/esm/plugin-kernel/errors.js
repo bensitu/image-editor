@@ -74,6 +74,12 @@ export class PluginAlreadyInstalledError extends PluginError {
         super('PLUGIN_ALREADY_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is already installed. Direct duplicate installation is not allowed.`, { pluginId });
     }
 }
+export class PluginDefinitionAlreadyBoundError extends PluginError {
+    constructor(pluginId, boundHostState) {
+        super('PLUGIN_DEFINITION_ALREADY_BOUND', `[ImageEditor] Plugin Definition "${pluginId}" is already bound to another Host in state "${boundHostState}". Dispose that Host before reusing the same Definition object.`, { pluginId });
+        this.boundHostState = boundHostState;
+    }
+}
 export class PluginNotInstalledError extends PluginError {
     constructor(pluginId) {
         super('PLUGIN_NOT_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is not installed.`, {

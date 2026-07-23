@@ -2,10 +2,10 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var affineMatrix = require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-P0xuESpm.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');

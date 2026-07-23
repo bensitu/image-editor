@@ -76,6 +76,12 @@ class PluginAlreadyInstalledError extends PluginError {
         super('PLUGIN_ALREADY_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is already installed. Direct duplicate installation is not allowed.`, { pluginId });
     }
 }
+class PluginDefinitionAlreadyBoundError extends PluginError {
+    constructor(pluginId, boundHostState) {
+        super('PLUGIN_DEFINITION_ALREADY_BOUND', `[ImageEditor] Plugin Definition "${pluginId}" is already bound to another Host in state "${boundHostState}". Dispose that Host before reusing the same Definition object.`, { pluginId });
+        this.boundHostState = boundHostState;
+    }
+}
 class PluginNotInstalledError extends PluginError {
     constructor(pluginId) {
         super('PLUGIN_NOT_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is not installed.`, {
@@ -277,6 +283,7 @@ exports.PluginAlreadyInstalledError = PluginAlreadyInstalledError;
 exports.PluginApiVersionError = PluginApiVersionError;
 exports.PluginBatchInstallError = PluginBatchInstallError;
 exports.PluginCapabilityError = PluginCapabilityError;
+exports.PluginDefinitionAlreadyBoundError = PluginDefinitionAlreadyBoundError;
 exports.PluginDefinitionConflictError = PluginDefinitionConflictError;
 exports.PluginDependencyCycleError = PluginDependencyCycleError;
 exports.PluginDependencyError = PluginDependencyError;
@@ -296,4 +303,4 @@ exports.ToolTransitionError = ToolTransitionError;
 exports.assertPluginIdentifier = assertPluginIdentifier;
 exports.isDangerousStateKey = isDangerousStateKey;
 exports.isRuntimeIdentifier = isRuntimeIdentifier;
-//# sourceMappingURL=plugin-identifier-CjVVyVRY.cjs.map
+//# sourceMappingURL=plugin-identifier-DPwx4Gkd.cjs.map

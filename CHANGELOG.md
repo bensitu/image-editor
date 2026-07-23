@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   older schemas require an explicitly imported migration handler.
 - Require persistent Overlay kinds to install versioned Codecs atomically and
   privileged Capability consumers to declare exact permissions before setup.
+- Lease each concrete Plugin Definition to one live Host at a time, fail
+  cross-Editor reuse with `PluginDefinitionAlreadyBoundError`, and release the
+  lease after rollback or disposal.
 - Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
   produced and DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.

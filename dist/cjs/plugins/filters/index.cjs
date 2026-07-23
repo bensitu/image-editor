@@ -1,13 +1,13 @@
 'use strict';
 
-var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginIdentifier = require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 var error = require('../../chunks/error-Cg6SL3PT.cjs');
 var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
 var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-DRW-_VAM.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-P0xuESpm.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');
 
 class FilterDefinitionError extends TypeError {
     constructor(message, path = '$') {

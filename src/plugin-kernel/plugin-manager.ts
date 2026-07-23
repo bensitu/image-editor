@@ -30,6 +30,11 @@ import {
     PluginVersionMismatchError,
 } from './errors.js';
 import {
+    acquirePluginDefinitionLease,
+    releasePluginDefinitionLease,
+    resolvePluginDefinitionIdentity,
+} from './plugin-definition-lease.js';
+import {
     OperationRegistry,
     type OperationDefinition,
     type OperationExecutionContext,
@@ -91,6 +96,7 @@ interface NormalizedPluginDefinition<
     readonly ref: PluginRef<unknown>;
     readonly manifest: PluginManifest;
     readonly setupMode?: 'sync';
+    readonly leaseIdentity: object;
 }
 
 interface InstallOutcome {
@@ -647,6 +653,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             );
         }
         const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, plugin.ref.id);
         const scope = new RegistrationScope(plugin.ref.id, this.options);
         visibleTransactions.add(scope.transactionId);
         try {
@@ -676,6 +683,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         } catch (error) {
             visibleTransactions.delete(scope.transactionId);
             const cleanupErrors = scope.rollbackSync();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new PluginSetupError(plugin.ref.id, error, cleanupErrors);
         }
     }
@@ -701,6 +709,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 }
             }
             cleanupErrors.push(...record.scope.rollbackSync());
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         return Object.freeze(cleanupErrors);
     }
@@ -760,6 +769,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
 
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
         const scope = new RegistrationScope(pluginId, this.options);
         const stack = [...parentStack, pluginId];
 
@@ -785,6 +795,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             return { api };
         } catch (error) {
             const cleanupErrors = await scope.rollback();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -825,6 +836,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
+        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
         const scope = new RegistrationScope(pluginId, this.options);
         try {
             const contexts = this.createContexts(plugin.ref, scope, required, optional, [
@@ -856,6 +868,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             return { api };
         } catch (error) {
             const cleanupErrors = scope.rollbackSync();
+            releasePluginDefinitionLease(plugin.leaseIdentity, this);
             throw new PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -1133,6 +1146,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         } catch (error) {
             errors.push(error);
         }
+        releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         if (errors.length > 0) {
             throw new PluginAggregateError(
                 `[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`,
@@ -1174,7 +1188,12 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                       permissions: plugin.permissions,
                   },
         );
-        return Object.freeze({ ...plugin, ref: plugin.ref, manifest });
+        return Object.freeze({
+            ...plugin,
+            ref: plugin.ref,
+            manifest,
+            leaseIdentity: resolvePluginDefinitionIdentity(plugin),
+        });
     }
 
     private async performDispose(): Promise<void> {
@@ -1224,6 +1243,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 errors.push(error);
                 reportErrorSafely(this.options.errorSink, error);
             }
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
 
         this.installed.clear();
@@ -1283,6 +1303,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 errors.push(error);
                 reportErrorSafely(this.options.errorSink, error);
             }
+            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
         }
         this.installed.clear();
         this.installationOrder.length = 0;

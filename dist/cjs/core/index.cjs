@@ -2,13 +2,13 @@
 
 var errors = require('../chunks/errors-DeAfrgDC.cjs');
 var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-B4W6-2BB.cjs');
-var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
-var pluginPlan = require('../chunks/plugin-plan-7_a5v9uF.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-DNqSyjh2.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
+var pluginManager = require('../chunks/plugin-manager-CXW0nIYm.cjs');
+var pluginPlan = require('../chunks/plugin-plan-BBOVkUMI.cjs');
 var imageBudget = require('../chunks/image-budget-DZeZeVWW.cjs');
 var disposable = require('../chunks/disposable-pTo80E0l.cjs');
-var pluginManager = require('../chunks/plugin-manager-BLzAzBA9.cjs');
-var coreCapabilities = require('../chunks/core-capabilities-DVJQ8w-Z.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-CWNPa1MZ.cjs');
 
 function forceReflow(element) {
     if (!element)
@@ -2960,7 +2960,7 @@ function base64ToFile(dataUrl, fileName) {
 }
 function freezePluginDefinition(definition) {
     if (!('manifest' in definition)) {
-        return Object.freeze({
+        return pluginManager.aliasPluginDefinitionIdentity(Object.freeze({
             ...definition,
             requires: definition.requires
                 ? Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement })))
@@ -2971,9 +2971,9 @@ function freezePluginDefinition(definition) {
             permissions: definition.permissions
                 ? Object.freeze([...definition.permissions])
                 : undefined,
-        });
+        }), definition);
     }
-    return Object.freeze({
+    return pluginManager.aliasPluginDefinitionIdentity(Object.freeze({
         ...definition,
         manifest: Object.freeze({
             ...definition.manifest,
@@ -2990,7 +2990,7 @@ function freezePluginDefinition(definition) {
                 ? Object.freeze([...definition.manifest.permissions])
                 : undefined,
         }),
-    });
+    }), definition);
 }
 class ImageEditorCore {
     constructor(fabric, options = {}) {

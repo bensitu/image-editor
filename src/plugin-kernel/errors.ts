@@ -116,6 +116,20 @@ export class PluginAlreadyInstalledError extends PluginError {
     }
 }
 
+/** Raised when one concrete Plugin Definition is still leased by another live Host. */
+export class PluginDefinitionAlreadyBoundError extends PluginError {
+    declare public readonly boundHostState: string;
+
+    constructor(pluginId: string, boundHostState: string) {
+        super(
+            'PLUGIN_DEFINITION_ALREADY_BOUND',
+            `[ImageEditor] Plugin Definition "${pluginId}" is already bound to another Host in state "${boundHostState}". Dispose that Host before reusing the same Definition object.`,
+            { pluginId },
+        );
+        this.boundHostState = boundHostState;
+    }
+}
+
 export class PluginNotInstalledError extends PluginError {
     constructor(pluginId: string) {
         super('PLUGIN_NOT_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is not installed.`, {

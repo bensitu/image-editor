@@ -1,4 +1,5 @@
 import { PluginManager, PluginLifecycleError, PluginNotInstalledError, } from '../plugin-kernel/index.js';
+import { aliasPluginDefinitionIdentity } from '../plugin-kernel/plugin-definition-lease.js';
 import { isPluginPlan, resolvePluginPlanApis, } from '../plugin-kernel/plugin-plan.js';
 import { applyCanvasDimensions, computeCoverLayout, computeExpandLayout, computeFitLayout, computeScrollableCanvasSize, measureScrollbarSize, selectLayoutStrategy, ViewportCache, } from '../image/layout-manager.js';
 import { CanvasCoreStateAdapter } from './core-state-adapter.js';
@@ -171,7 +172,7 @@ function base64ToFile(dataUrl, fileName) {
 }
 function freezePluginDefinition(definition) {
     if (!('manifest' in definition)) {
-        return Object.freeze({
+        return aliasPluginDefinitionIdentity(Object.freeze({
             ...definition,
             requires: definition.requires
                 ? Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement })))
@@ -182,9 +183,9 @@ function freezePluginDefinition(definition) {
             permissions: definition.permissions
                 ? Object.freeze([...definition.permissions])
                 : undefined,
-        });
+        }), definition);
     }
-    return Object.freeze({
+    return aliasPluginDefinitionIdentity(Object.freeze({
         ...definition,
         manifest: Object.freeze({
             ...definition.manifest,
@@ -201,7 +202,7 @@ function freezePluginDefinition(definition) {
                 ? Object.freeze([...definition.manifest.permissions])
                 : undefined,
         }),
-    });
+    }), definition);
 }
 export class ImageEditorCore {
     constructor(fabric, options = {}) {

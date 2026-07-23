@@ -55,6 +55,7 @@ export {
     PluginBatchInstallError,
     PluginCapabilityError,
     PluginDefinitionConflictError,
+    PluginDefinitionAlreadyBoundError,
     PluginDependencyCycleError,
     PluginDependencyError,
     PluginError,

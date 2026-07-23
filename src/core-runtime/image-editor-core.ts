@@ -14,6 +14,7 @@ import {
     type PluginRef,
     type SynchronousEditorPlugin,
 } from '../plugin-kernel/index.js';
+import { aliasPluginDefinitionIdentity } from '../plugin-kernel/plugin-definition-lease.js';
 import type { PluginDefinitionInput } from '../plugin-kernel/plugin-types.js';
 import {
     isPluginPlan,
@@ -338,49 +339,59 @@ function freezePluginDefinition(
     definition: PluginDefinitionInput<CoreEventMap>,
 ): PluginDefinitionInput<CoreEventMap> {
     if (!('manifest' in definition)) {
-        return Object.freeze({
-            ...definition,
-            requires: definition.requires
-                ? Object.freeze(
-                      definition.requires.map((requirement) => Object.freeze({ ...requirement })),
-                  )
-                : undefined,
-            optional: definition.optional
-                ? Object.freeze(
-                      definition.optional.map((requirement) => Object.freeze({ ...requirement })),
-                  )
-                : undefined,
-            permissions: definition.permissions
-                ? Object.freeze([...definition.permissions])
-                : undefined,
-        });
+        return aliasPluginDefinitionIdentity(
+            Object.freeze({
+                ...definition,
+                requires: definition.requires
+                    ? Object.freeze(
+                          definition.requires.map((requirement) =>
+                              Object.freeze({ ...requirement }),
+                          ),
+                      )
+                    : undefined,
+                optional: definition.optional
+                    ? Object.freeze(
+                          definition.optional.map((requirement) =>
+                              Object.freeze({ ...requirement }),
+                          ),
+                      )
+                    : undefined,
+                permissions: definition.permissions
+                    ? Object.freeze([...definition.permissions])
+                    : undefined,
+            }),
+            definition,
+        );
     }
-    return Object.freeze({
-        ...definition,
-        manifest: Object.freeze({
-            ...definition.manifest,
-            requiresPlugins: definition.manifest.requiresPlugins
-                ? Object.freeze([...definition.manifest.requiresPlugins])
-                : undefined,
-            requires: definition.manifest.requires
-                ? Object.freeze(
-                      definition.manifest.requires.map((requirement) =>
-                          Object.freeze({ ...requirement }),
-                      ),
-                  )
-                : undefined,
-            optional: definition.manifest.optional
-                ? Object.freeze(
-                      definition.manifest.optional.map((requirement) =>
-                          Object.freeze({ ...requirement }),
-                      ),
-                  )
-                : undefined,
-            permissions: definition.manifest.permissions
-                ? Object.freeze([...definition.manifest.permissions])
-                : undefined,
+    return aliasPluginDefinitionIdentity(
+        Object.freeze({
+            ...definition,
+            manifest: Object.freeze({
+                ...definition.manifest,
+                requiresPlugins: definition.manifest.requiresPlugins
+                    ? Object.freeze([...definition.manifest.requiresPlugins])
+                    : undefined,
+                requires: definition.manifest.requires
+                    ? Object.freeze(
+                          definition.manifest.requires.map((requirement) =>
+                              Object.freeze({ ...requirement }),
+                          ),
+                      )
+                    : undefined,
+                optional: definition.manifest.optional
+                    ? Object.freeze(
+                          definition.manifest.optional.map((requirement) =>
+                              Object.freeze({ ...requirement }),
+                          ),
+                      )
+                    : undefined,
+                permissions: definition.manifest.permissions
+                    ? Object.freeze([...definition.manifest.permissions])
+                    : undefined,
+            }),
         }),
-    });
+        definition,
+    );
 }
 
 export class ImageEditorCore {

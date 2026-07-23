@@ -1729,6 +1729,12 @@
                     ]
                 },
                 {
+                    "name": "PluginDefinitionAlreadyBoundError",
+                    "kinds": [
+                        "ClassDeclaration"
+                    ]
+                },
+                {
                     "name": "PluginDefinitionConflictError",
                     "kinds": [
                         "ClassDeclaration"
@@ -1917,6 +1923,7 @@
                 "MEMENTO_HISTORY_CAPABILITY",
                 "PluginApiVersionError",
                 "PluginBatchInstallError",
+                "PluginDefinitionAlreadyBoundError",
                 "PluginDefinitionConflictError",
                 "PluginDependencyCycleError",
                 "PluginDependencyError",
@@ -4229,7 +4236,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "5688fc8c973e15d1b310e2c093e172ec4537a7b4cd8d13246ae3d54b2ee2d0e2",
+        "graphSha256": "36aec8fb23a5198c6225db05ae3fe999d76b0bdb805e38815f711ca2e6c70264",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4253,7 +4260,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "9a75401cc3bd1d7c84791769d37cf7d293e1cea6b6436470ac886776fd4dea40"
+                "sha256": "1e6c4ca67b8dde4802bf64321a6f6ec0c50c922bb43394c4309287a22828bcad"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
@@ -4373,11 +4380,11 @@
             },
             {
                 "file": "dist/types/plugin-kernel/errors.d.ts",
-                "sha256": "c4b168119230b14c32f0db87ba60cdd357ca491d4be38d82d258d596f0583536"
+                "sha256": "358f8ba0649db8e28c8f3efe29cbb4a1e20f112ccc43ab9df0853915ef8fd2e0"
             },
             {
                 "file": "dist/types/plugin-kernel/index.d.ts",
-                "sha256": "0b5366604ef402d321c1e403b4537340e4d1a55daa0c3453cb2e9b4800782671"
+                "sha256": "669188f5a905907ace291069ceb154fe63206cd2f3af36972eef1380f4c39cbb"
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
@@ -4581,7 +4588,7 @@
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "43fb808862670e2697d95d06c2ceeec72e52b032501fb4a59f98dfee620f6957"
+                "sha256": "28d3835036e1cdb649d1fdb70ee7795c62936fad28493440c1b9c5908f8e01d9"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",
@@ -4876,6 +4883,7 @@
             "OverlayStateValidationError",
             "PluginApiVersionError",
             "PluginBatchInstallError",
+            "PluginDefinitionAlreadyBoundError",
             "PluginDefinitionConflictError",
             "PluginDependencyCycleError",
             "PluginDependencyError",
@@ -6479,6 +6487,12 @@
             },
             {
                 "name": "PluginBatchInstallError",
+                "kinds": [
+                    "ClassDeclaration"
+                ]
+            },
+            {
+                "name": "PluginDefinitionAlreadyBoundError",
                 "kinds": [
                     "ClassDeclaration"
                 ]

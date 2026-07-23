@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginIdentifier = require('./plugin-identifier-CjVVyVRY.cjs');
+var pluginIdentifier = require('./plugin-identifier-DPwx4Gkd.cjs');
 
 const numericIdentifier = '(?:0|[1-9]\\d*)';
 const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
@@ -392,4 +392,4 @@ exports.isPluginRef = isPluginRef;
 exports.isValidSemVer = isValidSemVer;
 exports.satisfiesSemVer = satisfiesSemVer;
 exports.validatePluginManifest = validatePluginManifest;
-//# sourceMappingURL=plugin-manifest-B4W6-2BB.cjs.map
+//# sourceMappingURL=plugin-manifest-DNqSyjh2.cjs.map

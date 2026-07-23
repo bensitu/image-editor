@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginIdentifier = require('../chunks/plugin-identifier-DPwx4Gkd.cjs');
 
 const SOURCE_SCHEMA = 'image-editor.canvas@2';
 const TARGET_SCHEMA = 'image-editor.state@3';

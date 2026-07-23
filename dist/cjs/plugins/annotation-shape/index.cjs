@@ -1,12 +1,12 @@
 'use strict';
 
 var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
-var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CHiQxoA8.cjs');
+var safeFabricSerialization = require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
-require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-P0xuESpm.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
+require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');

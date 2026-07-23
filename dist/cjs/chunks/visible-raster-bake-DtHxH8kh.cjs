@@ -1,8 +1,8 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-B4W6-2BB.cjs');
+var pluginManifest = require('./plugin-manifest-DNqSyjh2.cjs');
 
 const VISIBLE_RASTER_BAKE_CAPABILITY = pluginManifest.createCapabilityToken('raster:visible-bake', '1.0.0');
 
 exports.VISIBLE_RASTER_BAKE_CAPABILITY = VISIBLE_RASTER_BAKE_CAPABILITY;
-//# sourceMappingURL=visible-raster-bake-DRW-_VAM.cjs.map
+//# sourceMappingURL=visible-raster-bake-DtHxH8kh.cjs.map

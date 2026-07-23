@@ -16,19 +16,19 @@ var plugins_overlayState_index = require('../../plugins/overlay-state/index.cjs'
 var plugins_transform_index = require('../../plugins/transform/index.cjs');
 var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
 var core_index = require('../../core/index.cjs');
-var pluginPlan = require('../../chunks/plugin-plan-7_a5v9uF.cjs');
-require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
+var pluginPlan = require('../../chunks/plugin-plan-BBOVkUMI.cjs');
+require('../../chunks/plugin-identifier-DPwx4Gkd.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');
-require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
-require('../../chunks/plugin-definition-CT9AOCE7.cjs');
-require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+require('../../chunks/plugin-manifest-DNqSyjh2.cjs');
+require('../../chunks/plugin-definition-P0xuESpm.cjs');
+require('../../chunks/core-capabilities-CWNPa1MZ.cjs');
 require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/safe-fabric-serialization-CHiQxoA8.cjs');
+require('../../chunks/safe-fabric-serialization-CkTUUf52.cjs');
 require('../../chunks/error-Cg6SL3PT.cjs');
-require('../../chunks/visible-raster-bake-DRW-_VAM.cjs');
+require('../../chunks/visible-raster-bake-DtHxH8kh.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-BLzAzBA9.cjs');
+require('../../chunks/plugin-manager-CXW0nIYm.cjs');
 
 function createFullPreset(fabric, options = {}) {
     const editor = new core_index.ImageEditorCore(fabric, options.core);

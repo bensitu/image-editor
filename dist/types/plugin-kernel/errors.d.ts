@@ -52,6 +52,11 @@ export declare class PluginAggregateError extends PluginError {
 export declare class PluginAlreadyInstalledError extends PluginError {
     constructor(pluginId: string);
 }
+/** Raised when one concrete Plugin Definition is still leased by another live Host. */
+export declare class PluginDefinitionAlreadyBoundError extends PluginError {
+    readonly boundHostState: string;
+    constructor(pluginId: string, boundHostState: string);
+}
 export declare class PluginNotInstalledError extends PluginError {
     constructor(pluginId: string);
 }

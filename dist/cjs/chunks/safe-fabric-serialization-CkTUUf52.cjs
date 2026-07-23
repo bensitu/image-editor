@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginIdentifier = require('./plugin-identifier-CjVVyVRY.cjs');
+var pluginIdentifier = require('./plugin-identifier-DPwx4Gkd.cjs');
 
 const SAFE_NESTED_FABRIC_TYPES = new Set(['linear', 'pattern', 'radial', 'shadow']);
 const RESOURCE_KEYS = new Set(['href', 'source', 'src', 'url']);
@@ -192,4 +192,4 @@ function isSafeSerializedFabricObject(value, options) {
 }
 
 exports.isSafeSerializedFabricObject = isSafeSerializedFabricObject;
-//# sourceMappingURL=safe-fabric-serialization-CHiQxoA8.cjs.map
+//# sourceMappingURL=safe-fabric-serialization-CkTUUf52.cjs.map

@@ -27,6 +27,7 @@ export {
     PluginApiVersionError,
     PluginBatchInstallError,
     PluginDefinitionConflictError,
+    PluginDefinitionAlreadyBoundError,
     PluginDependencyCycleError,
     PluginDependencyError,
     PluginEngineVersionError,
