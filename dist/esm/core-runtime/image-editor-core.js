@@ -9,6 +9,7 @@ import { GeometryMutationCoordinator, IDENTITY_AFFINE_MATRIX, } from './geometry
 import { HistoryCommitRouter } from './history-commit-router.js';
 import { BASE_IMAGE_INFO_CAPABILITY, BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CANVAS_RESIZE_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_ENVIRONMENT_CAPABILITY, CORE_PRESENTATION_CAPABILITY, CORE_STATUS_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, MEMENTO_HISTORY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, } from './internal-capabilities.js';
 import { EditorLifecycleController } from './lifecycle.js';
+import { isProxyablePluginApi, StablePluginApiHandle } from './plugin-api-handle.js';
 import { DocumentMutationCoordinator, } from './mutation/index.js';
 import { MementoService, ObjectPropertyRegistry, SnapshotService, StateSliceRegistry, TransientObjectRegistry, DEFAULT_SNAPSHOT_LIMITS, } from './state/index.js';
 import { inspectEncodedImageDataUrl } from './state/image-data-url.js';
@@ -217,6 +218,7 @@ export class ImageEditorCore {
         this.history = new HistoryCommitRouter();
         this.exportContributors = new ExportContributorRegistry();
         this.installationPlan = [];
+        this.pluginApiHandles = new Map();
         this.lifecycle = new EditorLifecycleController();
         this.viewportCache = new ViewportCache();
         this.canvas = null;
@@ -341,7 +343,7 @@ export class ImageEditorCore {
         this.lifecycle.assertAvailable('install a plugin');
         const api = this.plugins.installSync(plugin);
         this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
-        return api;
+        return this.publishPluginApi(plugin.ref.id, api);
     }
     install(pluginsOrPlan) {
         this.lifecycle.assertAvailable('install a plugin batch');
@@ -355,7 +357,7 @@ export class ImageEditorCore {
             if (api === undefined) {
                 throw new PluginNotInstalledError(plugin.ref.id);
             }
-            return api;
+            return this.publishPluginApi(plugin.ref.id, api);
         };
         if (isPluginPlan(pluginsOrPlan)) {
             return resolvePluginPlanApis(pluginsOrPlan, resolveApi);
@@ -368,16 +370,21 @@ export class ImageEditorCore {
         this.installationPlan.push(Object.freeze({
             definition: freezePluginDefinition(plugin),
         }));
-        return api;
+        return this.publishPluginApi(plugin.ref.id, api);
     }
     getPlugin(ref) {
-        return this.plugins.get(ref);
+        const api = this.plugins.get(ref);
+        return api === null ? null : this.publishPluginApi(ref.id, api);
     }
     requirePlugin(ref) {
-        return this.plugins.require(ref);
+        const api = this.getPlugin(ref);
+        if (api === null)
+            throw new PluginNotInstalledError(ref.id);
+        return api;
     }
     getPluginById(pluginId) {
-        return this.plugins.getById(pluginId);
+        const api = this.plugins.getById(pluginId);
+        return api === null ? null : this.publishPluginApi(pluginId, api);
     }
     getLifecycleState() {
         return this.lifecycle.current;
@@ -875,6 +882,7 @@ export class ImageEditorCore {
         }
         this.clearRuntimeReferences();
         this.lifecycle.completeDisposal();
+        this.clearPluginApiHandles();
     }
     createPluginManager() {
         const manager = new PluginManager({
@@ -1005,10 +1013,25 @@ export class ImageEditorCore {
         return failure instanceof PluginLifecycleError ? [...failure.cleanupErrors] : [];
     }
     async replayInstallationPlan() {
+        var _a, _b;
         const manager = this.createPluginManager();
         try {
             for (const planned of this.installationPlan) {
                 await manager.install(planned.definition);
+            }
+            const replayedApis = new Map();
+            for (const pluginId of this.pluginApiHandles.keys()) {
+                const api = manager.getById(pluginId);
+                if (!isProxyablePluginApi(api)) {
+                    throw new CoreRuntimeError(`[ImageEditor] Replayed Plugin "${pluginId}" did not return a stable object API.`, { code: 'PLUGIN_API_REPLAY_INCOMPATIBLE', behavior: 'lifecycle' });
+                }
+                replayedApis.set(pluginId, api);
+            }
+            for (const [pluginId, api] of replayedApis) {
+                (_a = this.pluginApiHandles.get(pluginId)) === null || _a === void 0 ? void 0 : _a.handle.assertCompatible(api);
+            }
+            for (const [pluginId, api] of replayedApis) {
+                (_b = this.pluginApiHandles.get(pluginId)) === null || _b === void 0 ? void 0 : _b.handle.update(api);
             }
         }
         catch (error) {
@@ -1016,6 +1039,26 @@ export class ImageEditorCore {
             throw error;
         }
         this.plugins = manager;
+    }
+    publishPluginApi(pluginId, api) {
+        if (!isProxyablePluginApi(api))
+            return api;
+        const existing = this.pluginApiHandles.get(pluginId);
+        if (existing) {
+            existing.handle.update(api);
+            return existing.handle.api;
+        }
+        const lifecycle = this.lifecycle;
+        const handle = new StablePluginApiHandle(pluginId, api, (operation) => {
+            if (lifecycle.current !== 'disposing')
+                lifecycle.assertAvailable(operation);
+        });
+        this.pluginApiHandles.set(pluginId, Object.freeze({ handle }));
+        return handle.api;
+    }
+    clearPluginApiHandles() {
+        for (const { handle } of this.pluginApiHandles.values())
+            handle.clear();
     }
     createEnvironmentPort() {
         return Object.freeze({
@@ -1438,6 +1481,7 @@ export class ImageEditorCore {
     }
     completeDisposal(errors, label) {
         this.lifecycle.completeDisposal();
+        this.clearPluginApiHandles();
         if (errors.length > 0) {
             throw new CoreRuntimeError(`[ImageEditor] ${label} completed with ${errors.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) });
         }

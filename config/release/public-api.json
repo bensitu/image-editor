@@ -4236,7 +4236,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "36aec8fb23a5198c6225db05ae3fe999d76b0bdb805e38815f711ca2e6c70264",
+        "graphSha256": "d3a02b613802d95f19cc645af69117d5b0b9ac5d10e309e71e8513e12dccbebb",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4260,7 +4260,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "1e6c4ca67b8dde4802bf64321a6f6ec0c50c922bb43394c4309287a22828bcad"
+                "sha256": "11c8311a34b19ff72ad2b7d2cda7fe254c6b307d21aefe1d1fff8cb36e83b6dd"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",

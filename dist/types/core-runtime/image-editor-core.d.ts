@@ -29,6 +29,7 @@ export declare class ImageEditorCore {
     private readonly geometry;
     private plugins;
     private readonly installationPlan;
+    private readonly pluginApiHandles;
     private readonly lifecycle;
     private readonly viewportCache;
     private canvas;
@@ -83,6 +84,8 @@ export declare class ImageEditorCore {
     private rollbackInitialization;
     private getInitializationCleanupErrors;
     private replayInstallationPlan;
+    private publishPluginApi;
+    private clearPluginApiHandles;
     private createEnvironmentPort;
     private createStatusPort;
     private createDiagnosticsPort;

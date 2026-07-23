@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lease each concrete Plugin Definition to one live Host at a time, fail
   cross-Editor reuse with `PluginDefinitionAlreadyBoundError`, and release the
   lease after rollback or disposal.
+- Keep public Plugin and Preset API object references stable when Core replays
+  Plugin definitions during initialization recovery or emergency reset.
 - Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
   produced and DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.

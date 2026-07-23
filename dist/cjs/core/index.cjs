@@ -1296,6 +1296,121 @@ class EditorLifecycleController {
     }
 }
 
+function isProxyablePluginApi(value) {
+    return (typeof value === 'object' && value !== null) || typeof value === 'function';
+}
+class StablePluginApiHandle {
+    constructor(pluginId, initialTarget, assertAvailable) {
+        Object.defineProperty(this, "pluginId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: pluginId
+        });
+        Object.defineProperty(this, "assertAvailable", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: assertAvailable
+        });
+        Object.defineProperty(this, "target", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "methodWrappers", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "api", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.target = initialTarget;
+        const shadowTarget = typeof initialTarget === 'function'
+            ? function stablePluginApi() { }
+            : Object.create(null);
+        this.api = new Proxy(shadowTarget, {
+            apply: (shadow, thisArgument, argumentsList) => {
+                const target = this.requireTarget();
+                if (typeof target !== 'function') {
+                    throw this.incompatibleReplayError('is no longer callable');
+                }
+                return Reflect.apply(target, thisArgument, argumentsList);
+            },
+            construct: (shadow, argumentsList, newTarget) => {
+                const target = this.requireTarget();
+                if (typeof target !== 'function') {
+                    throw this.incompatibleReplayError('is no longer constructable');
+                }
+                return Reflect.construct(target, argumentsList, newTarget);
+            },
+            deleteProperty: (shadow, property) => {
+                return Reflect.deleteProperty(this.requireTarget(), property);
+            },
+            get: (shadow, property) => {
+                if (property === 'then' && (!this.target || !Reflect.has(this.target, property))) {
+                    return undefined;
+                }
+                const target = this.requireTarget();
+                const value = Reflect.get(target, property, target);
+                if (typeof value !== 'function')
+                    return value;
+                return this.getMethodWrapper(property);
+            },
+            has: (shadow, property) => {
+                return Reflect.has(this.requireTarget(), property);
+            },
+            set: (shadow, property, value) => {
+                const target = this.requireTarget();
+                return Reflect.set(target, property, value, target);
+            },
+        });
+    }
+    assertCompatible(nextTarget) {
+        if (typeof nextTarget !== typeof this.api) {
+            throw this.incompatibleReplayError('changed between callable and object forms');
+        }
+    }
+    update(nextTarget) {
+        this.assertCompatible(nextTarget);
+        this.target = nextTarget;
+    }
+    clear() {
+        this.target = null;
+    }
+    getMethodWrapper(property) {
+        const existing = this.methodWrappers.get(property);
+        if (existing)
+            return existing;
+        const wrapper = (...args) => {
+            const target = this.requireTarget();
+            const method = Reflect.get(target, property, target);
+            if (typeof method !== 'function') {
+                throw this.incompatibleReplayError(`no longer exposes method "${String(property)}"`);
+            }
+            return Reflect.apply(method, target, args);
+        };
+        this.methodWrappers.set(property, wrapper);
+        return wrapper;
+    }
+    requireTarget() {
+        this.assertAvailable(`use Plugin API "${this.pluginId}"`);
+        if (!this.target) {
+            throw new errors.CoreRuntimeError(`[ImageEditor] Plugin API "${this.pluginId}" is no longer available.`, { code: 'PLUGIN_API_UNAVAILABLE', behavior: 'lifecycle' });
+        }
+        return this.target;
+    }
+    incompatibleReplayError(reason) {
+        return new errors.CoreRuntimeError(`[ImageEditor] Plugin API "${this.pluginId}" ${reason} during runtime replay.`, { code: 'PLUGIN_API_REPLAY_INCOMPATIBLE', behavior: 'lifecycle' });
+    }
+}
+
 const DEFAULT_ROLLBACK_TIMEOUT_MS$1 = 30000;
 function isCancellation(error) {
     return (typeof error === 'object' &&
@@ -3005,6 +3120,7 @@ class ImageEditorCore {
         this.history = new HistoryCommitRouter();
         this.exportContributors = new ExportContributorRegistry();
         this.installationPlan = [];
+        this.pluginApiHandles = new Map();
         this.lifecycle = new EditorLifecycleController();
         this.viewportCache = new ViewportCache();
         this.canvas = null;
@@ -3128,7 +3244,7 @@ class ImageEditorCore {
         this.lifecycle.assertAvailable('install a plugin');
         const api = this.plugins.installSync(plugin);
         this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
-        return api;
+        return this.publishPluginApi(plugin.ref.id, api);
     }
     install(pluginsOrPlan) {
         this.lifecycle.assertAvailable('install a plugin batch');
@@ -3142,7 +3258,7 @@ class ImageEditorCore {
             if (api === undefined) {
                 throw new pluginIdentifier.PluginNotInstalledError(plugin.ref.id);
             }
-            return api;
+            return this.publishPluginApi(plugin.ref.id, api);
         };
         if (pluginPlan.isPluginPlan(pluginsOrPlan)) {
             return pluginPlan.resolvePluginPlanApis(pluginsOrPlan, resolveApi);
@@ -3155,16 +3271,21 @@ class ImageEditorCore {
         this.installationPlan.push(Object.freeze({
             definition: freezePluginDefinition(plugin),
         }));
-        return api;
+        return this.publishPluginApi(plugin.ref.id, api);
     }
     getPlugin(ref) {
-        return this.plugins.get(ref);
+        const api = this.plugins.get(ref);
+        return api === null ? null : this.publishPluginApi(ref.id, api);
     }
     requirePlugin(ref) {
-        return this.plugins.require(ref);
+        const api = this.getPlugin(ref);
+        if (api === null)
+            throw new pluginIdentifier.PluginNotInstalledError(ref.id);
+        return api;
     }
     getPluginById(pluginId) {
-        return this.plugins.getById(pluginId);
+        const api = this.plugins.getById(pluginId);
+        return api === null ? null : this.publishPluginApi(pluginId, api);
     }
     getLifecycleState() {
         return this.lifecycle.current;
@@ -3662,6 +3783,7 @@ class ImageEditorCore {
         }
         this.clearRuntimeReferences();
         this.lifecycle.completeDisposal();
+        this.clearPluginApiHandles();
     }
     createPluginManager() {
         const manager = new pluginManager.PluginManager({
@@ -3792,10 +3914,25 @@ class ImageEditorCore {
         return failure instanceof pluginIdentifier.PluginLifecycleError ? [...failure.cleanupErrors] : [];
     }
     async replayInstallationPlan() {
+        var _a, _b;
         const manager = this.createPluginManager();
         try {
             for (const planned of this.installationPlan) {
                 await manager.install(planned.definition);
+            }
+            const replayedApis = new Map();
+            for (const pluginId of this.pluginApiHandles.keys()) {
+                const api = manager.getById(pluginId);
+                if (!isProxyablePluginApi(api)) {
+                    throw new errors.CoreRuntimeError(`[ImageEditor] Replayed Plugin "${pluginId}" did not return a stable object API.`, { code: 'PLUGIN_API_REPLAY_INCOMPATIBLE', behavior: 'lifecycle' });
+                }
+                replayedApis.set(pluginId, api);
+            }
+            for (const [pluginId, api] of replayedApis) {
+                (_a = this.pluginApiHandles.get(pluginId)) === null || _a === void 0 ? void 0 : _a.handle.assertCompatible(api);
+            }
+            for (const [pluginId, api] of replayedApis) {
+                (_b = this.pluginApiHandles.get(pluginId)) === null || _b === void 0 ? void 0 : _b.handle.update(api);
             }
         }
         catch (error) {
@@ -3803,6 +3940,26 @@ class ImageEditorCore {
             throw error;
         }
         this.plugins = manager;
+    }
+    publishPluginApi(pluginId, api) {
+        if (!isProxyablePluginApi(api))
+            return api;
+        const existing = this.pluginApiHandles.get(pluginId);
+        if (existing) {
+            existing.handle.update(api);
+            return existing.handle.api;
+        }
+        const lifecycle = this.lifecycle;
+        const handle = new StablePluginApiHandle(pluginId, api, (operation) => {
+            if (lifecycle.current !== 'disposing')
+                lifecycle.assertAvailable(operation);
+        });
+        this.pluginApiHandles.set(pluginId, Object.freeze({ handle }));
+        return handle.api;
+    }
+    clearPluginApiHandles() {
+        for (const { handle } of this.pluginApiHandles.values())
+            handle.clear();
     }
     createEnvironmentPort() {
         return Object.freeze({
@@ -4225,6 +4382,7 @@ class ImageEditorCore {
     }
     completeDisposal(errors$1, label) {
         this.lifecycle.completeDisposal();
+        this.clearPluginApiHandles();
         if (errors$1.length > 0) {
             throw new errors.CoreRuntimeError(`[ImageEditor] ${label} completed with ${errors$1.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors$1) });
         }
