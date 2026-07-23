@@ -25,6 +25,7 @@ const proofInput = JSON.parse(await readFile(proofInputPath, 'utf8'));
 async function proveRuntimeIdentity() {
     assert.equal(RootImageEditorCore, ImageEditorCore);
     const ref = definePluginRef('testing:runtime-identity', '1.0.0');
+    let capabilityFabric;
     const identityPlugin = definePlugin({
         ref,
         manifest: {
@@ -37,11 +38,13 @@ async function proveRuntimeIdentity() {
         },
         setupMode: 'sync',
         setup(context) {
-            return context.capabilities.require(FABRIC_RUNTIME_CAPABILITY).fabric;
+            capabilityFabric = context.capabilities.require(FABRIC_RUNTIME_CAPABILITY).fabric;
+            return Object.freeze({});
         },
     });
     const editor = new ImageEditorCore(fabric);
-    const capabilityFabric = editor.use(identityPlugin);
+    editor.use(identityPlugin);
+    assert.ok(capabilityFabric);
     assert.equal(capabilityFabric.Canvas, fabric.Canvas);
     assert.equal(capabilityFabric.FabricObject, fabric.FabricObject);
     assert.equal(capabilityFabric.FabricImage, fabric.FabricImage);
