@@ -11,6 +11,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { inspectMainPackageContents } from './package-content-policy.mjs';
+import { inspectPackagedSourceMap } from './source-map-policy.mjs';
 
 const execFileAsync = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -65,6 +66,7 @@ const credentialPattern =
     /(?:-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----|\bAKIA[A-Z0-9]{16}\b|\b(?:ghp_|sk-)[A-Za-z0-9_-]{20,}\b)/u;
 const absoluteLocalPathPattern = /(?:\b[A-Za-z]:\\Users\\|\/Users\/[^/]+\/|\/home\/[^/]+\/)/u;
 const textFilePattern = /\.(?:c?js|mjs|json|map|md|css|d\.ts|d\.cts)$/u;
+let sourceMapCount = 0;
 
 if (pack?.name !== packageJson.name || pack?.version !== packageJson.version) {
     failures.push('npm pack identity does not match package.json.');
@@ -95,6 +97,7 @@ for (const entry of entries) {
         failures.push(`npm pack file ${entry.path} contains an absolute local user path.`);
     }
     if (!entry.path.endsWith('.map')) continue;
+    sourceMapCount += 1;
     let sourceMap;
     try {
         sourceMap = JSON.parse(source);
@@ -102,27 +105,7 @@ for (const entry of entries) {
         failures.push(`npm pack source map ${entry.path} is not valid JSON.`);
         continue;
     }
-    if (!Array.isArray(sourceMap.sources)) {
-        failures.push(`npm pack source map ${entry.path} has no sources array.`);
-        continue;
-    }
-    const mappedPaths = [
-        ...sourceMap.sources,
-        ...(typeof sourceMap.sourceRoot === 'string' && sourceMap.sourceRoot.length > 0
-            ? [sourceMap.sourceRoot]
-            : []),
-    ];
-    for (const sourcePath of mappedPaths) {
-        if (
-            typeof sourcePath !== 'string' ||
-            path.isAbsolute(sourcePath) ||
-            /^[A-Za-z]:[\\/]/u.test(sourcePath) ||
-            sourcePath.startsWith('file:')
-        ) {
-            failures.push(`npm pack source map ${entry.path} contains a local absolute source.`);
-            break;
-        }
-    }
+    failures.push(...inspectPackagedSourceMap(sourceMap, entry.path));
 }
 
 function visitExportTargets(value, keyPath = 'exports') {
@@ -156,5 +139,6 @@ console.log(
     `npm pack contents check passed (${files.size} files, ${pack.size} bytes; ` +
         `${semanticInspection.esm.reachable}/${semanticInspection.esm.total} ESM, ` +
         `${semanticInspection.declarations.reachable}/${semanticInspection.declarations.total} declarations, ` +
-        `${semanticInspection.cjs.reachable}/${semanticInspection.cjs.total} CJS).`,
+        `${semanticInspection.cjs.reachable}/${semanticInspection.cjs.total} CJS; ` +
+        `${sourceMapCount} source maps, embedded source content: none).`,
 );
