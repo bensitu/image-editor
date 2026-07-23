@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   window so stalled observers cannot starve later listeners or emissions.
 - Make a configured initial image and its Plugin hooks part of the awaited
   `init()` contract, with complete rollback and retry after recoverable failure.
+- Require an explicit prerelease-safe npm dist-tag and make the Main plus
+  Codemod publication workflow resumable by verifying already-published
+  tarball integrity before skipping either package.
 - Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
   produced and DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.

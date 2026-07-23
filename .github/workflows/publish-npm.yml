@@ -9,8 +9,8 @@ on:
                 type: string
             npm_tag:
                 description: 'npm dist-tag to publish with'
-                required: false
-                default: 'latest'
+                required: true
+                type: string
 
 permissions:
     contents: read
@@ -26,6 +26,9 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
+
             - name: Set up Node.js
               uses: actions/setup-node@v7
               with:
@@ -50,6 +53,11 @@ jobs:
                     echo "VERSION=${VERSION}"
                     echo "TAG_NAME=v${VERSION}"
                   } >> "${GITHUB_ENV}"
+
+            - name: Validate npm dist-tag policy
+              run: >-
+                  node scripts/publish-release-artifacts.mjs
+                  --check-tag "${VERSION}" "${{ github.event.inputs.npm_tag }}"
 
             - name: Download release artifact
               shell: bash
@@ -135,23 +143,7 @@ jobs:
                       "${MAIN_PACKAGE_TARBALL}" "${MAIN_PACKAGE_NAME}" "${VERSION}"
                   } > package-artifacts.tsv
 
-            - name: Check npm package versions availability
-              shell: bash
-              run: |
-                  while IFS=$'\t' read -r PACKAGE_TARBALL PACKAGE_NAME PACKAGE_VERSION; do
-                    if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
-                      echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
-                      exit 1
-                    fi
-                  done < package-artifacts.tsv
-
-            - name: Publish release artifacts to npm
-              shell: bash
-              env:
-                  WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
-              run: |
-                  NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
-                  while IFS=$'\t' read -r PACKAGE_TARBALL PACKAGE_NAME PACKAGE_VERSION; do
-                    echo "Publishing ${PACKAGE_NAME}@${PACKAGE_VERSION} with dist-tag ${NPM_TAG}."
-                    npm publish "${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}" --provenance
-                  done < package-artifacts.tsv
+            - name: Publish or verify release artifacts on npm
+              run: >-
+                  node scripts/publish-release-artifacts.mjs
+                  --publish package-artifacts.tsv "${{ github.event.inputs.npm_tag }}"
