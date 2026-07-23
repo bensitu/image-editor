@@ -13,6 +13,7 @@ require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 require('../../chunks/plugin-definition-CT9AOCE7.cjs');
 require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
+require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');
 require('../../chunks/plugin-manager-BLzAzBA9.cjs');
 

@@ -1,4 +1,6 @@
-export function resolveRasterAllocation(width, height, multiplier = 1) {
+'use strict';
+
+function resolveRasterAllocation(width, height, multiplier = 1) {
     if (!Number.isFinite(width) ||
         !Number.isFinite(height) ||
         !Number.isFinite(multiplier) ||
@@ -20,7 +22,7 @@ export function resolveRasterAllocation(width, height, multiplier = 1) {
         return null;
     return Object.freeze({ width: allocationWidth, height: allocationHeight, pixels });
 }
-export function isRasterAllocationWithinBudget(width, height, budget, multiplier = 1) {
+function isRasterAllocationWithinBudget(width, height, budget, multiplier = 1) {
     const allocation = resolveRasterAllocation(width, height, multiplier);
     return (allocation !== null &&
         Number.isSafeInteger(budget.maxDimension) &&
@@ -31,7 +33,7 @@ export function isRasterAllocationWithinBudget(width, height, budget, multiplier
         allocation.height <= budget.maxDimension &&
         allocation.width <= Math.floor(budget.maxPixels / allocation.height));
 }
-export function isPixelAreaWithinBudget(width, height, maxPixels) {
+function isPixelAreaWithinBudget(width, height, maxPixels) {
     return (Number.isSafeInteger(width) &&
         Number.isSafeInteger(height) &&
         Number.isSafeInteger(maxPixels) &&
@@ -40,4 +42,7 @@ export function isPixelAreaWithinBudget(width, height, maxPixels) {
         maxPixels > 0 &&
         width <= Math.floor(maxPixels / height));
 }
-//# sourceMappingURL=image-budget.js.map
+
+exports.isPixelAreaWithinBudget = isPixelAreaWithinBudget;
+exports.isRasterAllocationWithinBudget = isRasterAllocationWithinBudget;
+//# sourceMappingURL=image-budget-DZeZeVWW.cjs.map

@@ -8,6 +8,7 @@ import type * as FabricNS from 'fabric';
 
 import { SnapshotValidationError } from './errors.js';
 import type { CoreCanvasState, ImageMimeType } from './public-types.js';
+import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 import type {
     CoreStateAdapter,
     ObjectPropertyRegistry,
@@ -47,8 +48,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isPositiveFinite(value: unknown): value is number {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+function isPositiveSafeInteger(value: unknown): value is number {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
 function isImageMimeType(value: unknown): value is ImageMimeType {
@@ -231,18 +232,21 @@ export class CanvasCoreStateAdapter implements CoreStateAdapter {
                 },
             };
         }
-        if (!isPositiveFinite(value.canvasWidth) || !isPositiveFinite(value.canvasHeight)) {
+        if (
+            !isPositiveSafeInteger(value.canvasWidth) ||
+            !isPositiveSafeInteger(value.canvasHeight)
+        ) {
             return {
                 valid: false,
-                message: 'Canvas dimensions must be positive finite numbers.',
+                message: 'Canvas dimensions must be positive safe integers.',
                 path: '$.core.canvasWidth',
             };
         }
         if (
-            Number(value.canvasWidth) > this.securityLimits.maxImageDimension ||
-            Number(value.canvasHeight) > this.securityLimits.maxImageDimension ||
-            Number(value.canvasWidth) * Number(value.canvasHeight) >
-                this.securityLimits.maxDecodedPixels
+            !isRasterAllocationWithinBudget(value.canvasWidth, value.canvasHeight, {
+                maxDimension: this.securityLimits.maxImageDimension,
+                maxPixels: this.securityLimits.maxDecodedPixels,
+            })
         ) {
             return {
                 valid: false,
@@ -315,7 +319,11 @@ export class CanvasCoreStateAdapter implements CoreStateAdapter {
                 path: '$.core.imageMimeType',
             };
         }
-        if (!isPositiveFinite(value.baseImageScale)) {
+        if (
+            typeof value.baseImageScale !== 'number' ||
+            !Number.isFinite(value.baseImageScale) ||
+            value.baseImageScale <= 0
+        ) {
             return {
                 valid: false,
                 message: 'baseImageScale must be positive and finite.',

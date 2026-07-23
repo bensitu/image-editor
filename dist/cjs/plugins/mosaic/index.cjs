@@ -1,6 +1,6 @@
 'use strict';
 
-var imageBudget = require('../../chunks/image-budget-e-EIVZb3.cjs');
+var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
 var error = require('../../chunks/error-Cg6SL3PT.cjs');
 var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');

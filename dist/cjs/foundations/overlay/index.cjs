@@ -1,5 +1,6 @@
 'use strict';
 
+var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
 var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
 var pluginIdentifier = require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
@@ -970,6 +971,7 @@ class OverlayFoundationController {
         });
         if (selected.length === 0)
             return;
+        this.assertFlattenBudget();
         await this.geometry.run({
             id: `overlay:flatten:${Date.now()}:${++this.generatedIdSequence}`,
             kind: 'flatten',
@@ -982,6 +984,7 @@ class OverlayFoundationController {
                 if (!baseImage) {
                     throw new errors.CoreRuntimeError('[ImageEditor] Cannot flatten without a base image.');
                 }
+                this.assertFlattenBudget(canvas, baseImage);
                 const exportElement = canvas.lowerCanvasEl.ownerDocument.createElement('canvas');
                 const exportCanvas = new this.host.fabric.StaticCanvas(exportElement, {
                     width: canvas.getWidth(),
@@ -1033,6 +1036,21 @@ class OverlayFoundationController {
                 }
             },
         });
+    }
+    assertFlattenBudget(canvas = this.host.requireCanvas('validate flatten dimensions'), baseImage = this.host.getBaseImage()) {
+        if (!baseImage) {
+            throw new errors.CoreRuntimeError('[ImageEditor] Cannot flatten without a base image.');
+        }
+        const policy = this.host.getImageResourcePolicy();
+        const budget = {
+            maxDimension: policy.maxExportDimension,
+            maxPixels: policy.maxExportPixels,
+        };
+        const region = getImageExportRegion(baseImage, canvas);
+        if (!imageBudget.isRasterAllocationWithinBudget(canvas.getWidth(), canvas.getHeight(), budget) ||
+            !imageBudget.isRasterAllocationWithinBudget(region.width, region.height, budget)) {
+            throw new errors.CoreRuntimeError('[ImageEditor] Flatten dimensions exceed the configured budget.');
+        }
     }
     dispose() {
         if (this.disposed)
@@ -1944,6 +1962,7 @@ function overlayFoundationPlugin() {
                 { token: coreCapabilities.RASTER_MUTATION_CAPABILITY, range: '^1.0.0' },
                 { token: coreCapabilities.SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
                 { token: coreCapabilities.GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
+                { token: coreCapabilities.IMAGE_RESOURCE_POLICY_CAPABILITY, range: '^1.0.0' },
                 { token: coreCapabilities.EXPORT_CONTRIBUTION_CAPABILITY, range: '^1.0.0' },
                 { token: coreCapabilities.DOCUMENT_MUTATION_CAPABILITY, range: '^1.0.0' },
             ],
@@ -1966,6 +1985,7 @@ function overlayFoundationPlugin() {
             const raster = context.capabilities.require(coreCapabilities.RASTER_MUTATION_CAPABILITY);
             const state = context.capabilities.require(coreCapabilities.SNAPSHOT_REGISTRATION_CAPABILITY);
             const geometry = context.capabilities.require(coreCapabilities.GEOMETRY_MUTATION_CAPABILITY);
+            const imageResources = context.capabilities.require(coreCapabilities.IMAGE_RESOURCE_POLICY_CAPABILITY);
             const exportPort = context.capabilities.require(coreCapabilities.EXPORT_CONTRIBUTION_CAPABILITY);
             const mutations = context.capabilities.require(coreCapabilities.DOCUMENT_MUTATION_CAPABILITY);
             const host = Object.freeze({
@@ -1976,6 +1996,7 @@ function overlayFoundationPlugin() {
                 ...baseImage,
                 ...render,
                 ...raster,
+                ...imageResources,
                 runOperation: (operationId, task) => context.operations.run(operationId, null, () => task()),
             });
             for (const operationId of [

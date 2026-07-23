@@ -6,6 +6,7 @@ var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
 var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
 function isFiniteMatrix(matrix) {

@@ -8,6 +8,7 @@ var core_index = require('./core/index.cjs');
 var pluginManifest = require('./chunks/plugin-manifest-B4W6-2BB.cjs');
 var pluginIdentifier = require('./chunks/plugin-identifier-CjVVyVRY.cjs');
 require('./chunks/plugin-plan-7_a5v9uF.cjs');
+require('./chunks/image-budget-DZeZeVWW.cjs');
 require('./chunks/disposable-pTo80E0l.cjs');
 require('./chunks/plugin-manager-BLzAzBA9.cjs');
 require('./chunks/core-capabilities-DVJQ8w-Z.cjs');

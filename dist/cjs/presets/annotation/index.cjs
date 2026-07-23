@@ -18,6 +18,7 @@ require('../../chunks/disposable-pTo80E0l.cjs');
 require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
 require('../../chunks/plugin-definition-CT9AOCE7.cjs');
 require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
+require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/safe-fabric-serialization-CHiQxoA8.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');

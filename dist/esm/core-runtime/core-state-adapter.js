@@ -1,4 +1,5 @@
 import { SnapshotValidationError } from './errors.js';
+import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 const DEFAULT_SECURITY_LIMITS = Object.freeze({
     maxDecodedPixels: 50000000,
     maxImageDimension: 32768,
@@ -7,8 +8,8 @@ const DEFAULT_SECURITY_LIMITS = Object.freeze({
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-function isPositiveFinite(value) {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+function isPositiveSafeInteger(value) {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 function isImageMimeType(value) {
     return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
@@ -201,17 +202,18 @@ export class CanvasCoreStateAdapter {
                 },
             };
         }
-        if (!isPositiveFinite(value.canvasWidth) || !isPositiveFinite(value.canvasHeight)) {
+        if (!isPositiveSafeInteger(value.canvasWidth) ||
+            !isPositiveSafeInteger(value.canvasHeight)) {
             return {
                 valid: false,
-                message: 'Canvas dimensions must be positive finite numbers.',
+                message: 'Canvas dimensions must be positive safe integers.',
                 path: '$.core.canvasWidth',
             };
         }
-        if (Number(value.canvasWidth) > this.securityLimits.maxImageDimension ||
-            Number(value.canvasHeight) > this.securityLimits.maxImageDimension ||
-            Number(value.canvasWidth) * Number(value.canvasHeight) >
-                this.securityLimits.maxDecodedPixels) {
+        if (!isRasterAllocationWithinBudget(value.canvasWidth, value.canvasHeight, {
+            maxDimension: this.securityLimits.maxImageDimension,
+            maxPixels: this.securityLimits.maxDecodedPixels,
+        })) {
             return {
                 valid: false,
                 message: 'Canvas dimensions exceed the configured Snapshot budget.',
@@ -279,7 +281,9 @@ export class CanvasCoreStateAdapter {
                 path: '$.core.imageMimeType',
             };
         }
-        if (!isPositiveFinite(value.baseImageScale)) {
+        if (typeof value.baseImageScale !== 'number' ||
+            !Number.isFinite(value.baseImageScale) ||
+            value.baseImageScale <= 0) {
             return {
                 valid: false,
                 message: 'baseImageScale must be positive and finite.',

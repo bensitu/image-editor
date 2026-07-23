@@ -1,4 +1,4 @@
-import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { OverlayFoundationController } from './overlay-foundation-controller.js';
 export const OVERLAY_CAPABILITY = createCapabilityToken('foundation:overlay', '1.0.0');
 export const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken('foundation:overlay-registration', '1.0.0');
@@ -62,6 +62,7 @@ export function overlayFoundationPlugin() {
                 { token: RASTER_MUTATION_CAPABILITY, range: '^1.0.0' },
                 { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
                 { token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
+                { token: IMAGE_RESOURCE_POLICY_CAPABILITY, range: '^1.0.0' },
                 { token: EXPORT_CONTRIBUTION_CAPABILITY, range: '^1.0.0' },
                 { token: DOCUMENT_MUTATION_CAPABILITY, range: '^1.0.0' },
             ],
@@ -84,6 +85,7 @@ export function overlayFoundationPlugin() {
             const raster = context.capabilities.require(RASTER_MUTATION_CAPABILITY);
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
             const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
+            const imageResources = context.capabilities.require(IMAGE_RESOURCE_POLICY_CAPABILITY);
             const exportPort = context.capabilities.require(EXPORT_CONTRIBUTION_CAPABILITY);
             const mutations = context.capabilities.require(DOCUMENT_MUTATION_CAPABILITY);
             const host = Object.freeze({
@@ -94,6 +96,7 @@ export function overlayFoundationPlugin() {
                 ...baseImage,
                 ...render,
                 ...raster,
+                ...imageResources,
                 runOperation: (operationId, task) => context.operations.run(operationId, null, () => task()),
             });
             for (const operationId of [

@@ -315,6 +315,47 @@ test('flatten replaces the raster once, removes only queried overlays, and keeps
     await dispose(editor);
 });
 
+test('flatten rejects an oversized temporary Canvas before allocation or encoding', async () => {
+    const ids = resetEditorDom({ containerWidth: 96, containerHeight: 72 });
+    let staticCanvasConstructions = 0;
+    let encodes = 0;
+    class TrackingStaticCanvas extends fabric.StaticCanvas {
+        constructor(...args) {
+            staticCanvasConstructions += 1;
+            super(...args);
+        }
+
+        toDataURL(...args) {
+            encodes += 1;
+            return super.toDataURL(...args);
+        }
+    }
+    const editor = new ImageEditorCore(
+        { ...fabric, StaticCanvas: TrackingStaticCanvas },
+        {
+            canvasWidth: 96,
+            canvasHeight: 72,
+            maxExportDimension: 128,
+            maxExportPixels: 16_384,
+        },
+    );
+    const overlay = editor.use(overlayFoundationPlugin());
+    registerRectKind(overlay);
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.loadImage(makeImageDataUrl({ width: 80, height: 60 }));
+    addRect(editor, 'rect:oversized-flatten');
+    editor.getCanvas().setDimensions({ width: 256, height: 72 });
+
+    await assert.rejects(
+        overlay.flatten({ ids: ['rect:oversized-flatten'], includeLocked: true }),
+        /budget/i,
+    );
+    assert.equal(staticCanvasConstructions, 0);
+    assert.equal(encodes, 0);
+    assert.ok(overlay.getByPersistentId('rect:oversized-flatten'));
+    await dispose(editor);
+});
+
 test('typed PluginRef retrieves the same Overlay Foundation API instance', async () => {
     const { editor, ids, overlay } = createEditor();
     assert.equal(editor.getPlugin(overlayFoundationRef), overlay);

@@ -14,6 +14,7 @@ import {
     EXPORT_CONTRIBUTION_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
     GEOMETRY_MUTATION_CAPABILITY,
+    IMAGE_RESOURCE_POLICY_CAPABILITY,
     RASTER_MUTATION_CAPABILITY,
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
@@ -113,6 +114,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
                 { token: RASTER_MUTATION_CAPABILITY, range: '^1.0.0' },
                 { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
                 { token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
+                { token: IMAGE_RESOURCE_POLICY_CAPABILITY, range: '^1.0.0' },
                 { token: EXPORT_CONTRIBUTION_CAPABILITY, range: '^1.0.0' },
                 { token: DOCUMENT_MUTATION_CAPABILITY, range: '^1.0.0' },
             ],
@@ -135,6 +137,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
             const raster = context.capabilities.require(RASTER_MUTATION_CAPABILITY);
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
             const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
+            const imageResources = context.capabilities.require(IMAGE_RESOURCE_POLICY_CAPABILITY);
             const exportPort = context.capabilities.require(EXPORT_CONTRIBUTION_CAPABILITY);
             const mutations = context.capabilities.require(DOCUMENT_MUTATION_CAPABILITY);
             const host = Object.freeze({
@@ -145,6 +148,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
                 ...baseImage,
                 ...render,
                 ...raster,
+                ...imageResources,
                 runOperation: (operationId: string, task: () => void | Promise<void>) =>
                     context.operations.run(operationId, null, () => task()),
             });

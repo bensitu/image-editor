@@ -2,7 +2,7 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var error = require('../../chunks/error-Cg6SL3PT.cjs');
-var imageBudget = require('../../chunks/image-budget-e-EIVZb3.cjs');
+var imageBudget = require('../../chunks/image-budget-DZeZeVWW.cjs');
 var disposable = require('../../chunks/disposable-pTo80E0l.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-B4W6-2BB.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');

@@ -116,6 +116,7 @@ import {
     type TransientObjectPredicate,
 } from './state/index.js';
 import { inspectEncodedImageDataUrl } from './state/image-data-url.js';
+import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 
 const DEFAULT_CORE_OPTIONS: ResolvedImageEditorCoreOptions = Object.freeze({
     canvasWidth: 800,
@@ -482,15 +483,21 @@ export class ImageEditorCore {
                 setGeometryRevision: (value) => {
                     this.geometryRevision = value;
                 },
-                setCanvasSize: (width, height) => this.setCanvasSize(width, height, false),
+                setCanvasSize: (width, height) => this.setCanvasSize(width, height),
                 isDisposed: () => this.lifecycle.current === 'disposed',
             },
             this.objectProperties,
             this.transientObjects,
             this.externalObjects,
             {
-                maxDecodedPixels: this.options.maxInputPixels,
-                maxImageDimension: DEFAULT_SNAPSHOT_LIMITS.maxImageDimension,
+                maxDecodedPixels: Math.min(
+                    this.options.maxInputPixels,
+                    this.options.maxExportPixels,
+                ),
+                maxImageDimension: Math.min(
+                    DEFAULT_SNAPSHOT_LIMITS.maxImageDimension,
+                    this.options.maxExportDimension,
+                ),
                 decodeTimeoutMs: this.options.imageLoadTimeoutMs,
             },
         );
@@ -505,7 +512,14 @@ export class ImageEditorCore {
                 maxInputBytes: Math.ceil((this.options.maxInputBytes * 4) / 3) + 1024 * 1024,
                 maxStringLength: Math.ceil((this.options.maxInputBytes * 4) / 3) + 1024,
                 maxDataUrlBytes: this.options.maxInputBytes,
-                maxDecodedPixels: this.options.maxInputPixels,
+                maxDecodedPixels: Math.min(
+                    this.options.maxInputPixels,
+                    this.options.maxExportPixels,
+                ),
+                maxImageDimension: Math.min(
+                    DEFAULT_SNAPSHOT_LIMITS.maxImageDimension,
+                    this.options.maxExportDimension,
+                ),
             }),
         );
 
@@ -550,7 +564,7 @@ export class ImageEditorCore {
                     this.geometryRevision += 1;
                 },
                 restoreGeometry: (snapshot) => {
-                    this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight, false);
+                    this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight);
                     this.geometryRevision = snapshot.revision;
                 },
                 requestRender: () => this.requestRender(),
@@ -684,9 +698,18 @@ export class ImageEditorCore {
         const containerWidth = Math.floor(this.containerElement?.clientWidth ?? 0);
         const containerHeight = Math.floor(this.containerElement?.clientHeight ?? 0);
         const hasVisibleContainer = containerWidth > 0 && containerHeight > 0;
+        const initialWidth = Math.max(
+            1,
+            Math.ceil(hasVisibleContainer ? containerWidth : this.options.canvasWidth),
+        );
+        const initialHeight = Math.max(
+            1,
+            Math.ceil(hasVisibleContainer ? containerHeight : this.options.canvasHeight),
+        );
+        this.assertRasterBudget(initialWidth, initialHeight);
         this.canvas = new this.fabric.Canvas(canvasElement, {
-            width: hasVisibleContainer ? containerWidth : this.options.canvasWidth,
-            height: hasVisibleContainer ? containerHeight : this.options.canvasHeight,
+            width: initialWidth,
+            height: initialHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
             preserveObjectStacking: true,
@@ -712,10 +735,14 @@ export class ImageEditorCore {
         }
         if (
             encodedImage.dimensions &&
-            encodedImage.dimensions.width * encodedImage.dimensions.height >
-                this.options.maxInputPixels
+            !this.isInputRasterWithinBudget(
+                encodedImage.dimensions.width,
+                encodedImage.dimensions.height,
+            )
         ) {
-            throw new CoreRuntimeError('[ImageEditor] Image input exceeds maxInputPixels.');
+            throw new CoreRuntimeError(
+                '[ImageEditor] Image input dimensions exceed the configured budget.',
+            );
         }
         if (options.concurrency && options.concurrency !== 'replace-pending') {
             throw new CoreRuntimeError('[ImageEditor] Unsupported load concurrency policy.');
@@ -741,14 +768,19 @@ export class ImageEditorCore {
                     this.assertCurrentLoad(sequence, operationContext.signal);
                     const naturalWidth = Number(image.width) || 0;
                     const naturalHeight = Number(image.height) || 0;
-                    if (
-                        naturalWidth <= 0 ||
-                        naturalHeight <= 0 ||
-                        naturalWidth * naturalHeight > this.options.maxInputPixels
-                    ) {
-                        throw new CoreRuntimeError(
-                            '[ImageEditor] Decoded image exceeds the pixel budget.',
+                    if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
+                        const budgetError = new CoreRuntimeError(
+                            '[ImageEditor] Decoded image dimensions exceed the configured budget.',
                         );
+                        try {
+                            await image.dispose();
+                        } catch (cleanupError) {
+                            throw new CoreRuntimeError(
+                                '[ImageEditor] Rejected image cleanup failed.',
+                                { cause: Object.freeze([budgetError, cleanupError]) },
+                            );
+                        }
+                        throw budgetError;
                     }
 
                     const previousScroll = this.containerElement
@@ -789,12 +821,7 @@ export class ImageEditorCore {
                                 evented: false,
                             });
                             const layout = this.computeLayout(baseImage);
-                            applyCanvasDimensions(
-                                canvas,
-                                layout.canvasWidth,
-                                layout.canvasHeight,
-                                this.containerElement,
-                            );
+                            this.setCanvasSize(layout.canvasWidth, layout.canvasHeight);
                             baseImage.set({
                                 left: layout.imageLeft,
                                 top: layout.imageTop,
@@ -1587,20 +1614,35 @@ export class ImageEditorCore {
         canvas.sendObjectToBack(image);
     }
 
-    private setCanvasSize(width: number, height: number, enforceBudget = true): void {
+    private setCanvasSize(width: number, height: number): void {
         if (!this.canvas) return;
         const nextWidth = Math.max(1, Math.ceil(width));
         const nextHeight = Math.max(1, Math.ceil(height));
-        const nextPixels = nextWidth * nextHeight;
+        this.assertRasterBudget(nextWidth, nextHeight);
+        applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
+    }
+
+    private isInputRasterWithinBudget(width: number, height: number): boolean {
+        return isRasterAllocationWithinBudget(width, height, {
+            maxDimension: this.options.maxExportDimension,
+            maxPixels: Math.min(this.options.maxInputPixels, this.options.maxExportPixels),
+        });
+    }
+
+    private assertRasterBudget(width: number, height: number, multiplier = 1): void {
         if (
-            enforceBudget &&
-            (!Number.isSafeInteger(nextPixels) ||
-                Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
-                nextPixels > this.options.maxExportPixels)
+            !isRasterAllocationWithinBudget(
+                width,
+                height,
+                {
+                    maxDimension: this.options.maxExportDimension,
+                    maxPixels: this.options.maxExportPixels,
+                },
+                multiplier,
+            )
         ) {
             throw new CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
         }
-        applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
 
     private async runExport(options: CoreExportOptions): Promise<string> {
@@ -1625,15 +1667,8 @@ export class ImageEditorCore {
                 width = bounds.width;
                 height = bounds.height;
             }
-            if (
-                width * multiplier > this.options.maxExportDimension ||
-                height * multiplier > this.options.maxExportDimension ||
-                width * height * multiplier * multiplier > this.options.maxExportPixels
-            ) {
-                throw new CoreRuntimeError(
-                    '[ImageEditor] Dimensions exceed the configured budget.',
-                );
-            }
+            this.assertRasterBudget(width, height, multiplier);
+            this.assertRasterBudget(canvas.getWidth(), canvas.getHeight());
             const exportElement = this.canvasElement?.ownerDocument.createElement('canvas');
             if (!exportElement) {
                 throw new CoreRuntimeError('[ImageEditor] Export requires an initialized Canvas.');

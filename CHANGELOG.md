@@ -58,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Validate Snapshot, Overlay State, migration, Codec, image, raster, and package
   inputs against resource limits and dangerous object keys before mutation.
+- Apply the active Core dimension and pixel budgets consistently to encoded and
+  decoded image input, external State restore, Canvas resize, export, and Overlay
+  flatten allocations before creating browser raster resources.
 - Keep failed setup, image load, State restore, geometry, raster, Overlay, Crop,
   Mosaic, and migration operations atomic with zero committed partial state.
 - Keep Testing, migration conversion, Codemod, DOM, Preset, and Fabric runtime

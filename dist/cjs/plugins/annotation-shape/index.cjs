@@ -8,6 +8,7 @@ var pluginDefinition = require('../../chunks/plugin-definition-CT9AOCE7.cjs');
 var coreCapabilities = require('../../chunks/core-capabilities-DVJQ8w-Z.cjs');
 require('../../chunks/plugin-identifier-CjVVyVRY.cjs');
 require('../../chunks/disposable-pTo80E0l.cjs');
+require('../../chunks/image-budget-DZeZeVWW.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
 const SHAPE_ANNOTATION_KIND = 'annotation:shape';

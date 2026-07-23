@@ -101,6 +101,8 @@ export declare class ImageEditorCore {
     private captureGeometry;
     private finalizeBaseImageGeometry;
     private setCanvasSize;
+    private isInputRasterWithinBudget;
+    private assertRasterBudget;
     private runExport;
     private emitDocumentCommitted;
     private assertCurrentLoad;

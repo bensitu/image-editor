@@ -5,6 +5,7 @@ var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
 var pluginManifest = require('../chunks/plugin-manifest-B4W6-2BB.cjs');
 var pluginIdentifier = require('../chunks/plugin-identifier-CjVVyVRY.cjs');
 var pluginPlan = require('../chunks/plugin-plan-7_a5v9uF.cjs');
+var imageBudget = require('../chunks/image-budget-DZeZeVWW.cjs');
 var disposable = require('../chunks/disposable-pTo80E0l.cjs');
 var pluginManager = require('../chunks/plugin-manager-BLzAzBA9.cjs');
 var coreCapabilities = require('../chunks/core-capabilities-DVJQ8w-Z.cjs');
@@ -228,8 +229,8 @@ const DEFAULT_SECURITY_LIMITS = Object.freeze({
 function isRecord$1(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-function isPositiveFinite(value) {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+function isPositiveSafeInteger(value) {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 function isImageMimeType(value) {
     return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
@@ -422,17 +423,18 @@ class CanvasCoreStateAdapter {
                 },
             };
         }
-        if (!isPositiveFinite(value.canvasWidth) || !isPositiveFinite(value.canvasHeight)) {
+        if (!isPositiveSafeInteger(value.canvasWidth) ||
+            !isPositiveSafeInteger(value.canvasHeight)) {
             return {
                 valid: false,
-                message: 'Canvas dimensions must be positive finite numbers.',
+                message: 'Canvas dimensions must be positive safe integers.',
                 path: '$.core.canvasWidth',
             };
         }
-        if (Number(value.canvasWidth) > this.securityLimits.maxImageDimension ||
-            Number(value.canvasHeight) > this.securityLimits.maxImageDimension ||
-            Number(value.canvasWidth) * Number(value.canvasHeight) >
-                this.securityLimits.maxDecodedPixels) {
+        if (!imageBudget.isRasterAllocationWithinBudget(value.canvasWidth, value.canvasHeight, {
+            maxDimension: this.securityLimits.maxImageDimension,
+            maxPixels: this.securityLimits.maxDecodedPixels,
+        })) {
             return {
                 valid: false,
                 message: 'Canvas dimensions exceed the configured Snapshot budget.',
@@ -500,7 +502,9 @@ class CanvasCoreStateAdapter {
                 path: '$.core.imageMimeType',
             };
         }
-        if (!isPositiveFinite(value.baseImageScale)) {
+        if (typeof value.baseImageScale !== 'number' ||
+            !Number.isFinite(value.baseImageScale) ||
+            value.baseImageScale <= 0) {
             return {
                 valid: false,
                 message: 'baseImageScale must be positive and finite.',
@@ -3056,11 +3060,11 @@ class ImageEditorCore {
             setGeometryRevision: (value) => {
                 this.geometryRevision = value;
             },
-            setCanvasSize: (width, height) => this.setCanvasSize(width, height, false),
+            setCanvasSize: (width, height) => this.setCanvasSize(width, height),
             isDisposed: () => this.lifecycle.current === 'disposed',
         }, this.objectProperties, this.transientObjects, this.externalObjects, {
-            maxDecodedPixels: this.options.maxInputPixels,
-            maxImageDimension: DEFAULT_SNAPSHOT_LIMITS.maxImageDimension,
+            maxDecodedPixels: Math.min(this.options.maxInputPixels, this.options.maxExportPixels),
+            maxImageDimension: Math.min(DEFAULT_SNAPSHOT_LIMITS.maxImageDimension, this.options.maxExportDimension),
             decodeTimeoutMs: this.options.imageLoadTimeoutMs,
         });
         this.mementos = new MementoService(stateAdapter, this.slices);
@@ -3069,7 +3073,8 @@ class ImageEditorCore {
             maxInputBytes: Math.ceil((this.options.maxInputBytes * 4) / 3) + 1024 * 1024,
             maxStringLength: Math.ceil((this.options.maxInputBytes * 4) / 3) + 1024,
             maxDataUrlBytes: this.options.maxInputBytes,
-            maxDecodedPixels: this.options.maxInputPixels,
+            maxDecodedPixels: Math.min(this.options.maxInputPixels, this.options.maxExportPixels),
+            maxImageDimension: Math.min(DEFAULT_SNAPSHOT_LIMITS.maxImageDimension, this.options.maxExportDimension),
         }));
         this.documentMutations = new DocumentMutationCoordinator({
             mementos: this.mementos,
@@ -3108,7 +3113,7 @@ class ImageEditorCore {
                     this.geometryRevision += 1;
                 },
                 restoreGeometry: (snapshot) => {
-                    this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight, false);
+                    this.setCanvasSize(snapshot.canvasWidth, snapshot.canvasHeight);
                     this.geometryRevision = snapshot.revision;
                 },
                 requestRender: () => this.requestRender(),
@@ -3212,9 +3217,12 @@ class ImageEditorCore {
         const containerWidth = Math.floor((_d = (_c = this.containerElement) === null || _c === void 0 ? void 0 : _c.clientWidth) !== null && _d !== void 0 ? _d : 0);
         const containerHeight = Math.floor((_f = (_e = this.containerElement) === null || _e === void 0 ? void 0 : _e.clientHeight) !== null && _f !== void 0 ? _f : 0);
         const hasVisibleContainer = containerWidth > 0 && containerHeight > 0;
+        const initialWidth = Math.max(1, Math.ceil(hasVisibleContainer ? containerWidth : this.options.canvasWidth));
+        const initialHeight = Math.max(1, Math.ceil(hasVisibleContainer ? containerHeight : this.options.canvasHeight));
+        this.assertRasterBudget(initialWidth, initialHeight);
         this.canvas = new this.fabric.Canvas(canvasElement, {
-            width: hasVisibleContainer ? containerWidth : this.options.canvasWidth,
-            height: hasVisibleContainer ? containerHeight : this.options.canvasHeight,
+            width: initialWidth,
+            height: initialHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
             preserveObjectStacking: true,
@@ -3238,9 +3246,8 @@ class ImageEditorCore {
             throw new errors.CoreRuntimeError('[ImageEditor] Image input exceeds maxInputBytes.');
         }
         if (encodedImage.dimensions &&
-            encodedImage.dimensions.width * encodedImage.dimensions.height >
-                this.options.maxInputPixels) {
-            throw new errors.CoreRuntimeError('[ImageEditor] Image input exceeds maxInputPixels.');
+            !this.isInputRasterWithinBudget(encodedImage.dimensions.width, encodedImage.dimensions.height)) {
+            throw new errors.CoreRuntimeError('[ImageEditor] Image input dimensions exceed the configured budget.');
         }
         if (options.concurrency && options.concurrency !== 'replace-pending') {
             throw new errors.CoreRuntimeError('[ImageEditor] Unsupported load concurrency policy.');
@@ -3256,10 +3263,15 @@ class ImageEditorCore {
                 this.assertCurrentLoad(sequence, operationContext.signal);
                 const naturalWidth = Number(image.width) || 0;
                 const naturalHeight = Number(image.height) || 0;
-                if (naturalWidth <= 0 ||
-                    naturalHeight <= 0 ||
-                    naturalWidth * naturalHeight > this.options.maxInputPixels) {
-                    throw new errors.CoreRuntimeError('[ImageEditor] Decoded image exceeds the pixel budget.');
+                if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
+                    const budgetError = new errors.CoreRuntimeError('[ImageEditor] Decoded image dimensions exceed the configured budget.');
+                    try {
+                        await image.dispose();
+                    }
+                    catch (cleanupError) {
+                        throw new errors.CoreRuntimeError('[ImageEditor] Rejected image cleanup failed.', { cause: Object.freeze([budgetError, cleanupError]) });
+                    }
+                    throw budgetError;
                 }
                 const previousScroll = this.containerElement
                     ? {
@@ -3299,7 +3311,7 @@ class ImageEditorCore {
                             evented: false,
                         });
                         const layout = this.computeLayout(baseImage);
-                        applyCanvasDimensions(canvas, layout.canvasWidth, layout.canvasHeight, this.containerElement);
+                        this.setCanvasSize(layout.canvasWidth, layout.canvasHeight);
                         baseImage.set({
                             left: layout.imageLeft,
                             top: layout.imageTop,
@@ -3971,19 +3983,27 @@ class ImageEditorCore {
         image.setCoords();
         canvas.sendObjectToBack(image);
     }
-    setCanvasSize(width, height, enforceBudget = true) {
+    setCanvasSize(width, height) {
         if (!this.canvas)
             return;
         const nextWidth = Math.max(1, Math.ceil(width));
         const nextHeight = Math.max(1, Math.ceil(height));
-        const nextPixels = nextWidth * nextHeight;
-        if (enforceBudget &&
-            (!Number.isSafeInteger(nextPixels) ||
-                Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
-                nextPixels > this.options.maxExportPixels)) {
+        this.assertRasterBudget(nextWidth, nextHeight);
+        applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
+    }
+    isInputRasterWithinBudget(width, height) {
+        return imageBudget.isRasterAllocationWithinBudget(width, height, {
+            maxDimension: this.options.maxExportDimension,
+            maxPixels: Math.min(this.options.maxInputPixels, this.options.maxExportPixels),
+        });
+    }
+    assertRasterBudget(width, height, multiplier = 1) {
+        if (!imageBudget.isRasterAllocationWithinBudget(width, height, {
+            maxDimension: this.options.maxExportDimension,
+            maxPixels: this.options.maxExportPixels,
+        }, multiplier)) {
             throw new errors.CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
         }
-        applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
     async runExport(options) {
         var _a, _b, _c, _d;
@@ -4008,11 +4028,8 @@ class ImageEditorCore {
                 width = bounds.width;
                 height = bounds.height;
             }
-            if (width * multiplier > this.options.maxExportDimension ||
-                height * multiplier > this.options.maxExportDimension ||
-                width * height * multiplier * multiplier > this.options.maxExportPixels) {
-                throw new errors.CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
-            }
+            this.assertRasterBudget(width, height, multiplier);
+            this.assertRasterBudget(canvas.getWidth(), canvas.getHeight());
             const exportElement = (_d = this.canvasElement) === null || _d === void 0 ? void 0 : _d.ownerDocument.createElement('canvas');
             if (!exportElement) {
                 throw new errors.CoreRuntimeError('[ImageEditor] Export requires an initialized Canvas.');

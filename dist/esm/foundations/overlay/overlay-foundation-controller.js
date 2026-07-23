@@ -1,4 +1,5 @@
 import { CoreRuntimeError, } from '../../core/index.js';
+import { isRasterAllocationWithinBudget } from '../../utils/image-budget.js';
 import { PluginManifestError, createDisposable, disposeInReverseSync, isRuntimeIdentifier, isValidSemVer, } from '../../sdk/index.js';
 import { applyDeltaToObject } from './overlay-transform-delta.js';
 import { OverlayRecoverableObjectError } from './overlay-errors.js';
@@ -859,6 +860,7 @@ export class OverlayFoundationController {
         });
         if (selected.length === 0)
             return;
+        this.assertFlattenBudget();
         await this.geometry.run({
             id: `overlay:flatten:${Date.now()}:${++this.generatedIdSequence}`,
             kind: 'flatten',
@@ -871,6 +873,7 @@ export class OverlayFoundationController {
                 if (!baseImage) {
                     throw new CoreRuntimeError('[ImageEditor] Cannot flatten without a base image.');
                 }
+                this.assertFlattenBudget(canvas, baseImage);
                 const exportElement = canvas.lowerCanvasEl.ownerDocument.createElement('canvas');
                 const exportCanvas = new this.host.fabric.StaticCanvas(exportElement, {
                     width: canvas.getWidth(),
@@ -922,6 +925,21 @@ export class OverlayFoundationController {
                 }
             },
         });
+    }
+    assertFlattenBudget(canvas = this.host.requireCanvas('validate flatten dimensions'), baseImage = this.host.getBaseImage()) {
+        if (!baseImage) {
+            throw new CoreRuntimeError('[ImageEditor] Cannot flatten without a base image.');
+        }
+        const policy = this.host.getImageResourcePolicy();
+        const budget = {
+            maxDimension: policy.maxExportDimension,
+            maxPixels: policy.maxExportPixels,
+        };
+        const region = getImageExportRegion(baseImage, canvas);
+        if (!isRasterAllocationWithinBudget(canvas.getWidth(), canvas.getHeight(), budget) ||
+            !isRasterAllocationWithinBudget(region.width, region.height, budget)) {
+            throw new CoreRuntimeError('[ImageEditor] Flatten dimensions exceed the configured budget.');
+        }
     }
     dispose() {
         if (this.disposed)
