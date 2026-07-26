@@ -9,89 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `ImageEditorCore` with explicit lifecycle, document transactions, Mementos,
-  Snapshot validation, Plugin installation, and rollback-safe image/export APIs.
-- Add the public Plugin SDK with typed Plugin references, validated manifests,
-  dependency-aware plans, versioned Capabilities, permissions, Operations,
-  Tools, State Slices, disposable ownership, and committed events.
-- Add public Overlay and Annotation Foundations plus official Transform, History,
-  Mask, Filters, Crop, Mosaic, Text, Shape, Draw/Eraser, Overlay State, and DOM
-  Controls Plugins.
-- Add typed Minimal, Redaction, Annotation, and Full Presets with optional DOM
-  Controls factories and method-level result inference.
-- Add the isolated public Testing entry, conformance profile `3.0`, deterministic
-  host fixtures, package/bundle assertions, and independently packable Watermark,
-  Metadata, Grid/Guide, and Blur Region reference Plugins.
-- Add explicit unsupported-Snapshot detection and generic Snapshot migration
-  handlers that revalidate migrated output before mutation.
-- Add the isolated `@bensitu/image-editor/migrate-v2` entry for strict detection,
-  conversion, explicit loading, lossy-warning opt-in, and bounded frozen fixtures.
-- Add the separate `@bensitu/image-editor-codemod` package and `v2-to-v3` CLI with
-  dry-run, diff, write, idempotency, and unresolved-pattern reporting.
-- Add ESM, CommonJS, ESM declarations, CommonJS declarations, and NodeNext
-  conditions for every formal package entry.
-- Add a Full Preset UMD under the `ImageEditorFull` global while keeping Fabric
-  external, plus browser smoke coverage and permanent size attribution.
-- Add public Vanilla, React, Vue, and Next examples, a Plugin package template,
-  and an executable pure-Fabric versus Framework redaction comparison.
-- Add permanent candidate-readiness, deterministic-build, performance, memory,
-  hostile-input, audit, and package-content checks for local release review.
+- Add `ImageEditorCore` with explicit lifecycle, document transactions, Mementos, Snapshot validation, Plugin installation, and rollback-safe image/export APIs.
+- Add the public Plugin SDK with typed Plugin references, validated manifests, dependency-aware plans, versioned Capabilities, permissions, Operations, Tools, State Slices, disposable ownership, and committed events.
+- Add public Overlay and Annotation Foundations plus official Transform, History, Mask, Filters, Crop, Mosaic, Text, Shape, Draw/Eraser, Overlay State, and DOM Controls Plugins.
+- Add typed Minimal, Redaction, Annotation, and Full Presets with optional DOM Controls factories and method-level result inference.
+- Add the isolated public Testing entry, conformance profile `3.0`, deterministic host fixtures, package/bundle assertions, and independently packable Watermark, Metadata, Grid/Guide, and Blur Region reference Plugins.
+- Add explicit unsupported-Snapshot detection and generic Snapshot migration handlers that revalidate migrated output before mutation.
+- Add the isolated `@bensitu/image-editor/migrate-v2` entry for strict detection, conversion, explicit loading, lossy-warning opt-in, and bounded frozen fixtures.
+- Add the separate `@bensitu/image-editor-codemod` package and `v2-to-v3` CLI with dry-run, diff, write, idempotency, and unresolved-pattern reporting.
+- Add ESM, CommonJS, ESM declarations, CommonJS declarations, and NodeNext conditions for every formal package entry.
+- Add a Full Preset UMD under the `ImageEditorFull` global while keeping Fabric external, plus browser smoke coverage and permanent size attribution.
+- Add public Vanilla, React, Vue, and Next examples, a Plugin package template, and an executable pure-Fabric versus Framework redaction comparison.
+- Add permanent candidate-readiness, deterministic-build, performance, memory, hostile-input, audit, and package-content checks for local release review.
 
 ### Changed
 
-- Replace the monolithic root facade with a Core-only public root. Feature methods
-  are available through installed Plugin APIs or typed Preset results.
-- Require applications to pass the Fabric module explicitly and split flat
-  configuration by Core or Feature ownership.
-- Accept the current `image-editor.state@3` Snapshot schema in Core; recognizable
-  older schemas require an explicitly imported migration handler.
-- Require persistent Overlay kinds to install versioned Codecs atomically and
-  privileged Capability consumers to declare exact permissions before setup.
-- Lease each concrete Plugin Definition to one live Host at a time, fail
-  cross-Editor reuse with `PluginDefinitionAlreadyBoundError`, and release the
-  lease after rollback or disposal.
-- Keep public Plugin and Preset API object references stable when Core replays
-  Plugin definitions during initialization recovery or emergency reset.
-- Delegate Mask registrations to the Plugin scope so asynchronous and thenable
-  cleanup failures are awaited, aggregated, and reported by Core disposal.
-- Limit the public RC Plugin factory contract to synchronous definitions while
-  retaining asynchronous lifecycle primitives inside the Plugin Kernel.
-- Make `disposeAsync()` the authoritative observable cleanup path and deprecate
-  the best-effort `dispose()` starter, which can return before cleanup settles.
-- Bound each committed-event listener to a documented five-second execution
-  window so stalled observers cannot starve later listeners or emissions.
-- Make a configured initial image and its Plugin hooks part of the awaited
-  `init()` contract, with complete rollback and retry after recoverable failure.
-- Require an explicit prerelease-safe npm dist-tag and make the Main plus
-  Codemod publication workflow resumable by verifying already-published
-  tarball integrity before skipping either package.
-- Replace the stale flat-options reference and transform-binding guide with
-  current Core, Plugin, and Preset contracts, and enforce documented boundaries
-  for current, migration, and explicitly labelled legacy material.
-- Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
-  produced and DOM Controls remain opt-in.
+- Replace the monolithic root facade with a Core-only public root. Feature methods are available through installed Plugin APIs or typed Preset results.
+- Require applications to pass the Fabric module explicitly and split flat configuration by Core or Feature ownership.
+- Accept the current `image-editor.state@3` Snapshot schema in Core; recognizable older schemas require an explicitly imported migration handler.
+- Require persistent Overlay kinds to install versioned Codecs atomically and privileged Capability consumers to declare exact permissions before setup.
+- Lease each concrete Plugin Definition to one live Host at a time, fail cross-Editor reuse with `PluginDefinitionAlreadyBoundError`, and release the lease after rollback or disposal.
+- Keep public Plugin and Preset API object references stable when Core replays Plugin definitions during initialization recovery or emergency reset.
+- Delegate Mask registrations to the Plugin scope so asynchronous and thenable cleanup failures are awaited, aggregated, and reported by Core disposal.
+- Limit the public RC Plugin factory contract to synchronous definitions while retaining asynchronous lifecycle primitives inside the Plugin Kernel.
+- Make `disposeAsync()` the authoritative observable cleanup path and deprecate the best-effort `dispose()` starter, which can return before cleanup settles.
+- Bound each committed-event listener to a documented five-second execution window so stalled observers cannot starve later listeners or emissions.
+- Make a configured initial image and its Plugin hooks part of the awaited `init()` contract, with complete rollback and retry after recoverable failure.
+- Replace the stale flat-options reference and transform-binding guide with current Core, Plugin, and Preset contracts, and enforce documented boundaries for current, migration, and explicitly labelled legacy material.
+- Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not produced and DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.
-- Remove the unused `compare-versions` runtime dependency and keep `tslib` as a
-  build-only dependency.
-- Replace Rollup and its plugin stack with pinned Rolldown 1.2.0 for distribution,
-  reference Plugin and template packages, and consumer bundle integrity measurement.
+- Replace Rollup and its plugin stack with pinned Rolldown for distribution, reference Plugin and template packages, and consumer bundle integrity measurement.
 
 ### Security
 
-- Validate Snapshot, Overlay State, migration, Codec, image, raster, and package
-  inputs against resource limits and dangerous object keys before mutation.
-- Apply the active Core dimension and pixel budgets consistently to encoded and
-  decoded image input, external State restore, Canvas resize, export, and Overlay
-  flatten allocations before creating browser raster resources.
-- Keep failed setup, image load, State restore, geometry, raster, Overlay, Crop,
-  Mosaic, and migration operations atomic with zero committed partial state.
-- Keep Testing, migration conversion, Codemod, DOM, Preset, and Fabric runtime
-  modules out of entries that do not select them.
+- Validate Snapshot, Overlay State, migration, Codec, image, raster, and package inputs against resource limits and dangerous object keys before mutation.
+- Apply the active Core dimension and pixel budgets consistently to encoded and decoded image input, external State restore, Canvas resize, export, and Overlay flatten allocations before creating browser raster resources.
+- Keep failed setup, image load, State restore, geometry, raster, Overlay, Crop, Mosaic, and migration operations atomic with zero committed partial state.
+- Keep Testing, migration conversion, Codemod, DOM, Preset, and Fabric runtime modules out of entries that do not select them.
 
 ### Deprecated
 
-- None. Removed facade methods and private controller paths have no runtime
-  compatibility aliases; use the migration guide and Codemod report instead.
+- None. Removed facade methods and private controller paths have no runtime compatibility aliases; use the migration guide and Codemod report instead.
 
 ## [2.9.0] - 2026-07-11
 
