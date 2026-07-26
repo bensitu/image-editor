@@ -4,6 +4,10 @@ This independently packable template demonstrates a typed `PluginRef`, manifest
 version domains, a required Capability, validated configuration, disposable
 ownership, public-only imports, and peer dependency isolation.
 
+TypeScript emits the ESM JavaScript and declarations, then Rolldown bundles the
+CommonJS entry while keeping Image Editor and Fabric external as peer-owned
+runtimes.
+
 ```bash
 npm install
 npm run build

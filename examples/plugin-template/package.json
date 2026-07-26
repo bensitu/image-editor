@@ -19,7 +19,7 @@
     ],
     "scripts": {
         "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-        "build": "npm run clean && tsc -p tsconfig.json && rollup -c",
+        "build": "npm run clean && tsc -p tsconfig.json && rolldown -c rolldown.config.mjs",
         "test": "node --test tests/package.test.mjs"
     },
     "peerDependencies": {
@@ -29,7 +29,7 @@
     "devDependencies": {
         "@bensitu/image-editor": "file:../..",
         "fabric": "7.4.0",
-        "rollup": "4.62.2",
+        "rolldown": "1.2.0",
         "typescript": "5.9.3"
     },
     "engines": {

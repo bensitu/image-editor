@@ -1,13 +1,13 @@
 /**
  * tsconfig.build.json — ESM emit for the distribution.
  *
- * Emits the ESM JavaScript bundle that Rollup consumes for the CJS and UMD passes, and that ships under
+ * Emits the ESM JavaScript tree that Rolldown consumes for the CJS and UMD passes, and that ships under
  * `dist/esm/` for consumers using `import`.
  *
  * Companion files:
  *   - tsconfig.types.json  -> emits the canonical `.d.ts` bundle to
  *                             `dist/types/` so consumers see types.
- *   - rollup.config.mjs    -> reads `dist/esm/` as input for CJS / UMD.
+ *   - rolldown.config.mjs  -> reads `dist/esm/` as input for CJS / UMD.
  *
  * Only formal package entries and the Full UMD build entry are roots. Their
  * transitive runtime dependencies retain the source layout under `dist/esm/`.

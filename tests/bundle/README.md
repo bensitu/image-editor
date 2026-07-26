@@ -1,6 +1,6 @@
 # Bundle fixtures
 
-These fixtures measure consumer imports with Rollup. They do not measure files in `dist` directly.
+These fixtures measure consumer imports with Rolldown. They do not measure files in `dist` directly.
 
 - `full-root` imports the current `ImageEditor` facade from the package root.
 - `public-api` retains every package-root export so accidental barrel expansion is visible.

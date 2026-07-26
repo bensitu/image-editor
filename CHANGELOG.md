@@ -73,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require Fabric `>=7.4.0 <8` as an external peer.
 - Remove the unused `compare-versions` runtime dependency and keep `tslib` as a
   build-only dependency.
-- Update compatible lint, type assertion, formatting, Rollup, and Vite tooling.
+- Replace Rollup and its plugin stack with pinned Rolldown 1.2.0 for distribution,
+  reference Plugin and template packages, and consumer bundle integrity measurement.
 
 ### Security
 
