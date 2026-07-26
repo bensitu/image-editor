@@ -25,6 +25,6 @@
     "devDependencies": {
         "@bensitu/image-editor": "^3.0.0-0",
         "fabric": ">=7.4.0 <8",
-        "typescript": "^5.4.0"
+        "typescript": "^6.0.3"
     }
 }

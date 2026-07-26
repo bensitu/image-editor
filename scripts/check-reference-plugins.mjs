@@ -362,7 +362,7 @@ async function installAndVerifyConsumer(mainArtifact, pluginBuilds, temporaryRoo
         '@bensitu/image-editor': fileSpecifier(mainArtifact.path),
         fabric: '7.4.0',
         canvas: '3.2.3',
-        jsdom: '26.1.0',
+        jsdom: '28.1.0',
     };
     for (const plugin of pluginBuilds) {
         dependencies[plugin.descriptor.name] = fileSpecifier(plugin.artifact.path);
@@ -373,7 +373,7 @@ async function installAndVerifyConsumer(mainArtifact, pluginBuilds, temporaryRoo
         private: true,
         type: 'module',
         dependencies,
-        devDependencies: { '@types/jsdom': '21.1.7', typescript: '5.9.3' },
+        devDependencies: { '@types/jsdom': '28.0.3', typescript: '6.0.3' },
     };
     await writeFile(
         path.join(consumerRoot, 'package.json'),
