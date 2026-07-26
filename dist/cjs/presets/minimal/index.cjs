@@ -1,58 +1,63 @@
-'use strict';
+Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
+const require_core_capabilities = require('../../chunks/core-capabilities-DfizIg7d.cjs');
+const require_core = require('../../chunks/core-DQAGttsz.cjs');
+const require_transform = require('../../chunks/transform-5OnpiWZG.cjs');
+const require_history = require('../../chunks/history-B-SBkbO9.cjs');
+const require_preset_support = require('../../chunks/preset-support-fdxHrf6c.cjs');
 
-Object.defineProperty(exports, '__esModule', { value: true });
-
-var plugins_history_index = require('../../plugins/history/index.cjs');
-var plugins_transform_index = require('../../plugins/transform/index.cjs');
-var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
-var core_index = require('../../core/index.cjs');
-var pluginPlan = require('../../chunks/plugin-plan-Cz0Krduf.cjs');
-require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/plugin-manifest-5BctrtYS.cjs');
-require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
-require('../../chunks/plugin-definition-DtyrZUJz.cjs');
-require('../../chunks/core-capabilities-DryMPZoj.cjs');
-require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-CfbKlLDK.cjs');
-require('../../chunks/disposable-y_ve7ZXe.cjs');
-require('../../chunks/image-budget-DZeZeVWW.cjs');
-
+//#region dist/esm/presets/minimal/index.js
 function createMinimalPreset(fabric, options = {}) {
-    const editor = new core_index.ImageEditorCore(fabric, options.core);
-    const transformDefinition = plugins_transform_index.transformPlugin(options.transform);
-    const historyDefinition = options.history === false || options.history === undefined
-        ? null
-        : plugins_history_index.historyPlugin(options.history);
-    const bindings = Object.freeze({
-        transform: presetSupport.createDomBinding(editor, plugins_transform_index.transformPluginRef),
-        history: historyDefinition ? presetSupport.createDomBinding(editor, plugins_history_index.historyPluginRef) : null,
-    });
-    const domDefinition = presetSupport.createDomPlugin(options.domControls, bindings);
-    if (historyDefinition && domDefinition) {
-        const apis = editor.install(pluginPlan.composePlugins({
-            transform: transformDefinition,
-            history: historyDefinition,
-            domControls: domDefinition,
-        }));
-        return Object.freeze({ editor, ...apis });
-    }
-    if (historyDefinition) {
-        const apis = editor.install(pluginPlan.composePlugins({ transform: transformDefinition, history: historyDefinition }));
-        return Object.freeze({ editor, ...apis, domControls: null });
-    }
-    if (domDefinition) {
-        const apis = editor.install(pluginPlan.composePlugins({ transform: transformDefinition, domControls: domDefinition }));
-        return Object.freeze({ editor, ...apis, history: null });
-    }
-    const apis = editor.install(pluginPlan.composePlugins({ transform: transformDefinition }));
-    return Object.freeze({
-        editor,
-        ...apis,
-        history: null,
-        domControls: null,
-    });
+	const editor = new require_core.ImageEditorCore(fabric, options.core);
+	const transformDefinition = require_transform.transformPlugin(options.transform);
+	const historyDefinition = options.history === false || options.history === void 0 ? null : require_history.historyPlugin(options.history);
+	const bindings = Object.freeze({
+		transform: require_preset_support.createDomBinding(editor, require_transform.transformPluginRef),
+		history: historyDefinition ? require_preset_support.createDomBinding(editor, require_history.historyPluginRef) : null
+	});
+	const domDefinition = require_preset_support.createDomPlugin(options.domControls, bindings);
+	if (historyDefinition && domDefinition) {
+		const apis = editor.install(require_core_capabilities.composePlugins({
+			transform: transformDefinition,
+			history: historyDefinition,
+			domControls: domDefinition
+		}));
+		return Object.freeze({
+			editor,
+			...apis
+		});
+	}
+	if (historyDefinition) {
+		const apis = editor.install(require_core_capabilities.composePlugins({
+			transform: transformDefinition,
+			history: historyDefinition
+		}));
+		return Object.freeze({
+			editor,
+			...apis,
+			domControls: null
+		});
+	}
+	if (domDefinition) {
+		const apis = editor.install(require_core_capabilities.composePlugins({
+			transform: transformDefinition,
+			domControls: domDefinition
+		}));
+		return Object.freeze({
+			editor,
+			...apis,
+			history: null
+		});
+	}
+	const apis = editor.install(require_core_capabilities.composePlugins({ transform: transformDefinition }));
+	return Object.freeze({
+		editor,
+		...apis,
+		history: null,
+		domControls: null
+	});
 }
 
+//#endregion
 exports.createMinimalPreset = createMinimalPreset;
 exports.default = createMinimalPreset;
 //# sourceMappingURL=index.cjs.map

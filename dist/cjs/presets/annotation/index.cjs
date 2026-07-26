@@ -1,60 +1,59 @@
-'use strict';
+Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
+const require_core_capabilities = require('../../chunks/core-capabilities-DfizIg7d.cjs');
+const require_core = require('../../chunks/core-DQAGttsz.cjs');
+const require_overlay = require('../../chunks/overlay-CehZ3aUk.cjs');
+const require_annotation = require('../../chunks/annotation-DOGHiusu.cjs');
+const require_transform = require('../../chunks/transform-5OnpiWZG.cjs');
+const require_history = require('../../chunks/history-B-SBkbO9.cjs');
+const require_annotation_text = require('../../chunks/annotation-text-DLvXHv1r.cjs');
+const require_annotation_shape = require('../../chunks/annotation-shape-CtRI00e8.cjs');
+const require_annotation_draw = require('../../chunks/annotation-draw-Cn36E2MY.cjs');
+const require_overlay_state = require('../../chunks/overlay-state-BZ__DtKV.cjs');
+const require_preset_support = require('../../chunks/preset-support-fdxHrf6c.cjs');
 
-Object.defineProperty(exports, '__esModule', { value: true });
-
-var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
-var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var plugins_annotationDraw_index = require('../../plugins/annotation-draw/index.cjs');
-var plugins_annotationShape_index = require('../../plugins/annotation-shape/index.cjs');
-var plugins_annotationText_index = require('../../plugins/annotation-text/index.cjs');
-var plugins_history_index = require('../../plugins/history/index.cjs');
-var plugins_overlayState_index = require('../../plugins/overlay-state/index.cjs');
-var plugins_transform_index = require('../../plugins/transform/index.cjs');
-var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
-var core_index = require('../../core/index.cjs');
-var pluginPlan = require('../../chunks/plugin-plan-Cz0Krduf.cjs');
-require('../../chunks/plugin-identifier-DWQ7SALj.cjs');
-require('../../chunks/disposable-y_ve7ZXe.cjs');
-require('../../chunks/plugin-manifest-5BctrtYS.cjs');
-require('../../chunks/plugin-definition-DtyrZUJz.cjs');
-require('../../chunks/core-capabilities-DryMPZoj.cjs');
-require('../../chunks/image-budget-DZeZeVWW.cjs');
-require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/safe-fabric-serialization-BWO2g1AV.cjs');
-require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-CfbKlLDK.cjs');
-
+//#region dist/esm/presets/annotation/index.js
 function createAnnotationPreset(fabric, options = {}) {
-    const editor = new core_index.ImageEditorCore(fabric, options.core);
-    const definitions = {
-        transform: plugins_transform_index.transformPlugin(options.transform),
-        history: plugins_history_index.historyPlugin(options.history),
-        overlays: foundations_overlay_index.overlayFoundationPlugin(),
-        annotations: foundations_annotation_index.annotationFoundationPlugin(options.annotations),
-        text: plugins_annotationText_index.textAnnotationPlugin(options.text),
-        shape: plugins_annotationShape_index.shapeAnnotationPlugin(options.shape),
-        draw: plugins_annotationDraw_index.drawAnnotationPlugin(options.draw),
-        overlayState: plugins_overlayState_index.overlayStatePlugin(options.overlayState),
-    };
-    const bindings = Object.freeze({
-        transform: presetSupport.createDomBinding(editor, plugins_transform_index.transformPluginRef),
-        history: presetSupport.createDomBinding(editor, plugins_history_index.historyPluginRef),
-        overlays: presetSupport.createDomBinding(editor, foundations_overlay_index.overlayFoundationRef),
-        annotations: presetSupport.createDomBinding(editor, foundations_annotation_index.annotationFoundationRef),
-        text: presetSupport.createDomBinding(editor, plugins_annotationText_index.textAnnotationPluginRef),
-        shape: presetSupport.createDomBinding(editor, plugins_annotationShape_index.shapeAnnotationPluginRef),
-        draw: presetSupport.createDomBinding(editor, plugins_annotationDraw_index.drawAnnotationPluginRef),
-        overlayState: presetSupport.createDomBinding(editor, plugins_overlayState_index.overlayStatePluginRef),
-    });
-    const domDefinition = presetSupport.createDomPlugin(options.domControls, bindings);
-    if (domDefinition) {
-        const apis = editor.install(pluginPlan.composePlugins({ ...definitions, domControls: domDefinition }));
-        return Object.freeze({ editor, ...apis });
-    }
-    const apis = editor.install(pluginPlan.composePlugins(definitions));
-    return Object.freeze({ editor, ...apis, domControls: null });
+	const editor = new require_core.ImageEditorCore(fabric, options.core);
+	const definitions = {
+		transform: require_transform.transformPlugin(options.transform),
+		history: require_history.historyPlugin(options.history),
+		overlays: require_overlay.overlayFoundationPlugin(),
+		annotations: require_annotation.annotationFoundationPlugin(options.annotations),
+		text: require_annotation_text.textAnnotationPlugin(options.text),
+		shape: require_annotation_shape.shapeAnnotationPlugin(options.shape),
+		draw: require_annotation_draw.drawAnnotationPlugin(options.draw),
+		overlayState: require_overlay_state.overlayStatePlugin(options.overlayState)
+	};
+	const bindings = Object.freeze({
+		transform: require_preset_support.createDomBinding(editor, require_transform.transformPluginRef),
+		history: require_preset_support.createDomBinding(editor, require_history.historyPluginRef),
+		overlays: require_preset_support.createDomBinding(editor, require_overlay.overlayFoundationRef),
+		annotations: require_preset_support.createDomBinding(editor, require_annotation.annotationFoundationRef),
+		text: require_preset_support.createDomBinding(editor, require_annotation_text.textAnnotationPluginRef),
+		shape: require_preset_support.createDomBinding(editor, require_annotation_shape.shapeAnnotationPluginRef),
+		draw: require_preset_support.createDomBinding(editor, require_annotation_draw.drawAnnotationPluginRef),
+		overlayState: require_preset_support.createDomBinding(editor, require_overlay_state.overlayStatePluginRef)
+	});
+	const domDefinition = require_preset_support.createDomPlugin(options.domControls, bindings);
+	if (domDefinition) {
+		const apis = editor.install(require_core_capabilities.composePlugins({
+			...definitions,
+			domControls: domDefinition
+		}));
+		return Object.freeze({
+			editor,
+			...apis
+		});
+	}
+	const apis = editor.install(require_core_capabilities.composePlugins(definitions));
+	return Object.freeze({
+		editor,
+		...apis,
+		domControls: null
+	});
 }
 
+//#endregion
 exports.createAnnotationPreset = createAnnotationPreset;
 exports.default = createAnnotationPreset;
 //# sourceMappingURL=index.cjs.map
