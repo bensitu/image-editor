@@ -5,6 +5,7 @@
  */
 
 import { InvalidPluginDefinitionError } from '../plugin-kernel/errors.js';
+import { markCanonicalPluginDefinition } from '../plugin-kernel/plugin-definition-lease.js';
 import { isPluginRef } from '../plugin-kernel/plugin-ref.js';
 import type { SynchronousEditorPlugin } from '../plugin-kernel/plugin-types.js';
 import { validatePluginManifest } from './plugin-manifest.js';
@@ -34,5 +35,5 @@ export function definePlugin<TApi, TEvents extends object>(
         );
     }
     const manifest = validatePluginManifest(definition.ref, definition.manifest);
-    return Object.freeze({ ...definition, manifest });
+    return markCanonicalPluginDefinition(Object.freeze({ ...definition, manifest }));
 }

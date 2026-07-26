@@ -1,4 +1,5 @@
 import { InvalidPluginDefinitionError } from '../plugin-kernel/errors.js';
+import { markCanonicalPluginDefinition } from '../plugin-kernel/plugin-definition-lease.js';
 import { isPluginRef } from '../plugin-kernel/plugin-ref.js';
 import { validatePluginManifest } from './plugin-manifest.js';
 export function definePlugin(definition) {
@@ -15,6 +16,6 @@ export function definePlugin(definition) {
         throw new InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must declare setupMode "sync" for the public SDK.`, definition.ref.id);
     }
     const manifest = validatePluginManifest(definition.ref, definition.manifest);
-    return Object.freeze({ ...definition, manifest });
+    return markCanonicalPluginDefinition(Object.freeze({ ...definition, manifest }));
 }
 //# sourceMappingURL=plugin-definition.js.map

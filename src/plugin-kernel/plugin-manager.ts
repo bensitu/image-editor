@@ -11,7 +11,7 @@ import {
     type CommittedEventListener,
     type PluginEventMap,
 } from './committed-event-bus.js';
-import { createDisposable, isPromiseLike, type Disposable } from './disposable.js';
+import { isPromiseLike, type Disposable } from './disposable.js';
 import {
     InvalidPluginDefinitionError,
     PluginAggregateError,
@@ -31,8 +31,9 @@ import {
 } from './errors.js';
 import {
     acquirePluginDefinitionLease,
+    isCanonicalPluginDefinition,
+    markCanonicalPluginDefinition,
     releasePluginDefinitionLease,
-    resolvePluginDefinitionIdentity,
 } from './plugin-definition-lease.js';
 import {
     OperationRegistry,
@@ -82,7 +83,8 @@ export interface PluginHostCapabilityProvider {
     readonly requiredPermission?: PluginPermission;
 }
 
-interface InstalledPluginRecord<TEvents extends object> {
+/** @internal Shared with the isolated asynchronous installation implementation. */
+export interface InstalledPluginRecord<TEvents extends object> {
     readonly plugin: NormalizedPluginDefinition<TEvents>;
     readonly refObject: object;
     readonly api: unknown;
@@ -90,17 +92,25 @@ interface InstalledPluginRecord<TEvents extends object> {
     readonly lifecycleContext: PluginLifecycleContext<TEvents>;
 }
 
-interface NormalizedPluginDefinition<
+/** @internal Canonical definition retained by the Plugin Host. */
+export interface NormalizedPluginDefinition<
     TEvents extends object,
 > extends EditorPluginDefinition<TEvents> {
     readonly ref: PluginRef<unknown>;
     readonly manifest: PluginManifest;
     readonly setupMode?: 'sync';
-    readonly leaseIdentity: object;
 }
 
-interface InstallOutcome {
+/** @internal Shared installation result used by synchronous and asynchronous installers. */
+export interface InstallOutcome<TEvents extends object> {
     readonly api: unknown;
+    readonly installedPlugin: NormalizedPluginDefinition<TEvents>;
+}
+
+/** @internal Core-facing result that retains the canonical definition used for replay. */
+export interface PluginInstallOutcome<TApi, TEvents extends object> {
+    readonly api: TApi;
+    readonly installedPlugin: EditorPluginDefinition<TEvents>;
 }
 
 export interface PluginBatchInstallOutcome<TEvents extends object> {
@@ -117,10 +127,38 @@ interface PreparedBatch<TEvents extends object> {
     readonly apisByPluginId: Map<string, unknown>;
 }
 
-interface ResolvedCapability {
+/** @internal Capability resolution shared with the asynchronous installer. */
+export interface ResolvedCapability {
     readonly token: object;
     readonly value: unknown | null;
     readonly status?: OptionalCapabilityStatus;
+}
+
+/** @internal Narrow access granted only to the isolated asynchronous installer. */
+export interface AsyncPluginInstallationHost<TEvents extends object> {
+    readonly options: PluginManagerOptions;
+    readonly installed: Map<string, InstalledPluginRecord<TEvents>>;
+    readonly installationOrder: string[];
+    topLevelInstallActive: boolean;
+    assertCanInstall(): void;
+    normalizePluginDefinition(
+        plugin: PluginDefinitionInput<TEvents>,
+    ): NormalizedPluginDefinition<TEvents>;
+    assertPluginDependenciesInstalled(plugin: NormalizedPluginDefinition<TEvents>): void;
+    resolveCapabilities(plugin: NormalizedPluginDefinition<TEvents>): {
+        readonly required: ReadonlyMap<string, ResolvedCapability>;
+        readonly optional: ReadonlyMap<string, ResolvedCapability>;
+    };
+    createContexts(
+        plugin: PluginIdentity,
+        scope: RegistrationScope,
+        required: ReadonlyMap<string, ResolvedCapability>,
+        optional: ReadonlyMap<string, ResolvedCapability>,
+        dependencyInstaller: (dependency: PluginDefinitionInput<TEvents>) => Promise<unknown>,
+    ): {
+        readonly setup: PluginSetupContext<TEvents>;
+        readonly lifecycle: PluginLifecycleContext<TEvents>;
+    };
 }
 
 function isPluginApi(value: unknown): boolean {
@@ -139,7 +177,8 @@ function sameArray<TValue>(
     );
 }
 
-function sameInstallationDefinition<TEvents extends object>(
+/** @internal Compares canonical definitions for ensure and duplicate handling. */
+export function sameInstallationDefinition<TEvents extends object>(
     left: NormalizedPluginDefinition<TEvents>,
     right: NormalizedPluginDefinition<TEvents>,
 ): boolean {
@@ -222,25 +261,21 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         return this.hostState;
     }
 
-    async install<TApi>(plugin: EditorPlugin<TApi, TEvents>): Promise<TApi> {
-        this.assertCanInstall();
-        if (this.topLevelInstallActive) {
-            throw new PluginKernelStateError(
-                'start a concurrent plugin installation',
-                this.hostState,
-            );
-        }
-        this.topLevelInstallActive = true;
-        try {
-            const outcome = await this.performInstall(plugin, 'strict', []);
-            // The installed API was produced by the same typed plugin argument.
-            return outcome.api as TApi;
-        } finally {
-            this.topLevelInstallActive = false;
-        }
+    install<TApi>(plugin: EditorPlugin<TApi, TEvents>): Promise<TApi> {
+        void plugin;
+        return Promise.reject(
+            new PluginKernelStateError('install an asynchronous Plugin', this.hostState),
+        );
     }
 
     installSync<TApi>(plugin: SynchronousEditorPlugin<TApi, TEvents>): TApi {
+        return this.installSyncForHost(plugin).api;
+    }
+
+    /** @internal Installs synchronously and returns the canonical definition retained by the Host. */
+    installSyncForHost<TApi>(
+        plugin: SynchronousEditorPlugin<TApi, TEvents>,
+    ): PluginInstallOutcome<TApi, TEvents> {
         this.assertCanInstall();
         if (this.topLevelInstallActive) {
             throw new PluginKernelStateError(
@@ -251,7 +286,10 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         this.topLevelInstallActive = true;
         try {
             const outcome = this.performInstallSync(plugin, 'strict', []);
-            return outcome.api as TApi;
+            return Object.freeze({
+                api: outcome.api as TApi,
+                installedPlugin: outcome.installedPlugin,
+            });
         } finally {
             this.topLevelInstallActive = false;
         }
@@ -549,9 +587,18 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             );
         }
         const candidatesById = new Map<string, PreparedBatchPlugin<TEvents>>();
+        const normalizedInputs = new WeakMap<object, NormalizedPluginDefinition<TEvents>>();
         const apisByPluginId = new Map<string, unknown>();
         for (const input of inputs) {
-            const plugin = this.normalizePluginDefinition(input);
+            const cacheKey =
+                (typeof input === 'object' || typeof input === 'function') && input !== null
+                    ? input
+                    : null;
+            let plugin = cacheKey ? normalizedInputs.get(cacheKey) : undefined;
+            if (!plugin) {
+                plugin = this.normalizePluginDefinition(input);
+                if (cacheKey) normalizedInputs.set(cacheKey, plugin);
+            }
             const pluginId = plugin.ref.id;
             const existing = this.installed.get(pluginId);
             if (existing) {
@@ -655,13 +702,11 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             );
         }
         const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
-        acquirePluginDefinitionLease(plugin.leaseIdentity, this, plugin.ref.id);
+        acquirePluginDefinitionLease(plugin, this, plugin.ref.id);
         const scope = new RegistrationScope(plugin.ref.id, this.options);
         visibleTransactions.add(scope.transactionId);
         try {
-            const contexts = this.createContexts(plugin.ref, scope, required, optional, [
-                plugin.ref.id,
-            ]);
+            const contexts = this.createContexts(plugin.ref, scope, required, optional);
             const api = plugin.setup(contexts.setup);
             if (isPromiseLike(api)) {
                 throw new InvalidPluginDefinitionError(
@@ -685,7 +730,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         } catch (error) {
             visibleTransactions.delete(scope.transactionId);
             const cleanupErrors = scope.rollbackSync();
-            releasePluginDefinitionLease(plugin.leaseIdentity, this);
+            releasePluginDefinitionLease(plugin, this);
             throw new PluginSetupError(plugin.ref.id, error, cleanupErrors);
         }
     }
@@ -711,7 +756,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 }
             }
             cleanupErrors.push(...record.scope.rollbackSync());
-            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
+            releasePluginDefinitionLease(record.plugin, this);
         }
         return Object.freeze(cleanupErrors);
     }
@@ -741,74 +786,13 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
     }
 
-    private async performInstall(
-        input: PluginDefinitionInput<TEvents>,
-        mode: 'strict' | 'ensure',
-        parentStack: readonly string[],
-    ): Promise<InstallOutcome> {
-        const plugin = this.normalizePluginDefinition(input);
-        const pluginId = plugin.ref.id;
-        if (parentStack.includes(pluginId)) {
-            throw new InvalidPluginDefinitionError(
-                `Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`,
-                pluginId,
-            );
-        }
-
-        const existing = this.installed.get(pluginId);
-        if (existing) {
-            if (mode === 'strict') throw new PluginAlreadyInstalledError(pluginId);
-            const compatible = sameInstallationDefinition(existing.plugin, plugin);
-            if (!compatible) {
-                throw new PluginVersionMismatchError(
-                    pluginId,
-                    existing.plugin.manifest.version,
-                    plugin.manifest.version,
-                    existing.plugin.ref.apiVersion,
-                    plugin.ref.apiVersion,
-                );
-            }
-            return { api: existing.api };
-        }
-
-        this.assertPluginDependenciesInstalled(plugin);
-        const { required, optional } = this.resolveCapabilities(plugin);
-        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
-        const scope = new RegistrationScope(pluginId, this.options);
-        const stack = [...parentStack, pluginId];
-
-        try {
-            const contexts = this.createContexts(plugin.ref, scope, required, optional, stack);
-            const api = await plugin.setup(contexts.setup);
-            if (!isPluginApi(api)) {
-                throw new InvalidPluginDefinitionError(
-                    `Plugin "${pluginId}" setup must return a non-null object or function API.`,
-                    pluginId,
-                );
-            }
-            scope.commit();
-            const record: InstalledPluginRecord<TEvents> = {
-                plugin,
-                refObject: plugin.ref,
-                api,
-                scope,
-                lifecycleContext: contexts.lifecycle,
-            };
-            this.installed.set(pluginId, record);
-            this.installationOrder.push(pluginId);
-            return { api };
-        } catch (error) {
-            const cleanupErrors = await scope.rollback();
-            releasePluginDefinitionLease(plugin.leaseIdentity, this);
-            throw new PluginSetupError(pluginId, error, cleanupErrors);
-        }
-    }
+    declare private performInstall: never;
 
     private performInstallSync<TApi>(
         input: SynchronousEditorPlugin<TApi, TEvents>,
         mode: 'strict' | 'ensure',
         parentStack: readonly string[],
-    ): InstallOutcome {
+    ): InstallOutcome<TEvents> {
         const plugin = this.normalizePluginDefinition(input);
         if (plugin.setupMode !== 'sync') {
             throw new InvalidPluginDefinitionError(
@@ -836,17 +820,14 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                     plugin.ref.apiVersion,
                 );
             }
-            return { api: existing.api };
+            return { api: existing.api, installedPlugin: existing.plugin };
         }
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
-        acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
+        acquirePluginDefinitionLease(plugin, this, pluginId);
         const scope = new RegistrationScope(pluginId, this.options);
         try {
-            const contexts = this.createContexts(plugin.ref, scope, required, optional, [
-                ...parentStack,
-                pluginId,
-            ]);
+            const contexts = this.createContexts(plugin.ref, scope, required, optional);
             const api = plugin.setup(contexts.setup);
             if (isPromiseLike(api)) {
                 throw new InvalidPluginDefinitionError(
@@ -869,10 +850,10 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 lifecycleContext: contexts.lifecycle,
             });
             this.installationOrder.push(pluginId);
-            return { api };
+            return { api, installedPlugin: plugin };
         } catch (error) {
             const cleanupErrors = scope.rollbackSync();
-            releasePluginDefinitionLease(plugin.leaseIdentity, this);
+            releasePluginDefinitionLease(plugin, this);
             throw new PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -936,7 +917,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         scope: RegistrationScope,
         required: ReadonlyMap<string, ResolvedCapability>,
         optional: ReadonlyMap<string, ResolvedCapability>,
-        stack: readonly string[],
+        dependencyInstaller?: (dependency: PluginDefinitionInput<TEvents>) => Promise<unknown>,
     ): {
         readonly setup: PluginSetupContext<TEvents>;
         readonly lifecycle: PluginLifecycleContext<TEvents>;
@@ -1076,29 +1057,14 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             },
         });
 
-        const ensurePluginNow = async (
-            dependency: PluginDefinitionInput<TEvents>,
-        ): Promise<unknown> => {
-            scope.assertOpen('ensure a composed plugin dependency');
-            const before = new Set(this.installationOrder);
-            const outcome = await this.performInstall(dependency, 'ensure', stack);
-            const newlyInstalled = this.installationOrder.filter((id) => !before.has(id));
-            for (const installedPluginId of newlyInstalled) {
-                scope.addRollback(
-                    createDisposable(() => this.rollbackInstalledPlugin(installedPluginId)),
+        const ensurePlugin =
+            dependencyInstaller ??
+            (() => {
+                throw new PluginKernelStateError(
+                    'install a composed dependency from synchronous Plugin setup',
+                    this.hostState,
                 );
-            }
-            return outcome.api;
-        };
-        let ensureQueue: Promise<void> = Promise.resolve();
-        const ensurePlugin = (dependency: PluginDefinitionInput<TEvents>): Promise<unknown> => {
-            const result = ensureQueue.then(() => ensurePluginNow(dependency));
-            ensureQueue = result.then(
-                () => undefined,
-                () => undefined,
-            );
-            return result;
-        };
+            });
         const disposables: DisposableScope = Object.freeze({
             get active(): boolean {
                 return scope.active;
@@ -1121,48 +1087,21 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 scope.assertOpen();
                 return scope.add(disposable);
             },
-            ensure: async <TApi>(dependency: EditorPlugin<TApi, TEvents>): Promise<TApi> => {
-                const api = await ensurePlugin(dependency);
-                return api as TApi;
-            },
+            ensure: <TApi>(dependency: EditorPlugin<TApi, TEvents>): Promise<TApi> =>
+                ensurePlugin(dependency) as Promise<TApi>,
             ensurePlugin,
         });
         return { setup, lifecycle };
     }
 
-    private async rollbackInstalledPlugin(pluginId: string): Promise<void> {
-        const record = this.installed.get(pluginId);
-        if (!record) return;
-        this.installed.delete(pluginId);
-        const orderIndex = this.installationOrder.lastIndexOf(pluginId);
-        if (orderIndex >= 0) this.installationOrder.splice(orderIndex, 1);
-        const errors: unknown[] = [];
-
-        if (record.plugin.onDispose) {
-            try {
-                await record.plugin.onDispose(record.lifecycleContext);
-            } catch (error) {
-                errors.push(new PluginLifecycleError(pluginId, 'dispose', error));
-            }
-        }
-        try {
-            await record.scope.dispose();
-        } catch (error) {
-            errors.push(error);
-        }
-        releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
-        if (errors.length > 0) {
-            throw new PluginAggregateError(
-                `[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`,
-                errors,
-                { pluginId },
-            );
-        }
-    }
+    declare private rollbackInstalledPlugin: never;
 
     private normalizePluginDefinition(
         plugin: PluginDefinitionInput<TEvents>,
     ): NormalizedPluginDefinition<TEvents> {
+        if (isCanonicalPluginDefinition(plugin)) {
+            return plugin as NormalizedPluginDefinition<TEvents>;
+        }
         if (typeof plugin !== 'object' || plugin === null) {
             throw new InvalidPluginDefinitionError('Plugin definition must be an object.');
         }
@@ -1192,12 +1131,25 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                       ...(plugin.permissions ? { permissions: plugin.permissions } : {}),
                   },
         );
-        return Object.freeze({
+        const normalized = Object.freeze({
             ...plugin,
             ref: plugin.ref,
             manifest,
-            leaseIdentity: resolvePluginDefinitionIdentity(plugin),
+            ...(!('manifest' in plugin)
+                ? {
+                      version: manifest.version,
+                      ...(manifest.requires ? { requires: manifest.requires } : {}),
+                      ...(manifest.optional ? { optional: manifest.optional } : {}),
+                      ...(manifest.permissions ? { permissions: manifest.permissions } : {}),
+                  }
+                : {}),
         });
+        return markCanonicalPluginDefinition(normalized, plugin);
+    }
+
+    /** @internal Provides a controlled bridge without importing the async installer. */
+    protected getAsyncInstallationHost(): AsyncPluginInstallationHost<TEvents> {
+        return this as unknown as AsyncPluginInstallationHost<TEvents>;
     }
 
     private async performDispose(): Promise<void> {
@@ -1247,7 +1199,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 errors.push(error);
                 reportErrorSafely(this.options.errorSink, error);
             }
-            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
+            releasePluginDefinitionLease(record.plugin, this);
         }
 
         this.installed.clear();
@@ -1307,7 +1259,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 errors.push(error);
                 reportErrorSafely(this.options.errorSink, error);
             }
-            releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
+            releasePluginDefinitionLease(record.plugin, this);
         }
         this.installed.clear();
         this.installationOrder.length = 0;

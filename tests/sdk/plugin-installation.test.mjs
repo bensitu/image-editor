@@ -124,6 +124,7 @@ test('exact duplicate objects are deduplicated and exact installed definitions a
 
     assert.equal(setupCalls, 1);
     assert.equal(first.installedPlugins.length, 1);
+    assert.equal(first.installedPlugins[0], plugin);
     assert.equal(second.installedPlugins.length, 0);
     assert.equal(second.apisByPluginId.get(ref.id), manager.get(ref));
     assert.throws(
@@ -131,6 +132,85 @@ test('exact duplicate objects are deduplicated and exact installed definitions a
         PluginDefinitionConflictError,
     );
     manager.disposeSync();
+});
+
+test('Kernel canonical definitions isolate replay from direct input mutation', () => {
+    const requiredCapability = createCapabilityToken('example:canonical-required', '1.0.0');
+    const optionalCapability = createCapabilityToken('example:canonical-optional', '1.0.0');
+    const dependencyRef = definePluginRef('example:canonical-dependency', '1.0.0');
+    const consumerRef = definePluginRef('example:canonical-consumer', '1.0.0');
+    const calls = [];
+    const dependency = createPlugin(dependencyRef);
+    const rawDefinition = {
+        ref: consumerRef,
+        manifest: {
+            id: consumerRef.id,
+            version: '1.0.0',
+            apiVersion: consumerRef.apiVersion,
+            engine: '^3.0.0',
+            requiresPlugins: [dependencyRef],
+            requires: [{ token: requiredCapability, range: '^1.0.0' }],
+            optional: [{ token: optionalCapability, range: '^1.0.0' }],
+            permissions: ['fabric:canvas-read'],
+        },
+        setupMode: 'sync',
+        setup(context) {
+            calls.push(`setup:${context.capabilities.require(requiredCapability).value}`);
+            return Object.freeze({ source: 'canonical' });
+        },
+        onDispose() {
+            calls.push('dispose:canonical');
+        },
+    };
+    const managerOptions = {
+        hostCapabilities: [
+            {
+                token: requiredCapability,
+                implementation: Object.freeze({ value: 'available' }),
+            },
+        ],
+    };
+    const firstManager = new PluginManager(managerOptions);
+    const firstOutcome = firstManager.installBatchSync([rawDefinition, dependency]);
+    const canonical = firstOutcome.installedPlugins.find((plugin) => plugin.ref === consumerRef);
+
+    assert.ok(canonical);
+    assert.notEqual(canonical, rawDefinition);
+    assert.ok(Object.isFrozen(canonical));
+    assert.ok(Object.isFrozen(canonical.manifest));
+    assert.ok(Object.isFrozen(canonical.manifest.requiresPlugins));
+    assert.ok(Object.isFrozen(canonical.manifest.requires));
+    assert.ok(Object.isFrozen(canonical.manifest.requires[0]));
+    assert.ok(Object.isFrozen(canonical.manifest.optional));
+    assert.ok(Object.isFrozen(canonical.manifest.optional[0]));
+    assert.ok(Object.isFrozen(canonical.manifest.permissions));
+
+    rawDefinition.manifest.requiresPlugins.length = 0;
+    rawDefinition.manifest.requires[0].range = '^2.0.0';
+    rawDefinition.manifest.optional.length = 0;
+    rawDefinition.manifest.permissions.length = 0;
+    rawDefinition.setup = () => {
+        calls.push('setup:mutated');
+        return Object.freeze({ source: 'mutated' });
+    };
+    rawDefinition.onDispose = () => calls.push('dispose:mutated');
+
+    firstManager.disposeSync();
+    const secondManager = new PluginManager(managerOptions);
+    const replayOutcome = secondManager.installBatchSync(firstOutcome.installedPlugins);
+
+    assert.equal(
+        replayOutcome.installedPlugins.find((plugin) => plugin.ref === consumerRef),
+        canonical,
+    );
+    assert.deepEqual(calls, ['setup:available', 'dispose:canonical', 'setup:available']);
+    secondManager.disposeSync();
+    assert.deepEqual(calls, [
+        'setup:available',
+        'dispose:canonical',
+        'setup:available',
+        'dispose:canonical',
+    ]);
 });
 
 test('a duplicate Capability provider fails the batch and removes the first provider API', () => {

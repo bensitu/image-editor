@@ -7,14 +7,12 @@
 import type * as FabricNS from 'fabric';
 
 import {
-    PluginManager,
     PluginLifecycleError,
     PluginNotInstalledError,
-    type EditorPlugin,
     type PluginRef,
     type SynchronousEditorPlugin,
 } from '../plugin-kernel/index.js';
-import { aliasPluginDefinitionIdentity } from '../plugin-kernel/plugin-definition-lease.js';
+import { PluginManager } from '../plugin-kernel/plugin-manager.js';
 import type { PluginDefinitionInput } from '../plugin-kernel/plugin-types.js';
 import {
     isPluginPlan,
@@ -341,77 +339,6 @@ interface PublishedPluginApi {
     readonly handle: StablePluginApiHandle;
 }
 
-function freezePluginDefinition(
-    definition: PluginDefinitionInput<CoreEventMap>,
-): PluginDefinitionInput<CoreEventMap> {
-    if (!('manifest' in definition)) {
-        return aliasPluginDefinitionIdentity(
-            Object.freeze({
-                ...definition,
-                ...(definition.requires
-                    ? {
-                          requires: Object.freeze(
-                              definition.requires.map((requirement) =>
-                                  Object.freeze({ ...requirement }),
-                              ),
-                          ),
-                      }
-                    : {}),
-                ...(definition.optional
-                    ? {
-                          optional: Object.freeze(
-                              definition.optional.map((requirement) =>
-                                  Object.freeze({ ...requirement }),
-                              ),
-                          ),
-                      }
-                    : {}),
-                ...(definition.permissions
-                    ? { permissions: Object.freeze([...definition.permissions]) }
-                    : {}),
-            }),
-            definition,
-        );
-    }
-    return aliasPluginDefinitionIdentity(
-        Object.freeze({
-            ...definition,
-            manifest: Object.freeze({
-                ...definition.manifest,
-                ...(definition.manifest.requiresPlugins
-                    ? {
-                          requiresPlugins: Object.freeze([...definition.manifest.requiresPlugins]),
-                      }
-                    : {}),
-                ...(definition.manifest.requires
-                    ? {
-                          requires: Object.freeze(
-                              definition.manifest.requires.map((requirement) =>
-                                  Object.freeze({ ...requirement }),
-                              ),
-                          ),
-                      }
-                    : {}),
-                ...(definition.manifest.optional
-                    ? {
-                          optional: Object.freeze(
-                              definition.manifest.optional.map((requirement) =>
-                                  Object.freeze({ ...requirement }),
-                              ),
-                          ),
-                      }
-                    : {}),
-                ...(definition.manifest.permissions
-                    ? {
-                          permissions: Object.freeze([...definition.manifest.permissions]),
-                      }
-                    : {}),
-            }),
-        }),
-        definition,
-    );
-}
-
 export class ImageEditorCore {
     declare readonly options: ResolvedImageEditorCoreOptions;
     declare private readonly slices: StateSliceRegistry;
@@ -615,9 +542,9 @@ export class ImageEditorCore {
 
     use<TApi>(plugin: SynchronousEditorPlugin<TApi, CoreEventMap>): TApi {
         this.lifecycle.assertAvailable('install a plugin');
-        const api = this.plugins.installSync(plugin);
-        this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
-        return this.publishPluginApi(plugin.ref.id, api);
+        const outcome = this.plugins.installSyncForHost(plugin);
+        this.installationPlan.push(Object.freeze({ definition: outcome.installedPlugin }));
+        return this.publishPluginApi(plugin.ref.id, outcome.api);
     }
 
     install<TApis, TPlugin extends { readonly ref: PluginRef<unknown> }>(
@@ -637,9 +564,7 @@ export class ImageEditorCore {
             plugins as readonly SynchronousEditorPlugin<unknown, CoreEventMap>[],
         );
         for (const plugin of outcome.installedPlugins) {
-            this.installationPlan.push(
-                Object.freeze({ definition: freezePluginDefinition(plugin) }),
-            );
+            this.installationPlan.push(Object.freeze({ definition: plugin }));
         }
         const resolveApi = (plugin: { readonly ref: PluginRef<unknown> }): unknown => {
             const api = outcome.apisByPluginId.get(plugin.ref.id);
@@ -652,18 +577,6 @@ export class ImageEditorCore {
             return resolvePluginPlanApis(pluginsOrPlan, resolveApi);
         }
         return Object.freeze(pluginsOrPlan.map((plugin) => resolveApi(plugin)));
-    }
-
-    /** @internal Asynchronous setup is retained for repository-owned integration paths. */
-    async useAsync<TApi>(plugin: EditorPlugin<TApi, CoreEventMap>): Promise<TApi> {
-        this.lifecycle.assertAvailable('install a plugin');
-        const api = await this.plugins.install(plugin);
-        this.installationPlan.push(
-            Object.freeze({
-                definition: freezePluginDefinition(plugin),
-            }),
-        );
-        return this.publishPluginApi(plugin.ref.id, api);
     }
 
     getPlugin<TApi>(ref: PluginRef<TApi>): TApi | null {
@@ -1447,7 +1360,9 @@ export class ImageEditorCore {
         const manager = this.createPluginManager();
         try {
             for (const planned of this.installationPlan) {
-                await manager.install(planned.definition as EditorPlugin<unknown, CoreEventMap>);
+                manager.installSync(
+                    planned.definition as SynchronousEditorPlugin<unknown, CoreEventMap>,
+                );
             }
             const replayedApis = new Map<string, object | ((...args: unknown[]) => unknown)>();
             for (const pluginId of this.pluginApiHandles.keys()) {

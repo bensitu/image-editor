@@ -4,7 +4,7 @@
  * @module
  */
 
-import { PluginManager } from '../plugin-kernel/plugin-manager.js';
+import { AsyncPluginManager } from '../plugin-kernel/async-plugin-manager.js';
 import type { EditorPlugin } from '../plugin-kernel/plugin-types.js';
 import type {
     CapabilityToken,
@@ -50,7 +50,7 @@ export function createPluginTestHost<TEvents extends object = object>(
 ): PluginTestHost<TEvents> {
     const warnings: unknown[] = [];
     const errors: unknown[] = [];
-    const manager = new PluginManager<TEvents>({
+    const manager = new AsyncPluginManager<TEvents>({
         warningSink: (warning) => warnings.push(warning),
         errorSink: (error) => errors.push(error),
         hostCapabilities: (options.hostCapabilities ?? []).map((provider) => ({

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import * as sdk from '../../src/sdk/index.js';
-import { PluginManager } from '../../src/plugin-kernel/plugin-manager.js';
+import { AsyncPluginManager } from '../../src/plugin-kernel/async-plugin-manager.js';
 
 const {
     PluginApiVersionError,
@@ -142,7 +142,7 @@ test('manifest validation rejects identity, API, engine, and permission failures
 
     for (const scenario of scenarios) {
         await t.test(scenario.name, async () => {
-            const manager = new PluginManager();
+            const manager = new AsyncPluginManager();
             const ref = definePluginRef(
                 `example:${scenario.name.toLowerCase().replaceAll(' ', '-')}`,
                 '1.0.0',

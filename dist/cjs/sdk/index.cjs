@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 const require_plugin_identifier = require('../chunks/plugin-identifier-gLkfk0AM.cjs');
-const require_core_capabilities = require('../chunks/core-capabilities-DfizIg7d.cjs');
-const require_sdk = require('../chunks/sdk-DULljMMa.cjs');
+const require_core_capabilities = require('../chunks/core-capabilities-CWXMFfBX.cjs');
+const require_sdk = require('../chunks/sdk-gbqAx9cR.cjs');
 
 exports.BASE_IMAGE_INFO_CAPABILITY = require_core_capabilities.BASE_IMAGE_INFO_CAPABILITY;
 exports.BASE_IMAGE_READ_CAPABILITY = require_core_capabilities.BASE_IMAGE_READ_CAPABILITY;

@@ -1,9 +1,9 @@
-import { PluginManager } from '../plugin-kernel/plugin-manager.js';
+import { AsyncPluginManager } from '../plugin-kernel/async-plugin-manager.js';
 export function createPluginTestHost(options = {}) {
     var _a;
     const warnings = [];
     const errors = [];
-    const manager = new PluginManager({
+    const manager = new AsyncPluginManager({
         warningSink: (warning) => warnings.push(warning),
         errorSink: (error) => errors.push(error),
         hostCapabilities: ((_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []).map((provider) => ({

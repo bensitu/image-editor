@@ -31,6 +31,23 @@ export function aliasPluginDefinitionIdentity<TDefinition extends object>(
     return snapshot;
 }
 
+/** @internal Marks an immutable Kernel-owned definition without changing its public shape. */
+export function markCanonicalPluginDefinition<TDefinition extends object>(
+    definition: TDefinition,
+    source: object = definition,
+): TDefinition {
+    return aliasPluginDefinitionIdentity(definition, source);
+}
+
+/** @internal Recognizes definitions already validated and frozen by the Kernel boundary. */
+export function isCanonicalPluginDefinition(definition: unknown): boolean {
+    return (
+        (typeof definition === 'object' || typeof definition === 'function') &&
+        definition !== null &&
+        definitionAliases.has(definition)
+    );
+}
+
 export function acquirePluginDefinitionLease(
     definition: object,
     host: PluginDefinitionLeaseHost,
@@ -46,8 +63,9 @@ export function acquirePluginDefinitionLease(
 }
 
 export function releasePluginDefinitionLease(
-    identity: object,
+    definition: object,
     host: PluginDefinitionLeaseHost,
 ): void {
+    const identity = resolvePluginDefinitionIdentity(definition);
     if (definitionLeases.get(identity) === host) definitionLeases.delete(identity);
 }

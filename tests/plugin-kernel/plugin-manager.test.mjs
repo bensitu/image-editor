@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { AsyncPluginManager as PluginManager } from '../../src/plugin-kernel/async-plugin-manager.js';
 import {
     CapabilityMissingError,
     InvalidPluginDefinitionError,
@@ -10,7 +11,6 @@ import {
     PluginKernelDisposedError,
     PluginKernelStateError,
     PluginLifecycleError,
-    PluginManager,
     PluginNotInstalledError,
     PluginSetupError,
     PluginStateStore,

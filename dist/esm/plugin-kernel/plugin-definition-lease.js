@@ -14,6 +14,14 @@ export function aliasPluginDefinitionIdentity(snapshot, source) {
     definitionAliases.set(snapshot, resolvePluginDefinitionIdentity(source));
     return snapshot;
 }
+export function markCanonicalPluginDefinition(definition, source = definition) {
+    return aliasPluginDefinitionIdentity(definition, source);
+}
+export function isCanonicalPluginDefinition(definition) {
+    return ((typeof definition === 'object' || typeof definition === 'function') &&
+        definition !== null &&
+        definitionAliases.has(definition));
+}
 export function acquirePluginDefinitionLease(definition, host, pluginId) {
     const identity = resolvePluginDefinitionIdentity(definition);
     const boundHost = definitionLeases.get(identity);
@@ -23,7 +31,8 @@ export function acquirePluginDefinitionLease(definition, host, pluginId) {
     definitionLeases.set(identity, host);
     return identity;
 }
-export function releasePluginDefinitionLease(identity, host) {
+export function releasePluginDefinitionLease(definition, host) {
+    const identity = resolvePluginDefinitionIdentity(definition);
     if (definitionLeases.get(identity) === host)
         definitionLeases.delete(identity);
 }

@@ -1522,6 +1522,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		definitionAliases.set(snapshot, resolvePluginDefinitionIdentity(source));
 		return snapshot;
 	}
+	function markCanonicalPluginDefinition(definition, source = definition) {
+		return aliasPluginDefinitionIdentity(definition, source);
+	}
+	function isCanonicalPluginDefinition(definition) {
+		return (typeof definition === "object" || typeof definition === "function") && definition !== null && definitionAliases.has(definition);
+	}
 	function acquirePluginDefinitionLease(definition, host, pluginId) {
 		const identity = resolvePluginDefinitionIdentity(definition);
 		const boundHost = definitionLeases.get(identity);
@@ -1529,7 +1535,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		definitionLeases.set(identity, host);
 		return identity;
 	}
-	function releasePluginDefinitionLease(identity, host) {
+	function releasePluginDefinitionLease(definition, host) {
+		const identity = resolvePluginDefinitionIdentity(definition);
 		if (definitionLeases.get(identity) === host) definitionLeases.delete(identity);
 	}
 
@@ -2029,22 +2036,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		get state() {
 			return this.hostState;
 		}
-		async install(plugin) {
-			this.assertCanInstall();
-			if (this.topLevelInstallActive) throw new PluginKernelStateError("start a concurrent plugin installation", this.hostState);
-			this.topLevelInstallActive = true;
-			try {
-				return (await this.performInstall(plugin, "strict", [])).api;
-			} finally {
-				this.topLevelInstallActive = false;
-			}
+		install(plugin) {
+			return Promise.reject(new PluginKernelStateError("install an asynchronous Plugin", this.hostState));
 		}
 		installSync(plugin) {
+			return this.installSyncForHost(plugin).api;
+		}
+		installSyncForHost(plugin) {
 			this.assertCanInstall();
 			if (this.topLevelInstallActive) throw new PluginKernelStateError("start a concurrent plugin installation", this.hostState);
 			this.topLevelInstallActive = true;
 			try {
-				return this.performInstallSync(plugin, "strict", []).api;
+				const outcome = this.performInstallSync(plugin, "strict", []);
+				return Object.freeze({
+					api: outcome.api,
+					installedPlugin: outcome.installedPlugin
+				});
 			} finally {
 				this.topLevelInstallActive = false;
 			}
@@ -2228,9 +2235,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a;
 			if (!Array.isArray(inputs) || inputs.length === 0) throw new InvalidPluginDefinitionError("Plugin batch must contain at least one Plugin.");
 			const candidatesById = /* @__PURE__ */ new Map();
+			const normalizedInputs = /* @__PURE__ */ new WeakMap();
 			const apisByPluginId = /* @__PURE__ */ new Map();
 			for (const input of inputs) {
-				const plugin = this.normalizePluginDefinition(input);
+				const cacheKey = (typeof input === "object" || typeof input === "function") && input !== null ? input : null;
+				let plugin = cacheKey ? normalizedInputs.get(cacheKey) : void 0;
+				if (!plugin) {
+					plugin = this.normalizePluginDefinition(input);
+					if (cacheKey) normalizedInputs.set(cacheKey, plugin);
+				}
 				const pluginId = plugin.ref.id;
 				const existing = this.installed.get(pluginId);
 				if (existing) {
@@ -2309,11 +2322,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		performPendingInstallSync(plugin, visibleTransactions) {
 			if (plugin.setupMode !== "sync") throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
 			const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
-			acquirePluginDefinitionLease(plugin.leaseIdentity, this, plugin.ref.id);
+			acquirePluginDefinitionLease(plugin, this, plugin.ref.id);
 			const scope = new RegistrationScope(plugin.ref.id, this.options);
 			visibleTransactions.add(scope.transactionId);
 			try {
-				const contexts = this.createContexts(plugin.ref, scope, required, optional, [plugin.ref.id]);
+				const contexts = this.createContexts(plugin.ref, scope, required, optional);
 				const api = plugin.setup(contexts.setup);
 				if (isPromiseLike(api)) throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" returned a Promise from synchronous setup.`, plugin.ref.id);
 				if (!isPluginApi(api)) throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" setup must return a non-null object or function API.`, plugin.ref.id);
@@ -2327,7 +2340,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} catch (error) {
 				visibleTransactions.delete(scope.transactionId);
 				const cleanupErrors = scope.rollbackSync();
-				releasePluginDefinitionLease(plugin.leaseIdentity, this);
+				releasePluginDefinitionLease(plugin, this);
 				throw new PluginSetupError(plugin.ref.id, error, cleanupErrors);
 			}
 		}
@@ -2346,7 +2359,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					cleanupErrors.push(new PluginLifecycleError(record.plugin.ref.id, "dispose", error));
 				}
 				cleanupErrors.push(...record.scope.rollbackSync());
-				releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
+				releasePluginDefinitionLease(record.plugin, this);
 			}
 			return Object.freeze(cleanupErrors);
 		}
@@ -2368,42 +2381,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				throw this.createDependencyError(plugin.ref.id, dependency, [...this.installed.keys()]);
 			}
 		}
-		async performInstall(input, mode, parentStack) {
-			const plugin = this.normalizePluginDefinition(input);
-			const pluginId = plugin.ref.id;
-			if (parentStack.includes(pluginId)) throw new InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(" -> ")}.`, pluginId);
-			const existing = this.installed.get(pluginId);
-			if (existing) {
-				if (mode === "strict") throw new PluginAlreadyInstalledError(pluginId);
-				if (!sameInstallationDefinition(existing.plugin, plugin)) throw new PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
-				return { api: existing.api };
-			}
-			this.assertPluginDependenciesInstalled(plugin);
-			const { required, optional } = this.resolveCapabilities(plugin);
-			acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
-			const scope = new RegistrationScope(pluginId, this.options);
-			const stack = [...parentStack, pluginId];
-			try {
-				const contexts = this.createContexts(plugin.ref, scope, required, optional, stack);
-				const api = await plugin.setup(contexts.setup);
-				if (!isPluginApi(api)) throw new InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
-				scope.commit();
-				const record = {
-					plugin,
-					refObject: plugin.ref,
-					api,
-					scope,
-					lifecycleContext: contexts.lifecycle
-				};
-				this.installed.set(pluginId, record);
-				this.installationOrder.push(pluginId);
-				return { api };
-			} catch (error) {
-				const cleanupErrors = await scope.rollback();
-				releasePluginDefinitionLease(plugin.leaseIdentity, this);
-				throw new PluginSetupError(pluginId, error, cleanupErrors);
-			}
-		}
 		performInstallSync(input, mode, parentStack) {
 			const plugin = this.normalizePluginDefinition(input);
 			if (plugin.setupMode !== "sync") throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`, plugin.ref.id);
@@ -2413,14 +2390,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (existing) {
 				if (mode === "strict") throw new PluginAlreadyInstalledError(pluginId);
 				if (!sameInstallationDefinition(existing.plugin, plugin)) throw new PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
-				return { api: existing.api };
+				return {
+					api: existing.api,
+					installedPlugin: existing.plugin
+				};
 			}
 			this.assertPluginDependenciesInstalled(plugin);
 			const { required, optional } = this.resolveCapabilities(plugin);
-			acquirePluginDefinitionLease(plugin.leaseIdentity, this, pluginId);
+			acquirePluginDefinitionLease(plugin, this, pluginId);
 			const scope = new RegistrationScope(pluginId, this.options);
 			try {
-				const contexts = this.createContexts(plugin.ref, scope, required, optional, [...parentStack, pluginId]);
+				const contexts = this.createContexts(plugin.ref, scope, required, optional);
 				const api = plugin.setup(contexts.setup);
 				if (isPromiseLike(api)) throw new InvalidPluginDefinitionError(`Plugin "${pluginId}" returned a Promise from synchronous setup.`, pluginId);
 				if (!isPluginApi(api)) throw new InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
@@ -2433,10 +2413,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					lifecycleContext: contexts.lifecycle
 				});
 				this.installationOrder.push(pluginId);
-				return { api };
+				return {
+					api,
+					installedPlugin: plugin
+				};
 			} catch (error) {
 				const cleanupErrors = scope.rollbackSync();
-				releasePluginDefinitionLease(plugin.leaseIdentity, this);
+				releasePluginDefinitionLease(plugin, this);
 				throw new PluginSetupError(pluginId, error, cleanupErrors);
 			}
 		}
@@ -2471,7 +2454,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!permission || ((_a = plugin.manifest.permissions) === null || _a === void 0 ? void 0 : _a.includes(permission))) return;
 			throw new PluginPermissionError(plugin.ref.id, permission, capabilityId);
 		}
-		createContexts(plugin, scope, required, optional, stack) {
+		createContexts(plugin, scope, required, optional, dependencyInstaller) {
 			const pluginId = plugin.id;
 			const state = this.stateStore.createScoped(pluginId, (disposable) => scope.add(disposable), (disposable) => scope.addFinalizer(disposable), () => scope.active);
 			const capabilities = Object.freeze({
@@ -2560,20 +2543,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return scope.add(this.eventBus.on(eventName, listener));
 				}
 			});
-			const ensurePluginNow = async (dependency) => {
-				scope.assertOpen("ensure a composed plugin dependency");
-				const before = new Set(this.installationOrder);
-				const outcome = await this.performInstall(dependency, "ensure", stack);
-				const newlyInstalled = this.installationOrder.filter((id) => !before.has(id));
-				for (const installedPluginId of newlyInstalled) scope.addRollback(createDisposable(() => this.rollbackInstalledPlugin(installedPluginId)));
-				return outcome.api;
-			};
-			let ensureQueue = Promise.resolve();
-			const ensurePlugin = (dependency) => {
-				const result = ensureQueue.then(() => ensurePluginNow(dependency));
-				ensureQueue = result.then(() => void 0, () => void 0);
-				return result;
-			};
+			const ensurePlugin = dependencyInstaller !== null && dependencyInstaller !== void 0 ? dependencyInstaller : (() => {
+				throw new PluginKernelStateError("install a composed dependency from synchronous Plugin setup", this.hostState);
+			});
 			const disposables = Object.freeze({
 				get active() {
 					return scope.active;
@@ -2597,35 +2569,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						scope.assertOpen();
 						return scope.add(disposable);
 					},
-					ensure: async (dependency) => {
-						return await ensurePlugin(dependency);
-					},
+					ensure: (dependency) => ensurePlugin(dependency),
 					ensurePlugin
 				}),
 				lifecycle
 			};
 		}
-		async rollbackInstalledPlugin(pluginId) {
-			const record = this.installed.get(pluginId);
-			if (!record) return;
-			this.installed.delete(pluginId);
-			const orderIndex = this.installationOrder.lastIndexOf(pluginId);
-			if (orderIndex >= 0) this.installationOrder.splice(orderIndex, 1);
-			const errors = [];
-			if (record.plugin.onDispose) try {
-				await record.plugin.onDispose(record.lifecycleContext);
-			} catch (error) {
-				errors.push(new PluginLifecycleError(pluginId, "dispose", error));
-			}
-			try {
-				await record.scope.dispose();
-			} catch (error) {
-				errors.push(error);
-			}
-			releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
-			if (errors.length > 0) throw new PluginAggregateError(`[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`, errors, { pluginId });
-		}
 		normalizePluginDefinition(plugin) {
+			if (isCanonicalPluginDefinition(plugin)) return plugin;
 			if (typeof plugin !== "object" || plugin === null) throw new InvalidPluginDefinitionError("Plugin definition must be an object.");
 			if (!isPluginRef(plugin.ref)) throw new InvalidPluginDefinitionError("Plugin definition must use a PluginRef created by definePluginRef().");
 			if (typeof plugin.setup !== "function") throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must define setup().`, plugin.ref.id);
@@ -2638,12 +2589,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...plugin.optional ? { optional: plugin.optional } : {},
 				...plugin.permissions ? { permissions: plugin.permissions } : {}
 			});
-			return Object.freeze({
+			return markCanonicalPluginDefinition(Object.freeze({
 				...plugin,
 				ref: plugin.ref,
 				manifest,
-				leaseIdentity: resolvePluginDefinitionIdentity(plugin)
-			});
+				...!("manifest" in plugin) ? {
+					version: manifest.version,
+					...manifest.requires ? { requires: manifest.requires } : {},
+					...manifest.optional ? { optional: manifest.optional } : {},
+					...manifest.permissions ? { permissions: manifest.permissions } : {}
+				} : {}
+			}), plugin);
+		}
+		getAsyncInstallationHost() {
+			return this;
 		}
 		async performDispose() {
 			const errors = await this.cleanupAll();
@@ -2676,7 +2635,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					errors.push(error);
 					reportErrorSafely(this.options.errorSink, error);
 				}
-				releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
+				releasePluginDefinitionLease(record.plugin, this);
 			}
 			this.installed.clear();
 			this.installationOrder.length = 0;
@@ -2721,7 +2680,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					errors.push(error);
 					reportErrorSafely(this.options.errorSink, error);
 				}
-				releasePluginDefinitionLease(record.plugin.leaseIdentity, this);
+				releasePluginDefinitionLease(record.plugin, this);
 			}
 			this.installed.clear();
 			this.installationOrder.length = 0;
@@ -5967,24 +5926,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
 		return new File([bytes], fileName, { type: mimeType });
 	}
-	function freezePluginDefinition(definition) {
-		if (!("manifest" in definition)) return aliasPluginDefinitionIdentity(Object.freeze({
-			...definition,
-			...definition.requires ? { requires: Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement }))) } : {},
-			...definition.optional ? { optional: Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement }))) } : {},
-			...definition.permissions ? { permissions: Object.freeze([...definition.permissions]) } : {}
-		}), definition);
-		return aliasPluginDefinitionIdentity(Object.freeze({
-			...definition,
-			manifest: Object.freeze({
-				...definition.manifest,
-				...definition.manifest.requiresPlugins ? { requiresPlugins: Object.freeze([...definition.manifest.requiresPlugins]) } : {},
-				...definition.manifest.requires ? { requires: Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement }))) } : {},
-				...definition.manifest.optional ? { optional: Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement }))) } : {},
-				...definition.manifest.permissions ? { permissions: Object.freeze([...definition.manifest.permissions]) } : {}
-			})
-		}), definition);
-	}
 	var ImageEditorCore = class {
 		constructor(fabric, options = {}) {
 			Object.defineProperty(this, "fabric", {
@@ -6125,15 +6066,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		use(plugin) {
 			this.lifecycle.assertAvailable("install a plugin");
-			const api = this.plugins.installSync(plugin);
-			this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
-			return this.publishPluginApi(plugin.ref.id, api);
+			const outcome = this.plugins.installSyncForHost(plugin);
+			this.installationPlan.push(Object.freeze({ definition: outcome.installedPlugin }));
+			return this.publishPluginApi(plugin.ref.id, outcome.api);
 		}
 		install(pluginsOrPlan) {
 			this.lifecycle.assertAvailable("install a plugin batch");
 			const plugins = isPluginPlan(pluginsOrPlan) ? pluginsOrPlan.plugins : pluginsOrPlan;
 			const outcome = this.plugins.installBatchSync(plugins);
-			for (const plugin of outcome.installedPlugins) this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
+			for (const plugin of outcome.installedPlugins) this.installationPlan.push(Object.freeze({ definition: plugin }));
 			const resolveApi = (plugin) => {
 				const api = outcome.apisByPluginId.get(plugin.ref.id);
 				if (api === void 0) throw new PluginNotInstalledError(plugin.ref.id);
@@ -6141,12 +6082,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			};
 			if (isPluginPlan(pluginsOrPlan)) return resolvePluginPlanApis(pluginsOrPlan, resolveApi);
 			return Object.freeze(pluginsOrPlan.map((plugin) => resolveApi(plugin)));
-		}
-		async useAsync(plugin) {
-			this.lifecycle.assertAvailable("install a plugin");
-			const api = await this.plugins.install(plugin);
-			this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
-			return this.publishPluginApi(plugin.ref.id, api);
 		}
 		getPlugin(ref) {
 			const api = this.plugins.get(ref);
@@ -6749,7 +6684,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a, _b;
 			const manager = this.createPluginManager();
 			try {
-				for (const planned of this.installationPlan) await manager.install(planned.definition);
+				for (const planned of this.installationPlan) manager.installSync(planned.definition);
 				const replayedApis = /* @__PURE__ */ new Map();
 				for (const pluginId of this.pluginApiHandles.keys()) {
 					const api = manager.getById(pluginId);
@@ -7200,10 +7135,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (typeof definition.setup !== "function") throw new InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must define setup().`, definition.ref.id);
 		if (definition.setupMode !== "sync") throw new InvalidPluginDefinitionError(`Plugin "${definition.ref.id}" must declare setupMode "sync" for the public SDK.`, definition.ref.id);
 		const manifest = validatePluginManifest(definition.ref, definition.manifest);
-		return Object.freeze({
+		return markCanonicalPluginDefinition(Object.freeze({
 			...definition,
 			manifest
-		});
+		}));
 	}
 
 //#endregion

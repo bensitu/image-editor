@@ -1,5 +1,5 @@
-import { PluginManager, PluginLifecycleError, PluginNotInstalledError, } from '../plugin-kernel/index.js';
-import { aliasPluginDefinitionIdentity } from '../plugin-kernel/plugin-definition-lease.js';
+import { PluginLifecycleError, PluginNotInstalledError, } from '../plugin-kernel/index.js';
+import { PluginManager } from '../plugin-kernel/plugin-manager.js';
 import { isPluginPlan, resolvePluginPlanApis, } from '../plugin-kernel/plugin-plan.js';
 import { applyCanvasDimensions, computeCoverLayout, computeExpandLayout, computeFitLayout, computeScrollableCanvasSize, measureScrollbarSize, selectLayoutStrategy, ViewportCache, } from '../image/layout-manager.js';
 import { CanvasCoreStateAdapter } from './core-state-adapter.js';
@@ -172,52 +172,6 @@ function base64ToFile(dataUrl, fileName) {
         bytes[index] = binary.charCodeAt(index);
     return new File([bytes], fileName, { type: mimeType });
 }
-function freezePluginDefinition(definition) {
-    if (!('manifest' in definition)) {
-        return aliasPluginDefinitionIdentity(Object.freeze({
-            ...definition,
-            ...(definition.requires
-                ? {
-                    requires: Object.freeze(definition.requires.map((requirement) => Object.freeze({ ...requirement }))),
-                }
-                : {}),
-            ...(definition.optional
-                ? {
-                    optional: Object.freeze(definition.optional.map((requirement) => Object.freeze({ ...requirement }))),
-                }
-                : {}),
-            ...(definition.permissions
-                ? { permissions: Object.freeze([...definition.permissions]) }
-                : {}),
-        }), definition);
-    }
-    return aliasPluginDefinitionIdentity(Object.freeze({
-        ...definition,
-        manifest: Object.freeze({
-            ...definition.manifest,
-            ...(definition.manifest.requiresPlugins
-                ? {
-                    requiresPlugins: Object.freeze([...definition.manifest.requiresPlugins]),
-                }
-                : {}),
-            ...(definition.manifest.requires
-                ? {
-                    requires: Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement }))),
-                }
-                : {}),
-            ...(definition.manifest.optional
-                ? {
-                    optional: Object.freeze(definition.manifest.optional.map((requirement) => Object.freeze({ ...requirement }))),
-                }
-                : {}),
-            ...(definition.manifest.permissions
-                ? {
-                    permissions: Object.freeze([...definition.manifest.permissions]),
-                }
-                : {}),
-        }),
-    }), definition);
-}
 export class ImageEditorCore {
     constructor(fabric, options = {}) {
         Object.defineProperty(this, "fabric", {
@@ -359,16 +313,16 @@ export class ImageEditorCore {
     }
     use(plugin) {
         this.lifecycle.assertAvailable('install a plugin');
-        const api = this.plugins.installSync(plugin);
-        this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
-        return this.publishPluginApi(plugin.ref.id, api);
+        const outcome = this.plugins.installSyncForHost(plugin);
+        this.installationPlan.push(Object.freeze({ definition: outcome.installedPlugin }));
+        return this.publishPluginApi(plugin.ref.id, outcome.api);
     }
     install(pluginsOrPlan) {
         this.lifecycle.assertAvailable('install a plugin batch');
         const plugins = isPluginPlan(pluginsOrPlan) ? pluginsOrPlan.plugins : pluginsOrPlan;
         const outcome = this.plugins.installBatchSync(plugins);
         for (const plugin of outcome.installedPlugins) {
-            this.installationPlan.push(Object.freeze({ definition: freezePluginDefinition(plugin) }));
+            this.installationPlan.push(Object.freeze({ definition: plugin }));
         }
         const resolveApi = (plugin) => {
             const api = outcome.apisByPluginId.get(plugin.ref.id);
@@ -381,14 +335,6 @@ export class ImageEditorCore {
             return resolvePluginPlanApis(pluginsOrPlan, resolveApi);
         }
         return Object.freeze(pluginsOrPlan.map((plugin) => resolveApi(plugin)));
-    }
-    async useAsync(plugin) {
-        this.lifecycle.assertAvailable('install a plugin');
-        const api = await this.plugins.install(plugin);
-        this.installationPlan.push(Object.freeze({
-            definition: freezePluginDefinition(plugin),
-        }));
-        return this.publishPluginApi(plugin.ref.id, api);
     }
     getPlugin(ref) {
         const api = this.plugins.get(ref);
@@ -1069,7 +1015,7 @@ export class ImageEditorCore {
         const manager = this.createPluginManager();
         try {
             for (const planned of this.installationPlan) {
-                await manager.install(planned.definition);
+                manager.installSync(planned.definition);
             }
             const replayedApis = new Map();
             for (const pluginId of this.pluginApiHandles.keys()) {
