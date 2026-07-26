@@ -5,21 +5,19 @@
  */
 
 export const BUNDLE_MEASUREMENT_CONFIG = Object.freeze({
-    rollup: Object.freeze({
+    bundler: Object.freeze({
+        platform: 'browser',
         format: 'es',
         exports: 'named',
-        inlineDynamicImports: true,
+        codeSplitting: false,
         sourcemap: false,
+        minify: false,
         treeshake: Object.freeze({
             moduleSideEffects: false,
             propertyReadSideEffects: false,
         }),
     }),
-    terser: Object.freeze({
-        compressPasses: 2,
-        comments: false,
-        mangle: true,
-    }),
+    minifier: Object.freeze({ minify: true }),
     gzip: Object.freeze({ level: 9 }),
     brotli: Object.freeze({ quality: 11 }),
 });

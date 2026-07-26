@@ -4,14 +4,11 @@
  * @module
  */
 
-import commonjs from '@rollup/plugin-commonjs';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
-import terser from '@rollup/plugin-terser';
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { rollup } from 'rollup';
+import { rolldown } from 'rolldown';
 
 import {
     BUNDLE_MEASUREMENT_CONFIG,
@@ -262,10 +259,39 @@ function packageAlias(packageRoot) {
     };
 }
 
-function getChunk(output) {
+function validateGeneratedOutput(output) {
+    if (!output || !Array.isArray(output.output)) {
+        throw new Error(
+            'Rolldown output metadata is incompatible: expected an object with an output array.',
+        );
+    }
+    for (const item of output.output) {
+        if (item?.type === 'chunk') {
+            if (
+                typeof item.code !== 'string' ||
+                !item.modules ||
+                typeof item.modules !== 'object' ||
+                Array.isArray(item.modules) ||
+                !Array.isArray(item.moduleIds)
+            ) {
+                throw new Error(
+                    'Rolldown chunk metadata is incompatible: expected code, modules, and moduleIds.',
+                );
+            }
+        } else if (item?.type !== 'asset') {
+            throw new Error(
+                `Rolldown output metadata is incompatible: unexpected item type "${String(item?.type)}".`,
+            );
+        }
+    }
+    return output;
+}
+
+function getChunk(generatedOutput) {
+    const output = validateGeneratedOutput(generatedOutput);
     const chunks = output.output.filter((item) => item.type === 'chunk');
     if (chunks.length !== 1) {
-        throw new Error(`Expected one inline fixture chunk, received ${chunks.length}.`);
+        throw new Error(`Expected one fixture chunk, received ${chunks.length}.`);
     }
     return chunks[0];
 }
@@ -279,41 +305,31 @@ async function measureFixture(fixture, packageRoot) {
             if (isExternal) externalDependencies.add('fabric');
             return isExternal;
         },
-        plugins: [
-            packageAlias(packageRoot),
-            nodeResolve({ browser: true, preferBuiltins: true }),
-            commonjs(),
-        ],
+        platform: BUNDLE_MEASUREMENT_CONFIG.bundler.platform,
+        plugins: [packageAlias(packageRoot)],
         treeshake: {
-            ...BUNDLE_MEASUREMENT_CONFIG.rollup.treeshake,
+            ...BUNDLE_MEASUREMENT_CONFIG.bundler.treeshake,
         },
-        onwarn(warning, warn) {
-            if (warning.code === 'CIRCULAR_DEPENDENCY') return;
-            warn(warning);
+        onLog(level, log, defaultHandler) {
+            if (log.code === 'CIRCULAR_DEPENDENCY') return;
+            defaultHandler(level, log);
         },
     };
     const outputOptions = {
-        format: 'es',
-        exports: 'named',
-        inlineDynamicImports: true,
-        sourcemap: BUNDLE_MEASUREMENT_CONFIG.rollup.sourcemap,
+        format: BUNDLE_MEASUREMENT_CONFIG.bundler.format,
+        exports: BUNDLE_MEASUREMENT_CONFIG.bundler.exports,
+        codeSplitting: BUNDLE_MEASUREMENT_CONFIG.bundler.codeSplitting,
+        sourcemap: BUNDLE_MEASUREMENT_CONFIG.bundler.sourcemap,
+        minify: BUNDLE_MEASUREMENT_CONFIG.bundler.minify,
     };
-    const bundle = await rollup(inputOptions);
+    const bundle = await rolldown(inputOptions);
 
     try {
         const rawChunk = getChunk(await bundle.generate(outputOptions));
         const minifiedChunk = getChunk(
             await bundle.generate({
                 ...outputOptions,
-                plugins: [
-                    terser({
-                        compress: {
-                            passes: BUNDLE_MEASUREMENT_CONFIG.terser.compressPasses,
-                        },
-                        format: { comments: BUNDLE_MEASUREMENT_CONFIG.terser.comments },
-                        mangle: BUNDLE_MEASUREMENT_CONFIG.terser.mangle,
-                    }),
-                ],
+                minify: BUNDLE_MEASUREMENT_CONFIG.minifier.minify,
             }),
         );
         const rawBuffer = Buffer.from(normalizeBundleMeasurementText(rawChunk.code), 'utf8');
