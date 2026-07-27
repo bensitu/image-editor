@@ -112,26 +112,101 @@ async function verifyMarkdownLinks(files) {
 
 async function verifyCurrentDemoSurface() {
     const loader = await readFile(path.join(repositoryRoot, 'docs/js/demo-loader.js'), 'utf8');
-    const pages = ['basic.html', 'annotation.html', 'mask-mosaic.html', 'integrated-editor.html'];
-    for (const page of pages) {
+    const demoPlans = new Map([
+        [
+            'index.html',
+            ['overlay', 'annotation', 'filters', 'mask', 'annotation-text', 'annotation-shape'],
+        ],
+        ['basic.html', ['overlay', 'transform', 'history', 'filters', 'crop']],
+        [
+            'annotation.html',
+            [
+                'overlay',
+                'annotation',
+                'history',
+                'annotation-text',
+                'annotation-shape',
+                'annotation-draw',
+            ],
+        ],
+        ['mask-mosaic.html', ['overlay', 'mask', 'mosaic']],
+        [
+            'integrated-editor.html',
+            [
+                'overlay',
+                'annotation',
+                'transform',
+                'history',
+                'mask',
+                'annotation-text',
+                'annotation-shape',
+                'annotation-draw',
+            ],
+        ],
+    ]);
+    const pluginDefinitions = new Map(
+        MODULAR_UMD_MODULES.filter(({ id }) => id !== 'core').map((definition) => [
+            definition.id,
+            definition,
+        ]),
+    );
+
+    for (const [page, expectedPluginIds] of demoPlans) {
         const source = await readFile(path.join(repositoryRoot, 'docs', page), 'utf8');
         assertCondition(
-            source.includes('data-demo-page=') && source.includes('js/demo-loader.js'),
+            source.includes('data-demo-page=') &&
+                source.includes('js/demo-loader.js') &&
+                source.includes('data-demo-plugins='),
             `docs/${page} is not wired to the current shared demo runtime.`,
         );
+        const pluginAttribute = source.match(/\bdata-demo-plugins="([^"]+)"/u);
+        const pluginIds = pluginAttribute?.[1]?.trim().split(/\s+/u) ?? [];
+        assertCondition(
+            pluginIds.join(' ') === expectedPluginIds.join(' '),
+            `docs/${page} must declare the reviewed modular Plugin plan: ${expectedPluginIds.join(
+                ', ',
+            )}.`,
+        );
+
+        const loaded = new Set();
+        for (const pluginId of pluginIds) {
+            const definition = pluginDefinitions.get(pluginId);
+            assertCondition(
+                definition !== undefined,
+                `docs/${page} declares unknown modular Plugin ${pluginId}.`,
+            );
+            const missingDependencies = definition.dependencies.filter(
+                (dependency) => dependency !== 'core' && !loaded.has(dependency),
+            );
+            assertCondition(
+                missingDependencies.length === 0,
+                `docs/${page} loads ${pluginId} before ${missingDependencies.join(', ')}.`,
+            );
+            loaded.add(pluginId);
+        }
     }
     assertCondition(
-        loader.includes('ImageEditorFull') &&
+        loader.includes('image-editor.core.umd.min.js') &&
+            loader.includes('image-editor.plugin.${pluginId}.umd.min.js') &&
+            loader.includes('ImageEditorPlugins') &&
             loader.includes('ImageEditorCore') &&
-            loader.includes('composePlugins'),
-        'The demo loader does not verify the v3 UMD composition surface.',
+            loader.includes('composePlugins') &&
+            !loader.includes('ImageEditorFull') &&
+            !loader.includes('image-editor.full'),
+        'The demo loader must use and verify only the v3 modular UMD composition surface.',
     );
     const demos = await readFile(path.join(repositoryRoot, 'docs/js/demo-pages.js'), 'utf8');
+    const landing = await readFile(path.join(repositoryRoot, 'docs/js/landing-studio.js'), 'utf8');
     assertCondition(
         demos.includes('createPluginPlan') &&
             demos.includes('overlayFoundationPlugin') &&
-            !demos.includes('createFullPreset'),
-        'Focused demo pages must install only their required Plugin plan.',
+            demos.includes('plugins.Transform.transformPlugin') &&
+            landing.includes('plugins.Filters.filtersPlugin') &&
+            !demos.includes('ImageEditorFull') &&
+            !landing.includes('ImageEditorFull') &&
+            !demos.includes('createFullPreset') &&
+            !landing.includes('createFullPreset'),
+        'Current demo pages must install factories from their selected modular Plugin globals.',
     );
 
     const legacyPage = await readFile(path.join(repositoryRoot, 'docs/legacy-v1.html'), 'utf8');

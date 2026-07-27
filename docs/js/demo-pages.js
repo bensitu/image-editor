@@ -279,44 +279,44 @@
     }
 
     function createPluginPlan(options) {
-        const api = window.ImageEditorFull;
-        if (!api) throw new Error('ImageEditor v3 plugin factories are unavailable.');
+        const plugins = demoRuntime?.plugins;
+        if (!plugins) throw new Error('ImageEditor v3 Plugin modules are unavailable.');
 
         if (pageName === 'basic') {
             return {
-                transform: api.transformPlugin(options.transform),
-                history: api.historyPlugin(options.history),
-                filters: api.filtersPlugin(options.filters),
-                crop: api.cropPlugin(options.crop),
+                transform: plugins.Transform.transformPlugin(options.transform),
+                history: plugins.History.historyPlugin(options.history),
+                filters: plugins.Filters.filtersPlugin(options.filters),
+                crop: plugins.Crop.cropPlugin(options.crop),
             };
         }
         if (pageName === 'annotation') {
             return {
-                history: api.historyPlugin(options.history),
-                overlays: api.overlayFoundationPlugin(),
-                annotations: api.annotationFoundationPlugin(options.annotations),
-                text: api.textAnnotationPlugin(options.text),
-                shape: api.shapeAnnotationPlugin(options.shape),
-                draw: api.drawAnnotationPlugin(options.draw),
+                history: plugins.History.historyPlugin(options.history),
+                overlays: plugins.Overlay.overlayFoundationPlugin(),
+                annotations: plugins.Annotation.annotationFoundationPlugin(options.annotations),
+                text: plugins.AnnotationText.textAnnotationPlugin(options.text),
+                shape: plugins.AnnotationShape.shapeAnnotationPlugin(options.shape),
+                draw: plugins.AnnotationDraw.drawAnnotationPlugin(options.draw),
             };
         }
         if (pageName === 'mask-mosaic') {
             return {
-                overlays: api.overlayFoundationPlugin(),
-                masks: api.maskPlugin(options.masks),
-                mosaic: api.mosaicPlugin(options.mosaic),
+                overlays: plugins.Overlay.overlayFoundationPlugin(),
+                masks: plugins.Mask.maskPlugin(options.masks),
+                mosaic: plugins.Mosaic.mosaicPlugin(options.mosaic),
             };
         }
         if (pageName === 'integrated-editor') {
             return {
-                transform: api.transformPlugin(options.transform),
-                history: api.historyPlugin(options.history),
-                overlays: api.overlayFoundationPlugin(),
-                masks: api.maskPlugin(options.masks),
-                annotations: api.annotationFoundationPlugin(options.annotations),
-                text: api.textAnnotationPlugin(options.text),
-                shape: api.shapeAnnotationPlugin(options.shape),
-                draw: api.drawAnnotationPlugin(options.draw),
+                transform: plugins.Transform.transformPlugin(options.transform),
+                history: plugins.History.historyPlugin(options.history),
+                overlays: plugins.Overlay.overlayFoundationPlugin(),
+                masks: plugins.Mask.maskPlugin(options.masks),
+                annotations: plugins.Annotation.annotationFoundationPlugin(options.annotations),
+                text: plugins.AnnotationText.textAnnotationPlugin(options.text),
+                shape: plugins.AnnotationShape.shapeAnnotationPlugin(options.shape),
+                draw: plugins.AnnotationDraw.drawAnnotationPlugin(options.draw),
             };
         }
         throw new Error(`Unsupported demo page "${pageName}".`);
@@ -1922,7 +1922,9 @@
             bindControls();
             syncImageFilterControls(filterConfigFromDefinitions([]));
             await initEditor();
+            document.body.dataset.demoReady = 'true';
         } catch (error) {
+            document.body.dataset.demoError = 'true';
             showMessage(error, 'error');
             console.error(error);
         }

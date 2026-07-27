@@ -8,7 +8,7 @@
         <link rel="icon" href="./favicon.ico" type="image/x-icon" />
         <link rel="stylesheet" href="css/demo-pages.css" />
     </head>
-    <body class="landing-page">
+    <body class="landing-page" data-demo-page="landing">
         <header class="site-header">
             <a class="brand-link" href="./index.html">
                 @bensitu/image-editor
@@ -134,16 +134,20 @@
             </section>
 
             <p class="landing-note">
-                These pages are static docs assets. Locally they use the repository build output
-                from <code>dist/umd/image-editor.full.umd.min.js</code>; on GitHub Pages they load
-                the published npm <code>@latest</code> UMD bundle from jsDelivr. Each focused page
-                then installs only the plugins required by its workflow.
+                These pages are static docs assets. Locally they use the repository build output for
+                Core and selected Plugin UMD files; on GitHub Pages they load the published npm
+                <code>@latest</code> modular UMD files from jsDelivr. Each page declares and
+                installs only the plugins required by its workflow.
             </p>
             <p class="legacy-note">
                 Need the previous all-in-one demo? <a href="./legacy-v1.html">Open legacy v1</a>.
             </p>
         </main>
 
-        <script src="js/demo-loader.js" data-demo-entry="js/landing-studio.js"></script>
+        <script
+            src="js/demo-loader.js"
+            data-demo-entry="js/landing-studio.js"
+            data-demo-plugins="overlay annotation filters mask annotation-text annotation-shape"
+        ></script>
     </body>
 </html>

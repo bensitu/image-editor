@@ -385,8 +385,8 @@
     async function initLandingStudio() {
         const canvas = document.getElementById('landingStudioCanvas');
         const container = document.getElementById('landingStudioContainer');
-        const api = window.ImageEditorFull;
-        if (!demoRuntime?.createEditor || !api || !canvas || !container) return;
+        const plugins = demoRuntime?.plugins;
+        if (!demoRuntime?.createEditor || !plugins || !canvas || !container) return;
 
         const kit = demoRuntime.createEditor(
             {
@@ -396,9 +396,9 @@
                 defaultLayoutMode: 'fit',
             },
             {
-                filters: api.filtersPlugin(),
-                overlays: api.overlayFoundationPlugin(),
-                masks: api.maskPlugin({
+                filters: plugins.Filters.filtersPlugin(),
+                overlays: plugins.Overlay.overlayFoundationPlugin(),
+                masks: plugins.Mask.maskPlugin({
                     rotatable: true,
                     label: false,
                     namePrefix: 'studio-mask',
@@ -411,9 +411,11 @@
                         },
                     },
                 }),
-                annotations: api.annotationFoundationPlugin(),
-                text: api.textAnnotationPlugin({ namePrefix: 'studio-note' }),
-                shape: api.shapeAnnotationPlugin(),
+                annotations: plugins.Annotation.annotationFoundationPlugin(),
+                text: plugins.AnnotationText.textAnnotationPlugin({
+                    namePrefix: 'studio-note',
+                }),
+                shape: plugins.AnnotationShape.shapeAnnotationPlugin(),
             },
         );
         landingKit = kit;
