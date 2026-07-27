@@ -1,5 +1,5 @@
 import { createDisposable, } from '../../sdk/index.js';
-import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { MAX_SUPPORTED_FILTER_COUNT, areFilterDefinitionsEqual, normalizeFilterDefinitions, } from './filter-definitions.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { copyBaseImagePresentation, createFilteredImageClone, disposeFabricImage, normalizeFilterBakeOptions, renderBakedImage, } from './filtered-image-renderer.js';

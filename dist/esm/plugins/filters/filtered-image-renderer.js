@@ -1,4 +1,4 @@
-import { isDangerousStateKey as isUnsafeObjectKey } from '../../plugin-kernel/plugin-identifier.js';
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { settleAbortable } from '../../utils/abortable-promise.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';

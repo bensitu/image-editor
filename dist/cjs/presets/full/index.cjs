@@ -2,17 +2,17 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 const require_core_capabilities = require('../../chunks/core-capabilities-CWXMFfBX.cjs');
 const require_core = require('../../chunks/core-BKL7RDnI.cjs');
 const require_overlay = require('../../chunks/overlay-Cb5MhhyK.cjs');
-const require_annotation = require('../../chunks/annotation-BlLU360J.cjs');
+const require_annotation = require('../../chunks/annotation-kxs0s3zS.cjs');
 const require_transform = require('../../chunks/transform-CMPPU2ik.cjs');
-const require_mask = require('../../chunks/mask-ZUrJ2TDe.cjs');
+const require_mask = require('../../chunks/mask-BiCKBGqY.cjs');
 const require_history = require('../../chunks/history-Brcd5goG.cjs');
-const require_filters = require('../../chunks/filters-B8aiHGTx.cjs');
+const require_filters = require('../../chunks/filters-BFKncKEW.cjs');
 const require_crop = require('../../chunks/crop-Bl4DnWaT.cjs');
 const require_mosaic = require('../../chunks/mosaic-DjtX3HlG.cjs');
-const require_annotation_text = require('../../chunks/annotation-text-DKZI2en-.cjs');
-const require_annotation_shape = require('../../chunks/annotation-shape-DQJKV1jf.cjs');
-const require_annotation_draw = require('../../chunks/annotation-draw-dADhTKFy.cjs');
-const require_overlay_state = require('../../chunks/overlay-state-B1963VHC.cjs');
+const require_annotation_text = require('../../chunks/annotation-text-HcD-3IMW.cjs');
+const require_annotation_shape = require('../../chunks/annotation-shape-DhQrOXBL.cjs');
+const require_annotation_draw = require('../../chunks/annotation-draw-CuVR1SZH.cjs');
+const require_overlay_state = require('../../chunks/overlay-state-_BorAMDU.cjs');
 const require_preset_support = require('../../chunks/preset-support-fdxHrf6c.cjs');
 
 //#region dist/esm/presets/full/index.js

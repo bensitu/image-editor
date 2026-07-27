@@ -9061,6 +9061,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region dist/esm/utils/safe-object-key.js
+	function isUnsafeObjectKey(key) {
+		return key === "__proto__" || key === "constructor" || key === "prototype";
+	}
+
+//#endregion
 //#region dist/esm/foundations/annotation/annotation-metadata.js
 	const MAX_ANNOTATION_NAME_LENGTH = 128;
 	const MAX_ANNOTATION_METADATA_DEPTH = 4;
@@ -9097,7 +9103,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (budget.keyCount > 32) throw new AnnotationValidationError("Annotation metadata contains too many keys.");
 			const clone = {};
 			for (const [key, entry] of entries) {
-				if (isDangerousStateKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
+				if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
 				budget.stringBytes += new TextEncoder().encode(key).byteLength;
 				clone[key] = cloneMetadataValue(entry, depth + 1, budget);
 			}
@@ -11129,7 +11135,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			})) return false;
 			ancestors.add(entry);
 			for (const key of Object.keys(entry)) {
-				if (isDangerousStateKey(key)) return false;
+				if (isUnsafeObjectKey(key)) return false;
 				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _a === void 0 ? void 0 : _a.has(key))) return false;
 				const descriptor = Object.getOwnPropertyDescriptor(entry, key);
 				if (!descriptor || !("value" in descriptor)) return false;
@@ -11227,7 +11233,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/core/safe-object-copy.js
 	function canCopySafeObjectKey(key) {
-		return !isDangerousStateKey(key);
+		return !isUnsafeObjectKey(key);
 	}
 	function copySafeOwnProperties(value) {
 		if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -12641,7 +12647,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function validateKeys(value, allowed, path) {
 		for (const key of Reflect.ownKeys(value)) {
 			if (typeof key !== "string") throw new FilterDefinitionError("Filter definition contains an unsupported symbol key.", path);
-			if (isDangerousStateKey(key)) throw new FilterDefinitionError(`Filter definition contains dangerous key "${key}".`, path);
+			if (isUnsafeObjectKey(key)) throw new FilterDefinitionError(`Filter definition contains dangerous key "${key}".`, path);
 			if (!allowed.includes(key)) throw new FilterDefinitionError(`Filter definition contains unknown key "${key}".`, path);
 			const descriptor = Object.getOwnPropertyDescriptor(value, key);
 			if (!descriptor || !("value" in descriptor)) throw new FilterDefinitionError(`Filter definition property "${key}" must be a data property.`, path);
@@ -12876,7 +12882,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (options !== void 0 && (typeof options !== "object" || options === null)) throw new FilterBakeValidationError("Filter bake options must be an object.");
 		const record = options !== null && options !== void 0 ? options : {};
 		for (const key of Object.keys(record)) {
-			if (isDangerousStateKey(key)) throw new FilterBakeValidationError(`Filter bake options contain dangerous key "${key}".`);
+			if (isUnsafeObjectKey(key)) throw new FilterBakeValidationError(`Filter bake options contain dangerous key "${key}".`);
 			if (key !== "format" && key !== "quality") throw new FilterBakeValidationError(`Filter bake options contain unknown key "${key}".`);
 		}
 		const sourceFormat = sourceMimeType === "image/jpeg" ? "jpeg" : sourceMimeType === "image/webp" ? "webp" : "png";
@@ -12994,7 +13000,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function validateStateKeys(value) {
 		for (const key of Object.keys(value)) {
-			if (isDangerousStateKey(key)) return `Filters state contains dangerous key "${key}".`;
+			if (isUnsafeObjectKey(key)) return `Filters state contains dangerous key "${key}".`;
 			if (key !== "schema" && key !== "version" && key !== "filters") return `Filters state contains unknown key "${key}".`;
 		}
 		return null;
@@ -13408,7 +13414,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a, _b, _c;
 			if (!isRecord$6(patch)) throw new TypeError("[ImageEditor] Filters configuration patch must be a plain object.");
 			for (const key of Object.keys(patch)) {
-				if (isDangerousStateKey(key)) throw new TypeError(`[ImageEditor] Filters configuration contains dangerous key "${key}".`);
+				if (isUnsafeObjectKey(key)) throw new TypeError(`[ImageEditor] Filters configuration contains dangerous key "${key}".`);
 				if (key !== "maxFilterCount") throw new TypeError(`[ImageEditor] Filters configuration contains unknown key "${key}".`);
 			}
 			const maxFilterCount = (_a = patch.maxFilterCount) !== null && _a !== void 0 ? _a : this.configuration.maxFilterCount;
@@ -17876,7 +17882,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			let ok = accountBytes(context, 2, path);
 			for (const key of keys) {
 				const childPath = `${path}.${key}`;
-				if (isDangerousStateKey(key)) {
+				if (isUnsafeObjectKey(key)) {
 					addIssue(context.issues, "object.dangerousKey", childPath, "Key is not allowed.");
 					ok = false;
 					continue;

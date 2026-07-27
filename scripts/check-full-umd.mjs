@@ -12,7 +12,8 @@ import { gzipSync } from 'node:zlib';
 import {
     ALL_APPROVED_UMD_ARTIFACTS,
     FULL_UMD_ARTIFACTS,
-    MODULAR_UMD_ARTIFACTS,
+    MODULAR_UMD_CORE,
+    createUmdArtifactFiles,
 } from '../config/bundle/modular-umd.mjs';
 import { collectRelativeFiles } from './package-content-policy.mjs';
 
@@ -25,9 +26,9 @@ const artifactDefinitions = Object.freeze(
     ),
 );
 const coreArtifactDefinitions = Object.freeze(
-    MODULAR_UMD_ARTIFACTS.filter((file) => file.endsWith('.js')).map((file) =>
-        Object.freeze({ file, minified: file.endsWith('.min.js') }),
-    ),
+    createUmdArtifactFiles(MODULAR_UMD_CORE.fileBase)
+        .filter((file) => file.endsWith('.js'))
+        .map((file) => Object.freeze({ file, minified: file.endsWith('.min.js') })),
 );
 const requiredFeatureSources = Object.freeze([
     '/foundations/overlay/',

@@ -1,4 +1,4 @@
-import { isDangerousStateKey as isUnsafeObjectKey } from '../plugin-kernel/plugin-identifier.js';
+import { isUnsafeObjectKey } from '../utils/safe-object-key.js';
 export function canCopySafeObjectKey(key) {
     return !isUnsafeObjectKey(key);
 }

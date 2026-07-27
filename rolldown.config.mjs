@@ -7,10 +7,19 @@
  * @module
  */
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'rolldown';
 
-import { FULL_UMD, MODULAR_UMD_CORE } from './config/bundle/modular-umd.mjs';
+import {
+    FULL_UMD,
+    MODULAR_UMD_BOUNDARIES,
+    MODULAR_UMD_GLOBALS,
+    MODULAR_UMD_MODULES,
+} from './config/bundle/modular-umd.mjs';
 
+const repositoryRoot = path.dirname(fileURLToPath(import.meta.url));
 const format = process.env.FORMAT ?? 'umd';
 const formalEntries = Object.freeze({
     index: 'dist/esm/index.js',
@@ -38,22 +47,59 @@ const formalEntries = Object.freeze({
 });
 const external = Object.freeze(['fabric']);
 
+function normalizedAbsolutePath(value) {
+    const normalized = path.normalize(value);
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
+
+const modularUmdBoundaries = new Map(
+    MODULAR_UMD_BOUNDARIES.map((boundary) => [
+        normalizedAbsolutePath(path.resolve(repositoryRoot, boundary.input)),
+        boundary.externalId,
+    ]),
+);
+
+function createModularUmdBoundaryPlugin() {
+    return {
+        name: 'image-editor-modular-umd-boundaries',
+        async resolveId(source, importer) {
+            if (!importer || !source.startsWith('.')) return null;
+            const resolved = await this.resolve(source, importer, { skipSelf: true });
+            if (!resolved || resolved.external) return null;
+            const externalId = modularUmdBoundaries.get(
+                normalizedAbsolutePath(resolved.id.split('?')[0]),
+            );
+            return externalId ? { id: externalId, external: true } : null;
+        },
+    };
+}
+
 function createUmdConfiguration(definition, minify) {
+    const modularPlugin =
+        definition.sourceKind === 'foundation' || definition.sourceKind === 'plugin';
     return {
         input: definition.input,
         external,
+        ...(modularPlugin ? { plugins: [createModularUmdBoundaryPlugin()] } : {}),
         platform: 'browser',
         output: {
             format: 'umd',
             name: definition.globalName,
             exports: 'named',
-            globals: { fabric: 'fabric' },
+            globals: modularPlugin ? MODULAR_UMD_GLOBALS : { fabric: 'fabric' },
             sourcemap: true,
             sourcemapExcludeSources: true,
             codeSplitting: false,
             file: `${definition.fileBase}.umd${minify ? '.min' : ''}.js`,
             minify,
-            ...(definition.id === 'core' ? { extend: true } : {}),
+            ...(definition.id !== 'full' ? { extend: true } : {}),
+            ...(modularPlugin
+                ? {
+                      intro:
+                          `if (Object.prototype.hasOwnProperty.call(exports, ` +
+                          `${JSON.stringify(definition.guardExport)})) return;`,
+                  }
+                : {}),
         },
     };
 }
@@ -75,7 +121,7 @@ const configurations = {
             minify: false,
         },
     },
-    umd: [FULL_UMD, MODULAR_UMD_CORE].flatMap((definition) => [
+    umd: [FULL_UMD, ...MODULAR_UMD_MODULES].flatMap((definition) => [
         createUmdConfiguration(definition, false),
         createUmdConfiguration(definition, true),
     ]),

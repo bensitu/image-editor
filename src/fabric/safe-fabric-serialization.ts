@@ -4,7 +4,7 @@
  * @module
  */
 
-import { isDangerousStateKey } from '../plugin-kernel/plugin-identifier.js';
+import { isUnsafeObjectKey } from '../utils/safe-object-key.js';
 
 const SAFE_NESTED_FABRIC_TYPES = new Set(['linear', 'pattern', 'radial', 'shadow']);
 const RESOURCE_KEYS = new Set(['href', 'source', 'src', 'url']);
@@ -184,7 +184,7 @@ export function isSafeSerializedFabricObject(
         }
         ancestors.add(entry);
         for (const key of Object.keys(entry)) {
-            if (isDangerousStateKey(key)) return false;
+            if (isUnsafeObjectKey(key)) return false;
             if (
                 root &&
                 !COMMON_ROOT_PROPERTIES.has(key) &&
