@@ -9,6 +9,8 @@
 
 import { defineConfig } from 'rolldown';
 
+import { FULL_UMD, MODULAR_UMD_CORE } from './config/bundle/modular-umd.mjs';
+
 const format = process.env.FORMAT ?? 'umd';
 const formalEntries = Object.freeze({
     index: 'dist/esm/index.js',
@@ -35,16 +37,26 @@ const formalEntries = Object.freeze({
     'presets/full/index': 'dist/esm/presets/full/index.js',
 });
 const external = Object.freeze(['fabric']);
-const fullUmdInput = 'dist/esm/umd/full.js';
-const sharedUmdOutput = Object.freeze({
-    format: 'umd',
-    name: 'ImageEditorFull',
-    exports: 'named',
-    globals: { fabric: 'fabric' },
-    sourcemap: true,
-    sourcemapExcludeSources: true,
-    codeSplitting: false,
-});
+
+function createUmdConfiguration(definition, minify) {
+    return {
+        input: definition.input,
+        external,
+        platform: 'browser',
+        output: {
+            format: 'umd',
+            name: definition.globalName,
+            exports: 'named',
+            globals: { fabric: 'fabric' },
+            sourcemap: true,
+            sourcemapExcludeSources: true,
+            codeSplitting: false,
+            file: `${definition.fileBase}.umd${minify ? '.min' : ''}.js`,
+            minify,
+            ...(definition.id === 'core' ? { extend: true } : {}),
+        },
+    };
+}
 
 const configurations = {
     cjs: {
@@ -63,28 +75,10 @@ const configurations = {
             minify: false,
         },
     },
-    umd: [
-        {
-            input: fullUmdInput,
-            external,
-            platform: 'browser',
-            output: {
-                ...sharedUmdOutput,
-                file: 'dist/umd/image-editor.full.umd.js',
-                minify: false,
-            },
-        },
-        {
-            input: fullUmdInput,
-            external,
-            platform: 'browser',
-            output: {
-                ...sharedUmdOutput,
-                file: 'dist/umd/image-editor.full.umd.min.js',
-                minify: true,
-            },
-        },
-    ],
+    umd: [FULL_UMD, MODULAR_UMD_CORE].flatMap((definition) => [
+        createUmdConfiguration(definition, false),
+        createUmdConfiguration(definition, true),
+    ]),
 };
 
 if (!(format in configurations)) {

@@ -9,8 +9,9 @@
  *                             `dist/types/` so consumers see types.
  *   - rolldown.config.mjs  -> reads `dist/esm/` as input for CJS / UMD.
  *
- * Only formal package entries and the Full UMD build entry are roots. Their
- * transitive runtime dependencies retain the source layout under `dist/esm/`.
+ * Only formal package entries and the Full/Core UMD build entries are roots.
+ * Their transitive runtime dependencies retain the source layout under
+ * `dist/esm/`.
  */
 {
     "extends": "./tsconfig.json",
@@ -57,7 +58,8 @@
         "src/presets/redaction/index.ts",
         "src/presets/annotation/index.ts",
         "src/presets/full/index.ts",
-        "src/umd/full.ts"
+        "src/umd/full.ts",
+        "src/umd/core.ts"
     ],
     "include": [],
     "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]

@@ -8,6 +8,7 @@ import { readdir, rm, rmdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { UMD_ESM_BUILD_INPUTS } from '../config/bundle/modular-umd.mjs';
 import {
     APPROVED_UMD_FILES,
     collectRelativeFiles,
@@ -18,7 +19,7 @@ const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
 const distributionRoot = path.join(repositoryRoot, 'dist');
 const manifest = (await import('../package.json', { with: { type: 'json' } })).default;
-const esmBuildInputs = new Set(['dist/esm/umd/full.js', 'dist/esm/umd/full.js.map']);
+const esmBuildInputs = new Set(UMD_ESM_BUILD_INPUTS);
 const mode = process.argv[2] ?? '--all';
 
 if (!['--all', '--esm'].includes(mode) || process.argv.length > 3) {

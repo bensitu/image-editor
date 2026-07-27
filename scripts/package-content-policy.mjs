@@ -9,6 +9,8 @@ import path from 'node:path';
 
 import ts from 'typescript';
 
+import { ALL_APPROVED_UMD_ARTIFACTS } from '../config/bundle/modular-umd.mjs';
+
 export const EXPECTED_PACKAGE_EXPORTS = Object.freeze([
     '.',
     './core',
@@ -34,12 +36,7 @@ export const EXPECTED_PACKAGE_EXPORTS = Object.freeze([
     './presets/full',
 ]);
 
-export const APPROVED_UMD_FILES = Object.freeze([
-    'dist/umd/image-editor.full.umd.js',
-    'dist/umd/image-editor.full.umd.js.map',
-    'dist/umd/image-editor.full.umd.min.js',
-    'dist/umd/image-editor.full.umd.min.js.map',
-]);
+export const APPROVED_UMD_FILES = ALL_APPROVED_UMD_ARTIFACTS;
 
 const OLD_RUNTIME_ARTIFACT_PATTERNS = Object.freeze([
     /^dist\/(?:esm|types)\/(?:animation|annotation|crop|export|history|lifecycle|mosaic|overlay|runtime|selection|tool-mode|ui)\//u,
@@ -355,7 +352,7 @@ export async function inspectMainPackageContents({ packageRoot, manifest, files 
 
     const umdFiles = [...normalizedFiles].filter((file) => file.startsWith('dist/umd/')).sort();
     if (JSON.stringify(umdFiles) !== JSON.stringify([...APPROVED_UMD_FILES].sort())) {
-        failures.push('Packed UMD files do not match the approved Full-level allowlist.');
+        failures.push('Packed UMD files do not match the approved UMD artifact allowlist.');
     }
 
     const oldRuntimeFiles = [...normalizedFiles]
