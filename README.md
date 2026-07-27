@@ -202,6 +202,7 @@ run the public [Conformance Kit](docs/api.md#testing-and-conformance).
 
 - [API reference](docs/api.md)
 - [Options reference](docs/options.md)
+- [Modular UMD loading](docs/modular-umd.md)
 - [Overlay transform binding](docs/overlay-transform-binding.md)
 - [Overlay-state persistence](docs/overlay-state.md)
 - [DOM Controls](docs/dom-controls.md)
@@ -301,14 +302,20 @@ import { ImageEditorCore } from '@bensitu/image-editor/core';
 const editor = new ImageEditorCore(fabric, options);
 ```
 
-The distribution keeps the existing Core-level UMD and adds one Full Preset UMD.
-There are no per-Plugin UMD files. CDN metadata selects the minified Full build,
-whose global is `ImageEditorFull`. Fabric remains a separate script and is passed
-explicitly; the Full Preset does not install DOM Controls unless requested.
+Script-tag consumers choose one of two mutually exclusive modes:
+
+- Full UMD exposes `ImageEditorFull` and remains the CDN default for pages that
+  need the complete Feature set.
+- Modular UMD exposes the shared `ImageEditor` Core/SDK global plus selected
+  `ImageEditorPlugins.*` globals for on-demand composition.
+
+Do not load Full UMD together with Core or Plugin UMD files on one page. Fabric
+remains a separate script in both modes. The Full Preset does not install DOM
+Controls unless requested.
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.full.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@3.0.0-rc.1/dist/umd/image-editor.full.umd.min.js"></script>
 <script>
     (async () => {
         const kit = ImageEditorFull.createFullPreset(fabric, {
@@ -321,6 +328,28 @@ explicitly; the Full Preset does not install DOM Controls unless requested.
 
 For explicit DOM bindings, pass a factory such as
 `domControls: () => ImageEditorFull.domControlsPlugin(options)`.
+
+Modular files must all use the same exact package version and load in dependency
+order. This example downloads Core and Transform only:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@3.0.0-rc.1/dist/umd/image-editor.core.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@3.0.0-rc.1/dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
+<script>
+    const editor = new ImageEditor.ImageEditorCore(fabric);
+    const plugins = editor.install(
+        ImageEditor.composePlugins({
+            transform: ImageEditorPlugins.Transform.transformPlugin({
+                animationDuration: 0,
+            }),
+        }),
+    );
+</script>
+```
+
+See [Modular UMD loading](docs/modular-umd.md) for every module, dependency
+order, Mask and Annotation examples, version rules, and size tradeoffs.
 
 CommonJS `require()` returns a namespace object for the requested public entry.
 

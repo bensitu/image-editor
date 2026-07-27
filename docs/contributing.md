@@ -16,11 +16,17 @@ build:umd -> build:prune` in order, emitting:
 - the ESM graph reachable from formal package entries
 - `dist/cjs/index.cjs`
 - `dist/types/index.d.ts`
-- `dist/umd/image-editor.full.umd.js`
-- `dist/umd/image-editor.full.umd.min.js`
+- Full UMD development/minified files and maps
+- shared Core UMD development/minified files and maps
+- 13 official Foundation/Plugin UMD development/minified files and maps
 
 The final pruning pass removes build-only and type-only artifacts that cannot
 be reached through a formal package contract.
+
+`npm run check:umd` verifies the exact recursive UMD artifact set, shared
+runtime boundaries, source maps, globals, dependency descriptors, and gzip-9
+budgets. `npm run check:full-umd` remains a compatibility alias for the same
+unified policy.
 
 ## Node Tests
 

@@ -10,6 +10,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
+import { MODULAR_UMD_MODULES } from '../config/bundle/modular-umd.mjs';
+
 const execFileAsync = promisify(execFile);
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
@@ -175,12 +177,53 @@ async function verifyCoreOptionsReference() {
     return optionNames.length;
 }
 
+async function verifyModularUmdDocumentation() {
+    const source = (
+        await readFile(path.join(repositoryRoot, 'docs/modular-umd.md'), 'utf8')
+    ).replaceAll('\r\n', '\n');
+    const startMarker = '<!-- modular-umd-registry:start -->';
+    const endMarker = '<!-- modular-umd-registry:end -->';
+    const start = source.indexOf(startMarker);
+    const end = source.indexOf(endMarker);
+    assertCondition(
+        start >= 0 && end > start,
+        'docs/modular-umd.md omits the checked registry table markers.',
+    );
+    const actualRows = source
+        .slice(start + startMarker.length, end)
+        .split('\n')
+        .filter((line) => /^\|\s*`/u.test(line))
+        .map((line) =>
+            line
+                .split('|')
+                .slice(1, -1)
+                .map((cell) => cell.trim()),
+        );
+    const expectedRows = MODULAR_UMD_MODULES.map(({ dependencies, globalName, id }) => [
+        `\`${id}\``,
+        `\`${globalName}\``,
+        dependencies.map((dependency) => `\`${dependency}\``).join(', '),
+    ]);
+    assertCondition(
+        JSON.stringify(actualRows) === JSON.stringify(expectedRows),
+        'docs/modular-umd.md dependency rows do not match the UMD module registry.',
+    );
+    assertCondition(
+        source.includes('mutually exclusive') &&
+            source.includes('exact same `@bensitu/image-editor` package version'),
+        'docs/modular-umd.md omits the mode-isolation or version-consistency rule.',
+    );
+    return MODULAR_UMD_MODULES.length;
+}
+
 const files = await trackedFiles();
-const [currentFileCount, localLinkCount, coreOptionCount] = await Promise.all([
-    verifyCurrentLanguage(files),
-    verifyMarkdownLinks(files),
-    verifyCoreOptionsReference(),
-]);
+const [currentFileCount, localLinkCount, coreOptionCount, modularUmdModuleCount] =
+    await Promise.all([
+        verifyCurrentLanguage(files),
+        verifyMarkdownLinks(files),
+        verifyCoreOptionsReference(),
+        verifyModularUmdDocumentation(),
+    ]);
 await verifyCurrentDemoSurface();
 
 for (const historicalPath of intentionalHistoricalPaths.keys()) {
@@ -190,5 +233,6 @@ for (const historicalPath of intentionalHistoricalPaths.keys()) {
 console.log(
     `Current documentation check passed (${currentFileCount} current files, ` +
         `${intentionalHistoricalPaths.size} documented historical exceptions, ` +
-        `${coreOptionCount} Core options, ${localLinkCount} local links).`,
+        `${coreOptionCount} Core options, ${modularUmdModuleCount} Modular UMD modules, ` +
+        `${localLinkCount} local links).`,
 );

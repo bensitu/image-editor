@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the separate `@bensitu/image-editor-codemod` package and `v2-to-v3` CLI with dry-run, diff, write, idempotency, and unresolved-pattern reporting.
 - Add ESM, CommonJS, ESM declarations, CommonJS declarations, and NodeNext conditions for every formal package entry.
 - Add a Full Preset UMD under the `ImageEditorFull` global while keeping Fabric external, plus browser smoke coverage and permanent size attribution.
+- Add modular Core and per-Plugin UMD artifacts for script-tag consumers.
+- Add shared-runtime boundary checks, per-module gzip budgets, deterministic artifact governance, and browser composition coverage for Modular UMD.
 - Add public Vanilla, React, Vue, and Next examples, a Plugin package template, and an executable pure-Fabric versus Framework redaction comparison.
 - Add permanent candidate-readiness, deterministic-build, performance, memory, hostile-input, audit, and package-content checks for local release review.
 
@@ -36,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bound each committed-event listener to a documented five-second execution window so stalled observers cannot starve later listeners or emissions.
 - Make a configured initial image and its Plugin hooks part of the awaited `init()` contract, with complete rollback and retry after recoverable failure.
 - Replace the stale flat-options reference and transform-binding guide with current Core, Plugin, and Preset contracts, and enforce documented boundaries for current, migration, and explicitly labelled legacy material.
-- Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not produced and DOM Controls remain opt-in.
+- Preserve the Full Preset UMD as the CDN default while adding a separate, mutually exclusive Modular UMD mode; DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.
 - Replace Rollup and its plugin stack with pinned Rolldown for distribution, reference Plugin and template packages, and consumer bundle integrity measurement.
 

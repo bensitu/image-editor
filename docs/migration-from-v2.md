@@ -272,7 +272,10 @@ Full Preset UMD:
 
 Fabric remains an external global. `ImageEditorFull` exposes the current Full
 composition and official factories, not a compatibility facade. DOM Controls is
-absent unless passed explicitly. There are no per-Plugin UMD files.
+absent unless passed explicitly. Applications that need only selected Features
+may instead use the separate Modular UMD mode, but must not combine it with Full
+UMD. See [Modular UMD loading](./modular-umd.md) for the Core/Plugin globals and
+dependency order.
 
 ## Unsupported APIs
 

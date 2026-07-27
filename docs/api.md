@@ -300,8 +300,10 @@ The root remains Core-only and tree-shakeable. Migration, Testing, Features,
 Presets, DOM Controls, and Codemod code are absent unless their entry is
 selected. Fabric is a peer/global and is not bundled.
 
-Bundled applications should prefer ESM subpaths. Script-tag applications load
-Fabric and `dist/umd/image-editor.full.umd.min.js`, then call
-`ImageEditorFull.createFullPreset(fabric, options)`. The Full UMD exposes the
-public composition/factories, has no removed monolithic facade, and installs DOM
-Controls only through an explicit option.
+Bundled applications should prefer ESM subpaths. Script-tag applications choose
+either Full UMD or the on-demand Core plus selected Plugin UMD files; the two
+modes must not be loaded together. Full UMD exposes the public
+composition/factories through `ImageEditorFull`, has no removed monolithic
+facade, and installs DOM Controls only through an explicit option. See
+[Modular UMD loading](./modular-umd.md) for globals, dependency order, and
+version rules.
