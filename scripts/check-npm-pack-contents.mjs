@@ -10,6 +10,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
+import { ALL_APPROVED_UMD_ARTIFACTS } from '../config/bundle/modular-umd.mjs';
 import { findCredentialKinds } from './credential-policy.mjs';
 import { inspectMainPackageContents } from './package-content-policy.mjs';
 import { inspectPackagedSourceMap } from './source-map-policy.mjs';
@@ -28,10 +29,7 @@ const requiredFiles = [
     'README.md',
     'dist/esm/index.js',
     'dist/cjs/index.cjs',
-    'dist/umd/image-editor.full.umd.js',
-    'dist/umd/image-editor.full.umd.js.map',
-    'dist/umd/image-editor.full.umd.min.js',
-    'dist/umd/image-editor.full.umd.min.js.map',
+    ...ALL_APPROVED_UMD_ARTIFACTS,
     'dist/types/index.d.ts',
     'dist/types/index.d.cts',
     'dist/types/core/index.d.ts',

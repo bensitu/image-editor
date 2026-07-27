@@ -36,7 +36,7 @@ export const EXPECTED_PACKAGE_EXPORTS = Object.freeze([
     './presets/full',
 ]);
 
-export const APPROVED_UMD_FILES = ALL_APPROVED_UMD_ARTIFACTS;
+export const APPROVED_UMD_FILES = Object.freeze([...ALL_APPROVED_UMD_ARTIFACTS]);
 
 const OLD_RUNTIME_ARTIFACT_PATTERNS = Object.freeze([
     /^dist\/(?:esm|types)\/(?:animation|annotation|crop|export|history|lifecycle|mosaic|overlay|runtime|selection|tool-mode|ui)\//u,

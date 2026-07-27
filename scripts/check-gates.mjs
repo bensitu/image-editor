@@ -53,7 +53,7 @@ const pullRequestChecks = Object.freeze([
     ['public examples', 'check:examples'],
     ['dependency and repository security', 'check:security'],
     ['Chromium product behavior', 'test:e2e'],
-    ['Full UMD policy and browser behavior', 'test:umd'],
+    ['Full and modular UMD policy and browser behavior', 'test:umd'],
     ['deterministic generated output', 'check:deterministic-build'],
 ]);
 
@@ -84,7 +84,7 @@ const releaseChecks = Object.freeze([
     ['dependency and repository security', 'check:security'],
     ['cross-browser product behavior', 'test:e2e:all'],
     ['Chromium visual regression', 'test:visual'],
-    ['Full UMD policy and browser behavior', 'test:umd'],
+    ['Full and modular UMD policy and browser behavior', 'test:umd'],
     ['deterministic generated output', 'check:deterministic-build'],
 ]);
 

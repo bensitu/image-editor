@@ -1,0 +1,78 @@
+{
+    "schemaVersion": 1,
+    "gzipLevel": 9,
+    "headroomRatio": 1.15,
+    "roundingBytes": 1024,
+    "modules": {
+        "core": {
+            "baselineMinifiedBytes": 165084,
+            "baselineMinifiedGzipBytes": 40827,
+            "maximumMinifiedGzipBytes": 47104
+        },
+        "overlay": {
+            "baselineMinifiedBytes": 45683,
+            "baselineMinifiedGzipBytes": 11848,
+            "maximumMinifiedGzipBytes": 14336
+        },
+        "annotation": {
+            "baselineMinifiedBytes": 24464,
+            "baselineMinifiedGzipBytes": 6917,
+            "maximumMinifiedGzipBytes": 8192
+        },
+        "transform": {
+            "baselineMinifiedBytes": 11757,
+            "baselineMinifiedGzipBytes": 3555,
+            "maximumMinifiedGzipBytes": 4096
+        },
+        "history": {
+            "baselineMinifiedBytes": 6744,
+            "baselineMinifiedGzipBytes": 2156,
+            "maximumMinifiedGzipBytes": 3072
+        },
+        "mask": {
+            "baselineMinifiedBytes": 31814,
+            "baselineMinifiedGzipBytes": 9634,
+            "maximumMinifiedGzipBytes": 11264
+        },
+        "filters": {
+            "baselineMinifiedBytes": 26324,
+            "baselineMinifiedGzipBytes": 7233,
+            "maximumMinifiedGzipBytes": 9216
+        },
+        "crop": {
+            "baselineMinifiedBytes": 23810,
+            "baselineMinifiedGzipBytes": 7019,
+            "maximumMinifiedGzipBytes": 8192
+        },
+        "mosaic": {
+            "baselineMinifiedBytes": 22130,
+            "baselineMinifiedGzipBytes": 6788,
+            "maximumMinifiedGzipBytes": 8192
+        },
+        "annotation-text": {
+            "baselineMinifiedBytes": 20182,
+            "baselineMinifiedGzipBytes": 5993,
+            "maximumMinifiedGzipBytes": 7168
+        },
+        "annotation-shape": {
+            "baselineMinifiedBytes": 19662,
+            "baselineMinifiedGzipBytes": 5877,
+            "maximumMinifiedGzipBytes": 7168
+        },
+        "annotation-draw": {
+            "baselineMinifiedBytes": 20626,
+            "baselineMinifiedGzipBytes": 6370,
+            "maximumMinifiedGzipBytes": 8192
+        },
+        "overlay-state": {
+            "baselineMinifiedBytes": 20552,
+            "baselineMinifiedGzipBytes": 6505,
+            "maximumMinifiedGzipBytes": 8192
+        },
+        "dom-controls": {
+            "baselineMinifiedBytes": 16672,
+            "baselineMinifiedGzipBytes": 4710,
+            "maximumMinifiedGzipBytes": 6144
+        }
+    }
+}

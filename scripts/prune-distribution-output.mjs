@@ -20,6 +20,7 @@ const repositoryRoot = path.resolve(scriptsRoot, '..');
 const distributionRoot = path.join(repositoryRoot, 'dist');
 const manifest = (await import('../package.json', { with: { type: 'json' } })).default;
 const esmBuildInputs = new Set(UMD_ESM_BUILD_INPUTS);
+const approvedUmdFiles = new Set(APPROVED_UMD_FILES);
 const mode = process.argv[2] ?? '--all';
 
 if (!['--all', '--esm'].includes(mode) || process.argv.length > 3) {
@@ -71,11 +72,7 @@ for (const file of beforeFiles) {
         !before.graphs.cjsReachable.includes(file)
     ) {
         await removeGeneratedFile(file, beforeFileSet, removed);
-    } else if (
-        mode === '--all' &&
-        file.startsWith('dist/umd/') &&
-        !APPROVED_UMD_FILES.includes(file)
-    ) {
+    } else if (mode === '--all' && file.startsWith('dist/umd/') && !approvedUmdFiles.has(file)) {
         await rm(path.join(repositoryRoot, ...file.split('/')), { force: true });
         removed.add(file);
     }
