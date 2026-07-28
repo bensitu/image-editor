@@ -8,6 +8,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import * as prettier from 'prettier';
+
 import { LEGACY_DEMO_CDN_ASSETS } from '../config/docs/legacy-demo-security.mjs';
 
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +26,42 @@ function assertCondition(condition, message) {
 
 async function readRepositoryFile(relativePath) {
     return readFile(path.join(repositoryRoot, relativePath), 'utf8');
+}
+
+function parseDependabotUpdateBlocks(source) {
+    const markers = [
+        ...source.matchAll(/^ {4}- package-ecosystem: (?<ecosystem>[a-z][a-z-]*)\s*$/gmu),
+    ];
+
+    return markers.map((marker, index) => {
+        const block = source.slice(marker.index, markers[index + 1]?.index ?? source.length);
+        const directory = /^ {6}directory: (?<directory>\S+)\s*$/mu.exec(block)?.groups?.directory;
+        assertCondition(
+            directory,
+            `Dependabot ${marker.groups?.ecosystem ?? 'unknown'} entry is missing a directory.`,
+        );
+
+        return {
+            block,
+            directory,
+            ecosystem: marker.groups?.ecosystem,
+        };
+    });
+}
+
+function assertDependabotSchedule(block, label, openPullRequestsLimit) {
+    for (const fragment of [
+        'interval: weekly',
+        'day: monday',
+        'timezone: Asia/Tokyo',
+        `open-pull-requests-limit: ${openPullRequestsLimit}`,
+        'groups:',
+    ]) {
+        assertCondition(
+            block.includes(fragment),
+            `Dependabot ${label} configuration is missing: ${fragment}`,
+        );
+    }
 }
 
 const workflowEntries = await readdir(workflowsRoot, { withFileTypes: true });
@@ -123,17 +161,88 @@ for (const asset of LEGACY_DEMO_CDN_ASSETS) {
     );
 }
 
-const dependabot = await readRepositoryFile('.github/dependabot.yml');
-for (const fragment of [
-    'version: 2',
-    'package-ecosystem: github-actions',
-    'directory: /',
-    'interval: weekly',
-]) {
+const dependabotPath = '.github/dependabot.yml';
+const dependabot = await readRepositoryFile(dependabotPath);
+const dependabotFilePath = path.join(repositoryRoot, dependabotPath);
+const dependabotFormatOptions = (await prettier.resolveConfig(dependabotFilePath)) ?? {};
+const formattedDependabot = await prettier.format(dependabot, {
+    ...dependabotFormatOptions,
+    filepath: dependabotFilePath,
+});
+assertCondition(
+    dependabot === formattedDependabot,
+    'Dependabot configuration must be valid and formatted YAML.',
+);
+assertCondition(
+    /^version: 2\s*$/mu.test(formattedDependabot),
+    'Dependabot configuration must use version 2.',
+);
+assertCondition(
+    !/^\s*ignore:\s*$/mu.test(formattedDependabot),
+    'Dependabot configuration must not ignore dependency updates.',
+);
+assertCondition(
+    !/\bauto-?merge\b/iu.test(formattedDependabot),
+    'Dependabot configuration must not enable automatic merging.',
+);
+
+const dependabotUpdates = parseDependabotUpdateBlocks(formattedDependabot);
+const expectedDependabotUpdates = new Map([
+    ['github-actions:/', 5],
+    ['npm:/', 10],
+    ['npm:/examples/next-client-only', 5],
+]);
+assertCondition(
+    dependabotUpdates.length === expectedDependabotUpdates.size,
+    'Dependabot must contain only the GitHub Actions, root npm, and isolated Next example entries.',
+);
+
+const seenDependabotUpdates = new Set();
+for (const update of dependabotUpdates) {
+    const key = `${update.ecosystem}:${update.directory}`;
     assertCondition(
-        dependabot.includes(fragment),
-        `Dependabot GitHub Actions configuration is missing: ${fragment}`,
+        expectedDependabotUpdates.has(key),
+        `Dependabot contains an unexpected update entry: ${key}`,
     );
+    assertCondition(
+        !seenDependabotUpdates.has(key),
+        `Dependabot contains a duplicate update entry: ${key}`,
+    );
+    seenDependabotUpdates.add(key);
+    assertDependabotSchedule(update.block, key, expectedDependabotUpdates.get(key));
+}
+for (const key of expectedDependabotUpdates.keys()) {
+    assertCondition(
+        seenDependabotUpdates.has(key),
+        `Dependabot is missing the required update entry: ${key}`,
+    );
+}
+
+const rootNpmUpdate = dependabotUpdates.find(
+    ({ directory, ecosystem }) => ecosystem === 'npm' && directory === '/',
+);
+for (const dependencyType of ['development', 'production']) {
+    assertCondition(
+        rootNpmUpdate?.block.includes(`dependency-type: ${dependencyType}`),
+        `Dependabot root npm grouping must cover ${dependencyType} dependencies.`,
+    );
+}
+
+const nextNpmUpdate = dependabotUpdates.find(
+    ({ directory, ecosystem }) => ecosystem === 'npm' && directory === '/examples/next-client-only',
+);
+assertCondition(
+    nextNpmUpdate?.block.includes("patterns:\n                  - '*'"),
+    'Dependabot isolated Next example grouping must cover all dependencies.',
+);
+
+for (const update of dependabotUpdates.filter(({ ecosystem }) => ecosystem === 'npm')) {
+    for (const updateType of ['minor', 'patch']) {
+        assertCondition(
+            update.block.includes(`- ${updateType}`),
+            `Dependabot ${update.ecosystem}:${update.directory} grouping must include ${updateType} updates.`,
+        );
+    }
 }
 
 console.log(
