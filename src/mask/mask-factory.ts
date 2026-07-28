@@ -246,6 +246,414 @@ function polygonArea(points: Array<{ x: number; y: number }>): number {
     return Math.abs(area) / 2;
 }
 
+interface PreparedMaskConfiguration {
+    readonly mergedConfig: MaskConfig;
+    readonly resolvedConfig: ResolvedMaskConfig;
+    readonly shapeType: NonNullable<MaskConfig['shape']>;
+}
+
+interface ResolvedMaskPlacement {
+    readonly left: number;
+    readonly top: number;
+}
+
+interface ResolvedMaskDimensions {
+    readonly rx: number | undefined;
+    readonly ry: number | undefined;
+    readonly radius: number | undefined;
+    readonly polygonPoints: Array<{ x: number; y: number }> | null;
+}
+
+interface MaskCanvasExpansion {
+    rollback(): void;
+}
+
+function prepareMaskConfiguration(
+    context: CreateMaskContext,
+    config: MaskConfig,
+): PreparedMaskConfiguration | null {
+    const { options } = context;
+    const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
+    const requestedShapeType = mergedConfig.shape ?? 'rect';
+    if (!validateNumericInputs(options, mergedConfig)) return null;
+
+    const shapeType =
+        typeof config.fabricGenerator === 'function'
+            ? requestedShapeType
+            : resolveMaskShape(options, requestedShapeType);
+    const resolvedConfig: ResolvedMaskConfig = {
+        width: options.defaultMaskWidth,
+        height: options.defaultMaskHeight,
+        color: 'rgba(0,0,0,0.5)',
+        alpha: 0.5,
+        gap: 5,
+        left: undefined,
+        top: undefined,
+        angle: 0,
+        selectable: true,
+        ...mergedConfig,
+        shape: shapeType,
+    } as ResolvedMaskConfig;
+
+    return { mergedConfig, resolvedConfig, shapeType };
+}
+
+function resolveMaskPlacement(
+    context: CreateMaskContext,
+    mergedConfig: MaskConfig,
+    resolvedConfig: ResolvedMaskConfig,
+): ResolvedMaskPlacement | null {
+    const { canvas, options } = context;
+    const firstOffset = 10;
+    const previousMask = context.getLastMask();
+    if (mergedConfig.left === undefined && previousMask) {
+        const previousRight =
+            (previousMask.left ?? 0) +
+            (typeof previousMask.getScaledWidth === 'function'
+                ? previousMask.getScaledWidth()
+                : (previousMask.width ?? 0) * (previousMask.scaleX ?? 1));
+        return {
+            left: Math.round(previousRight + (resolvedConfig.gap ?? 5)),
+            top: previousMask.top ?? firstOffset,
+        };
+    }
+
+    const left = resolveMaskNumericField(
+        options,
+        'left',
+        mergedConfig.left,
+        'x',
+        firstOffset,
+        canvas,
+    );
+    const top = resolveMaskNumericField(options, 'top', mergedConfig.top, 'y', firstOffset, canvas);
+    return left === null || top === null ? null : { left, top };
+}
+
+function resolveMaskDimensions(
+    context: CreateMaskContext,
+    mergedConfig: MaskConfig,
+    resolvedConfig: ResolvedMaskConfig,
+    shapeType: NonNullable<MaskConfig['shape']>,
+): ResolvedMaskDimensions | null {
+    const { canvas, options } = context;
+    const width = resolveMaskNumericField(
+        options,
+        'width',
+        mergedConfig.width,
+        'x',
+        options.defaultMaskWidth,
+        canvas,
+    );
+    const height = resolveMaskNumericField(
+        options,
+        'height',
+        mergedConfig.height,
+        'y',
+        options.defaultMaskHeight,
+        canvas,
+    );
+    if (width === null || height === null) return null;
+    resolvedConfig.width = width;
+    resolvedConfig.height = height;
+
+    let rx: number | undefined;
+    if (mergedConfig.rx !== undefined) {
+        const resolvedRx = resolveMaskNumericField(options, 'rx', mergedConfig.rx, 'x', 0, canvas);
+        if (resolvedRx === null) return null;
+        rx = resolvedRx;
+    }
+
+    let ry: number | undefined;
+    if (mergedConfig.ry !== undefined) {
+        const resolvedRy = resolveMaskNumericField(options, 'ry', mergedConfig.ry, 'y', 0, canvas);
+        if (resolvedRy === null) return null;
+        ry = resolvedRy;
+    }
+
+    let radius: number | undefined;
+    if (shapeType === 'circle') {
+        const resolvedRadius = resolveMaskNumericField(
+            options,
+            'radius',
+            mergedConfig.radius,
+            'x',
+            Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
+            canvas,
+        );
+        if (resolvedRadius === null) return null;
+        radius = resolvedRadius;
+    }
+
+    return {
+        rx,
+        ry,
+        radius,
+        polygonPoints:
+            shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null,
+    };
+}
+
+function validateResolvedMask(
+    options: CreateMaskContext['options'],
+    placement: ResolvedMaskPlacement,
+    dimensions: ResolvedMaskDimensions,
+    resolvedConfig: ResolvedMaskConfig,
+    shapeType: NonNullable<MaskConfig['shape']>,
+): boolean {
+    if (
+        !validateFiniteField(options, 'left', placement.left) ||
+        !validateFiniteField(options, 'top', placement.top) ||
+        !validatePositiveField(options, 'width', resolvedConfig.width) ||
+        !validatePositiveField(options, 'height', resolvedConfig.height) ||
+        !validateFiniteField(options, 'gap', resolvedConfig.gap) ||
+        !validateFiniteField(options, 'angle', resolvedConfig.angle) ||
+        !validateFiniteField(options, 'alpha', resolvedConfig.alpha)
+    ) {
+        return false;
+    }
+    return !(
+        (dimensions.rx !== undefined && !validateNonNegativeField(options, 'rx', dimensions.rx)) ||
+        (dimensions.ry !== undefined && !validateNonNegativeField(options, 'ry', dimensions.ry)) ||
+        (dimensions.radius !== undefined &&
+            !validatePositiveField(options, 'radius', dimensions.radius)) ||
+        (shapeType === 'polygon' && dimensions.polygonPoints === null)
+    );
+}
+
+function expandMaskCanvas(
+    context: CreateMaskContext,
+    placement: ResolvedMaskPlacement,
+    resolvedConfig: ResolvedMaskConfig,
+): MaskCanvasExpansion | null {
+    const { canvas, options } = context;
+    let preExpandCanvasSize: { width: number; height: number } | null = null;
+    if (options.layoutMode === 'expand') {
+        const requiredWidth = Math.ceil(placement.left + resolvedConfig.width + 10);
+        const requiredHeight = Math.ceil(placement.top + resolvedConfig.height + 10);
+        const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
+        const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+        const maxExportDimension = options.maxExportDimension;
+        const maxExportPixels = options.maxExportPixels;
+        if (
+            !context.expandCanvasIfNeeded &&
+            (typeof maxExportDimension !== 'number' ||
+                typeof maxExportPixels !== 'number' ||
+                nextWidth > maxExportDimension ||
+                nextHeight > maxExportDimension ||
+                !isPixelAreaWithinBudget(nextWidth, nextHeight, maxExportPixels))
+        ) {
+            warnInvalidMask(options, 'canvas expansion exceeds the configured resource budget');
+            return null;
+        }
+        if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
+            preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
+            resizeMaskCanvas(context, nextWidth, nextHeight);
+        }
+    }
+
+    return {
+        rollback() {
+            if (!preExpandCanvasSize) return;
+            try {
+                resizeMaskCanvas(context, preExpandCanvasSize.width, preExpandCanvasSize.height);
+            } catch (error) {
+                reportWarning(options, error, 'createMask rollback canvas size failed.');
+            }
+        },
+    };
+}
+
+function buildFabricShape(
+    context: CreateMaskContext,
+    config: MaskConfig,
+    resolvedConfig: ResolvedMaskConfig,
+    shapeType: NonNullable<MaskConfig['shape']>,
+    placement: ResolvedMaskPlacement,
+    dimensions: ResolvedMaskDimensions,
+    expansion: MaskCanvasExpansion,
+): FabricNS.FabricObject | null {
+    const { canvas, options, fabric: fabricModule } = context;
+    const { left, top } = placement;
+
+    if (typeof config.fabricGenerator === 'function') {
+        let generated: unknown;
+        try {
+            generated = config.fabricGenerator(resolvedConfig, canvas, options) as unknown;
+        } catch (error) {
+            expansion.rollback();
+            reportWarning(options, error, 'createMask skipped: fabricGenerator threw.');
+            return null;
+        }
+        if (!isFabricObjectLike(generated)) {
+            expansion.rollback();
+            reportWarning(
+                options,
+                generated,
+                'createMask skipped: fabricGenerator did not return a Fabric object.',
+            );
+            return null;
+        }
+        return generated;
+    }
+
+    // Fabric objects default to originX/Y 'center'/'center'. Masks must declare
+    // 'left'/'top' so coordinates refer to the top-left corner used by placement.
+    const originProps = {
+        originX: 'left' as FabricNS.TOriginX,
+        originY: 'top' as FabricNS.TOriginY,
+    };
+
+    switch (shapeType) {
+        case 'circle': {
+            if (dimensions.radius === undefined) {
+                expansion.rollback();
+                reportWarning(
+                    options,
+                    dimensions.radius,
+                    'createMask skipped: circle radius is missing.',
+                );
+                return null;
+            }
+            return new fabricModule.Circle({
+                left,
+                top,
+                ...originProps,
+                radius: dimensions.radius,
+                fill: resolvedConfig.color,
+                opacity: resolvedConfig.alpha,
+                angle: resolvedConfig.angle ?? 0,
+                ...resolvedConfig.styles,
+            });
+        }
+        case 'ellipse':
+            return new fabricModule.Ellipse({
+                left,
+                top,
+                ...originProps,
+                rx: dimensions.rx ?? resolvedConfig.width / 2,
+                ry: dimensions.ry ?? resolvedConfig.height / 2,
+                fill: resolvedConfig.color,
+                opacity: resolvedConfig.alpha,
+                angle: resolvedConfig.angle ?? 0,
+                ...resolvedConfig.styles,
+            });
+        case 'polygon': {
+            // Fabric centers Polygon pathOffset on its supplied position. Construct
+            // first, then shift its rendered bounding box to the requested top-left.
+            const polygon = new fabricModule.Polygon(dimensions.polygonPoints!, {
+                ...originProps,
+                fill: resolvedConfig.color,
+                opacity: resolvedConfig.alpha,
+                angle: resolvedConfig.angle ?? 0,
+                ...resolvedConfig.styles,
+            });
+            polygon.setCoords();
+            const boundingRect = polygon.getBoundingRect();
+            const deltaX = left - boundingRect.left;
+            const deltaY = top - boundingRect.top;
+            polygon.set({
+                left: (polygon.left ?? 0) + deltaX,
+                top: (polygon.top ?? 0) + deltaY,
+            });
+            polygon.setCoords();
+            return polygon;
+        }
+        case 'rect':
+        default:
+            return new fabricModule.Rect({
+                left,
+                top,
+                ...originProps,
+                width: resolvedConfig.width,
+                height: resolvedConfig.height,
+                fill: resolvedConfig.color,
+                opacity: resolvedConfig.alpha,
+                angle: resolvedConfig.angle ?? 0,
+                ...(dimensions.rx !== undefined ? { rx: dimensions.rx } : {}),
+                ...(dimensions.ry !== undefined ? { ry: dimensions.ry } : {}),
+                ...resolvedConfig.styles,
+            });
+    }
+}
+
+function applyCommonMaskProperties(
+    context: CreateMaskContext,
+    mask: FabricNS.FabricObject,
+    mergedConfig: MaskConfig,
+    resolvedConfig: ResolvedMaskConfig,
+): MaskObject {
+    const { options } = context;
+    const maskObject = mask as MaskObject;
+    maskObject.selectable = 'selectable' in mergedConfig ? !!mergedConfig.selectable : true;
+    maskObject.evented = 'evented' in mergedConfig ? !!mergedConfig.evented : true;
+    maskObject.hasControls = 'hasControls' in mergedConfig ? !!mergedConfig.hasControls : true;
+    maskObject.transparentCorners =
+        'transparentCorners' in mergedConfig ? !!mergedConfig.transparentCorners : false;
+    maskObject.strokeUniform =
+        'strokeUniform' in mergedConfig ? !!mergedConfig.strokeUniform : true;
+    maskObject.lockRotation = !options.maskRotatable;
+    maskObject.borderColor = mergedConfig.borderColor ?? 'red';
+    maskObject.cornerColor = mergedConfig.cornerColor ?? 'black';
+    maskObject.cornerSize = mergedConfig.cornerSize ?? 8;
+
+    const styles = (resolvedConfig.styles ?? {}) as Partial<FabricNS.FabricObjectProps>;
+    if ('stroke' in styles) {
+        maskObject.stroke = styles.stroke as FabricNS.TFiller | string | null;
+    } else {
+        maskObject.stroke = '#ccc';
+    }
+    if ('strokeWidth' in styles) {
+        maskObject.strokeWidth = styles.strokeWidth as number;
+    } else {
+        maskObject.strokeWidth = 1;
+    }
+    if ('strokeDashArray' in styles) {
+        maskObject.strokeDashArray = styles.strokeDashArray as number[];
+    }
+
+    const nextId = context.getMaskCounter() + 1;
+    context.setMaskCounter(nextId);
+    markMaskObject(maskObject, {
+        maskId: nextId,
+        maskUid: createMaskUid(nextId),
+        maskName: `${options.maskName}${nextId}`,
+        originalAlpha: resolvedConfig.alpha,
+        originalStroke: maskObject.stroke,
+        originalStrokeWidth: maskObject.strokeWidth,
+    });
+    attachMaskHoverHandlers(maskObject);
+    return maskObject;
+}
+
+function finalizeMaskAttachment(
+    context: CreateMaskContext,
+    config: MaskConfig,
+    resolvedConfig: ResolvedMaskConfig,
+    maskObject: MaskObject,
+): MaskObject {
+    const { canvas, options } = context;
+    context.setLastMask(maskObject);
+    placeMaskObject(canvas, maskObject);
+
+    if (resolvedConfig.selectable !== false) {
+        // setActiveObject fires selection events after the mask is attached.
+        canvas.setActiveObject(maskObject);
+    }
+
+    // Paint the active style before an onCreate callback inspects the Canvas.
+    canvas.renderAll();
+
+    if (typeof config.onCreate === 'function') {
+        try {
+            config.onCreate(maskObject, canvas);
+        } catch (error) {
+            reportWarning(options, error, 'createMask onCreate callback threw.');
+        }
+    }
+    return maskObject;
+}
+
 /**
  * Create a mask via the resolved {@link MaskConfig} and add it to the
  * canvas.
@@ -277,361 +685,36 @@ function polygonArea(points: Array<{ x: number; y: number }>): number {
  * @returns The created mask, or `null` when input resolution or a custom generator fails.
  */
 export function createMask(context: CreateMaskContext, config: MaskConfig = {}): MaskObject | null {
-    const { canvas, options, fabric: fabricModule } = context;
+    const { canvas, options } = context;
     if (!canvas) return null;
 
-    const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
-    const requestedShapeType = mergedConfig.shape ?? 'rect';
-    if (!validateNumericInputs(options, mergedConfig)) return null;
+    const prepared = prepareMaskConfiguration(context, config);
+    if (!prepared) return null;
+    const { mergedConfig, resolvedConfig, shapeType } = prepared;
 
-    const shapeType =
-        typeof config.fabricGenerator === 'function'
-            ? requestedShapeType
-            : resolveMaskShape(options, requestedShapeType);
-
-    // ── Resolve config (defaults merged with the user overrides) ──────────
-    const resolvedConfig: ResolvedMaskConfig = {
-        width: options.defaultMaskWidth,
-        height: options.defaultMaskHeight,
-        color: 'rgba(0,0,0,0.5)',
-        alpha: 0.5,
-        gap: 5,
-        left: undefined,
-        top: undefined,
-        angle: 0,
-        selectable: true,
-        ...mergedConfig,
-        shape: shapeType,
-    } as ResolvedMaskConfig;
-
-    const firstOffset = 10;
-
-    // ── Resolve placement (auto-place to the right of the previous mask
-    //    when the caller did not specify `left`) ───────────────────────────
-    let left: number;
-    let top: number;
-    const previousMask = context.getLastMask();
-    if (mergedConfig.left === undefined && previousMask) {
-        const previousRight =
-            (previousMask.left ?? 0) +
-            (typeof previousMask.getScaledWidth === 'function'
-                ? previousMask.getScaledWidth()
-                : (previousMask.width ?? 0) * (previousMask.scaleX ?? 1));
-        left = Math.round(previousRight + (resolvedConfig.gap ?? 5));
-        top = previousMask.top ?? firstOffset;
-    } else {
-        const resolvedLeft = resolveMaskNumericField(
-            options,
-            'left',
-            mergedConfig.left,
-            'x',
-            firstOffset,
-            canvas,
-        );
-        const resolvedTop = resolveMaskNumericField(
-            options,
-            'top',
-            mergedConfig.top,
-            'y',
-            firstOffset,
-            canvas,
-        );
-        if (resolvedLeft === null || resolvedTop === null) return null;
-        left = resolvedLeft;
-        top = resolvedTop;
-    }
-
-    // ── Resolve dimensions (axis-aware percentages) ──
-    const resolvedWidth = resolveMaskNumericField(
-        options,
-        'width',
-        mergedConfig.width,
-        'x',
-        options.defaultMaskWidth,
-        canvas,
-    );
-    const resolvedHeight = resolveMaskNumericField(
-        options,
-        'height',
-        mergedConfig.height,
-        'y',
-        options.defaultMaskHeight,
-        canvas,
-    );
-    if (resolvedWidth === null || resolvedHeight === null) return null;
-    resolvedConfig.width = resolvedWidth;
-    resolvedConfig.height = resolvedHeight;
-
-    let rx: number | undefined;
-    if (mergedConfig.rx !== undefined) {
-        const resolvedRx = resolveMaskNumericField(options, 'rx', mergedConfig.rx, 'x', 0, canvas);
-        if (resolvedRx === null) return null;
-        rx = resolvedRx;
-    }
-    let ry: number | undefined;
-    if (mergedConfig.ry !== undefined) {
-        const resolvedRy = resolveMaskNumericField(options, 'ry', mergedConfig.ry, 'y', 0, canvas);
-        if (resolvedRy === null) return null;
-        ry = resolvedRy;
-    }
-    let radius: number | undefined;
-    if (shapeType === 'circle') {
-        const resolvedRadius = resolveMaskNumericField(
-            options,
-            'radius',
-            mergedConfig.radius,
-            'x',
-            Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
-            canvas,
-        );
-        if (resolvedRadius === null) return null;
-        radius = resolvedRadius;
-    }
-    const polygonPoints =
-        shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null;
-
-    if (
-        !validateFiniteField(options, 'left', left) ||
-        !validateFiniteField(options, 'top', top) ||
-        !validatePositiveField(options, 'width', resolvedConfig.width) ||
-        !validatePositiveField(options, 'height', resolvedConfig.height) ||
-        !validateFiniteField(options, 'gap', resolvedConfig.gap) ||
-        !validateFiniteField(options, 'angle', resolvedConfig.angle) ||
-        !validateFiniteField(options, 'alpha', resolvedConfig.alpha)
-    ) {
-        return null;
-    }
-    if (
-        (rx !== undefined && !validateNonNegativeField(options, 'rx', rx)) ||
-        (ry !== undefined && !validateNonNegativeField(options, 'ry', ry)) ||
-        (radius !== undefined && !validatePositiveField(options, 'radius', radius)) ||
-        (shapeType === 'polygon' && polygonPoints === null)
-    ) {
+    const placement = resolveMaskPlacement(context, mergedConfig, resolvedConfig);
+    if (!placement) return null;
+    const dimensions = resolveMaskDimensions(context, mergedConfig, resolvedConfig, shapeType);
+    if (!dimensions) return null;
+    if (!validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType)) {
         return null;
     }
 
-    // ── Expand canvas only when placement would overflow ─────────────────
-    //    Never use viewport dimensions as a floor here — that would shrink a
-    //    wider-than-viewport canvas (removing its scrollbar).
-    let preExpandCanvasSize: { width: number; height: number } | null = null;
-    if (options.layoutMode === 'expand') {
-        const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
-        const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
-        const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
-        const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
-        const maxExportDimension = options.maxExportDimension;
-        const maxExportPixels = options.maxExportPixels;
-        if (
-            !context.expandCanvasIfNeeded &&
-            (typeof maxExportDimension !== 'number' ||
-                typeof maxExportPixels !== 'number' ||
-                nextWidth > maxExportDimension ||
-                nextHeight > maxExportDimension ||
-                !isPixelAreaWithinBudget(nextWidth, nextHeight, maxExportPixels))
-        ) {
-            warnInvalidMask(options, 'canvas expansion exceeds the configured resource budget');
-            return null;
-        }
-        if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
-            preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
-            resizeMaskCanvas(context, nextWidth, nextHeight);
-        }
-    }
+    // Never use viewport dimensions as an expansion floor; doing so could shrink
+    // a wider-than-viewport Canvas and remove its scrollbar.
+    const expansion = expandMaskCanvas(context, placement, resolvedConfig);
+    if (!expansion) return null;
+    const mask = buildFabricShape(
+        context,
+        config,
+        resolvedConfig,
+        shapeType,
+        placement,
+        dimensions,
+        expansion,
+    );
+    if (!mask) return null;
 
-    const rollbackCanvasExpansion = (): void => {
-        if (!preExpandCanvasSize) return;
-        try {
-            resizeMaskCanvas(context, preExpandCanvasSize.width, preExpandCanvasSize.height);
-        } catch (error) {
-            reportWarning(options, error, 'createMask rollback canvas size failed.');
-        }
-    };
-
-    // ── Build the Fabric shape ──────────────────
-    let mask: FabricNS.FabricObject;
-
-    if (typeof config.fabricGenerator === 'function') {
-        let generated: unknown;
-        try {
-            generated = config.fabricGenerator(resolvedConfig, canvas, options) as unknown;
-        } catch (error) {
-            rollbackCanvasExpansion();
-            reportWarning(options, error, 'createMask skipped: fabricGenerator threw.');
-            return null;
-        }
-        if (!isFabricObjectLike(generated)) {
-            rollbackCanvasExpansion();
-            reportWarning(
-                options,
-                generated,
-                'createMask skipped: fabricGenerator did not return a Fabric object.',
-            );
-            return null;
-        }
-        mask = generated;
-    } else {
-        // Fabric objects default to originX/Y 'center'/'center'.
-        // Masks must declare 'left'/'top' so coordinates refer to the
-        // top-left corner used by the placement logic above.
-        const originProps = {
-            originX: 'left' as FabricNS.TOriginX,
-            originY: 'top' as FabricNS.TOriginY,
-        };
-
-        switch (shapeType) {
-            case 'circle': {
-                if (radius === undefined) {
-                    rollbackCanvasExpansion();
-                    reportWarning(options, radius, 'createMask skipped: circle radius is missing.');
-                    return null;
-                }
-                mask = new fabricModule.Circle({
-                    left,
-                    top,
-                    ...originProps,
-                    radius,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: resolvedConfig.angle ?? 0,
-                    ...resolvedConfig.styles,
-                });
-                break;
-            }
-            case 'ellipse':
-                mask = new fabricModule.Ellipse({
-                    left,
-                    top,
-                    ...originProps,
-                    rx: rx ?? resolvedConfig.width / 2,
-                    ry: ry ?? resolvedConfig.height / 2,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: resolvedConfig.angle ?? 0,
-                    ...resolvedConfig.styles,
-                });
-                break;
-            case 'polygon': {
-                // Bounding-box realignment.
-                //
-                // Fabric.js `Polygon` constructor centers the
-                // polygon's `pathOffset` on the supplied `(left, top)`,
-                // so passing `(left, top)` directly puts the bounding
-                // box somewhere offset from the requested coordinate
-                // (the offset depends on the geometry of `points`). To
-                // honor the documented "bounding box top-left maps to
-                // (left, top)" contract we:
-                //   1. construct the polygon without `left`/`top`,
-                //   2. measure where Fabric placed its bounding rect,
-                //   3. shift the object by the delta between the
-                //      requested `(left, top)` and the actual bounding
-                //      rect top-left.
-                // After the shift the rendered bounding-box top-left
-                // matches the resolved `(left, top)`.
-                const polygon = new fabricModule.Polygon(polygonPoints!, {
-                    ...originProps,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: resolvedConfig.angle ?? 0,
-                    ...resolvedConfig.styles,
-                });
-                polygon.setCoords();
-                const boundingRect = polygon.getBoundingRect();
-                const deltaX = left - boundingRect.left;
-                const deltaY = top - boundingRect.top;
-                polygon.set({
-                    left: (polygon.left ?? 0) + deltaX,
-                    top: (polygon.top ?? 0) + deltaY,
-                });
-                polygon.setCoords();
-                mask = polygon;
-                break;
-            }
-            case 'rect':
-            default:
-                mask = new fabricModule.Rect({
-                    left,
-                    top,
-                    ...originProps,
-                    width: resolvedConfig.width,
-                    height: resolvedConfig.height,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: resolvedConfig.angle ?? 0,
-                    ...(rx !== undefined ? { rx } : {}),
-                    ...(ry !== undefined ? { ry } : {}),
-                    ...resolvedConfig.styles,
-                });
-        }
-    }
-
-    // ── Common mask properties ─────────────────────────
-    //    The flags below use the `'foo' in mergedConfig ? … : default`
-    //    pattern so that an explicit `false` is preserved as `false` and
-    //    `undefined` falls back to the documented default.
-    const maskObject = mask as MaskObject;
-    maskObject.selectable = 'selectable' in mergedConfig ? !!mergedConfig.selectable : true;
-    maskObject.evented = 'evented' in mergedConfig ? !!mergedConfig.evented : true;
-    maskObject.hasControls = 'hasControls' in mergedConfig ? !!mergedConfig.hasControls : true;
-    maskObject.transparentCorners =
-        'transparentCorners' in mergedConfig ? !!mergedConfig.transparentCorners : false;
-    maskObject.strokeUniform =
-        'strokeUniform' in mergedConfig ? !!mergedConfig.strokeUniform : true;
-    maskObject.lockRotation = !options.maskRotatable;
-    maskObject.borderColor = mergedConfig.borderColor ?? 'red';
-    maskObject.cornerColor = mergedConfig.cornerColor ?? 'black';
-    maskObject.cornerSize = mergedConfig.cornerSize ?? 8;
-
-    // ── Stroke defaults — preserve falsy values from `styles` ─────────────
-    //    `??` would replace `null` with the default. Use an `in` check so
-    //    `styles.stroke = null` (or `''`, `0`) is preserved verbatim.
-    const styles = (resolvedConfig.styles ?? {}) as Partial<FabricNS.FabricObjectProps>;
-    if ('stroke' in styles) {
-        maskObject.stroke = styles.stroke as FabricNS.TFiller | string | null;
-    } else {
-        maskObject.stroke = '#ccc';
-    }
-    if ('strokeWidth' in styles) {
-        maskObject.strokeWidth = styles.strokeWidth as number;
-    } else {
-        maskObject.strokeWidth = 1;
-    }
-    if ('strokeDashArray' in styles) {
-        maskObject.strokeDashArray = styles.strokeDashArray as number[];
-    }
-
-    // ── Counter and identity ──────────────────────────
-    const nextId = context.getMaskCounter() + 1;
-    context.setMaskCounter(nextId);
-    markMaskObject(maskObject, {
-        maskId: nextId,
-        maskUid: createMaskUid(nextId),
-        maskName: `${options.maskName}${nextId}`,
-        originalAlpha: resolvedConfig.alpha,
-        originalStroke: maskObject.stroke,
-        originalStrokeWidth: maskObject.strokeWidth,
-    });
-    attachMaskHoverHandlers(maskObject);
-
-    context.setLastMask(maskObject);
-
-    placeMaskObject(canvas, maskObject);
-
-    if (resolvedConfig.selectable !== false) {
-        // setActiveObject fires 'selection:created' and the orchestrator's
-        // selection handler reacts (e.g. by creating the mask label).
-        canvas.setActiveObject(maskObject);
-    }
-
-    // Paint the active style before an onCreate callback inspects the Canvas.
-    canvas.renderAll();
-
-    if (typeof config.onCreate === 'function') {
-        try {
-            config.onCreate(maskObject, canvas);
-        } catch (error) {
-            reportWarning(options, error, 'createMask onCreate callback threw.');
-        }
-    }
-
-    return maskObject;
+    const maskObject = applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig);
+    return finalizeMaskAttachment(context, config, resolvedConfig, maskObject);
 }
