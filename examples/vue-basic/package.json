@@ -10,7 +10,7 @@
     },
     "dependencies": {
         "@bensitu/image-editor": "file:../..",
-        "fabric": "^7.0.0",
+        "fabric": "^7.4.0",
         "vue": "^3.5.0"
     },
     "devDependencies": {

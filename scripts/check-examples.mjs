@@ -5,6 +5,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 
 const execFileAsync = promisify(execFile);
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -69,6 +70,24 @@ async function collectFiles(directory) {
     return files;
 }
 
+async function collectExampleManifests(directory) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const manifests = [];
+    for (const entry of entries) {
+        if (['dist', 'node_modules', '.next'].includes(entry.name)) continue;
+        const entryPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+            manifests.push(...(await collectExampleManifests(entryPath)));
+        } else if (entry.isFile() && entry.name === 'package.json') {
+            manifests.push({
+                path: entryPath,
+                value: JSON.parse(await readFile(entryPath, 'utf8')),
+            });
+        }
+    }
+    return manifests;
+}
+
 function collectImports(source) {
     const imports = [];
     const expression = /(?:from\s*|import\s*\()\s*['"]([^'"]+)['"]/gu;
@@ -109,6 +128,50 @@ async function verifySources() {
     }
 }
 
+async function verifyFabricRanges() {
+    const peerRange = manifest.peerDependencies?.fabric;
+    const peerMinimum = typeof peerRange === 'string' ? semver.minVersion(peerRange) : null;
+    assertCondition(peerMinimum !== null, 'The root Fabric peer range must be valid.');
+
+    const checkedPackages = new Set();
+    for (const exampleManifest of await collectExampleManifests(examplesRoot)) {
+        for (const dependencyType of ['dependencies', 'devDependencies']) {
+            const fabricRange = exampleManifest.value[dependencyType]?.fabric;
+            if (typeof fabricRange !== 'string') continue;
+
+            const normalizedRange = semver.validRange(fabricRange);
+            const exampleMinimum = normalizedRange ? semver.minVersion(normalizedRange) : null;
+            const relative = path
+                .relative(repositoryRoot, exampleManifest.path)
+                .replaceAll('\\', '/');
+            assertCondition(
+                normalizedRange !== null && exampleMinimum !== null,
+                `${relative} has an invalid Fabric range "${fabricRange}".`,
+            );
+            assertCondition(
+                semver.gte(exampleMinimum, peerMinimum),
+                `${relative} permits Fabric below the root peer minimum ${peerMinimum.version}.`,
+            );
+            assertCondition(
+                semver.intersects(normalizedRange, peerRange),
+                `${relative} Fabric range "${fabricRange}" does not intersect "${peerRange}".`,
+            );
+            checkedPackages.add(exampleManifest.value.name);
+        }
+    }
+
+    for (const packageName of [
+        '@bensitu/image-editor-react-basic-example',
+        '@bensitu/image-editor-vue-basic-example',
+        '@bensitu/image-editor-next-client-only-example',
+    ]) {
+        assertCondition(
+            checkedPackages.has(packageName),
+            `${packageName} must declare a checked Fabric range.`,
+        );
+    }
+}
+
 async function verifyTemplatePackage() {
     const templateRoot = path.join(examplesRoot, 'plugin-template');
     await npm(['run', 'build'], templateRoot);
@@ -132,7 +195,7 @@ async function verifyTemplatePackage() {
     }
 }
 
-await verifySources();
+await Promise.all([verifySources(), verifyFabricRanges()]);
 for (const workspace of buildWorkspaces) {
     const isolatedRoot = isolatedExampleRoots.get(workspace);
     if (isolatedRoot) {
