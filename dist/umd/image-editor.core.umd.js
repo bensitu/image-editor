@@ -2010,6 +2010,54 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/plugin-kernel/plugin-manager.js
+	function createPluginCleanupTraversal(installationOrder, installed, toolCoordinator, operationRegistry, eventBus, capabilityRegistry, stateStore) {
+		const records = [...installationOrder].reverse().map((pluginId) => installed.get(pluginId)).filter((record) => record !== void 0);
+		const kernelTargets = Object.freeze([
+			{
+				disposable: toolCoordinator,
+				disposeSync: () => toolCoordinator.disposeSync()
+			},
+			{
+				disposable: operationRegistry,
+				disposeSync: () => {
+					operationRegistry.dispose();
+				}
+			},
+			{
+				disposable: eventBus,
+				disposeSync: () => {
+					eventBus.dispose();
+				}
+			},
+			{
+				disposable: capabilityRegistry,
+				disposeSync: () => {
+					capabilityRegistry.dispose();
+				}
+			},
+			{
+				disposable: stateStore,
+				disposeSync: () => {
+					stateStore.dispose();
+				}
+			}
+		]);
+		return Object.freeze({
+			records: Object.freeze(records),
+			kernelTargets
+		});
+	}
+	function recordPluginCleanupError(errors, errorSink, error) {
+		errors.push(error);
+		reportErrorSafely(errorSink, error);
+	}
+	function releasePluginCleanupRecord(record, owner) {
+		releasePluginDefinitionLease(record.plugin, owner);
+	}
+	function clearInstalledPluginRecords(installed, installationOrder) {
+		installed.clear();
+		installationOrder.length = 0;
+	}
 	function isPluginApi(value) {
 		return typeof value === "object" && value !== null || typeof value === "function";
 	}
@@ -2664,50 +2712,38 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			try {
 				await this.operationRegistry.suspend(new DOMException("Plugin Kernel disposal aborted active operations.", "AbortError"));
 			} catch (error) {
-				errors.push(error);
-				reportErrorSafely(this.options.errorSink, error);
+				recordPluginCleanupError(errors, this.options.errorSink, error);
 			}
-			const records = [...this.installationOrder].reverse().map((pluginId) => this.installed.get(pluginId)).filter((record) => record !== void 0);
-			for (const record of records) {
+			const traversal = createPluginCleanupTraversal(this.installationOrder, this.installed, this.toolCoordinator, this.operationRegistry, this.eventBus, this.capabilityRegistry, this.stateStore);
+			for (const record of traversal.records) {
 				if (!record.plugin.onDispose) continue;
 				try {
 					await record.plugin.onDispose(record.lifecycleContext);
 				} catch (error) {
 					const lifecycleError = new PluginLifecycleError(record.plugin.ref.id, "dispose", error);
-					errors.push(lifecycleError);
-					reportErrorSafely(this.options.errorSink, lifecycleError);
+					recordPluginCleanupError(errors, this.options.errorSink, lifecycleError);
 				}
 			}
-			for (const record of records) {
+			for (const record of traversal.records) {
 				try {
 					await record.scope.dispose();
 				} catch (error) {
-					errors.push(error);
-					reportErrorSafely(this.options.errorSink, error);
+					recordPluginCleanupError(errors, this.options.errorSink, error);
 				}
-				releasePluginDefinitionLease(record.plugin, this);
+				releasePluginCleanupRecord(record, this);
 			}
-			this.installed.clear();
-			this.installationOrder.length = 0;
-			const kernelDisposables = [
-				this.toolCoordinator,
-				this.operationRegistry,
-				this.eventBus,
-				this.capabilityRegistry,
-				this.stateStore
-			];
-			for (const disposable of kernelDisposables) try {
-				await disposable.dispose();
+			clearInstalledPluginRecords(this.installed, this.installationOrder);
+			for (const target of traversal.kernelTargets) try {
+				await target.disposable.dispose();
 			} catch (error) {
-				errors.push(error);
-				reportErrorSafely(this.options.errorSink, error);
+				recordPluginCleanupError(errors, this.options.errorSink, error);
 			}
 			return errors;
 		}
 		cleanupAllSync() {
 			const errors = [];
-			const records = [...this.installationOrder].reverse().map((pluginId) => this.installed.get(pluginId)).filter((record) => record !== void 0);
-			for (const record of records) {
+			const traversal = createPluginCleanupTraversal(this.installationOrder, this.installed, this.toolCoordinator, this.operationRegistry, this.eventBus, this.capabilityRegistry, this.stateStore);
+			for (const record of traversal.records) {
 				if (!record.plugin.onDispose) continue;
 				try {
 					const result = record.plugin.onDispose(record.lifecycleContext);
@@ -2719,33 +2755,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				} catch (error) {
 					const lifecycleError = error instanceof PluginLifecycleError ? error : new PluginLifecycleError(record.plugin.ref.id, "dispose", error);
-					errors.push(lifecycleError);
-					reportErrorSafely(this.options.errorSink, lifecycleError);
+					recordPluginCleanupError(errors, this.options.errorSink, lifecycleError);
 				}
 			}
-			for (const record of records) {
+			for (const record of traversal.records) {
 				try {
 					record.scope.disposeSync();
 				} catch (error) {
-					errors.push(error);
-					reportErrorSafely(this.options.errorSink, error);
+					recordPluginCleanupError(errors, this.options.errorSink, error);
 				}
-				releasePluginDefinitionLease(record.plugin, this);
+				releasePluginCleanupRecord(record, this);
 			}
-			this.installed.clear();
-			this.installationOrder.length = 0;
-			const cleanup = [
-				() => this.toolCoordinator.disposeSync(),
-				() => this.operationRegistry.dispose(),
-				() => this.eventBus.dispose(),
-				() => this.capabilityRegistry.dispose(),
-				() => this.stateStore.dispose()
-			];
-			for (const dispose of cleanup) try {
-				dispose();
+			clearInstalledPluginRecords(this.installed, this.installationOrder);
+			for (const target of traversal.kernelTargets) try {
+				target.disposeSync();
 			} catch (error) {
-				errors.push(error);
-				reportErrorSafely(this.options.errorSink, error);
+				recordPluginCleanupError(errors, this.options.errorSink, error);
 			}
 			return Object.freeze(errors);
 		}

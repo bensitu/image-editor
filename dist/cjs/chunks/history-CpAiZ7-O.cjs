@@ -1,5 +1,5 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-Rrb37Dzn.cjs');
+const require_core = require('./core-BJOWDnC3.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-DVWgBNfU.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 
@@ -427,4 +427,4 @@ Object.defineProperty(exports, 'historyPluginRef', {
     return historyPluginRef;
   }
 });
-//# sourceMappingURL=history-DKW4rz0-.cjs.map
+//# sourceMappingURL=history-CpAiZ7-O.cjs.map

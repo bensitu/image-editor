@@ -127,6 +127,89 @@ interface PreparedBatch<TEvents extends object> {
     readonly apisByPluginId: Map<string, unknown>;
 }
 
+interface KernelCleanupTarget {
+    readonly disposable: Disposable;
+    disposeSync(): void;
+}
+
+interface PluginCleanupTraversal<TEvents extends object> {
+    readonly records: readonly InstalledPluginRecord<TEvents>[];
+    readonly kernelTargets: readonly KernelCleanupTarget[];
+}
+
+function createPluginCleanupTraversal<TEvents extends object>(
+    installationOrder: readonly string[],
+    installed: ReadonlyMap<string, InstalledPluginRecord<TEvents>>,
+    toolCoordinator: ToolCoordinator,
+    operationRegistry: OperationRegistry,
+    eventBus: CommittedEventBus<TEvents>,
+    capabilityRegistry: CapabilityRegistry,
+    stateStore: PluginStateStore,
+): PluginCleanupTraversal<TEvents> {
+    const records = [...installationOrder]
+        .reverse()
+        .map((pluginId) => installed.get(pluginId))
+        .filter((record): record is InstalledPluginRecord<TEvents> => record !== undefined);
+    const kernelTargets: readonly KernelCleanupTarget[] = Object.freeze([
+        {
+            disposable: toolCoordinator,
+            disposeSync: () => toolCoordinator.disposeSync(),
+        },
+        {
+            disposable: operationRegistry,
+            disposeSync: () => {
+                operationRegistry.dispose();
+            },
+        },
+        {
+            disposable: eventBus,
+            disposeSync: () => {
+                eventBus.dispose();
+            },
+        },
+        {
+            disposable: capabilityRegistry,
+            disposeSync: () => {
+                capabilityRegistry.dispose();
+            },
+        },
+        {
+            disposable: stateStore,
+            disposeSync: () => {
+                stateStore.dispose();
+            },
+        },
+    ]);
+    return Object.freeze({
+        records: Object.freeze(records),
+        kernelTargets,
+    });
+}
+
+function recordPluginCleanupError(
+    errors: unknown[],
+    errorSink: PluginErrorSink | undefined,
+    error: unknown,
+): void {
+    errors.push(error);
+    reportErrorSafely(errorSink, error);
+}
+
+function releasePluginCleanupRecord<TEvents extends object>(
+    record: InstalledPluginRecord<TEvents>,
+    owner: { readonly state: string },
+): void {
+    releasePluginDefinitionLease(record.plugin, owner);
+}
+
+function clearInstalledPluginRecords<TEvents extends object>(
+    installed: Map<string, InstalledPluginRecord<TEvents>>,
+    installationOrder: string[],
+): void {
+    installed.clear();
+    installationOrder.length = 0;
+}
+
 /** @internal Capability resolution shared with the asynchronous installer. */
 export interface ResolvedCapability {
     readonly token: object;
@@ -1170,15 +1253,19 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 new DOMException('Plugin Kernel disposal aborted active operations.', 'AbortError'),
             );
         } catch (error) {
-            errors.push(error);
-            reportErrorSafely(this.options.errorSink, error);
+            recordPluginCleanupError(errors, this.options.errorSink, error);
         }
-        const records = [...this.installationOrder]
-            .reverse()
-            .map((pluginId) => this.installed.get(pluginId))
-            .filter((record): record is InstalledPluginRecord<TEvents> => record !== undefined);
+        const traversal = createPluginCleanupTraversal(
+            this.installationOrder,
+            this.installed,
+            this.toolCoordinator,
+            this.operationRegistry,
+            this.eventBus,
+            this.capabilityRegistry,
+            this.stateStore,
+        );
 
-        for (const record of records) {
+        for (const record of traversal.records) {
             if (!record.plugin.onDispose) continue;
             try {
                 await record.plugin.onDispose(record.lifecycleContext);
@@ -1188,35 +1275,24 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                     'dispose',
                     error,
                 );
-                errors.push(lifecycleError);
-                reportErrorSafely(this.options.errorSink, lifecycleError);
+                recordPluginCleanupError(errors, this.options.errorSink, lifecycleError);
             }
         }
-        for (const record of records) {
+        for (const record of traversal.records) {
             try {
                 await record.scope.dispose();
             } catch (error) {
-                errors.push(error);
-                reportErrorSafely(this.options.errorSink, error);
+                recordPluginCleanupError(errors, this.options.errorSink, error);
             }
-            releasePluginDefinitionLease(record.plugin, this);
+            releasePluginCleanupRecord(record, this);
         }
 
-        this.installed.clear();
-        this.installationOrder.length = 0;
-        const kernelDisposables: readonly Disposable[] = [
-            this.toolCoordinator,
-            this.operationRegistry,
-            this.eventBus,
-            this.capabilityRegistry,
-            this.stateStore,
-        ];
-        for (const disposable of kernelDisposables) {
+        clearInstalledPluginRecords(this.installed, this.installationOrder);
+        for (const target of traversal.kernelTargets) {
             try {
-                await disposable.dispose();
+                await target.disposable.dispose();
             } catch (error) {
-                errors.push(error);
-                reportErrorSafely(this.options.errorSink, error);
+                recordPluginCleanupError(errors, this.options.errorSink, error);
             }
         }
         return errors;
@@ -1224,12 +1300,17 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
 
     private cleanupAllSync(): readonly unknown[] {
         const errors: unknown[] = [];
-        const records = [...this.installationOrder]
-            .reverse()
-            .map((pluginId) => this.installed.get(pluginId))
-            .filter((record): record is InstalledPluginRecord<TEvents> => record !== undefined);
+        const traversal = createPluginCleanupTraversal(
+            this.installationOrder,
+            this.installed,
+            this.toolCoordinator,
+            this.operationRegistry,
+            this.eventBus,
+            this.capabilityRegistry,
+            this.stateStore,
+        );
 
-        for (const record of records) {
+        for (const record of traversal.records) {
             if (!record.plugin.onDispose) continue;
             try {
                 const result = record.plugin.onDispose(record.lifecycleContext);
@@ -1248,34 +1329,23 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                     error instanceof PluginLifecycleError
                         ? error
                         : new PluginLifecycleError(record.plugin.ref.id, 'dispose', error);
-                errors.push(lifecycleError);
-                reportErrorSafely(this.options.errorSink, lifecycleError);
+                recordPluginCleanupError(errors, this.options.errorSink, lifecycleError);
             }
         }
-        for (const record of records) {
+        for (const record of traversal.records) {
             try {
                 record.scope.disposeSync();
             } catch (error) {
-                errors.push(error);
-                reportErrorSafely(this.options.errorSink, error);
+                recordPluginCleanupError(errors, this.options.errorSink, error);
             }
-            releasePluginDefinitionLease(record.plugin, this);
+            releasePluginCleanupRecord(record, this);
         }
-        this.installed.clear();
-        this.installationOrder.length = 0;
-        const cleanup = [
-            () => this.toolCoordinator.disposeSync(),
-            () => this.operationRegistry.dispose(),
-            () => this.eventBus.dispose(),
-            () => this.capabilityRegistry.dispose(),
-            () => this.stateStore.dispose(),
-        ];
-        for (const dispose of cleanup) {
+        clearInstalledPluginRecords(this.installed, this.installationOrder);
+        for (const target of traversal.kernelTargets) {
             try {
-                dispose();
+                target.disposeSync();
             } catch (error) {
-                errors.push(error);
-                reportErrorSafely(this.options.errorSink, error);
+                recordPluginCleanupError(errors, this.options.errorSink, error);
             }
         }
         return Object.freeze(errors);

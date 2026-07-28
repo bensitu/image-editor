@@ -128,7 +128,10 @@ test('lifecycle callbacks use install order and dispose uses reverse order', asy
             },
             onImageLoaded: (image) => calls.push(`loaded:${name}:${image.revision}`),
             onImageCleared: () => calls.push(`cleared:${name}`),
-            onDispose: () => calls.push(`dispose:${name}`),
+            onDispose: async () => {
+                await Promise.resolve();
+                calls.push(`dispose:${name}`);
+            },
         });
 
     await manager.install(createLifecyclePlugin('first'));
@@ -152,6 +155,55 @@ test('lifecycle callbacks use install order and dispose uses reverse order', asy
         'cleanup:second',
         'cleanup:first',
     ]);
+});
+
+test('synchronous disposal reports detached lifecycle work and still completes cleanup', async () => {
+    const calls = [];
+    const reported = [];
+    const detachedFailure = new Error('detached onDispose failure');
+    let rejectDetached;
+    let returnDetachedPromise = true;
+    const detached = new Promise((_, reject) => {
+        rejectDetached = reject;
+    });
+    const manager = new PluginManager({ errorSink: (error) => reported.push(error) });
+    const plugin = pluginDefinition('example-test:sync-dispose-promise', {
+        setup: (context) => {
+            context.addDisposable(createDisposable(() => calls.push('scope:dispose')));
+            return {};
+        },
+        onDispose: () => {
+            calls.push('plugin:dispose');
+            return returnDetachedPromise ? detached : undefined;
+        },
+    });
+    const synchronousPlugin = { ...plugin, setupMode: 'sync' };
+    manager.installSync(synchronousPlugin);
+
+    let aggregate;
+    assert.throws(
+        () => manager.disposeSync(),
+        (error) => {
+            aggregate = error;
+            return (
+                error instanceof PluginAggregateError &&
+                error.errors.length === 1 &&
+                error.errors[0] instanceof PluginLifecycleError &&
+                /returned a Promise/i.test(error.errors[0].cause.message)
+            );
+        },
+    );
+    assert.deepEqual(calls, ['plugin:dispose', 'scope:dispose']);
+    assert.equal(manager.state, 'disposed');
+
+    rejectDetached(detachedFailure);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(reported, [aggregate.errors[0], detachedFailure]);
+
+    returnDetachedPromise = false;
+    const retry = new PluginManager();
+    retry.installSync(synchronousPlugin);
+    retry.disposeSync();
 });
 
 test('image lifecycle cannot run before initialization', async () => {
