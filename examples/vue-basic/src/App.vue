@@ -22,6 +22,8 @@ const historyState = ref<HistoryStatus>({
     length: 0,
     size: 0,
     position: 0,
+    bytes: 0,
+    maxBytes: 128 * 1024 * 1024,
 });
 const message = ref<string | null>(null);
 
