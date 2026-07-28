@@ -7,7 +7,7 @@ const require_mask = require('../../chunks/mask-DcEv41Ed.cjs');
 const require_history = require('../../chunks/history-SlvMSEPo.cjs');
 const require_filters = require('../../chunks/filters-DqtrBOC9.cjs');
 const require_crop = require('../../chunks/crop-BhBvEZed.cjs');
-const require_mosaic = require('../../chunks/mosaic-3lShyHk6.cjs');
+const require_mosaic = require('../../chunks/mosaic-B3mWybBc.cjs');
 const require_overlay_state = require('../../chunks/overlay-state-EunvLu4R.cjs');
 const require_preset_support = require('../../chunks/preset-support-fdxHrf6c.cjs');
 

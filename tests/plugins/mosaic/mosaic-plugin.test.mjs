@@ -207,6 +207,39 @@ test('Mosaic validates natural-pixel points without mutating a rejected stroke',
     await dispose(editor);
 });
 
+test('Mosaic tracks user points incrementally at the exact configured boundary', async () => {
+    const { editor, mosaic, observer } = await createEditor({
+        id: 'point-budget',
+        mosaicOptions: { maxPointCount: 3 },
+    });
+    await load(editor);
+    await mosaic.enter();
+
+    await mosaic.beginStroke({ xPx: 1, yPx: 1 });
+    await mosaic.appendStroke({ xPx: 119, yPx: 79 });
+    assert.equal(mosaic.getSession().pointCount, 2);
+    await assert.rejects(mosaic.appendStroke({ xPx: 120, yPx: 79 }), /natural image bounds/i);
+    assert.equal(mosaic.getSession().pointCount, 2);
+    await mosaic.endStroke();
+    assert.equal(mosaic.getSession().pointCount, 2);
+
+    await mosaic.beginStroke({ xPx: 40, yPx: 30 });
+    assert.equal(mosaic.getSession().pointCount, 3);
+    await assert.rejects(
+        mosaic.appendStroke({ xPx: 41, yPx: 31 }),
+        /point count exceeds maxPointCount/i,
+    );
+    assert.equal(mosaic.getSession().pointCount, 3);
+    await mosaic.endStroke();
+    assert.equal(mosaic.getSession().pointCount, 3);
+
+    await mosaic.commit();
+    assert.equal(observer.events.length, 1);
+    assert.equal(observer.events[0].result.metadata.pointCount, 3);
+    assert.equal(observer.events[0].result.metadata.strokeCount, 2);
+    await dispose(editor);
+});
+
 test('Mosaic re-entry rejects and image replacement or disposal closes the session', async () => {
     const { editor, mosaic } = await createEditor({ id: 'lifecycle' });
     await load(editor);

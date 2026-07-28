@@ -507,6 +507,7 @@ var MosaicController = class {
 			preview,
 			strokes: [],
 			activeStrokeIndex: null,
+			userPointCount: 0,
 			interpolatedPointCount: 0
 		};
 		this.host.requestRender();
@@ -521,6 +522,7 @@ var MosaicController = class {
 		this.assertInterpolatedPointBudget(session, 1);
 		session.strokes.push([point]);
 		session.activeStrokeIndex = session.strokes.length - 1;
+		session.userPointCount += 1;
 		this.applyPreviewPoints(session, [point]);
 		session.interpolatedPointCount += 1;
 		this.updateSessionState(session, true);
@@ -537,6 +539,7 @@ var MosaicController = class {
 		const interpolated = interpolateMosaicPoints(previous, point, session.state.configuration.brushSizePx / 2);
 		this.assertInterpolatedPointBudget(session, interpolated.length);
 		stroke.push(point);
+		session.userPointCount += 1;
 		this.applyPreviewPoints(session, interpolated);
 		session.interpolatedPointCount += interpolated.length;
 		this.updateSessionState(session, true);
@@ -642,11 +645,10 @@ var MosaicController = class {
 		this.host.requestRender();
 	}
 	updateSessionState(session, isStrokeActive) {
-		const pointCount = session.strokes.reduce((count, stroke) => count + stroke.length, 0);
 		session.state = Object.freeze({
 			...session.state,
 			strokeCount: session.strokes.length,
-			pointCount,
+			pointCount: session.userPointCount,
 			isStrokeActive
 		});
 		this.emitStatus();
@@ -663,7 +665,7 @@ var MosaicController = class {
 		});
 	}
 	assertPointBudget(session) {
-		if (session.strokes.reduce((count, stroke) => count + stroke.length, 0) >= session.state.configuration.maxPointCount) throw new MosaicValidationError("Mosaic point count exceeds maxPointCount.");
+		if (session.userPointCount >= session.state.configuration.maxPointCount) throw new MosaicValidationError("Mosaic point count exceeds maxPointCount.");
 	}
 	assertInterpolatedPointBudget(session, additionalPointCount) {
 		if (session.interpolatedPointCount + additionalPointCount > MAX_INTERPOLATED_POINT_COUNT) throw new MosaicValidationError("Mosaic interpolation exceeds the safe processing budget.");
@@ -955,4 +957,4 @@ Object.defineProperty(exports, 'mosaicPluginRef', {
     return mosaicPluginRef;
   }
 });
-//# sourceMappingURL=mosaic-3lShyHk6.cjs.map
+//# sourceMappingURL=mosaic-B3mWybBc.cjs.map

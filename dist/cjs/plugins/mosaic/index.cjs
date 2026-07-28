@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_mosaic = require('../../chunks/mosaic-3lShyHk6.cjs');
+const require_mosaic = require('../../chunks/mosaic-B3mWybBc.cjs');
 
 exports.MosaicError = require_mosaic.MosaicError;
 exports.MosaicIntegrationError = require_mosaic.MosaicIntegrationError;

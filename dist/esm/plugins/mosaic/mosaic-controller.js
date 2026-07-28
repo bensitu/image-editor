@@ -235,6 +235,7 @@ export class MosaicController {
             preview,
             strokes: [],
             activeStrokeIndex: null,
+            userPointCount: 0,
             interpolatedPointCount: 0,
         };
         this.host.requestRender();
@@ -251,6 +252,7 @@ export class MosaicController {
         this.assertInterpolatedPointBudget(session, 1);
         session.strokes.push([point]);
         session.activeStrokeIndex = session.strokes.length - 1;
+        session.userPointCount += 1;
         this.applyPreviewPoints(session, [point]);
         session.interpolatedPointCount += 1;
         this.updateSessionState(session, true);
@@ -269,6 +271,7 @@ export class MosaicController {
         const interpolated = interpolateMosaicPoints(previous, point, session.state.configuration.brushSizePx / 2);
         this.assertInterpolatedPointBudget(session, interpolated.length);
         stroke.push(point);
+        session.userPointCount += 1;
         this.applyPreviewPoints(session, interpolated);
         session.interpolatedPointCount += interpolated.length;
         this.updateSessionState(session, true);
@@ -394,11 +397,10 @@ export class MosaicController {
         this.host.requestRender();
     }
     updateSessionState(session, isStrokeActive) {
-        const pointCount = session.strokes.reduce((count, stroke) => count + stroke.length, 0);
         session.state = Object.freeze({
             ...session.state,
             strokeCount: session.strokes.length,
-            pointCount,
+            pointCount: session.userPointCount,
             isStrokeActive,
         });
         this.emitStatus();
@@ -424,8 +426,7 @@ export class MosaicController {
         return Object.freeze({ xPx, yPx });
     }
     assertPointBudget(session) {
-        const pointCount = session.strokes.reduce((count, stroke) => count + stroke.length, 0);
-        if (pointCount >= session.state.configuration.maxPointCount) {
+        if (session.userPointCount >= session.state.configuration.maxPointCount) {
             throw new MosaicValidationError('Mosaic point count exceeds maxPointCount.');
         }
     }
