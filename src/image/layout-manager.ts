@@ -62,6 +62,9 @@ interface ViewportSize {
 /** Native scrollbar gutter size in CSS pixels. */
 type ScrollbarSize = ViewportSize;
 
+const ZERO_SCROLLBAR_SIZE: ScrollbarSize = Object.freeze({ width: 0, height: 0 });
+const scrollbarSizeCache = new WeakMap<Document, ScrollbarSize>();
+
 /**
  * Hidden-container viewport cache.
  *
@@ -204,7 +207,9 @@ function isAutoScrollableOverflow(value: string): boolean {
  */
 export function measureScrollbarSize(ownerDocument?: Document | null): ScrollbarSize {
     const doc = ownerDocument ?? (typeof document === 'undefined' ? null : document);
-    if (!doc?.body) return { width: 0, height: 0 };
+    if (!doc?.body) return ZERO_SCROLLBAR_SIZE;
+    const cached = scrollbarSizeCache.get(doc);
+    if (cached) return cached;
 
     const probe = doc.createElement('div');
     probe.style.position = 'absolute';
@@ -221,7 +226,9 @@ export function measureScrollbarSize(ownerDocument?: Document | null): Scrollbar
     const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
     probe.remove();
 
-    return { width, height };
+    const measured = Object.freeze({ width, height });
+    scrollbarSizeCache.set(doc, measured);
+    return measured;
 }
 
 function normalizeScrollbarSize(scrollbarSize?: Partial<ScrollbarSize> | null): ScrollbarSize {

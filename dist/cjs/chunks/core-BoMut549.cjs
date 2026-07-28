@@ -14,6 +14,11 @@ function forceReflow(element) {
 function selectLayoutStrategy(mode) {
 	return mode;
 }
+const ZERO_SCROLLBAR_SIZE = Object.freeze({
+	width: 0,
+	height: 0
+});
+const scrollbarSizeCache = /* @__PURE__ */ new WeakMap();
 var ViewportCache = class {
 	constructor() {
 		Object.defineProperty(this, "lastVisible", {
@@ -81,10 +86,9 @@ function isAutoScrollableOverflow(value) {
 }
 function measureScrollbarSize(ownerDocument) {
 	const doc = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : typeof document === "undefined" ? null : document;
-	if (!(doc === null || doc === void 0 ? void 0 : doc.body)) return {
-		width: 0,
-		height: 0
-	};
+	if (!(doc === null || doc === void 0 ? void 0 : doc.body)) return ZERO_SCROLLBAR_SIZE;
+	const cached = scrollbarSizeCache.get(doc);
+	if (cached) return cached;
 	const probe = doc.createElement("div");
 	probe.style.position = "absolute";
 	probe.style.left = "-9999px";
@@ -98,10 +102,12 @@ function measureScrollbarSize(ownerDocument) {
 	const width = Math.max(0, probe.offsetWidth - probe.clientWidth);
 	const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
 	probe.remove();
-	return {
+	const measured = Object.freeze({
 		width,
 		height
-	};
+	});
+	scrollbarSizeCache.set(doc, measured);
+	return measured;
 }
 function normalizeScrollbarSize(scrollbarSize) {
 	return {
@@ -4639,4 +4645,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-Bdg5Fuwa.cjs.map
+//# sourceMappingURL=core-BoMut549.cjs.map
