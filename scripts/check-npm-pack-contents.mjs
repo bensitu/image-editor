@@ -1,11 +1,12 @@
 /**
- * Validates the dry-run npm package manifest without creating a tarball.
+ * Validates the exact npm package artifact and its packed manifest.
  *
  * @module
  */
 
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -18,11 +19,7 @@ import { inspectPackagedSourceMap } from './source-map-policy.mjs';
 const execFileAsync = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
-const command = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'npm';
-const args =
-    process.platform === 'win32'
-        ? ['/d', '/s', '/c', 'npm pack --dry-run --json --ignore-scripts']
-        : ['pack', '--dry-run', '--json', '--ignore-scripts'];
+const npmCliPath = process.env.npm_execpath;
 const requiredFiles = [
     'CHANGELOG.md',
     'LICENSE',
@@ -43,14 +40,54 @@ const requiredFiles = [
     'dist/types/testing/index.d.cts',
 ];
 
-const { stdout } = await execFileAsync(command, args, {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    maxBuffer: 32 * 1024 * 1024,
-    windowsHide: true,
-});
-const result = JSON.parse(stdout);
-const pack = result[0];
+async function inspectPackedArtifact() {
+    if (!npmCliPath) throw new Error('npm_execpath is unavailable; run through an npm script.');
+    const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'image-editor-package-contents-'));
+    const resolvedTemporaryRoot = path.resolve(temporaryRoot);
+    const resolvedSystemTemp = path.resolve(tmpdir());
+    if (!resolvedTemporaryRoot.startsWith(`${resolvedSystemTemp}${path.sep}`)) {
+        throw new Error('Refusing to use a package inspection path outside the system temp.');
+    }
+
+    try {
+        const { stdout } = await execFileAsync(
+            process.execPath,
+            [
+                npmCliPath,
+                'pack',
+                '--json',
+                '--ignore-scripts',
+                '--pack-destination',
+                resolvedTemporaryRoot,
+            ],
+            {
+                cwd: repoRoot,
+                encoding: 'utf8',
+                maxBuffer: 32 * 1024 * 1024,
+                windowsHide: true,
+            },
+        );
+        const pack = JSON.parse(stdout)[0];
+        if (!pack || typeof pack.filename !== 'string') {
+            throw new Error('npm pack returned no package artifact.');
+        }
+        const { stdout: packedManifestSource } = await execFileAsync(
+            'tar',
+            ['-xOf', path.join(resolvedTemporaryRoot, pack.filename), 'package/package.json'],
+            {
+                cwd: repoRoot,
+                encoding: 'utf8',
+                maxBuffer: 1024 * 1024,
+                windowsHide: true,
+            },
+        );
+        return { pack, packedManifest: JSON.parse(packedManifestSource) };
+    } finally {
+        await rm(resolvedTemporaryRoot, { recursive: true, force: true });
+    }
+}
+
+const { pack, packedManifest } = await inspectPackedArtifact();
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8'));
 const entries = (pack?.files ?? []).map((entry) => ({
     ...entry,
@@ -67,6 +104,15 @@ let sourceMapCount = 0;
 
 if (pack?.name !== packageJson.name || pack?.version !== packageJson.version) {
     failures.push('npm pack identity does not match package.json.');
+}
+if (packedManifest.name !== packageJson.name || packedManifest.version !== packageJson.version) {
+    failures.push('Packed package.json identity does not match the source manifest.');
+}
+if (
+    packedManifest.publishConfig?.access !== 'public' ||
+    packedManifest.publishConfig?.provenance !== true
+) {
+    failures.push('Packed package.json must require public provenance publishing.');
 }
 for (const requiredFile of requiredFiles) {
     if (!files.has(requiredFile)) failures.push(`npm pack is missing ${requiredFile}.`);

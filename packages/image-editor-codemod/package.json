@@ -43,6 +43,7 @@
         "prepack": "npm run build"
     },
     "publishConfig": {
-        "access": "public"
+        "access": "public",
+        "provenance": true
     }
 }

@@ -70,6 +70,27 @@ try {
     }
 
     const tarballPath = path.join(temporaryRoot, packResult.filename);
+    const { stdout: packedManifestSource } = await execFileAsync(
+        'tar',
+        ['-xOf', tarballPath, 'package/package.json'],
+        {
+            cwd: repositoryRoot,
+            encoding: 'utf8',
+            maxBuffer: 1024 * 1024,
+            windowsHide: true,
+        },
+    );
+    const packedManifest = JSON.parse(packedManifestSource);
+    if (packedManifest.name !== packResult.name || packedManifest.version !== packResult.version) {
+        throw new Error('Packed Codemod package.json identity does not match npm pack.');
+    }
+    if (
+        packedManifest.publishConfig?.access !== 'public' ||
+        packedManifest.publishConfig?.provenance !== true
+    ) {
+        throw new Error('Packed Codemod package.json must require public provenance publishing.');
+    }
+
     const consumerRoot = path.join(temporaryRoot, 'consumer');
     await mkdir(consumerRoot, { recursive: true });
     await writeFile(
@@ -171,6 +192,7 @@ void report;
                 files: packedFiles.length,
                 bytes: packResult.size,
                 sha256: tarballHash,
+                provenance: packedManifest.publishConfig.provenance,
                 runtimeConsumer: 'PASS',
                 typeConsumer: 'PASS',
                 cliDryRun: 'PASS',

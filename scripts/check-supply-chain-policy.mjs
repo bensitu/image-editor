@@ -84,7 +84,25 @@ for (const fragment of ["- 'dist/**'", 'run: npm run package:pages', 'path: .pag
     );
 }
 
-const packageManifest = JSON.parse(await readRepositoryFile('package.json'));
+const packageManifestPaths = ['package.json', 'packages/image-editor-codemod/package.json'];
+const [packageManifest, codemodPackageManifest] = await Promise.all(
+    packageManifestPaths.map(async (manifestPath) =>
+        JSON.parse(await readRepositoryFile(manifestPath)),
+    ),
+);
+for (const [manifestPath, manifest] of [
+    [packageManifestPaths[0], packageManifest],
+    [packageManifestPaths[1], codemodPackageManifest],
+]) {
+    assertCondition(
+        manifest.publishConfig?.access === 'public',
+        `${manifestPath} must publish with public access.`,
+    );
+    assertCondition(
+        manifest.publishConfig?.provenance === true,
+        `${manifestPath} must require npm provenance.`,
+    );
+}
 assertCondition(
     packageManifest.scripts?.['check:legacy-asset-integrity'] ===
         'node scripts/check-legacy-asset-integrity.mjs',
