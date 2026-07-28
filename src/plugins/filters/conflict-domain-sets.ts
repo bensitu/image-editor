@@ -5,7 +5,11 @@
  * @module
  */
 
-import type { OperationConflictDomain } from '../../plugin-kernel/operation-registry.js';
+import type { PluginSetupContext } from '../../sdk/index.js';
+
+type OperationConflictDomains = NonNullable<
+    Parameters<PluginSetupContext['operations']['register']>[0]['conflictDomains']
+>;
 
 export const FILTER_STATE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
     'document',
@@ -14,4 +18,4 @@ export const FILTER_STATE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
     'raster',
     'overlay',
     'state',
-] satisfies readonly OperationConflictDomain[]);
+] satisfies OperationConflictDomains);
