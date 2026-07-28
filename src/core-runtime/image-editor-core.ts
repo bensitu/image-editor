@@ -30,7 +30,7 @@ import {
     selectLayoutStrategy,
     ViewportCache,
 } from '../image/layout-manager.js';
-import { CanvasCoreStateAdapter } from './core-state-adapter.js';
+import { CanvasCoreStateAdapter, disposeReplacedBaseImage } from './core-state-adapter.js';
 import {
     CoreRuntimeError,
     EmergencyResetError,
@@ -731,92 +731,107 @@ export class ImageEditorCore {
                         operationContext.signal,
                         (lateImage) => lateImage.dispose(),
                     );
-                    this.assertCurrentLoad(sequence, operationContext.signal);
-                    const naturalWidth = Number(image.width) || 0;
-                    const naturalHeight = Number(image.height) || 0;
-                    if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
-                        const budgetError = new CoreRuntimeError(
-                            '[ImageEditor] Decoded image dimensions exceed the configured budget.',
-                        );
-                        try {
-                            image.dispose();
-                        } catch (cleanupError) {
+                    let imageAdopted = false;
+                    let previousScroll: Readonly<{ left: number; top: number }> | null;
+                    try {
+                        this.assertCurrentLoad(sequence, operationContext.signal);
+                        const naturalWidth = Number(image.width) || 0;
+                        const naturalHeight = Number(image.height) || 0;
+                        if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
                             throw new CoreRuntimeError(
-                                '[ImageEditor] Rejected image cleanup failed.',
-                                { cause: Object.freeze([budgetError, cleanupError]) },
+                                '[ImageEditor] Decoded image dimensions exceed the configured budget.',
                             );
                         }
-                        throw budgetError;
-                    }
-
-                    const previousScroll = this.containerElement
-                        ? {
-                              left: this.containerElement.scrollLeft,
-                              top: this.containerElement.scrollTop,
-                          }
-                        : null;
-                    await this.documentMutations.run({
-                        id: `core:load-image-transaction:${sequence}`,
-                        kind: 'raster',
-                        operationId: 'core:commit-load-image',
-                        conflictDomains: [
-                            'document',
-                            'base-image',
-                            'geometry',
-                            'raster',
-                            'overlay',
-                            'state',
-                        ],
-                        signal: operationContext.signal,
-                        metadata: Object.freeze({ sequence }),
-                        mutate: async (commitContext) => {
-                            this.assertCurrentLoad(sequence, commitContext.signal);
-                            if (this.baseImage) {
-                                await this.plugins.notifyImageCleared();
+                        previousScroll = this.containerElement
+                            ? {
+                                  left: this.containerElement.scrollLeft,
+                                  top: this.containerElement.scrollTop,
+                              }
+                            : null;
+                        await this.documentMutations.run({
+                            id: `core:load-image-transaction:${sequence}`,
+                            kind: 'raster',
+                            operationId: 'core:commit-load-image',
+                            conflictDomains: [
+                                'document',
+                                'base-image',
+                                'geometry',
+                                'raster',
+                                'overlay',
+                                'state',
+                            ],
+                            signal: operationContext.signal,
+                            metadata: Object.freeze({ sequence }),
+                            mutate: async (commitContext) => {
                                 this.assertCurrentLoad(sequence, commitContext.signal);
+                                const previousBaseImage = this.baseImage;
+                                if (previousBaseImage) {
+                                    await this.plugins.notifyImageCleared();
+                                    this.assertCurrentLoad(sequence, commitContext.signal);
+                                }
+                                const canvas = this.requireCanvasForImageLoad('loadImage');
+                                canvas.discardActiveObject();
+                                canvas.clear();
+                                canvas.backgroundColor = this.options.backgroundColor;
+                                const baseImage = markBaseImage(image);
+                                baseImage.set({
+                                    originX: 'left',
+                                    originY: 'top',
+                                    selectable: false,
+                                    evented: false,
+                                });
+                                const layout = this.computeLayout(baseImage);
+                                this.setCanvasSize(layout.canvasWidth, layout.canvasHeight);
+                                baseImage.set({
+                                    left: layout.imageLeft,
+                                    top: layout.imageTop,
+                                    scaleX: layout.imageScale,
+                                    scaleY: layout.imageScale,
+                                });
+                                baseImage.setCoords();
+                                canvas.add(baseImage);
+                                canvas.sendObjectToBack(baseImage);
+                                this.baseImage = baseImage;
+                                imageAdopted = true;
+                                this.imageLoaded = true;
+                                this.baseImageScale = layout.imageScale;
+                                this.imageMimeType = inferMimeType(loadSource);
+                                this.geometryRevision += 1;
+                                disposeReplacedBaseImage(
+                                    previousBaseImage,
+                                    baseImage,
+                                    'image replacement',
+                                );
+                                const imageInfo = this.getImageInfo();
+                                if (!imageInfo) {
+                                    throw new Error('Loaded image information is unavailable.');
+                                }
+                                await this.plugins.notifyImageLoaded(imageInfo);
+                                this.assertCurrentLoad(sequence, commitContext.signal);
+                                return imageInfo;
+                            },
+                            validate: (imageInfo, commitContext) => {
+                                if (!isCoreImageInfo(imageInfo)) {
+                                    throw new Error('Loaded image information is malformed.');
+                                }
+                                this.assertCurrentLoad(sequence, commitContext.signal);
+                            },
+                        });
+                    } catch (error) {
+                        if (!imageAdopted) {
+                            try {
+                                disposeReplacedBaseImage(image, null, 'failed image load');
+                            } catch (cleanupError) {
+                                throw new CoreRuntimeError(
+                                    '[ImageEditor] Image load failed and decoded image cleanup also failed.',
+                                    {
+                                        cause: Object.freeze([error, cleanupError]),
+                                    },
+                                );
                             }
-                            const canvas = this.requireCanvasForImageLoad('loadImage');
-                            canvas.discardActiveObject();
-                            canvas.clear();
-                            canvas.backgroundColor = this.options.backgroundColor;
-                            const baseImage = markBaseImage(image);
-                            baseImage.set({
-                                originX: 'left',
-                                originY: 'top',
-                                selectable: false,
-                                evented: false,
-                            });
-                            const layout = this.computeLayout(baseImage);
-                            this.setCanvasSize(layout.canvasWidth, layout.canvasHeight);
-                            baseImage.set({
-                                left: layout.imageLeft,
-                                top: layout.imageTop,
-                                scaleX: layout.imageScale,
-                                scaleY: layout.imageScale,
-                            });
-                            baseImage.setCoords();
-                            canvas.add(baseImage);
-                            canvas.sendObjectToBack(baseImage);
-                            this.baseImage = baseImage;
-                            this.imageLoaded = true;
-                            this.baseImageScale = layout.imageScale;
-                            this.imageMimeType = inferMimeType(loadSource);
-                            this.geometryRevision += 1;
-                            const imageInfo = this.getImageInfo();
-                            if (!imageInfo) {
-                                throw new Error('Loaded image information is unavailable.');
-                            }
-                            await this.plugins.notifyImageLoaded(imageInfo);
-                            this.assertCurrentLoad(sequence, commitContext.signal);
-                            return imageInfo;
-                        },
-                        validate: (imageInfo, commitContext) => {
-                            if (!isCoreImageInfo(imageInfo)) {
-                                throw new Error('Loaded image information is malformed.');
-                            }
-                            this.assertCurrentLoad(sequence, commitContext.signal);
-                        },
-                    });
+                        }
+                        throw error;
+                    }
                     if (options.preserveScroll && previousScroll && this.containerElement) {
                         this.containerElement.scrollLeft = previousScroll.left;
                         this.containerElement.scrollTop = previousScroll.top;

@@ -570,6 +570,37 @@ function isImageMimeType(value) {
 function isBaseImage(object) {
 	return object.editorObjectKind === "baseImage";
 }
+function disposeReplacedBaseImage(previous, replacement, operation) {
+	if (!previous || previous === replacement) return;
+	try {
+		previous.dispose();
+	} catch (cause) {
+		throw new CoreRuntimeError(`[ImageEditor] Replaced base image cleanup failed during ${operation}.`, {
+			code: "BASE_IMAGE_DISPOSAL_ERROR",
+			cause
+		});
+	}
+}
+function disposeRejectedBaseImages(canvas, retainedImage, cause) {
+	const cleanupErrors = [];
+	let objects = [];
+	try {
+		objects = canvas.getObjects();
+	} catch (error) {
+		cleanupErrors.push(error);
+	}
+	const visited = /* @__PURE__ */ new Set();
+	for (const object of objects) {
+		if (!isBaseImage(object) || object === retainedImage || visited.has(object)) continue;
+		visited.add(object);
+		try {
+			disposeReplacedBaseImage(object, null, "failed state restore");
+		} catch (error) {
+			cleanupErrors.push(error);
+		}
+	}
+	if (cleanupErrors.length > 0) throw new CoreRuntimeError("[ImageEditor] State restore failed and rejected base image cleanup also failed.", { cause: Object.freeze([cause, ...cleanupErrors]) });
+}
 var CanvasCoreStateAdapter = class {
 	constructor(access, properties, transientObjects, externalObjects, securityLimits = DEFAULT_SECURITY_LIMITS) {
 		Object.defineProperty(this, "access", {
@@ -649,6 +680,8 @@ var CanvasCoreStateAdapter = class {
 		const validated = this.validateState(state, context.mode === "public-snapshot");
 		if (!validated.valid) throw new SnapshotValidationError(validated.message, validated.path);
 		const next = validated.value;
+		if (context.signal.aborted) throw (_a = context.signal.reason) !== null && _a !== void 0 ? _a : /* @__PURE__ */ new Error("State restore aborted.");
+		const previousBaseImage = this.access.getBaseImage();
 		if (!next.initialized) {
 			const canvas = this.access.getCanvas();
 			canvas === null || canvas === void 0 || canvas.clear();
@@ -656,9 +689,9 @@ var CanvasCoreStateAdapter = class {
 			this.access.setImageMimeType(null);
 			this.access.setBaseImageScale(1);
 			this.access.setGeometryRevision(next.geometryRevision);
+			disposeReplacedBaseImage(previousBaseImage, null, "state restore");
 			return;
 		}
-		if (context.signal.aborted) throw (_a = context.signal.reason) !== null && _a !== void 0 ? _a : /* @__PURE__ */ new Error("State restore aborted.");
 		const canvas = this.access.getCanvas();
 		if (!canvas) throw new Error("Core Canvas must be initialized before state restore.");
 		this.access.setCanvasSize(next.canvasWidth, next.canvasHeight);
@@ -671,30 +704,36 @@ var CanvasCoreStateAdapter = class {
 			controller.abort(new SnapshotValidationError(`Canvas decode timed out after ${this.securityLimits.decodeTimeoutMs}ms.`, "$.core.canvas"));
 		}, this.securityLimits.decodeTimeoutMs);
 		try {
-			await canvas.loadFromJSON(next.canvas, void 0, { signal: controller.signal });
+			try {
+				await canvas.loadFromJSON(next.canvas, void 0, { signal: controller.signal });
+			} catch (error) {
+				if (controller.signal.aborted && controller.signal.reason) throw controller.signal.reason;
+				throw error;
+			} finally {
+				clearTimeout(timeout);
+				context.signal.removeEventListener("abort", abort);
+			}
+			if (context.signal.aborted) throw (_b = context.signal.reason) !== null && _b !== void 0 ? _b : /* @__PURE__ */ new Error("State restore aborted.");
+			const baseImages = canvas.getObjects().filter(isBaseImage);
+			if (baseImages.length > 1) throw new Error("Restored Core state contains multiple base images.");
+			const baseImage = (_c = baseImages[0]) !== null && _c !== void 0 ? _c : null;
+			if (baseImage) {
+				baseImage.set({
+					selectable: false,
+					evented: false
+				});
+				baseImage.setCoords();
+				canvas.sendObjectToBack(baseImage);
+			}
+			this.access.setBaseImage(baseImage);
+			this.access.setImageMimeType(next.imageMimeType);
+			this.access.setBaseImageScale(next.baseImageScale);
+			this.access.setGeometryRevision(next.geometryRevision);
+			disposeReplacedBaseImage(previousBaseImage, baseImage, "state restore");
 		} catch (error) {
-			if (controller.signal.aborted && controller.signal.reason) throw controller.signal.reason;
+			if (this.access.getBaseImage() === previousBaseImage) disposeRejectedBaseImages(canvas, previousBaseImage, error);
 			throw error;
-		} finally {
-			clearTimeout(timeout);
-			context.signal.removeEventListener("abort", abort);
 		}
-		if (context.signal.aborted) throw (_b = context.signal.reason) !== null && _b !== void 0 ? _b : /* @__PURE__ */ new Error("State restore aborted.");
-		const baseImages = canvas.getObjects().filter(isBaseImage);
-		if (baseImages.length > 1) throw new Error("Restored Core state contains multiple base images.");
-		const baseImage = (_c = baseImages[0]) !== null && _c !== void 0 ? _c : null;
-		if (baseImage) {
-			baseImage.set({
-				selectable: false,
-				evented: false
-			});
-			baseImage.setCoords();
-			canvas.sendObjectToBack(baseImage);
-		}
-		this.access.setBaseImage(baseImage);
-		this.access.setImageMimeType(next.imageMimeType);
-		this.access.setBaseImageScale(next.baseImageScale);
-		this.access.setGeometryRevision(next.geometryRevision);
 	}
 	validateSnapshot(value) {
 		return this.validateState(value, true);
@@ -3417,80 +3456,86 @@ var ImageEditorCore = class {
 					crossOrigin: "anonymous",
 					signal
 				}), this.options.imageLoadTimeoutMs, "FabricImage.fromURL", operationContext.signal, (lateImage) => lateImage.dispose());
-				this.assertCurrentLoad(sequence, operationContext.signal);
-				const naturalWidth = Number(image.width) || 0;
-				const naturalHeight = Number(image.height) || 0;
-				if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) {
-					const budgetError = new CoreRuntimeError("[ImageEditor] Decoded image dimensions exceed the configured budget.");
-					try {
-						image.dispose();
-					} catch (cleanupError) {
-						throw new CoreRuntimeError("[ImageEditor] Rejected image cleanup failed.", { cause: Object.freeze([budgetError, cleanupError]) });
-					}
-					throw budgetError;
-				}
-				const previousScroll = this.containerElement ? {
-					left: this.containerElement.scrollLeft,
-					top: this.containerElement.scrollTop
-				} : null;
-				await this.documentMutations.run({
-					id: `core:load-image-transaction:${sequence}`,
-					kind: "raster",
-					operationId: "core:commit-load-image",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"raster",
-						"overlay",
-						"state"
-					],
-					signal: operationContext.signal,
-					metadata: Object.freeze({ sequence }),
-					mutate: async (commitContext) => {
-						this.assertCurrentLoad(sequence, commitContext.signal);
-						if (this.baseImage) {
-							await this.plugins.notifyImageCleared();
+				let imageAdopted = false;
+				let previousScroll;
+				try {
+					this.assertCurrentLoad(sequence, operationContext.signal);
+					const naturalWidth = Number(image.width) || 0;
+					const naturalHeight = Number(image.height) || 0;
+					if (!this.isInputRasterWithinBudget(naturalWidth, naturalHeight)) throw new CoreRuntimeError("[ImageEditor] Decoded image dimensions exceed the configured budget.");
+					previousScroll = this.containerElement ? {
+						left: this.containerElement.scrollLeft,
+						top: this.containerElement.scrollTop
+					} : null;
+					await this.documentMutations.run({
+						id: `core:load-image-transaction:${sequence}`,
+						kind: "raster",
+						operationId: "core:commit-load-image",
+						conflictDomains: [
+							"document",
+							"base-image",
+							"geometry",
+							"raster",
+							"overlay",
+							"state"
+						],
+						signal: operationContext.signal,
+						metadata: Object.freeze({ sequence }),
+						mutate: async (commitContext) => {
+							this.assertCurrentLoad(sequence, commitContext.signal);
+							const previousBaseImage = this.baseImage;
+							if (previousBaseImage) {
+								await this.plugins.notifyImageCleared();
+								this.assertCurrentLoad(sequence, commitContext.signal);
+							}
+							const canvas = this.requireCanvasForImageLoad("loadImage");
+							canvas.discardActiveObject();
+							canvas.clear();
+							canvas.backgroundColor = this.options.backgroundColor;
+							const baseImage = markBaseImage(image);
+							baseImage.set({
+								originX: "left",
+								originY: "top",
+								selectable: false,
+								evented: false
+							});
+							const layout = this.computeLayout(baseImage);
+							this.setCanvasSize(layout.canvasWidth, layout.canvasHeight);
+							baseImage.set({
+								left: layout.imageLeft,
+								top: layout.imageTop,
+								scaleX: layout.imageScale,
+								scaleY: layout.imageScale
+							});
+							baseImage.setCoords();
+							canvas.add(baseImage);
+							canvas.sendObjectToBack(baseImage);
+							this.baseImage = baseImage;
+							imageAdopted = true;
+							this.imageLoaded = true;
+							this.baseImageScale = layout.imageScale;
+							this.imageMimeType = inferMimeType(loadSource);
+							this.geometryRevision += 1;
+							disposeReplacedBaseImage(previousBaseImage, baseImage, "image replacement");
+							const imageInfo = this.getImageInfo();
+							if (!imageInfo) throw new Error("Loaded image information is unavailable.");
+							await this.plugins.notifyImageLoaded(imageInfo);
+							this.assertCurrentLoad(sequence, commitContext.signal);
+							return imageInfo;
+						},
+						validate: (imageInfo, commitContext) => {
+							if (!isCoreImageInfo(imageInfo)) throw new Error("Loaded image information is malformed.");
 							this.assertCurrentLoad(sequence, commitContext.signal);
 						}
-						const canvas = this.requireCanvasForImageLoad("loadImage");
-						canvas.discardActiveObject();
-						canvas.clear();
-						canvas.backgroundColor = this.options.backgroundColor;
-						const baseImage = markBaseImage(image);
-						baseImage.set({
-							originX: "left",
-							originY: "top",
-							selectable: false,
-							evented: false
-						});
-						const layout = this.computeLayout(baseImage);
-						this.setCanvasSize(layout.canvasWidth, layout.canvasHeight);
-						baseImage.set({
-							left: layout.imageLeft,
-							top: layout.imageTop,
-							scaleX: layout.imageScale,
-							scaleY: layout.imageScale
-						});
-						baseImage.setCoords();
-						canvas.add(baseImage);
-						canvas.sendObjectToBack(baseImage);
-						this.baseImage = baseImage;
-						this.imageLoaded = true;
-						this.baseImageScale = layout.imageScale;
-						this.imageMimeType = inferMimeType(loadSource);
-						this.geometryRevision += 1;
-						const imageInfo = this.getImageInfo();
-						if (!imageInfo) throw new Error("Loaded image information is unavailable.");
-						await this.plugins.notifyImageLoaded(imageInfo);
-						this.assertCurrentLoad(sequence, commitContext.signal);
-						return imageInfo;
-					},
-					validate: (imageInfo, commitContext) => {
-						if (!isCoreImageInfo(imageInfo)) throw new Error("Loaded image information is malformed.");
-						this.assertCurrentLoad(sequence, commitContext.signal);
+					});
+				} catch (error) {
+					if (!imageAdopted) try {
+						disposeReplacedBaseImage(image, null, "failed image load");
+					} catch (cleanupError) {
+						throw new CoreRuntimeError("[ImageEditor] Image load failed and decoded image cleanup also failed.", { cause: Object.freeze([error, cleanupError]) });
 					}
-				});
+					throw error;
+				}
 				if (options.preserveScroll && previousScroll && this.containerElement) {
 					this.containerElement.scrollLeft = previousScroll.left;
 					this.containerElement.scrollTop = previousScroll.top;
@@ -4564,4 +4609,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-BKL7RDnI.cjs.map
+//# sourceMappingURL=core-BYURy_5O.cjs.map

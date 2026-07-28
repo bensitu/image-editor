@@ -1,7 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-Cb5MhhyK.cjs');
-const require_annotation = require('./annotation-kxs0s3zS.cjs');
+const require_overlay = require('./overlay-Ce5lHyJ8.cjs');
+const require_annotation = require('./annotation-ByOf0xBB.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-VBb127k8.cjs');
 
 //#region dist/esm/plugins/annotation-draw/draw-path.js
@@ -693,4 +693,4 @@ Object.defineProperty(exports, 'drawAnnotationPluginRef', {
     return drawAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-draw-CuVR1SZH.cjs.map
+//# sourceMappingURL=annotation-draw-C4lJQSCn.cjs.map

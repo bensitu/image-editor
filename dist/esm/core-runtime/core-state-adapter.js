@@ -1,4 +1,4 @@
-import { SnapshotValidationError } from './errors.js';
+import { CoreRuntimeError, SnapshotValidationError } from './errors.js';
 import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 const DEFAULT_SECURITY_LIMITS = Object.freeze({
     maxDecodedPixels: 50000000,
@@ -17,6 +17,46 @@ function isImageMimeType(value) {
 function isBaseImage(object) {
     return (object.editorObjectKind ===
         'baseImage');
+}
+export function disposeReplacedBaseImage(previous, replacement, operation) {
+    if (!previous || previous === replacement)
+        return;
+    try {
+        previous.dispose();
+    }
+    catch (cause) {
+        throw new CoreRuntimeError(`[ImageEditor] Replaced base image cleanup failed during ${operation}.`, {
+            code: 'BASE_IMAGE_DISPOSAL_ERROR',
+            cause,
+        });
+    }
+}
+function disposeRejectedBaseImages(canvas, retainedImage, cause) {
+    const cleanupErrors = [];
+    let objects = [];
+    try {
+        objects = canvas.getObjects();
+    }
+    catch (error) {
+        cleanupErrors.push(error);
+    }
+    const visited = new Set();
+    for (const object of objects) {
+        if (!isBaseImage(object) || object === retainedImage || visited.has(object))
+            continue;
+        visited.add(object);
+        try {
+            disposeReplacedBaseImage(object, null, 'failed state restore');
+        }
+        catch (error) {
+            cleanupErrors.push(error);
+        }
+    }
+    if (cleanupErrors.length > 0) {
+        throw new CoreRuntimeError('[ImageEditor] State restore failed and rejected base image cleanup also failed.', {
+            cause: Object.freeze([cause, ...cleanupErrors]),
+        });
+    }
 }
 export class CanvasCoreStateAdapter {
     constructor(access, properties, transientObjects, externalObjects, securityLimits = DEFAULT_SECURITY_LIMITS) {
@@ -114,6 +154,9 @@ export class CanvasCoreStateAdapter {
         if (!validated.valid)
             throw new SnapshotValidationError(validated.message, validated.path);
         const next = validated.value;
+        if (context.signal.aborted)
+            throw (_a = context.signal.reason) !== null && _a !== void 0 ? _a : new Error('State restore aborted.');
+        const previousBaseImage = this.access.getBaseImage();
         if (!next.initialized) {
             const canvas = this.access.getCanvas();
             canvas === null || canvas === void 0 ? void 0 : canvas.clear();
@@ -121,10 +164,9 @@ export class CanvasCoreStateAdapter {
             this.access.setImageMimeType(null);
             this.access.setBaseImageScale(1);
             this.access.setGeometryRevision(next.geometryRevision);
+            disposeReplacedBaseImage(previousBaseImage, null, 'state restore');
             return;
         }
-        if (context.signal.aborted)
-            throw (_a = context.signal.reason) !== null && _a !== void 0 ? _a : new Error('State restore aborted.');
         const canvas = this.access.getCanvas();
         if (!canvas)
             throw new Error('Core Canvas must be initialized before state restore.');
@@ -140,33 +182,42 @@ export class CanvasCoreStateAdapter {
             controller.abort(new SnapshotValidationError(`Canvas decode timed out after ${this.securityLimits.decodeTimeoutMs}ms.`, '$.core.canvas'));
         }, this.securityLimits.decodeTimeoutMs);
         try {
-            await canvas.loadFromJSON(next.canvas, undefined, { signal: controller.signal });
+            try {
+                await canvas.loadFromJSON(next.canvas, undefined, { signal: controller.signal });
+            }
+            catch (error) {
+                if (controller.signal.aborted && controller.signal.reason) {
+                    throw controller.signal.reason;
+                }
+                throw error;
+            }
+            finally {
+                clearTimeout(timeout);
+                context.signal.removeEventListener('abort', abort);
+            }
+            if (context.signal.aborted)
+                throw (_b = context.signal.reason) !== null && _b !== void 0 ? _b : new Error('State restore aborted.');
+            const baseImages = canvas.getObjects().filter(isBaseImage);
+            if (baseImages.length > 1)
+                throw new Error('Restored Core state contains multiple base images.');
+            const baseImage = (_c = baseImages[0]) !== null && _c !== void 0 ? _c : null;
+            if (baseImage) {
+                baseImage.set({ selectable: false, evented: false });
+                baseImage.setCoords();
+                canvas.sendObjectToBack(baseImage);
+            }
+            this.access.setBaseImage(baseImage);
+            this.access.setImageMimeType(next.imageMimeType);
+            this.access.setBaseImageScale(next.baseImageScale);
+            this.access.setGeometryRevision(next.geometryRevision);
+            disposeReplacedBaseImage(previousBaseImage, baseImage, 'state restore');
         }
         catch (error) {
-            if (controller.signal.aborted && controller.signal.reason) {
-                throw controller.signal.reason;
+            if (this.access.getBaseImage() === previousBaseImage) {
+                disposeRejectedBaseImages(canvas, previousBaseImage, error);
             }
             throw error;
         }
-        finally {
-            clearTimeout(timeout);
-            context.signal.removeEventListener('abort', abort);
-        }
-        if (context.signal.aborted)
-            throw (_b = context.signal.reason) !== null && _b !== void 0 ? _b : new Error('State restore aborted.');
-        const baseImages = canvas.getObjects().filter(isBaseImage);
-        if (baseImages.length > 1)
-            throw new Error('Restored Core state contains multiple base images.');
-        const baseImage = (_c = baseImages[0]) !== null && _c !== void 0 ? _c : null;
-        if (baseImage) {
-            baseImage.set({ selectable: false, evented: false });
-            baseImage.setCoords();
-            canvas.sendObjectToBack(baseImage);
-        }
-        this.access.setBaseImage(baseImage);
-        this.access.setImageMimeType(next.imageMimeType);
-        this.access.setBaseImageScale(next.baseImageScale);
-        this.access.setGeometryRevision(next.geometryRevision);
     }
     validateSnapshot(value) {
         return this.validateState(value, true);

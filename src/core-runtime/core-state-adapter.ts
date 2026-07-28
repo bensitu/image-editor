@@ -6,7 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
-import { SnapshotValidationError } from './errors.js';
+import { CoreRuntimeError, SnapshotValidationError } from './errors.js';
 import type { CoreCanvasState, ImageMimeType } from './public-types.js';
 import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 import type {
@@ -61,6 +61,57 @@ function isBaseImage(object: FabricNS.FabricObject): object is FabricNS.FabricIm
         (object as FabricNS.FabricObject & { editorObjectKind?: unknown }).editorObjectKind ===
         'baseImage'
     );
+}
+
+export function disposeReplacedBaseImage(
+    previous: FabricNS.FabricImage | null,
+    replacement: FabricNS.FabricImage | null,
+    operation: string,
+): void {
+    if (!previous || previous === replacement) return;
+    try {
+        previous.dispose();
+    } catch (cause) {
+        throw new CoreRuntimeError(
+            `[ImageEditor] Replaced base image cleanup failed during ${operation}.`,
+            {
+                code: 'BASE_IMAGE_DISPOSAL_ERROR',
+                cause,
+            },
+        );
+    }
+}
+
+function disposeRejectedBaseImages(
+    canvas: FabricNS.Canvas,
+    retainedImage: FabricNS.FabricImage | null,
+    cause: unknown,
+): void {
+    const cleanupErrors: unknown[] = [];
+    let objects: FabricNS.FabricObject[] = [];
+    try {
+        objects = canvas.getObjects();
+    } catch (error) {
+        cleanupErrors.push(error);
+    }
+    const visited = new Set<FabricNS.FabricImage>();
+    for (const object of objects) {
+        if (!isBaseImage(object) || object === retainedImage || visited.has(object)) continue;
+        visited.add(object);
+        try {
+            disposeReplacedBaseImage(object, null, 'failed state restore');
+        } catch (error) {
+            cleanupErrors.push(error);
+        }
+    }
+    if (cleanupErrors.length > 0) {
+        throw new CoreRuntimeError(
+            '[ImageEditor] State restore failed and rejected base image cleanup also failed.',
+            {
+                cause: Object.freeze([cause, ...cleanupErrors]),
+            },
+        );
+    }
 }
 
 export class CanvasCoreStateAdapter implements CoreStateAdapter {
@@ -138,6 +189,9 @@ export class CanvasCoreStateAdapter implements CoreStateAdapter {
         const validated = this.validateState(state, context.mode === 'public-snapshot');
         if (!validated.valid) throw new SnapshotValidationError(validated.message, validated.path);
         const next = validated.value;
+        if (context.signal.aborted)
+            throw context.signal.reason ?? new Error('State restore aborted.');
+        const previousBaseImage = this.access.getBaseImage();
         if (!next.initialized) {
             const canvas = this.access.getCanvas();
             canvas?.clear();
@@ -145,10 +199,9 @@ export class CanvasCoreStateAdapter implements CoreStateAdapter {
             this.access.setImageMimeType(null);
             this.access.setBaseImageScale(1);
             this.access.setGeometryRevision(next.geometryRevision);
+            disposeReplacedBaseImage(previousBaseImage, null, 'state restore');
             return;
         }
-        if (context.signal.aborted)
-            throw context.signal.reason ?? new Error('State restore aborted.');
         const canvas = this.access.getCanvas();
         if (!canvas) throw new Error('Core Canvas must be initialized before state restore.');
         this.access.setCanvasSize(next.canvasWidth, next.canvasHeight);
@@ -166,31 +219,39 @@ export class CanvasCoreStateAdapter implements CoreStateAdapter {
             );
         }, this.securityLimits.decodeTimeoutMs);
         try {
-            await canvas.loadFromJSON(next.canvas, undefined, { signal: controller.signal });
+            try {
+                await canvas.loadFromJSON(next.canvas, undefined, { signal: controller.signal });
+            } catch (error) {
+                if (controller.signal.aborted && controller.signal.reason) {
+                    throw controller.signal.reason;
+                }
+                throw error;
+            } finally {
+                clearTimeout(timeout);
+                context.signal.removeEventListener('abort', abort);
+            }
+            if (context.signal.aborted)
+                throw context.signal.reason ?? new Error('State restore aborted.');
+            const baseImages = canvas.getObjects().filter(isBaseImage);
+            if (baseImages.length > 1)
+                throw new Error('Restored Core state contains multiple base images.');
+            const baseImage = baseImages[0] ?? null;
+            if (baseImage) {
+                baseImage.set({ selectable: false, evented: false });
+                baseImage.setCoords();
+                canvas.sendObjectToBack(baseImage);
+            }
+            this.access.setBaseImage(baseImage);
+            this.access.setImageMimeType(next.imageMimeType);
+            this.access.setBaseImageScale(next.baseImageScale);
+            this.access.setGeometryRevision(next.geometryRevision);
+            disposeReplacedBaseImage(previousBaseImage, baseImage, 'state restore');
         } catch (error) {
-            if (controller.signal.aborted && controller.signal.reason) {
-                throw controller.signal.reason;
+            if (this.access.getBaseImage() === previousBaseImage) {
+                disposeRejectedBaseImages(canvas, previousBaseImage, error);
             }
             throw error;
-        } finally {
-            clearTimeout(timeout);
-            context.signal.removeEventListener('abort', abort);
         }
-        if (context.signal.aborted)
-            throw context.signal.reason ?? new Error('State restore aborted.');
-        const baseImages = canvas.getObjects().filter(isBaseImage);
-        if (baseImages.length > 1)
-            throw new Error('Restored Core state contains multiple base images.');
-        const baseImage = baseImages[0] ?? null;
-        if (baseImage) {
-            baseImage.set({ selectable: false, evented: false });
-            baseImage.setCoords();
-            canvas.sendObjectToBack(baseImage);
-        }
-        this.access.setBaseImage(baseImage);
-        this.access.setImageMimeType(next.imageMimeType);
-        this.access.setBaseImageScale(next.baseImageScale);
-        this.access.setGeometryRevision(next.geometryRevision);
     }
 
     validateSnapshot(
