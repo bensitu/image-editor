@@ -23,6 +23,7 @@ lib-cov
 coverage
 playwright-report/
 test-results/
+.pages-site/
 *.lcov
 
 # nyc test coverage

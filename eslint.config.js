@@ -16,6 +16,7 @@ export default tseslint.config(
             'release-notes.md',
             'playwright-report/**',
             'test-results/**',
+            '.pages-site/**',
             'examples/*/dist/**',
             'examples/reference-plugins/*/dist/**',
             'examples/*/.next/**',

@@ -74,6 +74,14 @@ assertCondition(
     'The npm publish workflow must retain id-token: write for trusted publishing.',
 );
 
+const pagesWorkflow = await readRepositoryFile('.github/workflows/deploy-pages.yml');
+for (const fragment of ["- 'dist/**'", 'run: npm run package:pages', 'path: .pages-site']) {
+    assertCondition(
+        pagesWorkflow.includes(fragment),
+        `The Pages workflow is missing its same-commit artifact policy: ${fragment}`,
+    );
+}
+
 const dependabot = await readRepositoryFile('.github/dependabot.yml');
 for (const fragment of [
     'version: 2',

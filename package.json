@@ -266,6 +266,7 @@
         "build:prune": "node scripts/prune-distribution-output.mjs",
         "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && npm run build:umd && npm run build:prune",
         "build:bundle-fixtures": "npm run build --workspace @bensitu/reference-blur-region --workspace @bensitu/reference-watermark",
+        "package:pages": "node scripts/package-pages-site.mjs",
         "dev": "tsc --watch",
         "format": "prettier . --write",
         "format:check": "prettier . --check",
