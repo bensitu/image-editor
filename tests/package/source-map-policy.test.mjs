@@ -16,8 +16,8 @@ test('every source map in the built npm package excludes source content', async 
     const command = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'npm';
     const args =
         process.platform === 'win32'
-            ? ['/d', '/s', '/c', 'npm pack --dry-run --json']
-            : ['pack', '--dry-run', '--json'];
+            ? ['/d', '/s', '/c', 'npm pack --dry-run --json --ignore-scripts']
+            : ['pack', '--dry-run', '--json', '--ignore-scripts'];
     const { stdout } = await execFileAsync(command, args, {
         cwd: repositoryRoot,
         encoding: 'utf8',

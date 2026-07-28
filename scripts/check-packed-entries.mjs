@@ -79,7 +79,7 @@ try {
     if (!npmCliPath) throw new Error('npm_execpath is unavailable; run through npm scripts.');
     const { stdout } = await execFileAsync(
         process.execPath,
-        [npmCliPath, 'pack', '--json', '--pack-destination', temporaryRoot],
+        [npmCliPath, 'pack', '--json', '--ignore-scripts', '--pack-destination', temporaryRoot],
         { cwd: repoRoot },
     );
     const packResult = JSON.parse(stdout);

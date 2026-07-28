@@ -155,9 +155,9 @@ jobs:
                     '
                   }
 
-                  MAIN_PACKAGE_TARBALL="$(npm pack --json | read_pack_filename)"
+                  MAIN_PACKAGE_TARBALL="$(npm pack --json --ignore-scripts | read_pack_filename)"
                   CODEMOD_PACKAGE_TARBALL="$(
-                    npm pack --workspace @bensitu/image-editor-codemod --json |
+                    npm pack --workspace @bensitu/image-editor-codemod --json --ignore-scripts |
                       read_pack_filename
                   )"
 

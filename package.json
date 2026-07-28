@@ -265,6 +265,8 @@
         "build:umd": "rolldown -c rolldown.config.mjs --environment FORMAT:umd",
         "build:prune": "node scripts/prune-distribution-output.mjs",
         "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && npm run build:umd && npm run build:prune",
+        "prepack": "npm run build",
+        "prepublishOnly": "npm run check:release",
         "build:bundle-fixtures": "npm run build --workspace @bensitu/reference-blur-region --workspace @bensitu/reference-watermark",
         "package:pages": "node scripts/package-pages-site.mjs",
         "dev": "tsc --watch",

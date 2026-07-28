@@ -60,7 +60,7 @@ async function pack(directory, destination) {
     if (!npmCliPath) throw new Error('npm_execpath is unavailable; run through an npm script.');
     const { stdout } = await run(
         process.execPath,
-        [npmCliPath, 'pack', '--json', '--pack-destination', destination],
+        [npmCliPath, 'pack', '--json', '--ignore-scripts', '--pack-destination', destination],
         directory,
     );
     const result = JSON.parse(stdout)[0];

@@ -96,7 +96,10 @@ function fileSpecifier(filePath) {
 }
 
 async function pack(directory, destination) {
-    const { stdout } = await npm(['pack', '--json', '--pack-destination', destination], directory);
+    const { stdout } = await npm(
+        ['pack', '--json', '--ignore-scripts', '--pack-destination', destination],
+        directory,
+    );
     const result = JSON.parse(stdout)[0];
     assertCondition(
         result && typeof result.filename === 'string',

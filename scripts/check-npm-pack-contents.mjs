@@ -21,8 +21,8 @@ const repoRoot = path.resolve(scriptsDir, '..');
 const command = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'npm';
 const args =
     process.platform === 'win32'
-        ? ['/d', '/s', '/c', 'npm pack --dry-run --json']
-        : ['pack', '--dry-run', '--json'];
+        ? ['/d', '/s', '/c', 'npm pack --dry-run --json --ignore-scripts']
+        : ['pack', '--dry-run', '--json', '--ignore-scripts'];
 const requiredFiles = [
     'CHANGELOG.md',
     'LICENSE',
