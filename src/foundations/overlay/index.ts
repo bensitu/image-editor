@@ -24,7 +24,7 @@ import {
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
-import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
+import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { OverlayFoundationController } from './overlay-foundation-controller.js';
 import type {
     OverlayFoundationApi,

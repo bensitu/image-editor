@@ -1,5 +1,5 @@
 
-//#region dist/esm/sdk/internal-operation-conflict-domains.js
+//#region dist/esm/utils/internal-operation-conflict-domains.js
 const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
 	"document",
 	"base-image",
@@ -57,4 +57,4 @@ Object.defineProperty(exports, 'STATE_LOAD_CONFLICT_DOMAINS', {
     return STATE_LOAD_CONFLICT_DOMAINS;
   }
 });
-//# sourceMappingURL=internal-operation-conflict-domains-DVWgBNfU.cjs.map
+//# sourceMappingURL=internal-operation-conflict-domains-CSawOGVt.cjs.map

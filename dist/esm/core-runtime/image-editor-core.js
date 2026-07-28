@@ -14,7 +14,7 @@ import { DocumentMutationCoordinator, } from './mutation/index.js';
 import { MementoService, ObjectPropertyRegistry, SnapshotService, StateSliceRegistry, TransientObjectRegistry, DEFAULT_SNAPSHOT_LIMITS, } from './state/index.js';
 import { inspectEncodedImageDataUrl } from './state/image-data-url.js';
 import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
-import { FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS, STATE_LOAD_CONFLICT_DOMAINS, } from '../sdk/internal-operation-conflict-domains.js';
+import { FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS, STATE_LOAD_CONFLICT_DOMAINS, } from '../utils/internal-operation-conflict-domains.js';
 const DEFAULT_CORE_OPTIONS = Object.freeze({
     canvasWidth: 800,
     canvasHeight: 600,

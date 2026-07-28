@@ -1,6 +1,6 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-CMIgJ8Xz.cjs');
+const require_overlay = require('./overlay-DPn_scKI.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 
 //#region dist/esm/foundations/annotation/annotation-geometry.js
@@ -1109,4 +1109,4 @@ Object.defineProperty(exports, 'annotationFoundationRef', {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-CdWH2Mf8.cjs.map
+//# sourceMappingURL=annotation-B3CbscQT.cjs.map

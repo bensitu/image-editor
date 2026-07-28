@@ -1,8 +1,8 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
 const require_core_capabilities = require('../../chunks/core-capabilities-CWXMFfBX.cjs');
-const require_core = require('../../chunks/core-BJOWDnC3.cjs');
-const require_transform = require('../../chunks/transform-BXHMbOPa.cjs');
-const require_history = require('../../chunks/history-CpAiZ7-O.cjs');
+const require_core = require('../../chunks/core-SjIO7_D6.cjs');
+const require_transform = require('../../chunks/transform-lRNnBNWW.cjs');
+const require_history = require('../../chunks/history-CYXu3va6.cjs');
 const require_preset_support = require('../../chunks/preset-support-fdxHrf6c.cjs');
 
 //#region dist/esm/presets/minimal/index.js

@@ -17,7 +17,7 @@ import {
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
-import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
+import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import {
     TransformPluginController,
     resolveTransformOptions,

@@ -14,7 +14,7 @@ import {
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
-import { STATE_LOAD_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
+import { STATE_LOAD_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import {
     HistoryPluginController,
     type HistoryPluginOptions,

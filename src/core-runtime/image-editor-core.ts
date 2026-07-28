@@ -120,7 +120,7 @@ import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 import {
     FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
     STATE_LOAD_CONFLICT_DOMAINS,
-} from '../sdk/internal-operation-conflict-domains.js';
+} from '../utils/internal-operation-conflict-domains.js';
 
 const DEFAULT_CORE_OPTIONS: ResolvedImageEditorCoreOptions = Object.freeze({
     canvasWidth: 800,

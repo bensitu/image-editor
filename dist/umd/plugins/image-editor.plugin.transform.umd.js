@@ -6,7 +6,7 @@
 if (Object.prototype.hasOwnProperty.call(exports, "transformPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
-//#region dist/esm/sdk/internal-operation-conflict-domains.js
+//#region dist/esm/utils/internal-operation-conflict-domains.js
 	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",

@@ -50,7 +50,7 @@ import {
     FiltersPreviewMissingError,
 } from './filters-errors.js';
 import { FILTER_STATE_MUTATION_CONFLICT_DOMAINS } from './conflict-domain-sets.js';
-import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
+import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 
 const FILTERS_STATE_SCHEMA = 'image-editor.filters';
 const FILTERS_STATE_VERSION = 1;

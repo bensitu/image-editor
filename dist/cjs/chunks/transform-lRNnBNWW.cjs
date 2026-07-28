@@ -1,5 +1,5 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-DVWgBNfU.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-CSawOGVt.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 
 //#region dist/esm/fabric/fabric-animation.js
@@ -676,4 +676,4 @@ Object.defineProperty(exports, 'transformPluginRef', {
     return transformPluginRef;
   }
 });
-//# sourceMappingURL=transform-BXHMbOPa.cjs.map
+//# sourceMappingURL=transform-lRNnBNWW.cjs.map

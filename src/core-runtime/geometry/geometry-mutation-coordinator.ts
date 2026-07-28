@@ -5,7 +5,7 @@
  */
 
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
-import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
+import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { DocumentMutationError, DocumentMutationUnrecoverableError } from '../errors.js';
 import type {
     DocumentMutationContext,
