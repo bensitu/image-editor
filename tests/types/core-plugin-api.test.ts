@@ -91,8 +91,13 @@ const history = editor.use(
     historyPlugin({
         enabled: false,
         maxSize: 25,
+        maxBytes: 64 * 1024 * 1024,
         onChange: (status) => {
             const current: HistoryStatus = status;
+            const retainedBytes: number = current.bytes;
+            const maximumBytes: number = current.maxBytes;
+            void retainedBytes;
+            void maximumBytes;
             void current;
         },
     }),
@@ -193,6 +198,8 @@ editor.getPlugin(transformPluginRef.id);
 history.enable({ baseline: 'saved' });
 // @ts-expect-error History installation state must be boolean.
 historyPlugin({ enabled: 'no' });
+// @ts-expect-error History retained-byte limits must be numeric.
+historyPlugin({ maxBytes: 'large' });
 // @ts-expect-error Filter types are a closed public union.
 filters.preview([{ type: 'custom-filter' }]);
 // @ts-expect-error Filters configuration accepts only declared properties.

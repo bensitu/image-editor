@@ -4225,7 +4225,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "4bf832f5c1860c675e05c70cc28edfd736eba6bfa0bc03740b0eee7c9197a536",
+        "graphSha256": "93f3978aaf47d75b3080503c045c92f809cb8fe0b40c46126032cc6d74cd523d",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4497,7 +4497,7 @@
             },
             {
                 "file": "dist/types/plugins/history/history-controller.d.ts",
-                "sha256": "2e7318a00dfb1c50444c63f234384b7543659bb63eccd2669b3d6fc1245ae80d"
+                "sha256": "b65f36f444052828b672f62ae7786c74647fc1d1e8d9e3471fd95eef9c6c444b"
             },
             {
                 "file": "dist/types/plugins/history/index.d.ts",

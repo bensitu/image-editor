@@ -46,6 +46,14 @@ async function dispose(editor) {
     document.body.innerHTML = '';
 }
 
+function assertDefaultByteBudgetStatus(history, expected) {
+    const { bytes, maxBytes, ...legacyStatus } = history.getState();
+    assert.ok(Number.isSafeInteger(bytes));
+    assert.ok(bytes >= 0);
+    assert.equal(maxBytes, 128 * 1024 * 1024);
+    assert.deepEqual(legacyStatus, expected);
+}
+
 function captureProbePlugin() {
     const ref = definePluginRef('example-test:history-capture-probe', '1.0.0');
     let captures = 0;
@@ -156,7 +164,7 @@ test('History installs enabled by default and can be installed disabled before i
     assert.equal(disabledFixture.editor.getPlugin(historyPluginRef), disabledFixture.history);
     await load(disabledFixture.editor);
     await disabledFixture.transform.scale(1.3);
-    assert.deepEqual(disabledFixture.history.getState(), {
+    assertDefaultByteBudgetStatus(disabledFixture.history, {
         isEnabled: false,
         canUndo: false,
         canRedo: false,
@@ -283,7 +291,7 @@ test('disable clears records by default and repeated no-op transitions publish n
     history.onChange((state) => states.push(state));
 
     await history.disable();
-    assert.deepEqual(history.getState(), {
+    assertDefaultByteBudgetStatus(history, {
         isEnabled: false,
         canUndo: false,
         canRedo: false,

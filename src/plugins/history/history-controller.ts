@@ -6,6 +6,9 @@
 
 import { CoreRuntimeError, type CoreHistoryRecord } from '../../core/index.js';
 import type { MementoHistoryPort } from '../../sdk/index.js';
+import { estimateRetainedBytes } from './retained-size-estimator.js';
+
+const DEFAULT_MAX_HISTORY_BYTES = 128 * 1024 * 1024;
 
 export interface HistoryStatus {
     readonly isEnabled: boolean;
@@ -14,6 +17,8 @@ export interface HistoryStatus {
     readonly length: number;
     readonly size: number;
     readonly position: number;
+    readonly bytes: number;
+    readonly maxBytes: number;
 }
 
 export type HistoryAvailability = HistoryStatus;
@@ -45,6 +50,7 @@ export interface HistoryPort {
 export interface HistoryPluginOptions {
     readonly enabled?: boolean;
     readonly maxSize?: number;
+    readonly maxBytes?: number;
     readonly onChange?: (state: HistoryStatus) => void;
 }
 
@@ -52,18 +58,38 @@ interface HistoryOperationAccess {
     run(operationId: string, body: () => Promise<void>): Promise<void>;
 }
 
+interface RetainedHistoryEntry {
+    readonly record: CoreHistoryRecord;
+    readonly bytes: number;
+}
+
 function resolveMaxSize(value: number | undefined): number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 50;
 }
 
+function resolveMaxBytes(value: number | undefined): number {
+    if (value === undefined) return DEFAULT_MAX_HISTORY_BYTES;
+    if (!Number.isSafeInteger(value) || value <= 0) {
+        throw new CoreRuntimeError(
+            '[ImageEditor] History maxBytes must be a positive safe integer.',
+            {
+                code: 'HISTORY_MAX_BYTES_INVALID',
+            },
+        );
+    }
+    return value;
+}
+
 export class HistoryPluginController implements HistoryPort {
-    private records: CoreHistoryRecord[] = [];
+    private records: RetainedHistoryEntry[] = [];
     private position = 0;
+    private retainedBytes = 0;
     private baseline: CoreHistoryRecord['before'] | null = null;
     declare private enabled: boolean;
     private readonly listeners = new Set<(state: HistoryStatus) => void>();
     private disposed = false;
     declare readonly maxSize: number;
+    declare readonly maxBytes: number;
 
     constructor(
         private readonly state: MementoHistoryPort,
@@ -73,6 +99,7 @@ export class HistoryPluginController implements HistoryPort {
     ) {
         this.enabled = options.enabled !== false;
         this.maxSize = resolveMaxSize(options.maxSize);
+        this.maxBytes = resolveMaxBytes(options.maxBytes);
         if (options.onChange) this.listeners.add(options.onChange);
     }
 
@@ -109,23 +136,36 @@ export class HistoryPluginController implements HistoryPort {
         if (!record || typeof record.operationId !== 'string' || record.operationId.length === 0) {
             throw new CoreRuntimeError('[ImageEditor] History record operationId is invalid.');
         }
+        const retainedRecord = Object.freeze({
+            operationId: record.operationId,
+            before: record.before,
+            after: record.after,
+            timestamp: record.timestamp,
+            detail: record.detail,
+        });
+        const bytes = estimateRetainedBytes(retainedRecord);
+        if (bytes > this.maxBytes) {
+            const changed = this.resetTimeline();
+            this.baseline = record.after;
+            const warning = new CoreRuntimeError(
+                `[ImageEditor] History record "${record.operationId}" exceeds maxBytes and was not retained.`,
+                {
+                    code: 'HISTORY_RECORD_BYTE_LIMIT_EXCEEDED',
+                },
+            );
+            this.reportWarning(
+                warning,
+                `History record "${record.operationId}" requires ${bytes} bytes, exceeding the ${this.maxBytes}-byte limit.`,
+            );
+            if (changed) this.emitChange();
+            return;
+        }
+
         this.baseline ??= record.before;
-        if (this.position < this.records.length) {
-            this.records = this.records.slice(0, this.position);
-        }
-        this.records.push(
-            Object.freeze({
-                operationId: record.operationId,
-                before: record.before,
-                after: record.after,
-                timestamp: record.timestamp,
-                detail: record.detail,
-            }),
-        );
-        if (this.records.length > this.maxSize) {
-            const overflow = this.records.length - this.maxSize;
-            this.records.splice(0, overflow);
-        }
+        this.removeEntries(this.position, this.records.length - this.position);
+        this.records.push(Object.freeze({ record: retainedRecord, bytes }));
+        this.retainedBytes += bytes;
+        this.evictOverflow();
         this.position = this.records.length;
         this.emitChange();
     }
@@ -145,6 +185,7 @@ export class HistoryPluginController implements HistoryPort {
             const baseline = this.state.captureMemento();
             this.records = [];
             this.position = 0;
+            this.retainedBytes = 0;
             this.baseline = baseline;
             this.enabled = true;
             this.emitChange();
@@ -172,9 +213,9 @@ export class HistoryPluginController implements HistoryPort {
         this.assertActive('undo');
         if (!this.canUndo()) return Promise.resolve();
         return this.operations.run('history:undo', async () => {
-            const record = this.records[this.position - 1];
-            if (!record) return;
-            await this.restoreTransactionally(record.before, 'undo');
+            const entry = this.records[this.position - 1];
+            if (!entry) return;
+            await this.restoreTransactionally(entry.record.before, 'undo');
             this.position -= 1;
             this.emitChange();
         });
@@ -184,9 +225,9 @@ export class HistoryPluginController implements HistoryPort {
         this.assertActive('redo');
         if (!this.canRedo()) return Promise.resolve();
         return this.operations.run('history:redo', async () => {
-            const record = this.records[this.position];
-            if (!record) return;
-            await this.restoreTransactionally(record.after, 'redo');
+            const entry = this.records[this.position];
+            if (!entry) return;
+            await this.restoreTransactionally(entry.record.after, 'redo');
             this.position += 1;
             this.emitChange();
         });
@@ -221,6 +262,8 @@ export class HistoryPluginController implements HistoryPort {
             length: this.records.length,
             size: this.records.length,
             position: this.position,
+            bytes: this.retainedBytes,
+            maxBytes: this.maxBytes,
         });
     }
 
@@ -228,6 +271,7 @@ export class HistoryPluginController implements HistoryPort {
         if (this.disposed) return;
         this.records = [];
         this.position = 0;
+        this.retainedBytes = 0;
         this.baseline = null;
         this.enabled = false;
         this.listeners.clear();
@@ -235,11 +279,26 @@ export class HistoryPluginController implements HistoryPort {
     }
 
     private resetTimeline(): boolean {
-        const changed = this.records.length > 0 || this.position !== 0;
+        const changed = this.records.length > 0 || this.position !== 0 || this.retainedBytes !== 0;
         this.records = [];
         this.position = 0;
+        this.retainedBytes = 0;
         this.baseline = null;
         return changed;
+    }
+
+    private removeEntries(start: number, deleteCount: number): void {
+        if (deleteCount <= 0) return;
+        const removed = this.records.splice(start, deleteCount);
+        for (const entry of removed) {
+            this.retainedBytes -= entry.bytes;
+        }
+    }
+
+    private evictOverflow(): void {
+        while (this.records.length > this.maxSize || this.retainedBytes > this.maxBytes) {
+            this.removeEntries(0, 1);
+        }
     }
 
     private async restoreTransactionally(

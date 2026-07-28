@@ -1,6 +1,18 @@
 import { CoreRuntimeError } from '../../core/index.js';
+import { estimateRetainedBytes } from './retained-size-estimator.js';
+const DEFAULT_MAX_HISTORY_BYTES = 128 * 1024 * 1024;
 function resolveMaxSize(value) {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 50;
+}
+function resolveMaxBytes(value) {
+    if (value === undefined)
+        return DEFAULT_MAX_HISTORY_BYTES;
+    if (!Number.isSafeInteger(value) || value <= 0) {
+        throw new CoreRuntimeError('[ImageEditor] History maxBytes must be a positive safe integer.', {
+            code: 'HISTORY_MAX_BYTES_INVALID',
+        });
+    }
+    return value;
 }
 export class HistoryPluginController {
     constructor(state, operations, options = {}, reportWarning) {
@@ -34,6 +46,12 @@ export class HistoryPluginController {
             writable: true,
             value: 0
         });
+        Object.defineProperty(this, "retainedBytes", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
         Object.defineProperty(this, "baseline", {
             enumerable: true,
             configurable: true,
@@ -54,6 +72,7 @@ export class HistoryPluginController {
         });
         this.enabled = options.enabled !== false;
         this.maxSize = resolveMaxSize(options.maxSize);
+        this.maxBytes = resolveMaxBytes(options.maxBytes);
         if (options.onChange)
             this.listeners.add(options.onChange);
     }
@@ -88,21 +107,30 @@ export class HistoryPluginController {
         if (!record || typeof record.operationId !== 'string' || record.operationId.length === 0) {
             throw new CoreRuntimeError('[ImageEditor] History record operationId is invalid.');
         }
-        (_a = this.baseline) !== null && _a !== void 0 ? _a : (this.baseline = record.before);
-        if (this.position < this.records.length) {
-            this.records = this.records.slice(0, this.position);
-        }
-        this.records.push(Object.freeze({
+        const retainedRecord = Object.freeze({
             operationId: record.operationId,
             before: record.before,
             after: record.after,
             timestamp: record.timestamp,
             detail: record.detail,
-        }));
-        if (this.records.length > this.maxSize) {
-            const overflow = this.records.length - this.maxSize;
-            this.records.splice(0, overflow);
+        });
+        const bytes = estimateRetainedBytes(retainedRecord);
+        if (bytes > this.maxBytes) {
+            const changed = this.resetTimeline();
+            this.baseline = record.after;
+            const warning = new CoreRuntimeError(`[ImageEditor] History record "${record.operationId}" exceeds maxBytes and was not retained.`, {
+                code: 'HISTORY_RECORD_BYTE_LIMIT_EXCEEDED',
+            });
+            this.reportWarning(warning, `History record "${record.operationId}" requires ${bytes} bytes, exceeding the ${this.maxBytes}-byte limit.`);
+            if (changed)
+                this.emitChange();
+            return;
         }
+        (_a = this.baseline) !== null && _a !== void 0 ? _a : (this.baseline = record.before);
+        this.removeEntries(this.position, this.records.length - this.position);
+        this.records.push(Object.freeze({ record: retainedRecord, bytes }));
+        this.retainedBytes += bytes;
+        this.evictOverflow();
         this.position = this.records.length;
         this.emitChange();
     }
@@ -119,6 +147,7 @@ export class HistoryPluginController {
             const baseline = this.state.captureMemento();
             this.records = [];
             this.position = 0;
+            this.retainedBytes = 0;
             this.baseline = baseline;
             this.enabled = true;
             this.emitChange();
@@ -148,10 +177,10 @@ export class HistoryPluginController {
         if (!this.canUndo())
             return Promise.resolve();
         return this.operations.run('history:undo', async () => {
-            const record = this.records[this.position - 1];
-            if (!record)
+            const entry = this.records[this.position - 1];
+            if (!entry)
                 return;
-            await this.restoreTransactionally(record.before, 'undo');
+            await this.restoreTransactionally(entry.record.before, 'undo');
             this.position -= 1;
             this.emitChange();
         });
@@ -161,10 +190,10 @@ export class HistoryPluginController {
         if (!this.canRedo())
             return Promise.resolve();
         return this.operations.run('history:redo', async () => {
-            const record = this.records[this.position];
-            if (!record)
+            const entry = this.records[this.position];
+            if (!entry)
                 return;
-            await this.restoreTransactionally(record.after, 'redo');
+            await this.restoreTransactionally(entry.record.after, 'redo');
             this.position += 1;
             this.emitChange();
         });
@@ -196,6 +225,8 @@ export class HistoryPluginController {
             length: this.records.length,
             size: this.records.length,
             position: this.position,
+            bytes: this.retainedBytes,
+            maxBytes: this.maxBytes,
         });
     }
     dispose() {
@@ -203,17 +234,32 @@ export class HistoryPluginController {
             return;
         this.records = [];
         this.position = 0;
+        this.retainedBytes = 0;
         this.baseline = null;
         this.enabled = false;
         this.listeners.clear();
         this.disposed = true;
     }
     resetTimeline() {
-        const changed = this.records.length > 0 || this.position !== 0;
+        const changed = this.records.length > 0 || this.position !== 0 || this.retainedBytes !== 0;
         this.records = [];
         this.position = 0;
+        this.retainedBytes = 0;
         this.baseline = null;
         return changed;
+    }
+    removeEntries(start, deleteCount) {
+        if (deleteCount <= 0)
+            return;
+        const removed = this.records.splice(start, deleteCount);
+        for (const entry of removed) {
+            this.retainedBytes -= entry.bytes;
+        }
+    }
+    evictOverflow() {
+        while (this.records.length > this.maxSize || this.retainedBytes > this.maxBytes) {
+            this.removeEntries(0, 1);
+        }
     }
     async restoreTransactionally(target, operation) {
         const rollback = this.state.captureMemento();

@@ -13,13 +13,17 @@ const history = editor.use(
     historyPlugin({
         enabled: true,
         maxSize: 50,
+        maxBytes: 128 * 1024 * 1024,
     }),
 );
 
 await editor.init({ canvas: 'canvas' });
 ```
 
-`enabled` defaults to `true`. Set it to `false` when an application needs to prepare a document
+`enabled` defaults to `true`. `maxSize` bounds the number of retained records, while `maxBytes`
+independently bounds their estimated retained memory and defaults to 128 MiB. A record larger than
+the byte budget clears the prior timeline and is not retained, so undo can never skip across an
+unrecorded operation. Set `enabled` to `false` when an application needs to prepare a document
 without making those preparation operations undoable. The Plugin and its API are still fully
 installed while recording is disabled.
 
@@ -61,8 +65,9 @@ console.log(history.length); // 0
 ```
 
 `history.getState()` and `history.onChange()` expose `isEnabled`, `canUndo`, `canRedo`, `length`,
-and the backward-compatible `size` and `position` fields. Status listeners run after committed
-History state changes; a listener failure cannot roll back the document or History state.
+`bytes`, `maxBytes`, and the backward-compatible `size` and `position` fields. Status listeners run
+after committed History state changes; a listener failure cannot roll back the document or History
+state.
 
 Disabling History affects record publication only. Core continues to capture trusted Mementos for
 transaction rollback, so a failed Transform, Overlay, Mask, Raster, or Plugin State mutation still

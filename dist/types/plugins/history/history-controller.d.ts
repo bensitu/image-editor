@@ -12,6 +12,8 @@ export interface HistoryStatus {
     readonly length: number;
     readonly size: number;
     readonly position: number;
+    readonly bytes: number;
+    readonly maxBytes: number;
 }
 export type HistoryAvailability = HistoryStatus;
 export interface HistoryEnableOptions {
@@ -38,6 +40,7 @@ export interface HistoryPort {
 export interface HistoryPluginOptions {
     readonly enabled?: boolean;
     readonly maxSize?: number;
+    readonly maxBytes?: number;
     readonly onChange?: (state: HistoryStatus) => void;
 }
 interface HistoryOperationAccess {
@@ -49,11 +52,13 @@ export declare class HistoryPluginController implements HistoryPort {
     private readonly reportWarning;
     private records;
     private position;
+    private retainedBytes;
     private baseline;
     private enabled;
     private readonly listeners;
     private disposed;
     readonly maxSize: number;
+    readonly maxBytes: number;
     constructor(state: MementoHistoryPort, operations: HistoryOperationAccess, options: HistoryPluginOptions | undefined, reportWarning: (error: unknown, message: string) => void);
     get isEnabled(): boolean;
     get length(): number;
@@ -71,6 +76,8 @@ export declare class HistoryPluginController implements HistoryPort {
     getState(): HistoryStatus;
     dispose(): void;
     private resetTimeline;
+    private removeEntries;
+    private evictOverflow;
     private restoreTransactionally;
     private emitChange;
     private assertActive;

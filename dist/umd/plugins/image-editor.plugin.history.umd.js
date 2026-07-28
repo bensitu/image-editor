@@ -6,9 +6,91 @@
 if (Object.prototype.hasOwnProperty.call(exports, "historyPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/plugins/history/retained-size-estimator.js
+	const BOOLEAN_BYTES = 4;
+	const DATE_BYTES = 8;
+	const NUMBER_BYTES = 8;
+	const OBJECT_OVERHEAD_BYTES = 16;
+	const COLLECTION_ENTRY_OVERHEAD_BYTES = 8;
+	const PROPERTY_OVERHEAD_BYTES = 8;
+	function addBytes(total, additional) {
+		return total > Number.MAX_SAFE_INTEGER - additional ? Number.MAX_SAFE_INTEGER : total + additional;
+	}
+	function utf8ByteLength(value) {
+		let bytes = 0;
+		for (let index = 0; index < value.length; index += 1) {
+			const codeUnit = value.charCodeAt(index);
+			if (codeUnit <= 127) bytes += 1;
+			else if (codeUnit <= 2047) bytes += 2;
+			else if (codeUnit >= 55296 && codeUnit <= 56319 && index + 1 < value.length && value.charCodeAt(index + 1) >= 56320 && value.charCodeAt(index + 1) <= 57343) {
+				bytes += 4;
+				index += 1;
+			} else bytes += 3;
+		}
+		return bytes;
+	}
+	function estimatePropertyKeyBytes(key) {
+		var _a;
+		return utf8ByteLength(typeof key === "symbol" ? (_a = key.description) !== null && _a !== void 0 ? _a : "" : String(key));
+	}
+	function estimateObjectBytes(value, seen) {
+		if (seen.has(value)) return 0;
+		seen.add(value);
+		if (value instanceof ArrayBuffer) return value.byteLength;
+		if (ArrayBuffer.isView(value)) return value.byteLength;
+		if (value instanceof Date) return DATE_BYTES;
+		let bytes = OBJECT_OVERHEAD_BYTES;
+		if (value instanceof Map) {
+			for (const [key, entryValue] of value) {
+				bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
+				bytes = addBytes(bytes, estimateValueBytes(key, seen));
+				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+			}
+			return bytes;
+		}
+		if (value instanceof Set) {
+			for (const entryValue of value) {
+				bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
+				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+			}
+			return bytes;
+		}
+		for (const key of Reflect.ownKeys(value)) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (!descriptor || !("value" in descriptor)) continue;
+			bytes = addBytes(bytes, PROPERTY_OVERHEAD_BYTES);
+			bytes = addBytes(bytes, estimatePropertyKeyBytes(key));
+			bytes = addBytes(bytes, estimateValueBytes(descriptor.value, seen));
+		}
+		return bytes;
+	}
+	function estimateValueBytes(value, seen) {
+		var _a;
+		switch (typeof value) {
+			case "undefined": return 0;
+			case "boolean": return BOOLEAN_BYTES;
+			case "number": return NUMBER_BYTES;
+			case "bigint": return utf8ByteLength(value.toString());
+			case "string": return utf8ByteLength(value);
+			case "symbol": return utf8ByteLength((_a = value.description) !== null && _a !== void 0 ? _a : "");
+			case "function": return estimateObjectBytes(value, seen);
+			case "object": return value === null ? 0 : estimateObjectBytes(value, seen);
+		}
+	}
+	function estimateRetainedBytes(value) {
+		return estimateValueBytes(value, /* @__PURE__ */ new WeakSet());
+	}
+
+//#endregion
 //#region dist/esm/plugins/history/history-controller.js
+	const DEFAULT_MAX_HISTORY_BYTES = 128 * 1024 * 1024;
 	function resolveMaxSize(value) {
 		return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 50;
+	}
+	function resolveMaxBytes(value) {
+		if (value === void 0) return DEFAULT_MAX_HISTORY_BYTES;
+		if (!Number.isSafeInteger(value) || value <= 0) throw new _bensitu_image_editor_core.CoreRuntimeError("[ImageEditor] History maxBytes must be a positive safe integer.", { code: "HISTORY_MAX_BYTES_INVALID" });
+		return value;
 	}
 	var HistoryPluginController = class {
 		constructor(state, operations, options = {}, reportWarning) {
@@ -42,6 +124,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: 0
 			});
+			Object.defineProperty(this, "retainedBytes", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: 0
+			});
 			Object.defineProperty(this, "baseline", {
 				enumerable: true,
 				configurable: true,
@@ -62,6 +150,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			this.enabled = options.enabled !== false;
 			this.maxSize = resolveMaxSize(options.maxSize);
+			this.maxBytes = resolveMaxBytes(options.maxBytes);
 			if (options.onChange) this.listeners.add(options.onChange);
 		}
 		get isEnabled() {
@@ -88,19 +177,30 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.assertActive("push History");
 			if (!this.enabled) return;
 			if (!record || typeof record.operationId !== "string" || record.operationId.length === 0) throw new _bensitu_image_editor_core.CoreRuntimeError("[ImageEditor] History record operationId is invalid.");
-			(_a = this.baseline) !== null && _a !== void 0 || (this.baseline = record.before);
-			if (this.position < this.records.length) this.records = this.records.slice(0, this.position);
-			this.records.push(Object.freeze({
+			const retainedRecord = Object.freeze({
 				operationId: record.operationId,
 				before: record.before,
 				after: record.after,
 				timestamp: record.timestamp,
 				detail: record.detail
-			}));
-			if (this.records.length > this.maxSize) {
-				const overflow = this.records.length - this.maxSize;
-				this.records.splice(0, overflow);
+			});
+			const bytes = estimateRetainedBytes(retainedRecord);
+			if (bytes > this.maxBytes) {
+				const changed = this.resetTimeline();
+				this.baseline = record.after;
+				const warning = new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] History record "${record.operationId}" exceeds maxBytes and was not retained.`, { code: "HISTORY_RECORD_BYTE_LIMIT_EXCEEDED" });
+				this.reportWarning(warning, `History record "${record.operationId}" requires ${bytes} bytes, exceeding the ${this.maxBytes}-byte limit.`);
+				if (changed) this.emitChange();
+				return;
 			}
+			(_a = this.baseline) !== null && _a !== void 0 || (this.baseline = record.before);
+			this.removeEntries(this.position, this.records.length - this.position);
+			this.records.push(Object.freeze({
+				record: retainedRecord,
+				bytes
+			}));
+			this.retainedBytes += bytes;
+			this.evictOverflow();
 			this.position = this.records.length;
 			this.emitChange();
 		}
@@ -112,6 +212,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const baseline = this.state.captureMemento();
 				this.records = [];
 				this.position = 0;
+				this.retainedBytes = 0;
 				this.baseline = baseline;
 				this.enabled = true;
 				this.emitChange();
@@ -134,9 +235,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.assertActive("undo");
 			if (!this.canUndo()) return Promise.resolve();
 			return this.operations.run("history:undo", async () => {
-				const record = this.records[this.position - 1];
-				if (!record) return;
-				await this.restoreTransactionally(record.before, "undo");
+				const entry = this.records[this.position - 1];
+				if (!entry) return;
+				await this.restoreTransactionally(entry.record.before, "undo");
 				this.position -= 1;
 				this.emitChange();
 			});
@@ -145,9 +246,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.assertActive("redo");
 			if (!this.canRedo()) return Promise.resolve();
 			return this.operations.run("history:redo", async () => {
-				const record = this.records[this.position];
-				if (!record) return;
-				await this.restoreTransactionally(record.after, "redo");
+				const entry = this.records[this.position];
+				if (!entry) return;
+				await this.restoreTransactionally(entry.record.after, "redo");
 				this.position += 1;
 				this.emitChange();
 			});
@@ -176,24 +277,36 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				canRedo: this.canRedo(),
 				length: this.records.length,
 				size: this.records.length,
-				position: this.position
+				position: this.position,
+				bytes: this.retainedBytes,
+				maxBytes: this.maxBytes
 			});
 		}
 		dispose() {
 			if (this.disposed) return;
 			this.records = [];
 			this.position = 0;
+			this.retainedBytes = 0;
 			this.baseline = null;
 			this.enabled = false;
 			this.listeners.clear();
 			this.disposed = true;
 		}
 		resetTimeline() {
-			const changed = this.records.length > 0 || this.position !== 0;
+			const changed = this.records.length > 0 || this.position !== 0 || this.retainedBytes !== 0;
 			this.records = [];
 			this.position = 0;
+			this.retainedBytes = 0;
 			this.baseline = null;
 			return changed;
+		}
+		removeEntries(start, deleteCount) {
+			if (deleteCount <= 0) return;
+			const removed = this.records.splice(start, deleteCount);
+			for (const entry of removed) this.retainedBytes -= entry.bytes;
+		}
+		evictOverflow() {
+			while (this.records.length > this.maxSize || this.retainedBytes > this.maxBytes) this.removeEntries(0, 1);
 		}
 		async restoreTransactionally(target, operation) {
 			const rollback = this.state.captureMemento();

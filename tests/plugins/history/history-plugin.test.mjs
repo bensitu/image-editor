@@ -39,6 +39,14 @@ async function dispose(editor) {
     document.body.innerHTML = '';
 }
 
+function assertDefaultByteBudgetStatus(history, expected) {
+    const { bytes, maxBytes, ...legacyStatus } = history.getState();
+    assert.ok(Number.isSafeInteger(bytes));
+    assert.ok(bytes >= 0);
+    assert.equal(maxBytes, 128 * 1024 * 1024);
+    assert.deepEqual(legacyStatus, expected);
+}
+
 function installHistoryTrustProbe(editor) {
     const providerRef = definePluginRef('example-test:history-trust-probe', '1.0.0');
     return editor.use(
@@ -93,7 +101,7 @@ test('History starts empty after image load and records one entry per transform/
         historyOptions: { onChange: (state) => states.push(state) },
     });
     await load(editor);
-    assert.deepEqual(history.getState(), {
+    assertDefaultByteBudgetStatus(history, {
         isEnabled: true,
         canUndo: false,
         canRedo: false,
@@ -102,7 +110,7 @@ test('History starts empty after image load and records one entry per transform/
         position: 0,
     });
     await transform.scale(1.4);
-    assert.deepEqual(history.getState(), {
+    assertDefaultByteBudgetStatus(history, {
         isEnabled: true,
         canUndo: true,
         canRedo: false,
@@ -111,7 +119,7 @@ test('History starts empty after image load and records one entry per transform/
         position: 1,
     });
     await transform.resetImageTransform();
-    assert.deepEqual(history.getState(), {
+    assertDefaultByteBudgetStatus(history, {
         isEnabled: true,
         canUndo: true,
         canRedo: false,
@@ -205,7 +213,7 @@ test('max size, redo truncation, clear, and no-op boundaries are deterministic',
     await transform.rotate(10);
     await transform.rotate(20);
     await transform.rotate(30);
-    assert.deepEqual(history.getState(), {
+    assertDefaultByteBudgetStatus(history, {
         isEnabled: true,
         canUndo: true,
         canRedo: false,
@@ -225,7 +233,7 @@ test('max size, redo truncation, clear, and no-op boundaries are deterministic',
     assert.equal(history.canRedo(), false);
     assert.equal(history.getState().position, history.getState().size);
     history.clear();
-    assert.deepEqual(history.getState(), {
+    assertDefaultByteBudgetStatus(history, {
         isEnabled: true,
         canUndo: false,
         canRedo: false,
