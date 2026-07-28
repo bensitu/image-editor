@@ -3,6 +3,11 @@
 This project is a TypeScript-first package that builds ESM, CommonJS, UMD, and
 declaration outputs from the same source tree.
 
+- Recommended local/release Node: 24.
+- Minimum supported Node: 22.12.0.
+
+Run `nvm use` to select the repository's recommended version from `.nvmrc`.
+
 ## Build
 
 ```bash

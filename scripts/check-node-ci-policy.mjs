@@ -36,6 +36,18 @@ async function readJson(relativePath) {
     return JSON.parse(await readText(relativePath));
 }
 
+const recommendedNodeVersion = (await readText('.nvmrc')).trim();
+assertCondition(
+    recommendedNodeVersion === '24',
+    '.nvmrc must select the recommended local and release Node version 24.',
+);
+try {
+    await readText('.node-version');
+    throw new Error('.node-version must not conflict with the canonical .nvmrc.');
+} catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+}
+
 async function collectPackageManifests(relativeDirectory) {
     const directory = path.join(repositoryRoot, relativeDirectory);
     const entries = await readdir(directory, { withFileTypes: true });
@@ -132,8 +144,15 @@ for (const scriptName of REQUIRED_PR_SCRIPTS) {
 
 const readme = await readText('README.md');
 assertCondition(
-    readme.includes('**Node.js**: `>=22.12.0`'),
-    'README Node requirement is not aligned with package metadata.',
+    readme.includes('Recommended local/release Node: 24') &&
+        readme.includes('Minimum supported Node: 22.12.0'),
+    'README must distinguish the recommended and minimum supported Node versions.',
+);
+const contributingGuide = await readText('docs/contributing.md');
+assertCondition(
+    contributingGuide.includes('Recommended local/release Node: 24') &&
+        contributingGuide.includes('Minimum supported Node: 22.12.0'),
+    'The contributing guide must distinguish the recommended and minimum Node versions.',
 );
 
 console.log(

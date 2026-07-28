@@ -275,7 +275,8 @@ the linked Feature documents and declaration files for their complete contracts.
 
 ## Requirements
 
-- **Node.js**: `>=22.12.0` for development and building from source.
+- Recommended local/release Node: 24.
+- Minimum supported Node: 22.12.0 (`engines.node` remains `>=22.12.0`).
 - **Fabric.js**: peer dependency `>=7.4.0 <8`.
 - **Browsers**: Chrome 100+, Firefox 100+, Safari 15+, Edge 100+.
 - **JavaScript target**: distributed files target ES2019 and modern DOM APIs.
