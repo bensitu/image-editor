@@ -32,9 +32,17 @@ function createSnapshotHarness(warnings = []) {
 
 test('object property registrations are ordered, idempotent per owner, and conflict-safe', async () => {
     const registry = new ObjectPropertyRegistry();
+    const empty = registry.listKeys();
+    assert.strictEqual(registry.listKeys(), empty);
+    assert.equal(Object.isFrozen(empty), true);
+
     const first = registry.register({ owner: 'example:mask', keys: ['maskId', 'maskName'] });
+    const registered = registry.listKeys();
+    assert.notStrictEqual(registered, empty);
     const second = registry.register({ owner: 'example:mask', keys: ['maskId'] });
-    assert.deepEqual(registry.listKeys(), ['maskId', 'maskName']);
+    assert.strictEqual(registry.listKeys(), registered);
+    assert.deepEqual(registered, ['maskId', 'maskName']);
+    assert.throws(() => registered.push('externalMutation'), TypeError);
     assert.equal(registry.getOwner('maskId'), 'example:mask');
     assert.throws(
         () => registry.register({ owner: 'example:other', keys: ['maskId'] }),
@@ -45,9 +53,50 @@ test('object property registrations are ordered, idempotent per owner, and confl
         StateRegistrationError,
     );
     await second.dispose();
-    assert.deepEqual(registry.listKeys(), ['maskId', 'maskName']);
+    assert.strictEqual(registry.listKeys(), registered);
     await first.dispose();
-    assert.deepEqual(registry.listKeys(), []);
+    const released = registry.listKeys();
+    assert.notStrictEqual(released, registered);
+    assert.deepEqual(released, []);
+});
+
+test('state slice listings retain immutable identity until the registry changes', async () => {
+    const registry = new StateSliceRegistry();
+    const empty = registry.list();
+    assert.strictEqual(registry.list(), empty);
+    assert.equal(Object.isFrozen(empty), true);
+
+    const definition = (id) => ({
+        id,
+        version: 1,
+        capture: () => ({ id }),
+        validate: (value) => ({ valid: true, value }),
+        restore: () => undefined,
+    });
+    const firstRegistration = registry.register(definition('example:first'));
+    const first = registry.list();
+    assert.notStrictEqual(first, empty);
+    assert.strictEqual(registry.list(), first);
+    assert.throws(() => first.push(definition('example:external')), TypeError);
+
+    const secondRegistration = registry.register(definition('example:second'));
+    const second = registry.list();
+    assert.notStrictEqual(second, first);
+    assert.deepEqual(
+        second.map((entry) => entry.id),
+        ['example:first', 'example:second'],
+    );
+    assert.strictEqual(registry.list(), second);
+
+    await firstRegistration.dispose();
+    const afterDelete = registry.list();
+    assert.notStrictEqual(afterDelete, second);
+    assert.deepEqual(
+        afterDelete.map((entry) => entry.id),
+        ['example:second'],
+    );
+    await secondRegistration.dispose();
+    assert.deepEqual(registry.list(), []);
 });
 
 test('transient predicate errors are isolated with owner-attributed warnings', () => {

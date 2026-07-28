@@ -42,13 +42,19 @@ function assertDefinition(definition: StateSliceDefinition): void {
 }
 
 export class StateSliceRegistry implements Disposable {
-    private readonly definitions = new Map<string, StateSliceDefinition>();
+    private readonly definitions: {
+        readonly records: Map<string, StateSliceDefinition>;
+        snapshot: readonly StateSliceDefinition[];
+    } = {
+        records: new Map(),
+        snapshot: Object.freeze([]),
+    };
     private disposed = false;
 
     register<TState>(definition: StateSliceDefinition<TState>): Disposable {
         this.assertActive();
         assertDefinition(definition);
-        if (this.definitions.has(definition.id)) {
+        if (this.definitions.records.has(definition.id)) {
             throw new StateRegistrationError(
                 `State slice "${definition.id}" is already registered.`,
                 definition.id,
@@ -58,27 +64,30 @@ export class StateSliceRegistry implements Disposable {
             ...definition,
             capturePolicy: definition.capturePolicy ?? 'always',
         }) as StateSliceDefinition<TState>;
-        this.definitions.set(definition.id, stored as StateSliceDefinition);
+        this.definitions.records.set(definition.id, stored as StateSliceDefinition);
+        this.definitions.snapshot = Object.freeze([...this.definitions.records.values()]);
         return createDisposable(() => {
-            if (this.definitions.get(definition.id) === stored) {
-                this.definitions.delete(definition.id);
+            if (this.definitions.records.get(definition.id) === stored) {
+                this.definitions.records.delete(definition.id);
+                this.definitions.snapshot = Object.freeze([...this.definitions.records.values()]);
             }
         });
     }
 
     get(id: string): StateSliceDefinition | null {
         this.assertActive();
-        return this.definitions.get(id) ?? null;
+        return this.definitions.records.get(id) ?? null;
     }
 
     list(): readonly StateSliceDefinition[] {
         this.assertActive();
-        return Object.freeze([...this.definitions.values()]);
+        return this.definitions.snapshot;
     }
 
     dispose(): void {
         if (this.disposed) return;
-        this.definitions.clear();
+        this.definitions.records.clear();
+        this.definitions.snapshot = Object.freeze([]);
         this.disposed = true;
     }
 

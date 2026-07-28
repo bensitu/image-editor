@@ -1,5 +1,5 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-CMfD9Oab.cjs');
+const require_core = require('./core-Bdg5Fuwa.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 
 //#region dist/esm/plugins/history/retained-size-estimator.js
@@ -440,4 +440,4 @@ Object.defineProperty(exports, 'historyPluginRef', {
     return historyPluginRef;
   }
 });
-//# sourceMappingURL=history-CADsF_TW.cjs.map
+//# sourceMappingURL=history-Byqhqneu.cjs.map

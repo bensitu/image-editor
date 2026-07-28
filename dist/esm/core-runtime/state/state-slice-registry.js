@@ -25,7 +25,10 @@ export class StateSliceRegistry {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new Map()
+            value: {
+                records: new Map(),
+                snapshot: Object.freeze([]),
+            }
         });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
@@ -38,33 +41,36 @@ export class StateSliceRegistry {
         var _a;
         this.assertActive();
         assertDefinition(definition);
-        if (this.definitions.has(definition.id)) {
+        if (this.definitions.records.has(definition.id)) {
             throw new StateRegistrationError(`State slice "${definition.id}" is already registered.`, definition.id);
         }
         const stored = Object.freeze({
             ...definition,
             capturePolicy: (_a = definition.capturePolicy) !== null && _a !== void 0 ? _a : 'always',
         });
-        this.definitions.set(definition.id, stored);
+        this.definitions.records.set(definition.id, stored);
+        this.definitions.snapshot = Object.freeze([...this.definitions.records.values()]);
         return createDisposable(() => {
-            if (this.definitions.get(definition.id) === stored) {
-                this.definitions.delete(definition.id);
+            if (this.definitions.records.get(definition.id) === stored) {
+                this.definitions.records.delete(definition.id);
+                this.definitions.snapshot = Object.freeze([...this.definitions.records.values()]);
             }
         });
     }
     get(id) {
         var _a;
         this.assertActive();
-        return (_a = this.definitions.get(id)) !== null && _a !== void 0 ? _a : null;
+        return (_a = this.definitions.records.get(id)) !== null && _a !== void 0 ? _a : null;
     }
     list() {
         this.assertActive();
-        return Object.freeze([...this.definitions.values()]);
+        return this.definitions.snapshot;
     }
     dispose() {
         if (this.disposed)
             return;
-        this.definitions.clear();
+        this.definitions.records.clear();
+        this.definitions.snapshot = Object.freeze([]);
         this.disposed = true;
     }
     assertActive() {

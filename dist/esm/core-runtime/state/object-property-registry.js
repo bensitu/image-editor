@@ -13,7 +13,10 @@ export class ObjectPropertyRegistry {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new Map()
+            value: {
+                records: new Map(),
+                snapshot: Object.freeze([]),
+            }
         });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
@@ -36,42 +39,58 @@ export class ObjectPropertyRegistry {
             if (isDangerousStateKey(key)) {
                 throw new StateRegistrationError(`Object property key "${key}" is forbidden.`);
             }
-            const existing = this.properties.get(key);
+            const existing = this.properties.records.get(key);
             if (existing && existing.owner !== registration.owner) {
                 throw new StateRegistrationError(`Object property "${key}" is already owned by "${existing.owner}".`);
             }
         }
+        let keySetChanged = false;
         for (const key of keys) {
-            const existing = this.properties.get(key);
+            const existing = this.properties.records.get(key);
             if (existing)
                 existing.references += 1;
-            else
-                this.properties.set(key, { owner: registration.owner, references: 1 });
+            else {
+                this.properties.records.set(key, {
+                    owner: registration.owner,
+                    references: 1,
+                });
+                keySetChanged = true;
+            }
+        }
+        if (keySetChanged) {
+            this.properties.snapshot = Object.freeze([...this.properties.records.keys()]);
         }
         return createDisposable(() => {
+            let registeredKeyRemoved = false;
             for (const key of keys) {
-                const record = this.properties.get(key);
+                const record = this.properties.records.get(key);
                 if (!record || record.owner !== registration.owner)
                     continue;
                 record.references -= 1;
-                if (record.references === 0)
-                    this.properties.delete(key);
+                if (record.references === 0) {
+                    this.properties.records.delete(key);
+                    registeredKeyRemoved = true;
+                }
+            }
+            if (registeredKeyRemoved) {
+                this.properties.snapshot = Object.freeze([...this.properties.records.keys()]);
             }
         });
     }
     listKeys() {
         this.assertActive();
-        return Object.freeze([...this.properties.keys()]);
+        return this.properties.snapshot;
     }
     getOwner(key) {
         var _a, _b;
         this.assertActive();
-        return (_b = (_a = this.properties.get(key)) === null || _a === void 0 ? void 0 : _a.owner) !== null && _b !== void 0 ? _b : null;
+        return (_b = (_a = this.properties.records.get(key)) === null || _a === void 0 ? void 0 : _a.owner) !== null && _b !== void 0 ? _b : null;
     }
     dispose() {
         if (this.disposed)
             return;
-        this.properties.clear();
+        this.properties.records.clear();
+        this.properties.snapshot = Object.freeze([]);
         this.disposed = true;
     }
     assertActive() {
