@@ -15,6 +15,7 @@ import {
     domControlsPlugin,
     domControlsPluginRef,
 } from '../../../src/plugins/dom-controls/index.js';
+import { DomControlsController } from '../../../src/plugins/dom-controls/dom-controls-controller.js';
 import { filtersPlugin, filtersPluginRef } from '../../../src/plugins/filters/index.js';
 import { historyPlugin, historyPluginRef } from '../../../src/plugins/history/index.js';
 import { maskPlugin, maskPluginRef } from '../../../src/plugins/mask/index.js';
@@ -27,7 +28,7 @@ function binding(editor, ref) {
 }
 
 function tick() {
-    return new Promise((resolve) => setTimeout(resolve, 10));
+    return new Promise((resolve) => setTimeout(resolve, 25));
 }
 
 async function dispose(editor) {
@@ -157,6 +158,7 @@ test('selectors, status streams, programmatic mutations, buttons, and list adapt
     );
 
     await context.transform.scale(1.5);
+    await tick();
     assert.equal(scale.value, '1.5');
     assert.equal(undo.disabled, false);
 
@@ -167,12 +169,15 @@ test('selectors, status streams, programmatic mutations, buttons, and list adapt
     assert.equal(redo.disabled, false);
 
     await context.masks.create();
+    await tick();
     assert.equal(context.renderedMaskCount(), 1);
 
     await context.filters.preview([{ type: 'brightness', value: 0.25 }]);
+    await tick();
     assert.equal(context.renderedFilterStatus().previewFilterCount, 1);
     assert.equal(context.renderedFilterStatus().committedFilterCount, 0);
     await context.filters.commit();
+    await tick();
     assert.equal(context.renderedFilterStatus().previewFilterCount, 0);
     assert.equal(context.renderedFilterStatus().committedFilterCount, 1);
     await dispose(context.editor);
@@ -259,6 +264,168 @@ function fakeTransformPlugin(api, id = 'test:dom-transform') {
         }),
     };
 }
+
+function createAnimationFrameHarness(ownerWindow) {
+    let nextHandle = 1;
+    const callbacks = new Map();
+    Object.defineProperty(ownerWindow, 'requestAnimationFrame', {
+        configurable: true,
+        value: (callback) => {
+            const handle = nextHandle++;
+            callbacks.set(handle, callback);
+            return handle;
+        },
+    });
+    Object.defineProperty(ownerWindow, 'cancelAnimationFrame', {
+        configurable: true,
+        value: (handle) => callbacks.delete(handle),
+    });
+    return {
+        flush() {
+            const frame = [...callbacks.values()];
+            callbacks.clear();
+            for (const callback of frame) callback(16);
+        },
+        pendingCount: () => callbacks.size,
+    };
+}
+
+function createRefreshController(ownerDocument, diagnostics = {}) {
+    const input = ownerDocument.createElement('input');
+    input.type = 'number';
+    ownerDocument.body.append(input);
+    let refreshCount = 0;
+    const controller = new DomControlsController(
+        {
+            ownerDocument,
+            transform: {
+                plugin: {
+                    resolve: () => ({
+                        getState: () => {
+                            refreshCount += 1;
+                            return { scale: refreshCount };
+                        },
+                    }),
+                },
+                scaleInput: input,
+            },
+        },
+        {
+            reportError: diagnostics.reportError ?? (() => undefined),
+            reportWarning: diagnostics.reportWarning ?? (() => undefined),
+        },
+    );
+    controller.bind();
+    return { controller, refreshCount: () => refreshCount };
+}
+
+test('runtime notifications coalesce per animation frame while explicit refresh stays immediate', () => {
+    resetEditorDom();
+    const frames = createAnimationFrameHarness(window);
+    const context = createRefreshController(document);
+    assert.equal(context.refreshCount(), 1);
+
+    context.controller.refreshFromRuntime();
+    assert.equal(context.refreshCount(), 1);
+    assert.equal(frames.pendingCount(), 1);
+    frames.flush();
+    assert.equal(context.refreshCount(), 2);
+
+    for (let index = 0; index < 10; index += 1) {
+        context.controller.refreshFromRuntime();
+    }
+    assert.equal(frames.pendingCount(), 1);
+    frames.flush();
+    assert.equal(context.refreshCount(), 3);
+
+    context.controller.refreshFromRuntime();
+    frames.flush();
+    assert.equal(context.refreshCount(), 4);
+
+    context.controller.refreshFromRuntime();
+    context.controller.refresh();
+    assert.equal(context.refreshCount(), 5);
+    assert.equal(frames.pendingCount(), 0);
+    frames.flush();
+    assert.equal(context.refreshCount(), 5);
+    context.controller.dispose();
+});
+
+test('runtime refresh cancellation prevents access after disposal', () => {
+    resetEditorDom();
+    const frames = createAnimationFrameHarness(window);
+    const context = createRefreshController(document);
+    context.controller.refreshFromRuntime();
+    assert.equal(frames.pendingCount(), 1);
+
+    context.controller.dispose();
+    context.controller.dispose();
+    assert.equal(frames.pendingCount(), 0);
+    frames.flush();
+    assert.equal(context.refreshCount(), 1);
+    context.controller.refreshFromRuntime();
+    assert.equal(frames.pendingCount(), 0);
+});
+
+test('runtime refresh uses a deterministic microtask fallback without animation frames', async () => {
+    resetEditorDom();
+    Object.defineProperty(window, 'requestAnimationFrame', {
+        configurable: true,
+        value: undefined,
+    });
+    const context = createRefreshController(document);
+
+    for (let index = 0; index < 10; index += 1) {
+        context.controller.refreshFromRuntime();
+    }
+    assert.equal(context.refreshCount(), 1);
+    await Promise.resolve();
+    assert.equal(context.refreshCount(), 2);
+    context.controller.dispose();
+});
+
+test('batched runtime refresh failures retain action error reporting', () => {
+    resetEditorDom();
+    const frames = createAnimationFrameHarness(window);
+    const input = document.createElement('input');
+    input.type = 'number';
+    document.body.append(input);
+    const actionErrors = [];
+    const diagnosticErrors = [];
+    let shouldThrow = false;
+    const expected = new Error('expected refresh failure');
+    const controller = new DomControlsController(
+        {
+            ownerDocument: document,
+            transform: {
+                plugin: {
+                    resolve: () => ({
+                        getState: () => {
+                            if (shouldThrow) throw expected;
+                            return { scale: 1 };
+                        },
+                    }),
+                },
+                scaleInput: input,
+            },
+            onActionError: (event) => actionErrors.push(event),
+        },
+        {
+            reportError: (error, message) => diagnosticErrors.push({ error, message }),
+            reportWarning: () => undefined,
+        },
+    );
+    controller.bind();
+    shouldThrow = true;
+    controller.refreshFromRuntime();
+    frames.flush();
+
+    assert.deepEqual(actionErrors, [{ action: 'dom-controls:refresh', error: expected }]);
+    assert.equal(diagnosticErrors.length, 1);
+    assert.equal(diagnosticErrors[0].error, expected);
+    assert.match(diagnosticErrors[0].message, /dom-controls:refresh/u);
+    controller.dispose();
+});
 
 test('invalid and duplicate targets fail initialization with partial listener rollback', async () => {
     const ids = resetEditorDom();

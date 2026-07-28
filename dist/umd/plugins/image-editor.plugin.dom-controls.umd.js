@@ -18,6 +18,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 	};
+	const runtimeRefreshStates = /* @__PURE__ */ new WeakMap();
+	function getRuntimeRefreshState(owner) {
+		const state = runtimeRefreshStates.get(owner);
+		if (!state) throw new Error("DOM Controls runtime refresh state is unavailable.");
+		return state;
+	}
+	function invalidatePendingRuntimeRefresh(owner) {
+		const state = getRuntimeRefreshState(owner);
+		const pending = state.pending;
+		state.pending = null;
+		if (!(pending === null || pending === void 0 ? void 0 : pending.cancel)) return;
+		try {
+			pending.cancel();
+		} catch {}
+	}
 	function isObject(value) {
 		return typeof value === "object" && value !== null;
 	}
@@ -146,6 +161,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				value: 0
 			});
 			this.options = options;
+			runtimeRefreshStates.set(this, { pending: null });
 		}
 		bind() {
 			var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
@@ -179,16 +195,40 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		refresh() {
 			if (this.disposed) throw new DomControlsConfigurationError("DOM Controls cannot refresh after disposal.");
 			if (!this.bound) throw new DomControlsConfigurationError("DOM Controls cannot refresh before editor initialization.");
+			invalidatePendingRuntimeRefresh(this);
 			for (const synchronize of this.synchronizers) synchronize();
 			for (const button of this.buttons) button.element.disabled = this.pendingActions > 0 || !button.available();
 		}
 		refreshFromRuntime() {
+			var _a, _b;
 			if (!this.bound || this.disposed) return;
-			try {
-				this.refresh();
-			} catch (error) {
-				this.reportActionError("dom-controls:refresh", error);
+			const state = getRuntimeRefreshState(this);
+			if (state.pending) return;
+			let pending;
+			const run = () => {
+				if (state.pending !== pending) return;
+				state.pending = null;
+				if (!this.bound || this.disposed) return;
+				try {
+					this.refresh();
+				} catch (error) {
+					this.reportActionError("dom-controls:refresh", error);
+				}
+			};
+			const ownerWindow = (_b = (_a = this.options) === null || _a === void 0 ? void 0 : _a.ownerDocument) === null || _b === void 0 ? void 0 : _b.defaultView;
+			if (typeof (ownerWindow === null || ownerWindow === void 0 ? void 0 : ownerWindow.requestAnimationFrame) === "function") {
+				let handle = null;
+				const cancelAnimationFrame = ownerWindow.cancelAnimationFrame;
+				pending = { cancel: typeof cancelAnimationFrame === "function" ? () => {
+					if (handle !== null) cancelAnimationFrame.call(ownerWindow, handle);
+				} : null };
+				state.pending = pending;
+				handle = ownerWindow.requestAnimationFrame(run);
+				return;
 			}
+			pending = { cancel: null };
+			state.pending = pending;
+			queueMicrotask(run);
 		}
 		getStatus() {
 			return Object.freeze({
@@ -474,10 +514,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		runAction(action, run) {
 			if (this.disposed || !this.bound) return;
 			this.pendingActions += 1;
-			this.refreshFromRuntime();
+			try {
+				this.refresh();
+			} catch (error) {
+				this.reportActionError("dom-controls:refresh", error);
+			}
 			Promise.resolve().then(run).catch((error) => this.reportActionError(action, error)).finally(() => {
 				this.pendingActions = Math.max(0, this.pendingActions - 1);
-				this.refreshFromRuntime();
+				if (this.disposed || !this.bound) return;
+				try {
+					this.refresh();
+				} catch (error) {
+					this.reportActionError("dom-controls:refresh", error);
+				}
 			});
 		}
 		reportActionError(action, error) {
@@ -495,6 +544,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.diagnostics.reportError(error, `DOM Controls action "${action}" failed.`);
 		}
 		releaseBindings() {
+			invalidatePendingRuntimeRefresh(this);
 			for (let index = this.subscriptions.length - 1; index >= 0; index -= 1) try {
 				disposeRegistration(this.subscriptions[index]);
 			} catch (error) {

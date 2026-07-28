@@ -49,6 +49,36 @@ interface ButtonBinding {
     readonly available: () => boolean;
 }
 
+interface PendingRuntimeRefresh {
+    readonly cancel: (() => void) | null;
+}
+
+interface RuntimeRefreshState {
+    pending: PendingRuntimeRefresh | null;
+}
+
+const runtimeRefreshStates = new WeakMap<object, RuntimeRefreshState>();
+
+function getRuntimeRefreshState(owner: object): RuntimeRefreshState {
+    const state = runtimeRefreshStates.get(owner);
+    if (!state) {
+        throw new Error('DOM Controls runtime refresh state is unavailable.');
+    }
+    return state;
+}
+
+function invalidatePendingRuntimeRefresh(owner: object): void {
+    const state = getRuntimeRefreshState(owner);
+    const pending = state.pending;
+    state.pending = null;
+    if (!pending?.cancel) return;
+    try {
+        pending.cancel();
+    } catch {
+        // Token invalidation still prevents the stale callback from accessing released bindings.
+    }
+}
+
 function isObject(value: unknown): value is Record<PropertyKey, unknown> {
     return typeof value === 'object' && value !== null;
 }
@@ -187,6 +217,7 @@ export class DomControlsController implements Disposable {
         private readonly diagnostics: CoreDiagnosticsPort,
     ) {
         this.options = options;
+        runtimeRefreshStates.set(this, { pending: null });
     }
 
     bind(): void {
@@ -248,6 +279,7 @@ export class DomControlsController implements Disposable {
                 'DOM Controls cannot refresh before editor initialization.',
             );
         }
+        invalidatePendingRuntimeRefresh(this);
         for (const synchronize of this.synchronizers) synchronize();
         for (const button of this.buttons) {
             button.element.disabled = this.pendingActions > 0 || !button.available();
@@ -256,11 +288,41 @@ export class DomControlsController implements Disposable {
 
     refreshFromRuntime(): void {
         if (!this.bound || this.disposed) return;
-        try {
-            this.refresh();
-        } catch (error) {
-            this.reportActionError('dom-controls:refresh', error);
+        const state = getRuntimeRefreshState(this);
+        if (state.pending) return;
+
+        let pending: PendingRuntimeRefresh;
+        const run = (): void => {
+            if (state.pending !== pending) return;
+            state.pending = null;
+            if (!this.bound || this.disposed) return;
+            try {
+                this.refresh();
+            } catch (error) {
+                this.reportActionError('dom-controls:refresh', error);
+            }
+        };
+        const ownerWindow = this.options?.ownerDocument?.defaultView;
+        if (typeof ownerWindow?.requestAnimationFrame === 'function') {
+            let handle: number | null = null;
+            const cancelAnimationFrame = ownerWindow.cancelAnimationFrame;
+            pending = {
+                cancel:
+                    typeof cancelAnimationFrame === 'function'
+                        ? () => {
+                              if (handle !== null) {
+                                  cancelAnimationFrame.call(ownerWindow, handle);
+                              }
+                          }
+                        : null,
+            };
+            state.pending = pending;
+            handle = ownerWindow.requestAnimationFrame(run);
+            return;
         }
+        pending = { cancel: null };
+        state.pending = pending;
+        queueMicrotask(run);
     }
 
     getStatus(): DomControlsStatus {
@@ -786,13 +848,22 @@ export class DomControlsController implements Disposable {
     private runAction(action: string, run: () => void | Promise<unknown>): void {
         if (this.disposed || !this.bound) return;
         this.pendingActions += 1;
-        this.refreshFromRuntime();
+        try {
+            this.refresh();
+        } catch (error) {
+            this.reportActionError('dom-controls:refresh', error);
+        }
         void Promise.resolve()
             .then(run)
             .catch((error: unknown) => this.reportActionError(action, error))
             .finally(() => {
                 this.pendingActions = Math.max(0, this.pendingActions - 1);
-                this.refreshFromRuntime();
+                if (this.disposed || !this.bound) return;
+                try {
+                    this.refresh();
+                } catch (error) {
+                    this.reportActionError('dom-controls:refresh', error);
+                }
             });
     }
 
@@ -813,6 +884,7 @@ export class DomControlsController implements Disposable {
     }
 
     private releaseBindings(): void {
+        invalidatePendingRuntimeRefresh(this);
         for (let index = this.subscriptions.length - 1; index >= 0; index -= 1) {
             try {
                 disposeRegistration(this.subscriptions[index]!);
