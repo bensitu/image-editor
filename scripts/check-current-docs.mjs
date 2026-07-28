@@ -11,6 +11,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { MODULAR_UMD_MODULES } from '../config/bundle/modular-umd.mjs';
+import { LEGACY_DEMO_CDN_ASSETS, LEGACY_DEMO_CSP } from '../config/docs/legacy-demo-security.mjs';
 
 const execFileAsync = promisify(execFile);
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,7 @@ const intentionalHistoricalPaths = new Map([
     ['CHANGELOG.md', 'versioned historical record'],
     ['docs/legacy-v1.html', 'clearly labelled legacy 1.x demonstration'],
     ['docs/js/legacy-v1.js', 'implementation used only by the labelled legacy page'],
+    ['docs/js/legacy-theme.js', 'theme initialization used only by the labelled legacy page'],
     ['docs/migration-from-v2.md', 'paired 2.x input and 3.x migration examples'],
     ['docs/v2-maintenance-policy.md', 'published legacy branch policy'],
 ]);
@@ -242,6 +244,30 @@ async function verifyCurrentDemoSurface(files) {
             legacyPage.includes('Do not copy its API usage'),
         'The legacy demo needs an explicit version and non-copying banner.',
     );
+    const legacyCsp =
+        /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"\s*\/?>/u.exec(
+            legacyPage,
+        )?.[1];
+    assertCondition(
+        legacyCsp === LEGACY_DEMO_CSP &&
+            legacyPage.includes('<script src="js/legacy-theme.js"></script>') &&
+            !/<script(?![^>]*\bsrc=)[^>]*>/iu.test(legacyPage),
+        'The Legacy demo must use its reviewed CSP and external theme initialization.',
+    );
+    for (const asset of LEGACY_DEMO_CDN_ASSETS) {
+        const urlIndex = legacyPage.indexOf(asset.url);
+        const tagStart = legacyPage.lastIndexOf('<', urlIndex);
+        const tagEnd = legacyPage.indexOf('>', urlIndex);
+        const tag =
+            urlIndex >= 0 && tagStart >= 0 && tagEnd > urlIndex
+                ? legacyPage.slice(tagStart, tagEnd + 1)
+                : '';
+        assertCondition(
+            tag.includes(`integrity="${asset.integrity}"`) &&
+                tag.includes('crossorigin="anonymous"'),
+            `The Legacy demo must declare verified integrity for ${asset.url}.`,
+        );
+    }
     const migration = await readFile(
         path.join(repositoryRoot, 'docs/migration-from-v2.md'),
         'utf8',

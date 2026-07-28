@@ -319,6 +319,7 @@
         "precheck:bundle-size": "npm run build:bundle-fixtures",
         "check:bundle-size": "node scripts/check-bundle-size.mjs",
         "check:docs": "node scripts/check-current-docs.mjs",
+        "check:legacy-asset-integrity": "node scripts/check-legacy-asset-integrity.mjs",
         "check:node-ci-policy": "node scripts/check-node-ci-policy.mjs",
         "check:npm-pack-contents": "node scripts/check-npm-pack-contents.mjs",
         "check:source-quality": "node scripts/check-source-quality.mjs",

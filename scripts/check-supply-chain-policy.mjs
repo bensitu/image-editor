@@ -8,6 +8,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { LEGACY_DEMO_CDN_ASSETS } from '../config/docs/legacy-demo-security.mjs';
+
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
 const workflowsRoot = path.join(repositoryRoot, '.github', 'workflows');
@@ -79,6 +81,27 @@ for (const fragment of ["- 'dist/**'", 'run: npm run package:pages', 'path: .pag
     assertCondition(
         pagesWorkflow.includes(fragment),
         `The Pages workflow is missing its same-commit artifact policy: ${fragment}`,
+    );
+}
+
+const packageManifest = JSON.parse(await readRepositoryFile('package.json'));
+assertCondition(
+    packageManifest.scripts?.['check:legacy-asset-integrity'] ===
+        'node scripts/check-legacy-asset-integrity.mjs',
+    'The verified Legacy asset integrity check must remain available.',
+);
+const legacyPage = await readRepositoryFile('docs/legacy-v1.html');
+for (const asset of LEGACY_DEMO_CDN_ASSETS) {
+    const urlIndex = legacyPage.indexOf(asset.url);
+    const tagStart = legacyPage.lastIndexOf('<', urlIndex);
+    const tagEnd = legacyPage.indexOf('>', urlIndex);
+    const tag =
+        urlIndex >= 0 && tagStart >= 0 && tagEnd > urlIndex
+            ? legacyPage.slice(tagStart, tagEnd + 1)
+            : '';
+    assertCondition(
+        tag.includes(`integrity="${asset.integrity}"`) && tag.includes('crossorigin="anonymous"'),
+        `The Legacy demo is missing its pinned asset policy for ${asset.url}.`,
     );
 }
 

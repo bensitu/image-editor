@@ -8,25 +8,16 @@
         <meta content="IE=edge" http-equiv="X-UA-Compatible" />
         <meta content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control" />
         <meta content="0" http-equiv="Expires" />
-        <script>
-            (function () {
-                try {
-                    const storedTheme = window.localStorage.getItem('imageEditorDemoTheme');
-                    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-                        ? 'dark'
-                        : 'light';
-                    document.documentElement.setAttribute(
-                        'data-bs-theme',
-                        storedTheme || systemTheme,
-                    );
-                } catch {
-                    document.documentElement.setAttribute('data-bs-theme', 'light');
-                }
-            })();
-        </script>
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://upload.wikimedia.org; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+        />
+        <script src="js/legacy-theme.js"></script>
         <link
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+            integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+            crossorigin="anonymous"
         />
         <link rel="stylesheet" href="css/style.css" />
     </head>
@@ -407,10 +398,22 @@
                 </aside>
             </section>
         </main>
-        <script src="https://cdn.jsdelivr.net/npm/lucide@1.17.0/dist/umd/lucide.min.js"></script>
+        <script
+            src="https://cdn.jsdelivr.net/npm/lucide@1.17.0/dist/umd/lucide.min.js"
+            integrity="sha384-bdZtphetAEBgkGZvhZXOFDWc55tHGLqaSo1f4qZtgvEiolEBqlJ9u6FTk+CoLfj0"
+            crossorigin="anonymous"
+        ></script>
         <!-- The legacy demo is isolated on its own page so Fabric v5 and v7 never share a global. -->
-        <script src="https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@1.5.2/dist/image-editor.min.js"></script>
+        <script
+            src="https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js"
+            integrity="sha384-dnr7M+/77nscyHpus9UkBDijHAK+2msD7nXVK61ft8LQWIyVJzGcsbwFUcJAzstd"
+            crossorigin="anonymous"
+        ></script>
+        <script
+            src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@1.5.2/dist/image-editor.min.js"
+            integrity="sha384-AxUzjW6VM34ddv5TkXgOb4E5Fu9Dg/3Rhdwxb5v7lRK3ghu31C0kVt4cQX309qpH"
+            crossorigin="anonymous"
+        ></script>
         <script src="js/legacy-v1.js"></script>
     </body>
 </html>
