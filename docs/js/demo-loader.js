@@ -36,12 +36,13 @@
     });
     const emptyPluginNamespace = Object.freeze({});
 
-    function loadScript(src) {
+    function loadScript(src, failureHint = '') {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = src;
             script.onload = resolve;
-            script.onerror = () => reject(new Error(`Failed to load ${src}`));
+            script.onerror = () =>
+                reject(new Error(`Failed to load ${src}.${failureHint ? ` ${failureHint}` : ''}`));
             document.body.appendChild(script);
         });
     }
@@ -126,13 +127,12 @@
     const fabricSrc = usesRepositoryLayout
         ? '../node_modules/fabric/dist/index.min.js'
         : 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js';
-    const imageEditorBase = usesRepositoryLayout
-        ? '../dist/umd'
-        : 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd';
+    const imageEditorBase = usesRepositoryLayout ? '../dist/umd' : './vendor/image-editor/umd';
+    const imageEditorAssetHint = `The demo expects same-origin, same-commit UMD assets under "${imageEditorBase}/".`;
 
     try {
         await loadScript(fabricSrc);
-        await loadScript(`${imageEditorBase}/image-editor.core.umd.min.js`);
+        await loadScript(`${imageEditorBase}/image-editor.core.umd.min.js`, imageEditorAssetHint);
         if (
             !window.fabric ||
             typeof window.ImageEditor?.ImageEditorCore !== 'function' ||
@@ -144,6 +144,7 @@
         for (const pluginId of pluginIds) {
             await loadScript(
                 `${imageEditorBase}/plugins/image-editor.plugin.${pluginId}.umd.min.js`,
+                imageEditorAssetHint,
             );
             const globalName = pluginDefinitions[pluginId].globalName;
             if (!window.ImageEditorPlugins?.[globalName]) {

@@ -26,6 +26,7 @@ const currentExtensions = /\.(?:html|js|md|mts|ts|tsx|vue)$/u;
 const forbiddenCurrentPatterns = Object.freeze([
     [/\bnew\s+ImageEditor\s*\(/u, 'the removed monolithic constructor'],
     [/\bImageEditorOptions\b/u, 'the removed flat options type'],
+    [/@bensitu\/image-editor@latest\b/u, 'a mutable latest Image Editor package reference'],
     [
         /\b(?:bindMasksToImageTransform|bindAnnotationsToImageTransform|textAnnotationFlipBehavior)\b/u,
         'a removed flat transform-binding option',
@@ -188,12 +189,16 @@ async function verifyCurrentDemoSurface() {
     assertCondition(
         loader.includes('image-editor.core.umd.min.js') &&
             loader.includes('image-editor.plugin.${pluginId}.umd.min.js') &&
+            loader.includes("'../dist/umd'") &&
+            loader.includes("'./vendor/image-editor/umd'") &&
+            loader.includes('same-origin, same-commit UMD assets') &&
             loader.includes('ImageEditorPlugins') &&
             loader.includes('ImageEditorCore') &&
             loader.includes('composePlugins') &&
+            !loader.includes('@bensitu/image-editor@latest') &&
             !loader.includes('ImageEditorFull') &&
             !loader.includes('image-editor.full'),
-        'The demo loader must use and verify only the v3 modular UMD composition surface.',
+        'The demo loader must use same-version assets and verify only the v3 modular UMD composition surface.',
     );
     const demos = await readFile(path.join(repositoryRoot, 'docs/js/demo-pages.js'), 'utf8');
     const landing = await readFile(path.join(repositoryRoot, 'docs/js/landing-studio.js'), 'utf8');
