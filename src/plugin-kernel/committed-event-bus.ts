@@ -28,6 +28,23 @@ export const DEFAULT_COMMITTED_EVENT_LISTENER_TIMEOUT_MS = 5_000;
 type ListenerOutcome =
     Readonly<{ status: 'fulfilled' }> | Readonly<{ status: 'rejected'; error: unknown }>;
 
+const DISPOSED_LISTENER_OUTCOME = Symbol('disposed-listener-outcome');
+
+interface EventBusDisposalState {
+    readonly controller: AbortController;
+    readonly activeTimeouts: Set<ReturnType<typeof setTimeout>>;
+}
+
+const eventBusDisposalStates = new WeakMap<object, EventBusDisposalState>();
+
+function getDisposalState(owner: object): EventBusDisposalState {
+    const state = eventBusDisposalStates.get(owner);
+    if (!state) {
+        throw new Error('Committed event bus disposal state is unavailable.');
+    }
+    return state;
+}
+
 export class CommittedEventBus<TEvents extends object = PluginEventMap> implements Disposable {
     private readonly listeners = new Map<string, CommittedEventListener<never>[]>();
     private readonly emissionTails = new Map<string, Promise<void>>();
@@ -42,6 +59,10 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
             );
         }
         this.listenerTimeoutMs = timeout;
+        eventBusDisposalStates.set(this, {
+            controller: new AbortController(),
+            activeTimeouts: new Set(),
+        });
     }
 
     on<TKey extends keyof TEvents & string>(
@@ -88,8 +109,10 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
         eventName: TKey,
         payload: TEvents[TKey],
     ): Promise<void> {
+        if (this.disposed) return;
         const snapshot = [...(this.listeners.get(eventName) ?? [])];
         for (let index = 0; index < snapshot.length; index += 1) {
+            if (this.disposed) return;
             const listener = snapshot[index];
             if (listener) await this.invokeListener(eventName, index, listener, payload);
         }
@@ -101,6 +124,7 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
         listener: CommittedEventListener<never>,
         payload: TEvents[TKey],
     ): Promise<void> {
+        const disposalState = getDisposalState(this);
         const settlement = Promise.resolve()
             .then(() => listener(payload as never))
             .then<ListenerOutcome, ListenerOutcome>(
@@ -109,10 +133,39 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
             );
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
         const timeout = new Promise<null>((resolve) => {
-            timeoutHandle = setTimeout(resolve, this.listenerTimeoutMs, null);
+            timeoutHandle = setTimeout(() => {
+                if (timeoutHandle !== undefined) {
+                    disposalState.activeTimeouts.delete(timeoutHandle);
+                }
+                resolve(null);
+            }, this.listenerTimeoutMs);
+            disposalState.activeTimeouts.add(timeoutHandle);
         });
-        const outcome = await Promise.race([settlement, timeout]);
-        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+        const disposalSignal = disposalState.controller.signal;
+        let removeDisposalListener = (): void => undefined;
+        const disposal = new Promise<typeof DISPOSED_LISTENER_OUTCOME>((resolve) => {
+            const abort = (): void => {
+                if (timeoutHandle !== undefined) {
+                    clearTimeout(timeoutHandle);
+                    disposalState.activeTimeouts.delete(timeoutHandle);
+                }
+                resolve(DISPOSED_LISTENER_OUTCOME);
+            };
+            removeDisposalListener = () => disposalSignal.removeEventListener('abort', abort);
+            disposalSignal.addEventListener('abort', abort, { once: true });
+            if (disposalSignal.aborted) abort();
+        });
+        let outcome: ListenerOutcome | null | typeof DISPOSED_LISTENER_OUTCOME;
+        try {
+            outcome = await Promise.race([settlement, timeout, disposal]);
+        } finally {
+            removeDisposalListener();
+            if (timeoutHandle !== undefined) {
+                clearTimeout(timeoutHandle);
+                disposalState.activeTimeouts.delete(timeoutHandle);
+            }
+        }
+        if (outcome === DISPOSED_LISTENER_OUTCOME) return;
         if (outcome === null) {
             reportWarningSafely(this.options.warningSink, this.options.errorSink, {
                 code: 'COMMITTED_EVENT_LISTENER_TIMEOUT',
@@ -125,7 +178,7 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
             });
             observePromise(
                 settlement.then((lateOutcome) => {
-                    if (lateOutcome.status !== 'rejected') return;
+                    if (this.disposed || lateOutcome.status !== 'rejected') return;
                     reportWarningSafely(this.options.warningSink, this.options.errorSink, {
                         code: 'COMMITTED_EVENT_LISTENER_LATE_FAILURE',
                         message: `Timed-out committed event listener ${listenerIndex} for "${eventName}" later rejected.`,
@@ -138,6 +191,7 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
                     });
                 }),
                 (error) => {
+                    if (this.disposed) return;
                     reportWarningSafely(this.options.warningSink, this.options.errorSink, {
                         code: 'COMMITTED_EVENT_LATE_OBSERVER_FAILURE',
                         message: `Late listener observation for "${eventName}" failed.`,
@@ -170,9 +224,13 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
 
     dispose(): void {
         if (this.disposed) return;
+        this.disposed = true;
         this.listeners.clear();
         this.emissionTails.clear();
-        this.disposed = true;
+        const disposalState = getDisposalState(this);
+        for (const timeout of disposalState.activeTimeouts) clearTimeout(timeout);
+        disposalState.activeTimeouts.clear();
+        disposalState.controller.abort();
     }
 
     private assertActive(operation: string): void {

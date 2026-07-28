@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_history = require('../../chunks/history-C2HgeOdw.cjs');
+const require_history = require('../../chunks/history-CIqp5zql.cjs');
 
 exports.HISTORY_CAPABILITY = require_history.HISTORY_CAPABILITY;
 exports.historyPlugin = require_history.historyPlugin;

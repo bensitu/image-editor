@@ -862,6 +862,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugin-kernel/committed-event-bus.js
 	const DEFAULT_COMMITTED_EVENT_LISTENER_TIMEOUT_MS = 5e3;
+	const DISPOSED_LISTENER_OUTCOME = Symbol("disposed-listener-outcome");
+	const eventBusDisposalStates = /* @__PURE__ */ new WeakMap();
+	function getDisposalState(owner) {
+		const state = eventBusDisposalStates.get(owner);
+		if (!state) throw new Error("Committed event bus disposal state is unavailable.");
+		return state;
+	}
 	var CommittedEventBus = class {
 		constructor(options = {}) {
 			var _a;
@@ -898,6 +905,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const timeout = (_a = options.listenerTimeoutMs) !== null && _a !== void 0 ? _a : DEFAULT_COMMITTED_EVENT_LISTENER_TIMEOUT_MS;
 			if (!Number.isSafeInteger(timeout) || timeout <= 0) throw new InvalidPluginDefinitionError("Committed event listener timeout must be a positive safe integer.");
 			this.listenerTimeoutMs = timeout;
+			eventBusDisposalStates.set(this, {
+				controller: new AbortController(),
+				activeTimeouts: /* @__PURE__ */ new Set()
+			});
 		}
 		on(eventName, listener) {
 			this.assertActive("register a committed event listener");
@@ -931,23 +942,57 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async dispatch(eventName, payload) {
 			var _a;
+			if (this.disposed) return;
 			const snapshot = [...(_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : []];
 			for (let index = 0; index < snapshot.length; index += 1) {
+				if (this.disposed) return;
 				const listener = snapshot[index];
 				if (listener) await this.invokeListener(eventName, index, listener, payload);
 			}
 		}
 		async invokeListener(eventName, listenerIndex, listener, payload) {
+			const disposalState = getDisposalState(this);
 			const settlement = Promise.resolve().then(() => listener(payload)).then(() => Object.freeze({ status: "fulfilled" }), (error) => Object.freeze({
 				status: "rejected",
 				error
 			}));
 			let timeoutHandle;
 			const timeout = new Promise((resolve) => {
-				timeoutHandle = setTimeout(resolve, this.listenerTimeoutMs, null);
+				timeoutHandle = setTimeout(() => {
+					if (timeoutHandle !== void 0) disposalState.activeTimeouts.delete(timeoutHandle);
+					resolve(null);
+				}, this.listenerTimeoutMs);
+				disposalState.activeTimeouts.add(timeoutHandle);
 			});
-			const outcome = await Promise.race([settlement, timeout]);
-			if (timeoutHandle !== void 0) clearTimeout(timeoutHandle);
+			const disposalSignal = disposalState.controller.signal;
+			let removeDisposalListener = () => void 0;
+			const disposal = new Promise((resolve) => {
+				const abort = () => {
+					if (timeoutHandle !== void 0) {
+						clearTimeout(timeoutHandle);
+						disposalState.activeTimeouts.delete(timeoutHandle);
+					}
+					resolve(DISPOSED_LISTENER_OUTCOME);
+				};
+				removeDisposalListener = () => disposalSignal.removeEventListener("abort", abort);
+				disposalSignal.addEventListener("abort", abort, { once: true });
+				if (disposalSignal.aborted) abort();
+			});
+			let outcome;
+			try {
+				outcome = await Promise.race([
+					settlement,
+					timeout,
+					disposal
+				]);
+			} finally {
+				removeDisposalListener();
+				if (timeoutHandle !== void 0) {
+					clearTimeout(timeoutHandle);
+					disposalState.activeTimeouts.delete(timeoutHandle);
+				}
+			}
+			if (outcome === DISPOSED_LISTENER_OUTCOME) return;
 			if (outcome === null) {
 				reportWarningSafely(this.options.warningSink, this.options.errorSink, {
 					code: "COMMITTED_EVENT_LISTENER_TIMEOUT",
@@ -959,7 +1004,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				});
 				observePromise(settlement.then((lateOutcome) => {
-					if (lateOutcome.status !== "rejected") return;
+					if (this.disposed || lateOutcome.status !== "rejected") return;
 					reportWarningSafely(this.options.warningSink, this.options.errorSink, {
 						code: "COMMITTED_EVENT_LISTENER_LATE_FAILURE",
 						message: `Timed-out committed event listener ${listenerIndex} for "${eventName}" later rejected.`,
@@ -971,6 +1016,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						}
 					});
 				}), (error) => {
+					if (this.disposed) return;
 					reportWarningSafely(this.options.warningSink, this.options.errorSink, {
 						code: "COMMITTED_EVENT_LATE_OBSERVER_FAILURE",
 						message: `Late listener observation for "${eventName}" failed.`,
@@ -1002,9 +1048,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		dispose() {
 			if (this.disposed) return;
+			this.disposed = true;
 			this.listeners.clear();
 			this.emissionTails.clear();
-			this.disposed = true;
+			const disposalState = getDisposalState(this);
+			for (const timeout of disposalState.activeTimeouts) clearTimeout(timeout);
+			disposalState.activeTimeouts.clear();
+			disposalState.controller.abort();
 		}
 		assertActive(operation) {
 			if (this.disposed) throw new PluginKernelDisposedError(operation);

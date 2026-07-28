@@ -13,6 +13,16 @@ import {
     ToolTransitionError,
 } from '../../src/plugin-kernel/index.js';
 
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, reject, resolve };
+}
+
 test('runtime registries reject identifiers outside namespace:kebab-case', () => {
     const operations = new OperationRegistry();
     assert.throws(
@@ -365,6 +375,77 @@ test('CommittedEventBus observes a timed-out listener rejection and isolates eve
         timeoutMs: 20,
     });
     bus.dispose();
+});
+
+test('CommittedEventBus disposal cancels active listener waits and timers without warnings', async () => {
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const activeTimers = new Set();
+    globalThis.setTimeout = (...args) => {
+        const handle = originalSetTimeout(...args);
+        activeTimers.add(handle);
+        return handle;
+    };
+    globalThis.clearTimeout = (handle) => {
+        activeTimers.delete(handle);
+        return originalClearTimeout(handle);
+    };
+    try {
+        const warnings = [];
+        const listenerStarted = deferred();
+        const listenerResult = deferred();
+        const bus = new CommittedEventBus({
+            listenerTimeoutMs: 10_000,
+            warningSink: (warning) => warnings.push(warning),
+        });
+        bus.on('test:dispose-active', () => {
+            listenerStarted.resolve();
+            return listenerResult.promise;
+        });
+        const emission = bus.emitCommitted('test:dispose-active', 'payload');
+        await listenerStarted.promise;
+        assert.equal(activeTimers.size, 1);
+
+        bus.dispose();
+        bus.dispose();
+        assert.equal(activeTimers.size, 0);
+        await emission;
+
+        listenerResult.reject(new Error('Late rejection after disposal.'));
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.deepEqual(warnings, []);
+        await assert.rejects(
+            bus.emitCommitted('test:dispose-active', 'after-dispose'),
+            PluginKernelDisposedError,
+        );
+    } finally {
+        globalThis.setTimeout = originalSetTimeout;
+        globalThis.clearTimeout = originalClearTimeout;
+    }
+});
+
+test('CommittedEventBus skips queued same-name emissions after disposal', async () => {
+    const calls = [];
+    const firstStarted = deferred();
+    const firstResult = deferred();
+    const bus = new CommittedEventBus({ listenerTimeoutMs: 10_000 });
+    bus.on('test:dispose-queued', (payload) => {
+        calls.push(payload);
+        if (payload === 'first') {
+            firstStarted.resolve();
+            return firstResult.promise;
+        }
+        return undefined;
+    });
+
+    const first = bus.emitCommitted('test:dispose-queued', 'first');
+    await firstStarted.promise;
+    const queued = bus.emitCommitted('test:dispose-queued', 'queued');
+    bus.dispose();
+
+    await Promise.all([first, queued]);
+    assert.deepEqual(calls, ['first']);
+    firstResult.resolve();
 });
 
 test('CommittedEventBus validates explicit listener timeout policy', () => {

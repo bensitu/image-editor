@@ -1,6 +1,6 @@
 const require_plugin_identifier = require('./plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_plugin_manager = require('./plugin-manager-3iJ_Qrf8.cjs');
+const require_plugin_manager = require('./plugin-manager-FvySGpyT.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 
 //#region dist/esm/utils/dom.js
@@ -4609,4 +4609,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-BYURy_5O.cjs.map
+//# sourceMappingURL=core-DfCkGDvt.cjs.map
