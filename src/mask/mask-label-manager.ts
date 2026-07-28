@@ -201,9 +201,8 @@ export function syncMaskLabel(context: MaskLabelManagerContext, mask: MaskObject
         visible: true,
     });
     mask.labelObject.setCoords();
-    // Label movement tracks selection and object transforms synchronously
-    // so DOM list selection and canvas text stay in the same frame.
-    canvas.renderAll();
+    // Geometry updates stay synchronous while Fabric coalesces the paint for the current frame.
+    canvas.requestRenderAll();
 }
 
 /**

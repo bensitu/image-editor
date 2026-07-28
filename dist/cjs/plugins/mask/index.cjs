@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_mask = require('../../chunks/mask-CNIHu7vN.cjs');
+const require_mask = require('../../chunks/mask-DbRVVhlz.cjs');
 
 exports.maskPlugin = require_mask.maskPlugin;
 exports.maskPluginRef = require_mask.maskPluginRef;

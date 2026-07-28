@@ -643,7 +643,7 @@ function syncMaskLabel(context, mask) {
 		visible: true
 	});
 	mask.labelObject.setCoords();
-	canvas.renderAll();
+	canvas.requestRenderAll();
 }
 function showLabelForMask(context, mask) {
 	if (!context.options.maskLabelOnSelect) return;
@@ -1402,4 +1402,4 @@ Object.defineProperty(exports, 'maskPluginRef', {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-CNIHu7vN.cjs.map
+//# sourceMappingURL=mask-DbRVVhlz.cjs.map

@@ -827,7 +827,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			visible: true
 		});
 		mask.labelObject.setCoords();
-		canvas.renderAll();
+		canvas.requestRenderAll();
 	}
 	function showLabelForMask(context, mask) {
 		if (!context.options.maskLabelOnSelect) return;

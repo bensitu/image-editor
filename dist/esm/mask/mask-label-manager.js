@@ -86,7 +86,7 @@ export function syncMaskLabel(context, mask) {
         visible: true,
     });
     mask.labelObject.setCoords();
-    canvas.renderAll();
+    canvas.requestRenderAll();
 }
 export function showLabelForMask(context, mask) {
     if (!context.options.maskLabelOnSelect)

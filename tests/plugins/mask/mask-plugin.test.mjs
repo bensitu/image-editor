@@ -12,6 +12,7 @@ import {
     MaskPluginController,
     resolveMaskPluginOptions,
 } from '../../../src/plugins/mask/mask-controller.js';
+import { syncMaskLabel } from '../../../src/mask/mask-label-manager.js';
 import { transformPlugin } from '../../../src/plugins/transform/index.js';
 import { disposeInReverse } from '../../../src/plugin-kernel/disposable.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
@@ -162,6 +163,80 @@ test('Mask Plugin creates every built-in shape and custom Fabric generators with
     assert.equal(overlay.getByPersistentId('mask-5'), custom);
     assert.equal(changes.length, 5);
     await dispose(editor);
+});
+
+test('Mask creation renders synchronously before invoking onCreate', async () => {
+    const { editor, masks } = await createEditor({ label: false });
+    await load(editor);
+    const canvas = editor.getCanvas();
+    const originalRenderAll = canvas.renderAll.bind(canvas);
+    let renderCount = 0;
+    let observedRenderCount = 0;
+    canvas.renderAll = (...args) => {
+        renderCount += 1;
+        return originalRenderAll(...args);
+    };
+
+    await masks.create({
+        onCreate(mask, callbackCanvas) {
+            assert.equal(callbackCanvas, canvas);
+            assert.equal(callbackCanvas.getActiveObject(), mask);
+            observedRenderCount = renderCount;
+        },
+    });
+
+    assert.ok(observedRenderCount > 0);
+    await dispose(editor);
+});
+
+test('repeated moving, scaling, and rotating label syncs request batched paints', () => {
+    resetEditorDom();
+    const mask = new fabric.Rect({
+        left: 20,
+        top: 20,
+        width: 44,
+        height: 36,
+        originX: 'left',
+        originY: 'top',
+    });
+    const label = new fabric.FabricText('mask1', {
+        left: 0,
+        top: 0,
+        originX: 'left',
+        originY: 'top',
+    });
+    mask.labelObject = label;
+    mask.setCoords();
+    let renderAllCalls = 0;
+    let requestRenderAllCalls = 0;
+    const canvas = {
+        renderAll() {
+            renderAllCalls += 1;
+        },
+        requestRenderAll() {
+            requestRenderAllCalls += 1;
+        },
+    };
+    const context = {
+        fabric,
+        canvas,
+        options: {
+            maskLabelOnSelect: true,
+            maskLabelOffset: 5,
+        },
+    };
+
+    for (const transform of [{ left: 80, top: 65 }, { scaleX: 1.4, scaleY: 1.2 }, { angle: 31 }]) {
+        mask.set(transform);
+        mask.setCoords();
+        for (let index = 0; index < 3; index += 1) syncMaskLabel(context, mask);
+    }
+
+    assert.equal(label.angle, 31);
+    assert.notDeepEqual({ left: label.left, top: label.top }, { left: 0, top: 0 });
+    assert.deepEqual(label.aCoords, label.calcACoords());
+    assert.equal(renderAllCalls, 0);
+    assert.equal(requestRenderAllCalls, 9);
 });
 
 test('Mask creation rejects canvas expansion beyond configured resource budgets', async () => {
