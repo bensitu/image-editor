@@ -244,10 +244,14 @@ export function createMask(context, config = {}) {
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+        const maxExportDimension = options.maxExportDimension;
+        const maxExportPixels = options.maxExportPixels;
         if (!context.expandCanvasIfNeeded &&
-            (nextWidth > options.maxExportDimension ||
-                nextHeight > options.maxExportDimension ||
-                !isPixelAreaWithinBudget(nextWidth, nextHeight, options.maxExportPixels))) {
+            (typeof maxExportDimension !== 'number' ||
+                typeof maxExportPixels !== 'number' ||
+                nextWidth > maxExportDimension ||
+                nextHeight > maxExportDimension ||
+                !isPixelAreaWithinBudget(nextWidth, nextHeight, maxExportPixels))) {
             warnInvalidMask(options, 'canvas expansion exceeds the configured resource budget');
             return null;
         }

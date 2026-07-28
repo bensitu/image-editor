@@ -125,6 +125,7 @@ test('Mask registrations use Plugin scope disposal with complete async error agg
 
 test('Mask Plugin creates every built-in shape and custom Fabric generators with stable ids', async () => {
     const changes = [];
+    let observedFactoryOptions = null;
     const { editor, masks, overlay } = await createEditor({
         defaultWidth: 44,
         defaultHeight: 36,
@@ -144,8 +145,14 @@ test('Mask Plugin creates every built-in shape and custom Fabric generators with
         ],
     });
     const custom = await masks.create({
-        fabricGenerator: (config) =>
-            new fabric.Triangle({ width: config.width, height: config.height, fill: '#111111' }),
+        fabricGenerator: (config, _canvas, options) => {
+            observedFactoryOptions = options;
+            return new fabric.Triangle({
+                width: config.width,
+                height: config.height,
+                fill: '#111111',
+            });
+        },
     });
     assert.ok(rect instanceof fabric.Rect);
     assert.ok(circle instanceof fabric.Circle);
@@ -162,6 +169,20 @@ test('Mask Plugin creates every built-in shape and custom Fabric generators with
     );
     assert.equal(overlay.getByPersistentId('mask-5'), custom);
     assert.equal(changes.length, 5);
+    assert.equal(Object.isFrozen(observedFactoryOptions), true);
+    assert.deepEqual(Object.keys(observedFactoryOptions).sort(), [
+        'defaultMaskConfig',
+        'defaultMaskHeight',
+        'defaultMaskWidth',
+        'label',
+        'layoutMode',
+        'maskLabelOffset',
+        'maskLabelOnSelect',
+        'maskListOrder',
+        'maskName',
+        'maskRotatable',
+        'onWarning',
+    ]);
     await dispose(editor);
 });
 

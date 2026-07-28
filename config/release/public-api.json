@@ -429,6 +429,12 @@
                     ]
                 },
                 {
+                    "name": "MaskFactoryOptions",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
                     "name": "MaskObject",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -1128,6 +1134,12 @@
                     "name": "MaskConfig",
                     "kinds": [
                         "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "MaskFactoryOptions",
+                    "kinds": [
+                        "TypeAliasDeclaration"
                     ]
                 },
                 {
@@ -4225,7 +4237,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "93f3978aaf47d75b3080503c045c92f809cb8fe0b40c46126032cc6d74cd523d",
+        "graphSha256": "c368a50f12ec11d0dd55c1f57c67e9f764fd246deabd67c2810901c7124689ae",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4305,11 +4317,11 @@
             },
             {
                 "file": "dist/types/core/index.d.ts",
-                "sha256": "0a191b49f7879b4fe0f8cc7de7f31cf9037e07d912fdaff53a192ccfc07af48c"
+                "sha256": "54cb8238b8e23d7bacb2f922e463594d1c60b11ef9f1b9967e74f4c6988ce982"
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
-                "sha256": "a0aef5c11c551f330405b8be7090da69a340d2560af6c83eb722147b5212cf5d"
+                "sha256": "7f6061328d30339d20514393b236cdc5bc8e0116d116c68b61ff328084445cd7"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-definition.d.ts",

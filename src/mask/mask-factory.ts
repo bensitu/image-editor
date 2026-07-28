@@ -12,6 +12,7 @@ import type {
     DefaultMaskConfig,
     FabricModule,
     MaskConfig,
+    MaskFactoryOptions,
     MaskObject,
     MaskShapeKind,
     ResolvedMaskConfig,
@@ -42,8 +43,9 @@ export interface CreateMaskContext {
     fabric: FabricModule;
     /** The live Fabric canvas the mask is added to. */
     canvas: FabricNS.Canvas;
-    /** Fully resolved editor options (defaults already merged). */
-    options: ResolvedOptions;
+    /** Resolved options required by Mask creation and its public callbacks. */
+    options: MaskFactoryOptions &
+        Partial<Pick<ResolvedOptions, 'maxExportDimension' | 'maxExportPixels'>>;
     /** Last mask reference, used for the auto-place-to-right behavior. */
     getLastMask(): MaskObject | null;
     setLastMask(mask: MaskObject | null): void;
@@ -100,7 +102,7 @@ function mergeMaskConfig(defaultMaskConfig: DefaultMaskConfig, config: MaskConfi
     };
 }
 
-function warnInvalidMask(options: ResolvedOptions, reason: string): void {
+function warnInvalidMask(options: CreateMaskContext['options'], reason: string): void {
     reportWarning(options, null, `createMask skipped: ${reason}.`);
 }
 
@@ -109,7 +111,7 @@ function isBuiltInMaskShape(value: unknown): value is MaskShapeKind {
 }
 
 function resolveMaskShape(
-    options: ResolvedOptions,
+    options: CreateMaskContext['options'],
     shape: NonNullable<MaskConfig['shape']>,
 ): MaskShapeKind {
     if (isBuiltInMaskShape(shape)) return shape;
@@ -136,7 +138,7 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function validateFiniteField(
-    options: ResolvedOptions,
+    options: CreateMaskContext['options'],
     fieldName: string,
     value: unknown,
 ): value is number {
@@ -146,7 +148,7 @@ function validateFiniteField(
 }
 
 function validatePositiveField(
-    options: ResolvedOptions,
+    options: CreateMaskContext['options'],
     fieldName: string,
     value: unknown,
 ): value is number {
@@ -156,7 +158,7 @@ function validatePositiveField(
 }
 
 function validateNonNegativeField(
-    options: ResolvedOptions,
+    options: CreateMaskContext['options'],
     fieldName: string,
     value: unknown,
 ): value is number {
@@ -165,7 +167,7 @@ function validateNonNegativeField(
     return false;
 }
 
-function validateNumericInputs(options: ResolvedOptions, config: MaskConfig): boolean {
+function validateNumericInputs(options: CreateMaskContext['options'], config: MaskConfig): boolean {
     const fields: Array<[string, unknown]> = [
         ['width', config.width],
         ['height', config.height],
@@ -185,7 +187,7 @@ function validateNumericInputs(options: ResolvedOptions, config: MaskConfig): bo
 }
 
 function resolveMaskNumericField(
-    options: ResolvedOptions,
+    options: CreateMaskContext['options'],
     fieldName: string,
     value: MaskConfig[keyof Pick<
         MaskConfig,
@@ -204,7 +206,7 @@ function resolveMaskNumericField(
 }
 
 function resolvePolygonPoints(
-    options: ResolvedOptions,
+    options: CreateMaskContext['options'],
     points: MaskConfig['points'],
 ): Array<{ x: number; y: number }> | null {
     if (!Array.isArray(points) || points.length < 3) {
@@ -417,11 +419,15 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+        const maxExportDimension = options.maxExportDimension;
+        const maxExportPixels = options.maxExportPixels;
         if (
             !context.expandCanvasIfNeeded &&
-            (nextWidth > options.maxExportDimension ||
-                nextHeight > options.maxExportDimension ||
-                !isPixelAreaWithinBudget(nextWidth, nextHeight, options.maxExportPixels))
+            (typeof maxExportDimension !== 'number' ||
+                typeof maxExportPixels !== 'number' ||
+                nextWidth > maxExportDimension ||
+                nextHeight > maxExportDimension ||
+                !isPixelAreaWithinBudget(nextWidth, nextHeight, maxExportPixels))
         ) {
             warnInvalidMask(options, 'canvas expansion exceeds the configured resource budget');
             return null;

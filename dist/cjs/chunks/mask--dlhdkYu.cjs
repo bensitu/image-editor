@@ -427,7 +427,9 @@ function createMask(context, config = {}) {
 		const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
 		const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
 		const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
-		if (!context.expandCanvasIfNeeded && (nextWidth > options.maxExportDimension || nextHeight > options.maxExportDimension || !require_image_budget.isPixelAreaWithinBudget(nextWidth, nextHeight, options.maxExportPixels))) {
+		const maxExportDimension = options.maxExportDimension;
+		const maxExportPixels = options.maxExportPixels;
+		if (!context.expandCanvasIfNeeded && (typeof maxExportDimension !== "number" || typeof maxExportPixels !== "number" || nextWidth > maxExportDimension || nextHeight > maxExportDimension || !require_image_budget.isPixelAreaWithinBudget(nextWidth, nextHeight, maxExportPixels))) {
 			warnInvalidMask(options, "canvas expansion exceeds the configured resource budget");
 			return null;
 		}
@@ -843,7 +845,7 @@ var MaskPluginController = class {
 			writable: true,
 			value: void 0
 		});
-		this.factoryOptions = Object.freeze({
+		const factoryOptions = {
 			layoutMode: host.layoutMode,
 			defaultMaskWidth: options.defaultWidth,
 			defaultMaskHeight: options.defaultHeight,
@@ -855,7 +857,8 @@ var MaskPluginController = class {
 			maskListOrder: options.listOrder,
 			label: options.label === false ? DEFAULT_LABEL : options.label,
 			onWarning: (error, message) => host.reportWarning(error, message)
-		});
+		};
+		this.factoryOptions = Object.freeze(factoryOptions);
 		this.disposables.add(overlay.registerKind({
 			id: "mask:object",
 			ownerPluginId: MASK_PLUGIN_ID,
@@ -1402,4 +1405,4 @@ Object.defineProperty(exports, 'maskPluginRef', {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-DcEv41Ed.cjs.map
+//# sourceMappingURL=mask--dlhdkYu.cjs.map

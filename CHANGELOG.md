@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve the Full Preset UMD as the CDN default while adding a separate, mutually exclusive Modular UMD mode; DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.
 - Replace Rollup and its plugin stack with pinned Rolldown for distribution, reference Plugin and template packages, and consumer bundle integrity measurement.
+- Align Mask numeric and custom Fabric factory callbacks with the frozen v3 Mask runtime subset through `MaskFactoryOptions`.
 
 ### Security
 

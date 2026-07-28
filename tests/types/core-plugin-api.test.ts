@@ -2,6 +2,7 @@ import {
     ImageEditorCore,
     type FabricModule,
     type ImageEditorCoreOptions,
+    type MaskFactoryOptions,
 } from '../../src/core/index.js';
 import {
     annotationFoundationPlugin,
@@ -75,6 +76,12 @@ type Equal<TLeft, TRight> =
 type Expect<TValue extends true> = TValue;
 
 declare const fabricModule: FabricModule;
+declare const maskFactoryOptions: MaskFactoryOptions;
+
+const maskFactoryLayout = maskFactoryOptions.layoutMode;
+const maskFactoryWidth = maskFactoryOptions.defaultMaskWidth;
+// @ts-expect-error Mask callbacks receive only the options present in the v3 Mask runtime.
+const unavailableMaskFactoryCanvasWidth = maskFactoryOptions.canvasWidth;
 
 const exactOptionalCoreOptions: ImageEditorCoreOptions = {};
 // @ts-expect-error Exact optional properties reject explicitly present undefined values.
@@ -214,6 +221,9 @@ overlayState.importState({}, { mode: 'merge' });
 void optional;
 void exactOptionalCoreOptions;
 void invalidExactOptionalCoreOptions;
+void maskFactoryLayout;
+void maskFactoryWidth;
+void unavailableMaskFactoryCanvasWidth;
 void overlay;
 void masks;
 void history;

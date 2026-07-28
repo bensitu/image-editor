@@ -80,6 +80,7 @@ export type {
     DefaultMaskConfig,
     LabelConfig,
     MaskConfig,
+    MaskFactoryOptions,
     MaskObject,
     OverlayListOrder,
 } from './public-types.js';

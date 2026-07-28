@@ -664,14 +664,31 @@ export interface ResolvedShapeAnnotationConfig {
  *   - a plain `number` in canvas pixels,
  *   - a CSS-style percentage string (`"50%"`) — resolved against the canvas
  *     width or height depending on the field's axis,
- *   - or a factory `(canvas, ResolvedOptions) => number` invoked at apply
+ *   - or a factory `(canvas, MaskFactoryOptions) => number` invoked at apply
  *     time.
  */
+export type MaskFactoryOptions = Readonly<
+    Pick<
+        ResolvedOptions,
+        | 'layoutMode'
+        | 'defaultMaskWidth'
+        | 'defaultMaskHeight'
+        | 'defaultMaskConfig'
+        | 'maskRotatable'
+        | 'maskLabelOnSelect'
+        | 'maskLabelOffset'
+        | 'maskName'
+        | 'maskListOrder'
+        | 'label'
+        | 'onWarning'
+    >
+>;
+
 export type MaskNumericProp =
     | number
     | `${number}%`
     | string
-    | ((canvas: FabricNS.Canvas, options: ResolvedOptions) => number);
+    | ((canvas: FabricNS.Canvas, options: MaskFactoryOptions) => number);
 
 /**
  * Polygon vertex accepted by `MaskConfig.points`. Coerced to `{ x, y }`
@@ -762,12 +779,12 @@ export interface MaskConfig {
 
     /**
      * Bypass the built-in shape logic and supply a Fabric.js object directly.
-     * Receives the fully resolved config, canvas, and editor options.
+     * Receives the fully resolved config, canvas, and Mask factory options.
      */
     fabricGenerator?: (
         config: ResolvedMaskConfig,
         canvas: FabricNS.Canvas,
-        options: ResolvedOptions,
+        options: MaskFactoryOptions,
     ) => FabricNS.FabricObject;
 }
 

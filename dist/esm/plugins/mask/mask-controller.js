@@ -234,7 +234,7 @@ export class MaskPluginController {
             writable: true,
             value: void 0
         });
-        this.factoryOptions = Object.freeze({
+        const factoryOptions = {
             layoutMode: host.layoutMode,
             defaultMaskWidth: options.defaultWidth,
             defaultMaskHeight: options.defaultHeight,
@@ -246,7 +246,8 @@ export class MaskPluginController {
             maskListOrder: options.listOrder,
             label: options.label === false ? DEFAULT_LABEL : options.label,
             onWarning: (error, message) => host.reportWarning(error, message),
-        });
+        };
+        this.factoryOptions = Object.freeze(factoryOptions);
         this.disposables.add(overlay.registerKind({
             id: 'mask:object',
             ownerPluginId: MASK_PLUGIN_ID,

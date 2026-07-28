@@ -13,7 +13,7 @@
  *   `top`, `height`, or `ry` SHALL resolve against the canvas pixel
  *   **height** (axis `'y'`).
  * - A `MaskNumericProp` provided as a function
- *   SHALL be invoked with `(canvas, ResolvedOptions)` and the returned
+ *   SHALL be invoked with `(canvas, MaskFactoryOptions)` and the returned
  *   number used directly.
  * - Polygon point items SHALL be accepted in
  *   either `{ x, y }` object form or `[x, y]` tuple form and coerced to
@@ -50,7 +50,7 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { MaskNumericProp, PolygonPoint, ResolvedOptions } from '../core/public-types.js';
+import type { MaskFactoryOptions, MaskNumericProp, PolygonPoint } from '../core/public-types.js';
 
 /**
  * Axis selector used by {@link resolveNumeric} to decide which canvas
@@ -81,7 +81,7 @@ type Axis = 'x' | 'y';
  * // 50% of an 800px-wide canvas:
  * resolveNumeric('50%', 'x', 0, canvas, options); // → 400
  *
- * // Function form receives the live canvas and ResolvedOptions:
+ * // Function form receives the live canvas and resolved Mask options:
  * resolveNumeric(
  *   (canvas) => canvas.getWidth() - 20,
  *   'x',
@@ -100,8 +100,7 @@ type Axis = 'x' | 'y';
  * @param canvas - Live Fabric.js canvas; only `getWidth`/`getHeight`
  *                 are read here, but the entire canvas is forwarded to
  *                 factory functions.
- * @param options - Fully-resolved editor options forwarded to factory
- *                 functions.
+ * @param options - Resolved Mask options forwarded to factory functions.
  *
  * @returns The resolved pixel number, or `fallback` when no rule applies.
  */
@@ -110,7 +109,7 @@ export function resolveNumeric(
     axis: Axis,
     fallback: number,
     canvas: FabricNS.Canvas,
-    options: ResolvedOptions,
+    options: MaskFactoryOptions,
 ): number {
     if (typeof val === 'number') {
         return Number.isFinite(val) ? val : fallback;

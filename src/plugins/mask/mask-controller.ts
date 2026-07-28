@@ -326,7 +326,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         private readonly disposables: DisposableScope,
         readonly options: ResolvedMaskPluginOptions,
     ) {
-        this.factoryOptions = Object.freeze({
+        const factoryOptions = {
             layoutMode: host.layoutMode,
             defaultMaskWidth: options.defaultWidth,
             defaultMaskHeight: options.defaultHeight,
@@ -338,7 +338,8 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             maskListOrder: options.listOrder,
             label: options.label === false ? DEFAULT_LABEL : options.label,
             onWarning: (error: unknown, message: string) => host.reportWarning(error, message),
-        } as CreateMaskContext['options']);
+        } satisfies CreateMaskContext['options'];
+        this.factoryOptions = Object.freeze(factoryOptions);
 
         this.disposables.add(
             overlay.registerKind({

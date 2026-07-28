@@ -8,7 +8,7 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { FabricModule, MaskObject, ResolvedOptions } from '../core/public-types.js';
+import type { FabricModule, MaskFactoryOptions, MaskObject } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
 import { markSessionObject } from '../core/editor-object-kind.js';
@@ -25,8 +25,8 @@ export interface MaskLabelManagerContext {
     fabric: FabricModule;
     /** The live Fabric canvas the label overlay is added to. */
     canvas: FabricNS.Canvas;
-    /** Fully resolved editor options (defaults already merged). */
-    options: ResolvedOptions;
+    /** Resolved options required by Mask labels and warning callbacks. */
+    options: MaskFactoryOptions;
 }
 
 /**
