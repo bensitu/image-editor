@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_annotation_shape = require('../../chunks/annotation-shape-BvTm78c2.cjs');
+const require_annotation_shape = require('../../chunks/annotation-shape-CrRaIjr_.cjs');
 
 exports.shapeAnnotationPlugin = require_annotation_shape.shapeAnnotationPlugin;
 exports.shapeAnnotationPluginRef = require_annotation_shape.shapeAnnotationPluginRef;

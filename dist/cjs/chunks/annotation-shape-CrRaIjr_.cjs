@@ -1,7 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_overlay = require('./overlay-VmGRoXWv.cjs');
-const require_annotation = require('./annotation-BTlfYjPj.cjs');
+const require_annotation = require('./annotation-DT488_lA.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-VBb127k8.cjs');
 
 //#region dist/esm/plugins/annotation-shape/shape-controller.js
@@ -654,4 +654,4 @@ Object.defineProperty(exports, 'shapeAnnotationPluginRef', {
     return shapeAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-shape-BvTm78c2.cjs.map
+//# sourceMappingURL=annotation-shape-CrRaIjr_.cjs.map

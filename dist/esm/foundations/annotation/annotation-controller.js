@@ -298,179 +298,10 @@ export class AnnotationController {
         });
         const registrations = [];
         try {
-            registrations.push(this.overlay.registerKind({
-                id: normalizedDefinition.kind,
-                ownerPluginId: normalizedDefinition.ownerPluginId,
-                classify: (object) => object.editorAnnotationKind ===
-                    normalizedDefinition.kind && normalizedDefinition.classify(object),
-                getPersistentId: (object) => { var _a; return (_a = object.editorOverlayId) !== null && _a !== void 0 ? _a : null; },
-                setPersistentId: (object, id) => {
-                    object.editorOverlayId = id;
-                },
-                isHidden: (object) => object.editorOverlayHidden === true,
-                setHidden: (object, hidden) => {
-                    const annotation = object;
-                    annotation.editorOverlayHidden = hidden;
-                    synchronizeAnnotationRuntimeState(annotation);
-                },
-                isLocked: (object) => object.editorOverlayLocked === true,
-                setLocked: (object, locked) => {
-                    const annotation = object;
-                    annotation.editorOverlayLocked = locked;
-                    synchronizeAnnotationRuntimeState(annotation);
-                },
-                persistence: {
-                    mode: 'persistent',
-                    codec: {
-                        type: normalizedDefinition.codec.type,
-                        version: normalizedDefinition.codec.version,
-                        serialize: (object) => freezeEnvelope(object, normalizedDefinition.codec.serialize(object)),
-                        validate: (value) => isEnvelopeShape(value) &&
-                            (() => {
-                                try {
-                                    normalizeAnnotationName(value.name);
-                                    normalizeAnnotationMetadata(value.metadata);
-                                    return normalizedDefinition.codec.validate(value.feature);
-                                }
-                                catch {
-                                    return false;
-                                }
-                            })(),
-                        deserialize: async (value, context) => {
-                            var _a;
-                            if (!isEnvelopeShape(value) ||
-                                !normalizedDefinition.codec.validate(value.feature)) {
-                                throw new AnnotationValidationError(`Serialized ${normalizedDefinition.kind} data is malformed.`);
-                            }
-                            const object = (await normalizedDefinition.codec.deserialize(value.feature, context));
-                            object.editorAnnotationKind = normalizedDefinition.kind;
-                            object.editorAnnotationName = normalizeAnnotationName(value.name);
-                            object.editorAnnotationMetadata = normalizeAnnotationMetadata(value.metadata);
-                            applyAnnotationInteraction(object, value.interaction);
-                            (_a = normalizedDefinition.synchronize) === null || _a === void 0 ? void 0 : _a.call(normalizedDefinition, object);
-                            return object;
-                        },
-                    },
-                },
-                ...(normalizedDefinition.stateCodec
-                    ? {
-                        stateCodec: {
-                            type: normalizedDefinition.stateCodec.type,
-                            version: normalizedDefinition.stateCodec.version,
-                            serialize: (object, context) => {
-                                const annotation = object;
-                                const feature = normalizedDefinition.stateCodec.serialize(object, context);
-                                return Object.freeze({
-                                    geometry: feature.geometry,
-                                    metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
-                                    data: Object.freeze({
-                                        version: 1,
-                                        name: normalizeAnnotationName(annotation.editorAnnotationName),
-                                        interaction: captureAnnotationInteraction(annotation),
-                                        feature: feature.data,
-                                    }),
-                                });
-                            },
-                            validate: (value) => {
-                                if (!isStateData(value.data) ||
-                                    !isValidAnnotationMetadata(value.metadata)) {
-                                    return false;
-                                }
-                                try {
-                                    normalizeAnnotationName(value.data.name);
-                                    return normalizedDefinition.stateCodec.validate({
-                                        geometry: value.geometry,
-                                        data: value.data.feature,
-                                    });
-                                }
-                                catch {
-                                    return false;
-                                }
-                            },
-                            deserialize: async (value, context) => {
-                                var _a;
-                                if (!isStateData(value.data) ||
-                                    !isValidAnnotationMetadata(value.metadata)) {
-                                    throw new AnnotationValidationError(`Serialized ${normalizedDefinition.kind} State data is malformed.`);
-                                }
-                                const object = (await normalizedDefinition.stateCodec.deserialize({
-                                    geometry: value.geometry,
-                                    data: value.data.feature,
-                                }, context));
-                                object.editorAnnotationKind = normalizedDefinition.kind;
-                                object.editorAnnotationName = normalizeAnnotationName(value.data.name);
-                                object.editorAnnotationMetadata = normalizeAnnotationMetadata(value.metadata);
-                                applyAnnotationInteraction(object, value.data.interaction);
-                                (_a = normalizedDefinition.synchronize) === null || _a === void 0 ? void 0 : _a.call(normalizedDefinition, object);
-                                return object;
-                            },
-                        },
-                    }
-                    : {}),
-            }));
-            registrations.push(this.overlay.registerGeometryPolicy({
-                id: `${normalizedDefinition.kind}-geometry`,
-                kind: normalizedDefinition.kind,
-                ownerPluginId: normalizedDefinition.ownerPluginId,
-                supports: (mutation) => {
-                    var _a;
-                    return mutation.kind === 'crop' ||
-                        (mutation.kind === 'transform' &&
-                            ((_a = normalizedDefinition.bindToImageTransform) === null || _a === void 0 ? void 0 : _a.call(normalizedDefinition)) === true);
-                },
-                apply: (object, mutation) => {
-                    var _a;
-                    if (mutation.kind !== 'transform')
-                        return;
-                    this.applyGeometry(object, mutation, ((_a = normalizedDefinition.preserveReadable) === null || _a === void 0 ? void 0 : _a.call(normalizedDefinition)) === true);
-                },
-                synchronize: () => {
-                    var _a;
-                    for (const object of this.listObjects(normalizedDefinition.kind)) {
-                        synchronizeAnnotationRuntimeState(object);
-                        (_a = normalizedDefinition.synchronize) === null || _a === void 0 ? void 0 : _a.call(normalizedDefinition, object);
-                    }
-                },
-            }));
-            registrations.push(this.overlay.registerExportRenderer({
-                id: `${normalizedDefinition.kind}-export`,
-                kind: normalizedDefinition.kind,
-                ownerPluginId: normalizedDefinition.ownerPluginId,
-                order: 200,
-                render: async (context) => {
-                    if (normalizedDefinition.render) {
-                        await normalizedDefinition.render(context);
-                        return;
-                    }
-                    const clone = await context.source.clone();
-                    clone.set({
-                        visible: true,
-                        selectable: false,
-                        evented: false,
-                        hasControls: false,
-                    });
-                    context.targetCanvas.add(clone);
-                },
-            }));
-            registrations.push(this.overlay.registerInteractionPolicy({
-                id: `${normalizedDefinition.kind}-interaction`,
-                kind: normalizedDefinition.kind,
-                ownerPluginId: normalizedDefinition.ownerPluginId,
-                synchronize: (object, context) => {
-                    var _a;
-                    synchronizeAnnotationRuntimeState(object);
-                    (_a = normalizedDefinition.synchronize) === null || _a === void 0 ? void 0 : _a.call(normalizedDefinition, object);
-                    if (this.lastInteractionId !== context.descriptor.id) {
-                        this.lastInteractionId = context.descriptor.id;
-                        this.emitStatus();
-                    }
-                },
-                validate: (object) => {
-                    const annotation = object;
-                    normalizeAnnotationName(annotation.editorAnnotationName);
-                    normalizeAnnotationMetadata(annotation.editorAnnotationMetadata);
-                },
-            }));
+            registrations.push(this.overlay.registerKind(this.buildOverlayKindDefinition(normalizedDefinition)));
+            registrations.push(this.overlay.registerGeometryPolicy(this.buildGeometryPolicy(normalizedDefinition)));
+            registrations.push(this.overlay.registerExportRenderer(this.buildExportRenderer(normalizedDefinition)));
+            registrations.push(this.overlay.registerInteractionPolicy(this.buildInteractionPolicy(normalizedDefinition)));
         }
         catch (error) {
             this.disposeRegistrations(registrations);
@@ -667,6 +498,186 @@ export class AnnotationController {
         this.disposeRegistrations(this.registrations);
         this.registrations.length = 0;
         this.disposed = true;
+    }
+    buildOverlayKindDefinition(definition) {
+        const stateCodec = this.buildOverlayStateCodec(definition);
+        return {
+            id: definition.kind,
+            ownerPluginId: definition.ownerPluginId,
+            classify: (object) => object.editorAnnotationKind === definition.kind &&
+                definition.classify(object),
+            getPersistentId: (object) => { var _a; return (_a = object.editorOverlayId) !== null && _a !== void 0 ? _a : null; },
+            setPersistentId: (object, id) => {
+                object.editorOverlayId = id;
+            },
+            isHidden: (object) => object.editorOverlayHidden === true,
+            setHidden: (object, hidden) => {
+                const annotation = object;
+                annotation.editorOverlayHidden = hidden;
+                synchronizeAnnotationRuntimeState(annotation);
+            },
+            isLocked: (object) => object.editorOverlayLocked === true,
+            setLocked: (object, locked) => {
+                const annotation = object;
+                annotation.editorOverlayLocked = locked;
+                synchronizeAnnotationRuntimeState(annotation);
+            },
+            persistence: {
+                mode: 'persistent',
+                codec: {
+                    type: definition.codec.type,
+                    version: definition.codec.version,
+                    serialize: (object) => freezeEnvelope(object, definition.codec.serialize(object)),
+                    validate: (value) => isEnvelopeShape(value) &&
+                        (() => {
+                            try {
+                                normalizeAnnotationName(value.name);
+                                normalizeAnnotationMetadata(value.metadata);
+                                return definition.codec.validate(value.feature);
+                            }
+                            catch {
+                                return false;
+                            }
+                        })(),
+                    deserialize: async (value, context) => {
+                        var _a;
+                        if (!isEnvelopeShape(value) || !definition.codec.validate(value.feature)) {
+                            throw new AnnotationValidationError(`Serialized ${definition.kind} data is malformed.`);
+                        }
+                        const object = (await definition.codec.deserialize(value.feature, context));
+                        object.editorAnnotationKind = definition.kind;
+                        object.editorAnnotationName = normalizeAnnotationName(value.name);
+                        object.editorAnnotationMetadata = normalizeAnnotationMetadata(value.metadata);
+                        applyAnnotationInteraction(object, value.interaction);
+                        (_a = definition.synchronize) === null || _a === void 0 ? void 0 : _a.call(definition, object);
+                        return object;
+                    },
+                },
+            },
+            ...(stateCodec ? { stateCodec } : {}),
+        };
+    }
+    buildOverlayStateCodec(definition) {
+        const stateCodec = definition.stateCodec;
+        if (!stateCodec)
+            return undefined;
+        return {
+            type: stateCodec.type,
+            version: stateCodec.version,
+            serialize: (object, context) => {
+                const annotation = object;
+                const feature = stateCodec.serialize(object, context);
+                return Object.freeze({
+                    geometry: feature.geometry,
+                    metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
+                    data: Object.freeze({
+                        version: 1,
+                        name: normalizeAnnotationName(annotation.editorAnnotationName),
+                        interaction: captureAnnotationInteraction(annotation),
+                        feature: feature.data,
+                    }),
+                });
+            },
+            validate: (value) => {
+                if (!isStateData(value.data) || !isValidAnnotationMetadata(value.metadata)) {
+                    return false;
+                }
+                try {
+                    normalizeAnnotationName(value.data.name);
+                    return stateCodec.validate({
+                        geometry: value.geometry,
+                        data: value.data.feature,
+                    });
+                }
+                catch {
+                    return false;
+                }
+            },
+            deserialize: async (value, context) => {
+                var _a;
+                if (!isStateData(value.data) || !isValidAnnotationMetadata(value.metadata)) {
+                    throw new AnnotationValidationError(`Serialized ${definition.kind} State data is malformed.`);
+                }
+                const object = (await stateCodec.deserialize({
+                    geometry: value.geometry,
+                    data: value.data.feature,
+                }, context));
+                object.editorAnnotationKind = definition.kind;
+                object.editorAnnotationName = normalizeAnnotationName(value.data.name);
+                object.editorAnnotationMetadata = normalizeAnnotationMetadata(value.metadata);
+                applyAnnotationInteraction(object, value.data.interaction);
+                (_a = definition.synchronize) === null || _a === void 0 ? void 0 : _a.call(definition, object);
+                return object;
+            },
+        };
+    }
+    buildGeometryPolicy(definition) {
+        return {
+            id: `${definition.kind}-geometry`,
+            kind: definition.kind,
+            ownerPluginId: definition.ownerPluginId,
+            supports: (mutation) => {
+                var _a;
+                return mutation.kind === 'crop' ||
+                    (mutation.kind === 'transform' && ((_a = definition.bindToImageTransform) === null || _a === void 0 ? void 0 : _a.call(definition)) === true);
+            },
+            apply: (object, mutation) => {
+                var _a;
+                if (mutation.kind !== 'transform')
+                    return;
+                this.applyGeometry(object, mutation, ((_a = definition.preserveReadable) === null || _a === void 0 ? void 0 : _a.call(definition)) === true);
+            },
+            synchronize: () => {
+                var _a;
+                for (const object of this.listObjects(definition.kind)) {
+                    synchronizeAnnotationRuntimeState(object);
+                    (_a = definition.synchronize) === null || _a === void 0 ? void 0 : _a.call(definition, object);
+                }
+            },
+        };
+    }
+    buildExportRenderer(definition) {
+        return {
+            id: `${definition.kind}-export`,
+            kind: definition.kind,
+            ownerPluginId: definition.ownerPluginId,
+            order: 200,
+            render: async (context) => {
+                if (definition.render) {
+                    await definition.render(context);
+                    return;
+                }
+                const clone = await context.source.clone();
+                clone.set({
+                    visible: true,
+                    selectable: false,
+                    evented: false,
+                    hasControls: false,
+                });
+                context.targetCanvas.add(clone);
+            },
+        };
+    }
+    buildInteractionPolicy(definition) {
+        return {
+            id: `${definition.kind}-interaction`,
+            kind: definition.kind,
+            ownerPluginId: definition.ownerPluginId,
+            synchronize: (object, context) => {
+                var _a;
+                synchronizeAnnotationRuntimeState(object);
+                (_a = definition.synchronize) === null || _a === void 0 ? void 0 : _a.call(definition, object);
+                if (this.lastInteractionId !== context.descriptor.id) {
+                    this.lastInteractionId = context.descriptor.id;
+                    this.emitStatus();
+                }
+            },
+            validate: (object) => {
+                const annotation = object;
+                normalizeAnnotationName(annotation.editorAnnotationName);
+                normalizeAnnotationMetadata(annotation.editorAnnotationMetadata);
+            },
+        };
     }
     normalizeQuery(query) {
         if (!isPlainRecord(query)) {

@@ -7,6 +7,7 @@ import {
     annotationFoundationPlugin,
     annotationFoundationRef,
 } from '../../../src/foundations/annotation/index.js';
+import { AnnotationController } from '../../../src/foundations/annotation/annotation-controller.js';
 import { overlayFoundationPlugin } from '../../../src/foundations/overlay/index.js';
 import { historyPlugin } from '../../../src/plugins/history/index.js';
 import {
@@ -144,6 +145,104 @@ test('Annotation Foundation requires Overlay before setup side effects', () => {
         () => editor.use(annotationFoundationPlugin()),
         /foundation\.overlay|foundation:annotation|dependency/i,
     );
+});
+
+test('Feature registration builders retain atomic cleanup and registration order', () => {
+    const events = [];
+    const definitions = {};
+    const failure = new Error('synthetic export registration failure');
+    let failExportRegistration = true;
+    const disposable = (label) => ({
+        dispose() {
+            events.push(`dispose:${label}`);
+        },
+    });
+    const overlay = {
+        registerKind(definition) {
+            events.push(`register:${definition.id}`);
+            definitions.kind = definition;
+            return disposable(definition.id);
+        },
+        registerGeometryPolicy(definition) {
+            events.push(`register:${definition.id}`);
+            definitions.geometry = definition;
+            return disposable(definition.id);
+        },
+        registerExportRenderer(definition) {
+            events.push(`register:${definition.id}`);
+            definitions.export = definition;
+            if (failExportRegistration) throw failure;
+            return disposable(definition.id);
+        },
+        registerInteractionPolicy(definition) {
+            events.push(`register:${definition.id}`);
+            definitions.interaction = definition;
+            return disposable(definition.id);
+        },
+        onSelectionChange() {
+            return disposable('selection');
+        },
+        list() {
+            return [];
+        },
+    };
+    const host = {
+        fabric,
+        getCanvas: () => null,
+        requireCanvas: () => {
+            throw new Error('Canvas is unavailable in the registration fixture.');
+        },
+        requestRender: () => undefined,
+        reportWarning: () => undefined,
+        reportError: () => undefined,
+    };
+    const controller = new AnnotationController(host, overlay, {});
+    const definition = {
+        kind: 'annotation:builder-test',
+        ownerPluginId: 'example-test:annotation-builder',
+        classify: () => true,
+        codec: {
+            type: 'annotation:builder-test',
+            version: '1.0.0',
+            serialize: () => ({}),
+            validate: () => true,
+            deserialize: () => new fabric.Rect(),
+        },
+    };
+    events.length = 0;
+
+    assert.throws(() => controller.registerFeature(definition), failure);
+    assert.deepEqual(events, [
+        'register:annotation:builder-test',
+        'register:annotation:builder-test-geometry',
+        'register:annotation:builder-test-export',
+        'dispose:annotation:builder-test-geometry',
+        'dispose:annotation:builder-test',
+    ]);
+
+    events.length = 0;
+    failExportRegistration = false;
+    const registration = controller.registerFeature(definition);
+    assert.deepEqual(events, [
+        'register:annotation:builder-test',
+        'register:annotation:builder-test-geometry',
+        'register:annotation:builder-test-export',
+        'register:annotation:builder-test-interaction',
+    ]);
+    assert.equal(definitions.kind.persistence.codec.type, definition.codec.type);
+    assert.equal(definitions.geometry.kind, definition.kind);
+    assert.equal(definitions.export.order, 200);
+    assert.equal(definitions.interaction.kind, definition.kind);
+
+    events.length = 0;
+    registration.dispose();
+    assert.deepEqual(events, [
+        'dispose:annotation:builder-test-interaction',
+        'dispose:annotation:builder-test-export',
+        'dispose:annotation:builder-test-geometry',
+        'dispose:annotation:builder-test',
+    ]);
+    controller.dispose();
 });
 
 test('Foundation-only installation captures and restores an empty document', async () => {
