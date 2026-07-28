@@ -17,7 +17,13 @@ interface PredicateRecord<TObject> {
 }
 
 export class TransientObjectRegistry<TObject = unknown> implements Disposable {
-    private readonly predicates: PredicateRecord<TObject>[] = [];
+    private readonly predicates: {
+        readonly records: PredicateRecord<TObject>[];
+        snapshot: readonly PredicateRecord<TObject>[];
+    } = {
+        records: [],
+        snapshot: Object.freeze([]),
+    };
     private disposed = false;
 
     constructor(private readonly warningSink?: StateWarningSink) {}
@@ -33,16 +39,20 @@ export class TransientObjectRegistry<TObject = unknown> implements Disposable {
             );
         }
         const record = { owner, predicate };
-        this.predicates.push(record);
+        this.predicates.records.push(record);
+        this.predicates.snapshot = Object.freeze([...this.predicates.records]);
         return createDisposable(() => {
-            const index = this.predicates.indexOf(record);
-            if (index >= 0) this.predicates.splice(index, 1);
+            const index = this.predicates.records.indexOf(record);
+            if (index < 0) return;
+            this.predicates.records.splice(index, 1);
+            this.predicates.snapshot = Object.freeze([...this.predicates.records]);
         });
     }
 
     isTransient(object: TObject): boolean {
         this.assertActive();
-        for (const record of [...this.predicates]) {
+        const snapshot = this.predicates.snapshot;
+        for (const record of snapshot) {
             try {
                 if (record.predicate(object)) return true;
             } catch (error) {
@@ -58,7 +68,8 @@ export class TransientObjectRegistry<TObject = unknown> implements Disposable {
 
     dispose(): void {
         if (this.disposed) return;
-        this.predicates.length = 0;
+        this.predicates.records.length = 0;
+        this.predicates.snapshot = Object.freeze([]);
         this.disposed = true;
     }
 

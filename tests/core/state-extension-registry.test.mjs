@@ -63,6 +63,29 @@ test('transient predicate errors are isolated with owner-attributed warnings', (
     assert.equal(warnings[0].details.owner, 'example:failing');
 });
 
+test('transient predicate snapshots survive self-unregistration for the active call', () => {
+    const registry = new TransientObjectRegistry();
+    const calls = [];
+    let selfRegistration;
+    selfRegistration = registry.register('example:self-removing', () => {
+        calls.push('self-removing');
+        selfRegistration.dispose();
+        return false;
+    });
+    registry.register('example:remaining', () => {
+        calls.push('remaining');
+        return true;
+    });
+
+    assert.equal(registry.isTransient({}), true);
+    assert.deepEqual(calls, ['self-removing', 'remaining']);
+
+    calls.length = 0;
+    assert.equal(registry.isTransient({}), true);
+    assert.deepEqual(calls, ['remaining']);
+    registry.dispose();
+});
+
 test('public snapshot round-trip validates slices and excludes configuration by contract', async () => {
     const harness = createSnapshotHarness();
     let state = { value: 1 };

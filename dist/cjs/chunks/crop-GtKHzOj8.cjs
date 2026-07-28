@@ -2,7 +2,7 @@ const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
-const require_overlay = require('./overlay-CyqiFbic.cjs');
+const require_overlay = require('./overlay-CCBcCuec.cjs');
 const require_error = require('./error-DjRQe7I0.cjs');
 
 //#region dist/esm/plugins/crop/crop-errors.js
@@ -990,4 +990,4 @@ Object.defineProperty(exports, 'cropPluginRef', {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-CWTkYCF6.cjs.map
+//# sourceMappingURL=crop-GtKHzOj8.cjs.map
