@@ -3,6 +3,7 @@ const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_core = require('./core-BYURy_5O.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
+const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 
 //#region dist/esm/foundations/overlay/overlay-transform-delta.js
 function isFiniteTransformMatrix(matrix) {
@@ -149,6 +150,39 @@ function gestureAction(value) {
 	if (value === "rotate" || (value === null || value === void 0 ? void 0 : value.includes("rotate"))) return "rotate";
 	if (value === "scale" || (value === null || value === void 0 ? void 0 : value.includes("scale"))) return "scale";
 	return "move";
+}
+var OverlayFlattenError = class extends require_core.CoreRuntimeError {
+	constructor(message, cause) {
+		super(`[ImageEditor] Overlay flatten failed: ${message}`, {
+			code: "OVERLAY_FLATTEN_ERROR",
+			cause
+		});
+	}
+};
+async function decodeFlattenImage(fabric, dataUrl, timeoutMs, parentSignal) {
+	var _a, _b;
+	const controller = new AbortController();
+	const abort = () => controller.abort(parentSignal.reason);
+	parentSignal.addEventListener("abort", abort, { once: true });
+	if (parentSignal.aborted) abort();
+	const timeout = setTimeout(() => {
+		const cause = /* @__PURE__ */ new Error(`Overlay flatten decode exceeded ${timeoutMs}ms.`);
+		cause.name = "TimeoutError";
+		controller.abort(new OverlayFlattenError("replacement image decode timed out.", cause));
+	}, timeoutMs);
+	try {
+		return await require_abortable_promise.settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
+			crossOrigin: "anonymous",
+			signal: controller.signal
+		}), controller.signal, (lateImage) => lateImage.dispose());
+	} catch (error) {
+		if (parentSignal.aborted) throw (_a = parentSignal.reason) !== null && _a !== void 0 ? _a : error;
+		if (controller.signal.aborted) throw (_b = controller.signal.reason) !== null && _b !== void 0 ? _b : error;
+		throw new OverlayFlattenError("replacement image decode failed.", error);
+	} finally {
+		clearTimeout(timeout);
+		parentSignal.removeEventListener("abort", abort);
+	}
 }
 const OVERLAY_STATE_ID = "foundation:overlay";
 const OVERLAY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -848,7 +882,7 @@ var OverlayFoundationController = class {
 			kind: "flatten",
 			operationId: "overlay:flatten",
 			metadata: Object.freeze({ overlayCount: selected.length }),
-			mutateBase: async ({ transaction }) => {
+			mutateBase: async ({ signal, transaction }) => {
 				var _a, _b;
 				const canvas = this.host.requireCanvas("flatten overlays");
 				const baseImage = this.host.getBaseImage();
@@ -881,23 +915,35 @@ var OverlayFoundationController = class {
 						multiplier: 1,
 						...getImageExportRegion(baseImage, canvas)
 					});
-					const replacement = await this.host.fabric.FabricImage.fromURL(dataUrl);
-					replacement.set({
-						left: 0,
-						top: 0,
-						originX: "left",
-						originY: "top",
-						scaleX: 1,
-						scaleY: 1,
-						selectable: false,
-						evented: false
-					});
-					replacement.setCoords();
-					this.host.replaceBaseImage(transaction, replacement, {
-						baseScale: 1,
-						mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
-					});
-					for (const object of selected) canvas.remove(object);
+					let replacement = null;
+					let replacementTransferred = false;
+					try {
+						replacement = await decodeFlattenImage(this.host.fabric, dataUrl, this.host.getImageResourcePolicy().imageLoadTimeoutMs, signal);
+						replacement.set({
+							left: 0,
+							top: 0,
+							originX: "left",
+							originY: "top",
+							scaleX: 1,
+							scaleY: 1,
+							selectable: false,
+							evented: false
+						});
+						replacement.setCoords();
+						this.host.replaceBaseImage(transaction, replacement, {
+							baseScale: 1,
+							mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
+						});
+						replacementTransferred = true;
+						for (const object of selected) canvas.remove(object);
+					} catch (error) {
+						if (replacement && !replacementTransferred) try {
+							replacement.dispose();
+						} catch (cleanupError) {
+							throw new OverlayFlattenError("rejected replacement cleanup failed.", Object.freeze([error, cleanupError]));
+						}
+						throw error;
+					}
 				} finally {
 					await exportCanvas.dispose();
 				}
@@ -1870,4 +1916,4 @@ Object.defineProperty(exports, 'restoreOverlayStateBounds', {
     return restoreOverlayStateBounds;
   }
 });
-//# sourceMappingURL=overlay-Ce5lHyJ8.cjs.map
+//# sourceMappingURL=overlay-CulLc-HM.cjs.map

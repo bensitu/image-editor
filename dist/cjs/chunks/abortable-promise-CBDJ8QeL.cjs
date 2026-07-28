@@ -28,27 +28,10 @@ function settleAbortable(task, signal, disposeLateResult) {
 }
 
 //#endregion
-//#region dist/esm/utils/error.js
-function hasErrorName(error, expectedName) {
-	if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
-	try {
-		return Reflect.get(error, "name") === expectedName;
-	} catch {
-		return false;
-	}
-}
-
-//#endregion
-Object.defineProperty(exports, 'hasErrorName', {
-  enumerable: true,
-  get: function () {
-    return hasErrorName;
-  }
-});
 Object.defineProperty(exports, 'settleAbortable', {
   enumerable: true,
   get: function () {
     return settleAbortable;
   }
 });
-//# sourceMappingURL=error-ymJ4-GjU.cjs.map
+//# sourceMappingURL=abortable-promise-CBDJ8QeL.cjs.map

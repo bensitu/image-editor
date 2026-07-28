@@ -7187,6 +7187,35 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 //#endregion
+//#region dist/esm/utils/abortable-promise.js
+	function settleAbortable(task, signal, disposeLateResult) {
+		return new Promise((resolve, reject) => {
+			let settled = false;
+			const finish = (body) => {
+				if (settled) return;
+				settled = true;
+				signal.removeEventListener("abort", abort);
+				body();
+			};
+			const abort = () => finish(() => {
+				var _a;
+				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
+			});
+			signal.addEventListener("abort", abort, { once: true });
+			if (signal.aborted) abort();
+			task.then((value) => {
+				if (settled) {
+					try {
+						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
+					} catch {}
+					return;
+				}
+				finish(() => resolve(value));
+			}, (error) => finish(() => reject(error)));
+		});
+	}
+
+//#endregion
 //#region dist/esm/foundations/overlay/overlay-transform-delta.js
 	function isFiniteTransformMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
@@ -7332,6 +7361,39 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (value === "rotate" || (value === null || value === void 0 ? void 0 : value.includes("rotate"))) return "rotate";
 		if (value === "scale" || (value === null || value === void 0 ? void 0 : value.includes("scale"))) return "scale";
 		return "move";
+	}
+	var OverlayFlattenError = class extends CoreRuntimeError {
+		constructor(message, cause) {
+			super(`[ImageEditor] Overlay flatten failed: ${message}`, {
+				code: "OVERLAY_FLATTEN_ERROR",
+				cause
+			});
+		}
+	};
+	async function decodeFlattenImage(fabric, dataUrl, timeoutMs, parentSignal) {
+		var _a, _b;
+		const controller = new AbortController();
+		const abort = () => controller.abort(parentSignal.reason);
+		parentSignal.addEventListener("abort", abort, { once: true });
+		if (parentSignal.aborted) abort();
+		const timeout = setTimeout(() => {
+			const cause = /* @__PURE__ */ new Error(`Overlay flatten decode exceeded ${timeoutMs}ms.`);
+			cause.name = "TimeoutError";
+			controller.abort(new OverlayFlattenError("replacement image decode timed out.", cause));
+		}, timeoutMs);
+		try {
+			return await settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
+				crossOrigin: "anonymous",
+				signal: controller.signal
+			}), controller.signal, (lateImage) => lateImage.dispose());
+		} catch (error) {
+			if (parentSignal.aborted) throw (_a = parentSignal.reason) !== null && _a !== void 0 ? _a : error;
+			if (controller.signal.aborted) throw (_b = controller.signal.reason) !== null && _b !== void 0 ? _b : error;
+			throw new OverlayFlattenError("replacement image decode failed.", error);
+		} finally {
+			clearTimeout(timeout);
+			parentSignal.removeEventListener("abort", abort);
+		}
 	}
 	const OVERLAY_STATE_ID = "foundation:overlay";
 	const OVERLAY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -8031,7 +8093,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				kind: "flatten",
 				operationId: "overlay:flatten",
 				metadata: Object.freeze({ overlayCount: selected.length }),
-				mutateBase: async ({ transaction }) => {
+				mutateBase: async ({ signal, transaction }) => {
 					var _a, _b;
 					const canvas = this.host.requireCanvas("flatten overlays");
 					const baseImage = this.host.getBaseImage();
@@ -8064,23 +8126,35 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							multiplier: 1,
 							...getImageExportRegion(baseImage, canvas)
 						});
-						const replacement = await this.host.fabric.FabricImage.fromURL(dataUrl);
-						replacement.set({
-							left: 0,
-							top: 0,
-							originX: "left",
-							originY: "top",
-							scaleX: 1,
-							scaleY: 1,
-							selectable: false,
-							evented: false
-						});
-						replacement.setCoords();
-						this.host.replaceBaseImage(transaction, replacement, {
-							baseScale: 1,
-							mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
-						});
-						for (const object of selected) canvas.remove(object);
+						let replacement = null;
+						let replacementTransferred = false;
+						try {
+							replacement = await decodeFlattenImage(this.host.fabric, dataUrl, this.host.getImageResourcePolicy().imageLoadTimeoutMs, signal);
+							replacement.set({
+								left: 0,
+								top: 0,
+								originX: "left",
+								originY: "top",
+								scaleX: 1,
+								scaleY: 1,
+								selectable: false,
+								evented: false
+							});
+							replacement.setCoords();
+							this.host.replaceBaseImage(transaction, replacement, {
+								baseScale: 1,
+								mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
+							});
+							replacementTransferred = true;
+							for (const object of selected) canvas.remove(object);
+						} catch (error) {
+							if (replacement && !replacementTransferred) try {
+								replacement.dispose();
+							} catch (cleanupError) {
+								throw new OverlayFlattenError("rejected replacement cleanup failed.", Object.freeze([error, cleanupError]));
+							}
+							throw error;
+						}
 					} finally {
 						await exportCanvas.dispose();
 					}
@@ -12938,35 +13012,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			image.filters = [];
 			throw new FilterImplementationError(type, error);
 		}
-	}
-
-//#endregion
-//#region dist/esm/utils/abortable-promise.js
-	function settleAbortable(task, signal, disposeLateResult) {
-		return new Promise((resolve, reject) => {
-			let settled = false;
-			const finish = (body) => {
-				if (settled) return;
-				settled = true;
-				signal.removeEventListener("abort", abort);
-				body();
-			};
-			const abort = () => finish(() => {
-				var _a;
-				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
-			});
-			signal.addEventListener("abort", abort, { once: true });
-			if (signal.aborted) abort();
-			task.then((value) => {
-				if (settled) {
-					try {
-						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
-					} catch {}
-					return;
-				}
-				finish(() => resolve(value));
-			}, (error) => finish(() => reject(error)));
-		});
 	}
 
 //#endregion

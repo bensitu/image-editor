@@ -80,6 +80,123 @@ function addRect(editor, id, options = {}) {
     return rect;
 }
 
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, reject, resolve };
+}
+
+function trackImageDisposal(image) {
+    const originalDispose = image.dispose.bind(image);
+    let count = 0;
+    image.dispose = () => {
+        count += 1;
+        return originalDispose();
+    };
+    return Object.freeze({
+        get count() {
+            return count;
+        },
+    });
+}
+
+function causeChainIncludes(root, expected, visited = new Set()) {
+    if (root === expected) return true;
+    if (!root || (typeof root !== 'object' && typeof root !== 'function') || visited.has(root)) {
+        return false;
+    }
+    visited.add(root);
+    if ('cause' in root && causeChainIncludes(root.cause, expected, visited)) return true;
+    for (const key of ['causes', 'errors', 'rollbackErrors']) {
+        if (
+            Array.isArray(root[key]) &&
+            root[key].some((entry) => causeChainIncludes(entry, expected, visited))
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function causeChainMatches(root, predicate, visited = new Set()) {
+    if (predicate(root)) return true;
+    if (!root || (typeof root !== 'object' && typeof root !== 'function') || visited.has(root)) {
+        return false;
+    }
+    visited.add(root);
+    if ('cause' in root && causeChainMatches(root.cause, predicate, visited)) return true;
+    for (const key of ['causes', 'errors', 'rollbackErrors']) {
+        if (
+            Array.isArray(root[key]) &&
+            root[key].some((entry) => causeChainMatches(entry, predicate, visited))
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function createControlledFlattenFabric(initialImage) {
+    const requestReady = deferred();
+    let interceptFlatten = false;
+    let staticCanvasDisposals = 0;
+    class ControlledFabricImage extends fabric.FabricImage {
+        static fromURL(source, options = {}) {
+            if (!interceptFlatten) return Promise.resolve(initialImage);
+            const gate = deferred();
+            const request = Object.freeze({ gate, options, source });
+            requestReady.resolve(request);
+            return gate.promise;
+        }
+    }
+    class TrackingStaticCanvas extends fabric.StaticCanvas {
+        async dispose() {
+            staticCanvasDisposals += 1;
+            return super.dispose();
+        }
+    }
+    return Object.freeze({
+        fabric: {
+            ...fabric,
+            FabricImage: ControlledFabricImage,
+            StaticCanvas: TrackingStaticCanvas,
+        },
+        enableFlattenDecode() {
+            interceptFlatten = true;
+        },
+        get staticCanvasDisposals() {
+            return staticCanvasDisposals;
+        },
+        waitForRequest: () => requestReady.promise,
+    });
+}
+
+async function createControlledFlattenEditor({ imageLoadTimeoutMs = 1_000 } = {}) {
+    const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
+    const source = makeImageDataUrl({ width: 120, height: 80 });
+    const initialImage = await fabric.FabricImage.fromURL(source, {
+        crossOrigin: 'anonymous',
+    });
+    const controlled = createControlledFlattenFabric(initialImage);
+    const editor = new ImageEditorCore(controlled.fabric, {
+        canvasWidth: 320,
+        canvasHeight: 240,
+        imageLoadTimeoutMs,
+    });
+    const overlay = editor.use(overlayFoundationPlugin());
+    registerRectKind(overlay);
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.loadImage(source);
+    addRect(editor, 'rect:controlled-flatten', { left: 12 });
+    addRect(editor, 'rect:controlled-retained', { left: 92 });
+    controlled.enableFlattenDecode();
+    return { controlled, editor, overlay };
+}
+
 async function initializeAndLoad(editor, ids) {
     await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
     await editor.loadImage(makeImageDataUrl({ width: 120, height: 80 }));
@@ -313,6 +430,214 @@ test('flatten replaces the raster once, removes only queried overlays, and keeps
     assert.equal(editor.getCanvas().getObjects()[0].editorObjectKind, 'baseImage');
     assert.equal(editor.isImageLoaded(), true);
     await dispose(editor);
+});
+
+test('flatten decode uses the transaction signal and transfers successful replacement ownership', async () => {
+    const { controlled, editor, overlay } = await createControlledFlattenEditor();
+    const flattening = overlay.flatten({
+        ids: ['rect:controlled-flatten'],
+        includeLocked: true,
+    });
+    const request = await controlled.waitForRequest();
+    assert.equal(request.options.crossOrigin, 'anonymous');
+    assert.ok(request.options.signal instanceof AbortSignal);
+    const replacement = await fabric.FabricImage.fromURL(request.source, {
+        crossOrigin: 'anonymous',
+    });
+    const disposal = trackImageDisposal(replacement);
+    request.gate.resolve(replacement);
+
+    await flattening;
+
+    assert.equal(editor.getCanvas().getObjects()[0], replacement);
+    assert.equal(disposal.count, 0);
+    assert.equal(overlay.getByPersistentId('rect:controlled-flatten'), null);
+    assert.ok(overlay.getByPersistentId('rect:controlled-retained'));
+    assert.equal(controlled.staticCanvasDisposals, 1);
+    await dispose(editor);
+});
+
+test('parent abort settles flatten promptly and disposes a late decoded image', async () => {
+    const { controlled, editor, overlay } = await createControlledFlattenEditor();
+    const flattening = overlay.flatten({
+        ids: ['rect:controlled-flatten'],
+        includeLocked: true,
+    });
+    void flattening.catch(() => undefined);
+    const request = await controlled.waitForRequest();
+    const reason = new DOMException('Synthetic parent cancellation.', 'AbortError');
+    const aborting = editor.geometry.abortActive(reason);
+
+    await assert.rejects(flattening, (error) => {
+        assert.equal(causeChainIncludes(error, reason), true);
+        return true;
+    });
+    await aborting;
+
+    assert.equal(request.options.signal.aborted, true);
+    assert.ok(overlay.getByPersistentId('rect:controlled-flatten'));
+    assert.ok(overlay.getByPersistentId('rect:controlled-retained'));
+    assert.equal(controlled.staticCanvasDisposals, 1);
+    const lateImage = await fabric.FabricImage.fromURL(request.source, {
+        crossOrigin: 'anonymous',
+    });
+    const lateDisposal = trackImageDisposal(lateImage);
+    request.gate.resolve(lateImage);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(lateDisposal.count, 1);
+    await dispose(editor);
+});
+
+test('flatten decode timeout rejects promptly, preserves overlays, and cleans up late results', async () => {
+    const { controlled, editor, overlay } = await createControlledFlattenEditor({
+        imageLoadTimeoutMs: 20,
+    });
+    const flattening = overlay.flatten({
+        ids: ['rect:controlled-flatten'],
+        includeLocked: true,
+    });
+    void flattening.catch(() => undefined);
+    const request = await controlled.waitForRequest();
+    const deadline = new Promise((resolve, reject) => {
+        const timeout = setTimeout(
+            () => reject(new Error('Flatten timeout did not settle promptly.')),
+            1_000,
+        );
+        flattening.then(
+            () => {
+                clearTimeout(timeout);
+                resolve();
+            },
+            (error) => {
+                clearTimeout(timeout);
+                resolve(error);
+            },
+        );
+    });
+    const failure = await deadline;
+
+    assert.ok(failure instanceof Error);
+    assert.equal(
+        causeChainMatches(
+            failure,
+            (error) =>
+                error?.code === 'OVERLAY_FLATTEN_ERROR' && /decode timed out/i.test(error.message),
+        ),
+        true,
+    );
+    assert.equal(request.options.signal.aborted, true);
+    assert.ok(overlay.getByPersistentId('rect:controlled-flatten'));
+    assert.ok(overlay.getByPersistentId('rect:controlled-retained'));
+    assert.equal(controlled.staticCanvasDisposals, 1);
+    const lateImage = await fabric.FabricImage.fromURL(request.source, {
+        crossOrigin: 'anonymous',
+    });
+    const lateDisposal = trackImageDisposal(lateImage);
+    request.gate.resolve(lateImage);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(lateDisposal.count, 1);
+    await dispose(editor);
+});
+
+test('flatten wraps decoder rejection with its cause and preserves selected overlays', async () => {
+    const { controlled, editor, overlay } = await createControlledFlattenEditor();
+    const flattening = overlay.flatten({
+        ids: ['rect:controlled-flatten'],
+        includeLocked: true,
+    });
+    const request = await controlled.waitForRequest();
+    const decodeFailure = new Error('Synthetic flatten decode failure.');
+    request.gate.reject(decodeFailure);
+
+    await assert.rejects(flattening, (error) => {
+        assert.equal(causeChainIncludes(error, decodeFailure), true);
+        assert.equal(
+            causeChainMatches(error, (cause) => cause?.code === 'OVERLAY_FLATTEN_ERROR'),
+            true,
+        );
+        return true;
+    });
+
+    assert.ok(overlay.getByPersistentId('rect:controlled-flatten'));
+    assert.ok(overlay.getByPersistentId('rect:controlled-retained'));
+    assert.equal(controlled.staticCanvasDisposals, 1);
+    await dispose(editor);
+});
+
+test('flatten disposes a replacement rejected before Core ownership transfer', async () => {
+    const { controlled, editor, overlay } = await createControlledFlattenEditor();
+    const canvas = editor.getCanvas();
+    const previousBaseImage = canvas.getObjects()[0];
+    const originalRemove = canvas.remove.bind(canvas);
+    const rasterFailure = new Error('Synthetic replacement transaction failure.');
+    canvas.remove = (...objects) => {
+        if (objects.includes(previousBaseImage)) {
+            canvas.remove = originalRemove;
+            throw rasterFailure;
+        }
+        return originalRemove(...objects);
+    };
+    const flattening = overlay.flatten({
+        ids: ['rect:controlled-flatten'],
+        includeLocked: true,
+    });
+    const request = await controlled.waitForRequest();
+    const replacement = await fabric.FabricImage.fromURL(request.source, {
+        crossOrigin: 'anonymous',
+    });
+    const disposal = trackImageDisposal(replacement);
+    request.gate.resolve(replacement);
+
+    await assert.rejects(flattening, (error) => {
+        assert.equal(causeChainIncludes(error, rasterFailure), true);
+        return true;
+    });
+
+    assert.equal(disposal.count, 1);
+    assert.ok(overlay.getByPersistentId('rect:controlled-flatten'));
+    assert.ok(overlay.getByPersistentId('rect:controlled-retained'));
+    assert.equal(controlled.staticCanvasDisposals, 1);
+    canvas.remove = originalRemove;
+    await dispose(editor);
+});
+
+test('post-transfer flatten failure leaves replacement cleanup to transaction rollback', async () => {
+    const { controlled, editor, overlay } = await createControlledFlattenEditor();
+    const canvas = editor.getCanvas();
+    const selected = overlay.getByPersistentId('rect:controlled-flatten');
+    const originalRemove = canvas.remove.bind(canvas);
+    const removalFailure = new Error('Synthetic selected overlay removal failure.');
+    canvas.remove = (...objects) => {
+        if (objects.includes(selected)) {
+            canvas.remove = originalRemove;
+            throw removalFailure;
+        }
+        return originalRemove(...objects);
+    };
+    const flattening = overlay.flatten({
+        ids: ['rect:controlled-flatten'],
+        includeLocked: true,
+    });
+    const request = await controlled.waitForRequest();
+    const replacement = await fabric.FabricImage.fromURL(request.source, {
+        crossOrigin: 'anonymous',
+    });
+    const disposal = trackImageDisposal(replacement);
+    request.gate.resolve(replacement);
+
+    await assert.rejects(flattening, (error) => {
+        assert.equal(causeChainIncludes(error, removalFailure), true);
+        return true;
+    });
+
+    assert.notEqual(editor.getCanvas().getObjects()[0], replacement);
+    assert.equal(disposal.count, 1);
+    assert.ok(overlay.getByPersistentId('rect:controlled-flatten'));
+    assert.ok(overlay.getByPersistentId('rect:controlled-retained'));
+    assert.equal(controlled.staticCanvasDisposals, 1);
+    canvas.remove = originalRemove;
+    await dispose(editor);
+    assert.equal(disposal.count, 1);
 });
 
 test('flatten rejects an oversized temporary Canvas before allocation or encoding', async () => {

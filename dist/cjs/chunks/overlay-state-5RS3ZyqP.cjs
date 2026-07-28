@@ -2,7 +2,7 @@ const require_plugin_identifier = require('./plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_core = require('./core-BYURy_5O.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-Ce5lHyJ8.cjs');
+const require_overlay = require('./overlay-CulLc-HM.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 
 //#region dist/esm/plugins/overlay-state/overlay-state-errors.js
@@ -943,4 +943,4 @@ Object.defineProperty(exports, 'overlayStatePluginRef', {
     return overlayStatePluginRef;
   }
 });
-//# sourceMappingURL=overlay-state-BKWseK6y.cjs.map
+//# sourceMappingURL=overlay-state-5RS3ZyqP.cjs.map

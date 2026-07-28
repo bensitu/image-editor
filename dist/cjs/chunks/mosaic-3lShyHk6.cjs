@@ -1,7 +1,8 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_error = require('./error-ymJ4-GjU.cjs');
+const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
+const require_error = require('./error-DjRQe7I0.cjs');
 
 //#region dist/esm/plugins/mosaic/mosaic-brush.js
 function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
@@ -266,7 +267,7 @@ async function decodeMosaicImage(fabric, dataUrl, timeoutMs, signal) {
 	if (signal.aborted) abort();
 	const timeout = setTimeout(() => controller.abort(new MosaicValidationError("Mosaic decode timed out.")), timeoutMs);
 	try {
-		return await require_error.settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
+		return await require_abortable_promise.settleAbortable(fabric.FabricImage.fromURL(dataUrl, {
 			crossOrigin: "anonymous",
 			signal: controller.signal
 		}), controller.signal, (lateImage) => lateImage.dispose());
@@ -954,4 +955,4 @@ Object.defineProperty(exports, 'mosaicPluginRef', {
     return mosaicPluginRef;
   }
 });
-//# sourceMappingURL=mosaic-DjtX3HlG.cjs.map
+//# sourceMappingURL=mosaic-3lShyHk6.cjs.map
