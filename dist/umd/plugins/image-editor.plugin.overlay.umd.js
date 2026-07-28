@@ -6,6 +6,40 @@
 if (Object.prototype.hasOwnProperty.call(exports, "overlayFoundationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/sdk/internal-operation-conflict-domains.js
+	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/utils/abortable-promise.js
 	function settleAbortable(task, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
@@ -1883,14 +1917,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "overlay:flatten",
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"raster",
-						"overlay",
-						"state"
-					],
+					conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				});
 				controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);

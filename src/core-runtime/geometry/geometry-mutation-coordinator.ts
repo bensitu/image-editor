@@ -5,6 +5,7 @@
  */
 
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
+import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
 import { DocumentMutationError, DocumentMutationUnrecoverableError } from '../errors.js';
 import type {
     DocumentMutationContext,
@@ -347,7 +348,7 @@ export class GeometryMutationCoordinator implements GeometryMutationPort, Dispos
                 id: request.id,
                 kind: 'geometry',
                 operationId: request.operationId,
-                conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
+                conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
                 signal,
                 ...(request.parent ? { parent: request.parent } : {}),
                 metadata,

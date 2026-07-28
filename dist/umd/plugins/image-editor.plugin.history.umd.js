@@ -6,6 +6,40 @@
 if (Object.prototype.hasOwnProperty.call(exports, "historyPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/sdk/internal-operation-conflict-domains.js
+	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/plugins/history/retained-size-estimator.js
 	const BOOLEAN_BYTES = 4;
 	const DATE_BYTES = 8;
@@ -371,27 +405,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "history:undo",
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"raster",
-						"overlay",
-						"state"
-					],
+					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				context.operations.register({
 					id: "history:redo",
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"raster",
-						"overlay",
-						"state"
-					],
+					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				for (const operationId of ["history:enable", "history:disable"]) context.operations.register({

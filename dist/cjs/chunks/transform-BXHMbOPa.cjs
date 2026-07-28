@@ -1,4 +1,5 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-DVWgBNfU.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 
 //#region dist/esm/fabric/fabric-animation.js
@@ -608,13 +609,7 @@ function transformPlugin(options = {}) {
 			]) context.operations.register({
 				id,
 				mode: id.includes("flip") || id === "transform:reset" ? "mutation" : "animation",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"overlay",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.GEOMETRY_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			context.disposables.add(state.registerSlice({
@@ -681,4 +676,4 @@ Object.defineProperty(exports, 'transformPluginRef', {
     return transformPluginRef;
   }
 });
-//# sourceMappingURL=transform-CMPPU2ik.cjs.map
+//# sourceMappingURL=transform-BXHMbOPa.cjs.map

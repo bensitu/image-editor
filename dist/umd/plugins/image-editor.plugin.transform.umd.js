@@ -6,6 +6,40 @@
 if (Object.prototype.hasOwnProperty.call(exports, "transformPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/sdk/internal-operation-conflict-domains.js
+	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/fabric/fabric-animation.js
 	const ANIMATION_SETTLE_GRACE_MS = 1e3;
 	const ANIMATION_ABORT_QUIESCENCE_MS = 50;
@@ -613,13 +647,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.operations.register({
 					id,
 					mode: id.includes("flip") || id === "transform:reset" ? "mutation" : "animation",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"overlay",
-						"state"
-					],
+					conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				context.disposables.add(state.registerSlice({

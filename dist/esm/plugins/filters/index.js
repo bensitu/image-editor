@@ -1,4 +1,6 @@
 import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, CORE_STATUS_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, VISIBLE_RASTER_BAKE_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
+import { FILTER_STATE_MUTATION_CONFLICT_DOMAINS } from './conflict-domain-sets.js';
 import { FiltersController, } from './filters-controller.js';
 export const filtersPluginRef = definePluginRef('plugin:filters', '1.0.0');
 export function filtersPlugin(options = {}) {
@@ -61,40 +63,19 @@ export function filtersPlugin(options = {}) {
                 {
                     id: 'filters:commit',
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 },
                 {
                     id: 'filters:clear',
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 },
                 {
                     id: 'filters:bake',
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 },
                 {

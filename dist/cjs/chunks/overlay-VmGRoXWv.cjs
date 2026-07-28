@@ -1,7 +1,8 @@
 const require_plugin_identifier = require('./plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-BoMut549.cjs');
+const require_core = require('./core-Rrb37Dzn.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-DVWgBNfU.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 
@@ -1833,14 +1834,7 @@ function overlayFoundationPlugin() {
 			context.operations.register({
 				id: "overlay:flatten",
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"raster",
-					"overlay",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.RASTER_REPLACEMENT_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);
@@ -1916,4 +1910,4 @@ Object.defineProperty(exports, 'restoreOverlayStateBounds', {
     return restoreOverlayStateBounds;
   }
 });
-//# sourceMappingURL=overlay-BMpwPh9B.cjs.map
+//# sourceMappingURL=overlay-VmGRoXWv.cjs.map

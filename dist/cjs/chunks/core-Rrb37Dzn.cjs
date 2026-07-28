@@ -2,6 +2,7 @@ const require_plugin_identifier = require('./plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_plugin_manager = require('./plugin-manager-FvySGpyT.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-DVWgBNfU.cjs');
 
 //#region dist/esm/utils/dom.js
 function forceReflow(element) {
@@ -1396,13 +1397,7 @@ var GeometryMutationCoordinator = class {
 				id: request.id,
 				kind: "geometry",
 				operationId: request.operationId,
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"overlay",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.GEOMETRY_MUTATION_CONFLICT_DOMAINS,
 				signal,
 				...request.parent ? { parent: request.parent } : {},
 				metadata,
@@ -3507,14 +3502,7 @@ var ImageEditorCore = class {
 						id: `core:load-image-transaction:${sequence}`,
 						kind: "raster",
 						operationId: "core:commit-load-image",
-						conflictDomains: [
-							"document",
-							"base-image",
-							"geometry",
-							"raster",
-							"overlay",
-							"state"
-						],
+						conflictDomains: require_internal_operation_conflict_domains.FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
 						signal: operationContext.signal,
 						metadata: Object.freeze({ sequence }),
 						mutate: async (commitContext) => {
@@ -3632,14 +3620,7 @@ var ImageEditorCore = class {
 				id: `core:load-state-transaction:${sequence}`,
 				kind: "compound",
 				operationId: "core:load-state",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"raster",
-					"overlay",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.STATE_LOAD_CONFLICT_DOMAINS,
 				...options.signal ? { signal: options.signal } : {},
 				metadata: Object.freeze({ sequence }),
 				mutate: async (context) => {
@@ -3942,27 +3923,13 @@ var ImageEditorCore = class {
 		manager.registerHostOperation({
 			id: "core:commit-load-image",
 			mode: "mutation",
-			conflictDomains: [
-				"document",
-				"base-image",
-				"geometry",
-				"raster",
-				"overlay",
-				"state"
-			],
+			conflictDomains: require_internal_operation_conflict_domains.FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
 			reentrancy: "queue"
 		});
 		manager.registerHostOperation({
 			id: "core:load-state",
 			mode: "mutation",
-			conflictDomains: [
-				"document",
-				"base-image",
-				"geometry",
-				"raster",
-				"overlay",
-				"state"
-			],
+			conflictDomains: require_internal_operation_conflict_domains.STATE_LOAD_CONFLICT_DOMAINS,
 			reentrancy: "reject"
 		});
 		manager.registerHostOperation({
@@ -4645,4 +4612,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-BoMut549.cjs.map
+//# sourceMappingURL=core-Rrb37Dzn.cjs.map

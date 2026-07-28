@@ -1,4 +1,5 @@
 import { BASE_IMAGE_READ_CAPABILITY, CORE_STATUS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
 import { TransformPluginController, resolveTransformOptions, } from './transform-controller.js';
 export const transformPluginRef = definePluginRef('plugin:transform', '1.0.0');
 function isTransformState(value) {
@@ -54,7 +55,7 @@ export function transformPlugin(options = {}) {
                 context.operations.register({
                     id,
                     mode: id.includes('flip') || id === 'transform:reset' ? 'mutation' : 'animation',
-                    conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
+                    conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 });
             }

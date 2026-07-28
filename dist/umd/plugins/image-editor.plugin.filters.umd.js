@@ -6,6 +6,51 @@
 if (Object.prototype.hasOwnProperty.call(exports, "filtersPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/sdk/internal-operation-conflict-domains.js
+	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+
+//#endregion
+//#region dist/esm/plugins/filters/conflict-domain-sets.js
+	const FILTER_STATE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
@@ -452,14 +497,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#region dist/esm/plugins/filters/filters-controller.js
 	const FILTERS_STATE_SCHEMA = "image-editor.filters";
 	const FILTERS_STATE_VERSION = 1;
-	const mutationConflictDomains = [
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
-		"overlay",
-		"state"
-	];
 	function createState(definitions) {
 		return Object.freeze({
 			schema: FILTERS_STATE_SCHEMA,
@@ -666,7 +703,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: transactionId,
 				kind: "plugin-state",
 				operationId: "filters:commit",
-				conflictDomains: mutationConflictDomains,
+				conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
 				metadata: Object.freeze({ filterCount: definitions.length }),
 				mutate: () => {
 					this.committedState = createState(this.normalizeDefinitions(definitions));
@@ -702,7 +739,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: transactionId,
 				kind: "plugin-state",
 				operationId: "filters:clear",
-				conflictDomains: mutationConflictDomains,
+				conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
 				mutate: () => {
 					this.committedState = emptyState;
 				},
@@ -744,7 +781,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: transactionId,
 					kind: "compound",
 					operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : "filters:bake",
-					conflictDomains: mutationConflictDomains,
+					conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
 					...parent ? { parent } : {},
 					metadata: Object.freeze({ filterCount: definitions.length }),
 					mutate: async (context) => {
@@ -1120,40 +1157,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					{
 						id: "filters:commit",
 						mode: "mutation",
-						conflictDomains: [
-							"document",
-							"base-image",
-							"geometry",
-							"raster",
-							"overlay",
-							"state"
-						],
+						conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{
 						id: "filters:clear",
 						mode: "mutation",
-						conflictDomains: [
-							"document",
-							"base-image",
-							"geometry",
-							"raster",
-							"overlay",
-							"state"
-						],
+						conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{
 						id: "filters:bake",
 						mode: "mutation",
-						conflictDomains: [
-							"document",
-							"base-image",
-							"geometry",
-							"raster",
-							"overlay",
-							"state"
-						],
+						conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{

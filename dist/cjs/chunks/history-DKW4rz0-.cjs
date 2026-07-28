@@ -1,5 +1,6 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-BoMut549.cjs');
+const require_core = require('./core-Rrb37Dzn.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-DVWgBNfU.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 
 //#region dist/esm/plugins/history/retained-size-estimator.js
@@ -367,27 +368,13 @@ function historyPlugin(options = {}) {
 			context.operations.register({
 				id: "history:undo",
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"raster",
-					"overlay",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.STATE_LOAD_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			context.operations.register({
 				id: "history:redo",
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"raster",
-					"overlay",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.STATE_LOAD_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			for (const operationId of ["history:enable", "history:disable"]) context.operations.register({
@@ -440,4 +427,4 @@ Object.defineProperty(exports, 'historyPluginRef', {
     return historyPluginRef;
   }
 });
-//# sourceMappingURL=history-SlvMSEPo.cjs.map
+//# sourceMappingURL=history-DKW4rz0-.cjs.map

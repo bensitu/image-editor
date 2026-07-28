@@ -14,6 +14,7 @@ import { DocumentMutationCoordinator, } from './mutation/index.js';
 import { MementoService, ObjectPropertyRegistry, SnapshotService, StateSliceRegistry, TransientObjectRegistry, DEFAULT_SNAPSHOT_LIMITS, } from './state/index.js';
 import { inspectEncodedImageDataUrl } from './state/image-data-url.js';
 import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
+import { FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS, STATE_LOAD_CONFLICT_DOMAINS, } from '../sdk/internal-operation-conflict-domains.js';
 const DEFAULT_CORE_OPTIONS = Object.freeze({
     canvasWidth: 800,
     canvasHeight: 600,
@@ -476,14 +477,7 @@ export class ImageEditorCore {
                         id: `core:load-image-transaction:${sequence}`,
                         kind: 'raster',
                         operationId: 'core:commit-load-image',
-                        conflictDomains: [
-                            'document',
-                            'base-image',
-                            'geometry',
-                            'raster',
-                            'overlay',
-                            'state',
-                        ],
+                        conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
                         signal: operationContext.signal,
                         metadata: Object.freeze({ sequence }),
                         mutate: async (commitContext) => {
@@ -620,14 +614,7 @@ export class ImageEditorCore {
                 id: `core:load-state-transaction:${sequence}`,
                 kind: 'compound',
                 operationId: 'core:load-state',
-                conflictDomains: [
-                    'document',
-                    'base-image',
-                    'geometry',
-                    'raster',
-                    'overlay',
-                    'state',
-                ],
+                conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
                 ...(options.signal ? { signal: options.signal } : {}),
                 metadata: Object.freeze({ sequence }),
                 mutate: async (context) => {
@@ -973,13 +960,13 @@ export class ImageEditorCore {
         manager.registerHostOperation({
             id: 'core:commit-load-image',
             mode: 'mutation',
-            conflictDomains: ['document', 'base-image', 'geometry', 'raster', 'overlay', 'state'],
+            conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
             reentrancy: 'queue',
         });
         manager.registerHostOperation({
             id: 'core:load-state',
             mode: 'mutation',
-            conflictDomains: ['document', 'base-image', 'geometry', 'raster', 'overlay', 'state'],
+            conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
             reentrancy: 'reject',
         });
         manager.registerHostOperation({

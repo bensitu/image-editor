@@ -3841,6 +3841,40 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 //#endregion
+//#region dist/esm/sdk/internal-operation-conflict-domains.js
+	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/core-runtime/state/clone-state-value.js
 	function isObject(value) {
 		return typeof value === "object" && value !== null;
@@ -4218,13 +4252,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: request.id,
 					kind: "geometry",
 					operationId: request.operationId,
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"overlay",
-						"state"
-					],
+					conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
 					signal,
 					...request.parent ? { parent: request.parent } : {},
 					metadata,
@@ -6348,14 +6376,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							id: `core:load-image-transaction:${sequence}`,
 							kind: "raster",
 							operationId: "core:commit-load-image",
-							conflictDomains: [
-								"document",
-								"base-image",
-								"geometry",
-								"raster",
-								"overlay",
-								"state"
-							],
+							conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
 							signal: operationContext.signal,
 							metadata: Object.freeze({ sequence }),
 							mutate: async (commitContext) => {
@@ -6473,14 +6494,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: `core:load-state-transaction:${sequence}`,
 					kind: "compound",
 					operationId: "core:load-state",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"raster",
-						"overlay",
-						"state"
-					],
+					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
 					...options.signal ? { signal: options.signal } : {},
 					metadata: Object.freeze({ sequence }),
 					mutate: async (context) => {
@@ -6783,27 +6797,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			manager.registerHostOperation({
 				id: "core:commit-load-image",
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"raster",
-					"overlay",
-					"state"
-				],
+				conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			manager.registerHostOperation({
 				id: "core:load-state",
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"raster",
-					"overlay",
-					"state"
-				],
+				conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			manager.registerHostOperation({

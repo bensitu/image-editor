@@ -17,6 +17,7 @@ import {
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
+import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
 import {
     TransformPluginController,
     resolveTransformOptions,
@@ -102,7 +103,7 @@ export function transformPlugin(
                     id,
                     mode:
                         id.includes('flip') || id === 'transform:reset' ? 'mutation' : 'animation',
-                    conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
+                    conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 });
             }

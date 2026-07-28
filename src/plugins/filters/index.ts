@@ -26,6 +26,8 @@ import {
     type VisibleRasterBakePort,
     type VisibleRasterBakeOptions,
 } from '../../sdk/index.js';
+import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
+import { FILTER_STATE_MUTATION_CONFLICT_DOMAINS } from './conflict-domain-sets.js';
 import {
     FiltersController,
     type FiltersConfiguration,
@@ -100,40 +102,19 @@ export function filtersPlugin(
                 {
                     id: 'filters:commit',
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 },
                 {
                     id: 'filters:clear',
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 },
                 {
                     id: 'filters:bake',
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 },
                 {

@@ -1,4 +1,5 @@
 import { createDisposable } from '../../plugin-kernel/disposable.js';
+import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../sdk/internal-operation-conflict-domains.js';
 import { DocumentMutationError, DocumentMutationUnrecoverableError } from '../errors.js';
 import { cloneStateValue } from '../state/clone-state-value.js';
 import { BoundedReplayIdTracker } from '../mutation/bounded-replay-id-tracker.js';
@@ -260,7 +261,7 @@ export class GeometryMutationCoordinator {
                 id: request.id,
                 kind: 'geometry',
                 operationId: request.operationId,
-                conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
+                conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
                 signal,
                 ...(request.parent ? { parent: request.parent } : {}),
                 metadata,
