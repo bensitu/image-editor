@@ -67,6 +67,101 @@ for (const [inputName, outputName] of [
     });
 }
 
+test('leaves unrelated source byte-for-byte unchanged', () => {
+    const source =
+        "\uFEFFimport { ImageEditorCore } from '@bensitu/image-editor/core';\r\n" +
+        '\r\n' +
+        'const editor = new ImageEditorCore(fabric);\r\n';
+    const result = transformSource(source, 'already-v3.ts');
+
+    assert.equal(result.code, source);
+    assert.equal(result.changed, false);
+    assert.deepEqual(result.unresolved, []);
+});
+
+test('transforms multiple aliased candidates while preserving mixed import bindings', () => {
+    const source = [
+        "import { ImageEditor as LegacyEditor, type FabricModule } from '@bensitu/image-editor';",
+        '',
+        'const first = new LegacyEditor(fabric);',
+        "first.init({ canvas: 'first' });",
+        'const second = new LegacyEditor(fabric, { canvasWidth: 320 });',
+        "second.init({ canvas: 'second' });",
+        'declare const fabricModule: FabricModule;',
+        'void fabricModule;',
+        '',
+    ].join('\n');
+    const expected = [
+        "import { ImageEditorCore } from '@bensitu/image-editor/core';",
+        "import { type FabricModule } from '@bensitu/image-editor';",
+        '',
+        'const first = new ImageEditorCore(fabric);',
+        "first.init({ canvas: 'first' });",
+        'const second = new ImageEditorCore(fabric, { canvasWidth: 320 });',
+        "second.init({ canvas: 'second' });",
+        'declare const fabricModule: FabricModule;',
+        'void fabricModule;',
+        '',
+    ].join('\n');
+
+    const result = transformSource(source, 'multiple-aliases.ts');
+    assert.equal(result.code, expected);
+    assert.equal(result.changed, true);
+    assert.deepEqual(result.unresolved, []);
+});
+
+test('rewrites safe candidates without changing a blocked candidate', () => {
+    const source = [
+        "import { ImageEditor } from '@bensitu/image-editor';",
+        '',
+        'const safe = new ImageEditor(fabric);',
+        "safe.init({ canvas: 'safe' });",
+        'const blocked = new ImageEditor(fabric, runtimeOptions);',
+        "blocked.init({ canvas: 'blocked' });",
+        '',
+    ].join('\n');
+    const result = transformSource(source, 'partially-blocked.ts');
+
+    assert.match(result.code, /const safe = new ImageEditorCore\(fabric\);/);
+    assert.match(result.code, /const blocked = new ImageEditor\(fabric, runtimeOptions\);/);
+    assert.match(result.code, /import \{ ImageEditor \} from '@bensitu\/image-editor';/);
+    assert.ok(result.unresolved.some((value) => value.code === 'RUNTIME_OPTIONS'));
+});
+
+test('preserves BOM and CRLF while inserting imports', () => {
+    const source =
+        "\uFEFFimport { ImageEditor } from '@bensitu/image-editor';\r\n" +
+        '\r\n' +
+        'const editor = new ImageEditor(fabric);\r\n' +
+        "editor.init({ canvas: 'canvas' });\r\n";
+    const expected =
+        "\uFEFFimport { ImageEditorCore } from '@bensitu/image-editor/core';\r\n" +
+        '\r\n' +
+        'const editor = new ImageEditorCore(fabric);\r\n' +
+        "editor.init({ canvas: 'canvas' });\r\n";
+
+    const result = transformSource(source, 'bom-crlf.ts');
+    assert.equal(result.code, expected);
+    assert.equal(result.code.charCodeAt(0), 0xfeff);
+    assert.doesNotMatch(result.code.replaceAll('\r\n', ''), /\n/);
+    assert.equal(transformSource(result.code, 'bom-crlf.ts').code, expected);
+});
+
+test('supports every documented JavaScript and TypeScript source extension', () => {
+    const source = [
+        "import { ImageEditor } from '@bensitu/image-editor';",
+        'const editor = new ImageEditor(fabric);',
+        "editor.init({ canvas: 'canvas' });",
+        '',
+    ].join('\n');
+    for (const extension of ['js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts']) {
+        const result = transformSource(source, `source.${extension}`);
+        assert.equal(result.changed, true, extension);
+        assert.match(result.code, /new ImageEditorCore\(fabric\)/, extension);
+        assert.deepEqual(result.unresolved, [], extension);
+    }
+});
+
 test('reports every ambiguous syntax class without changing source', async () => {
     const cases = [
         ['dom-guidance.input.ts', 'DOM_ELEMENT_MAP_REVIEW_REQUIRED'],
@@ -79,6 +174,7 @@ test('reports every ambiguous syntax class without changing source', async () =>
         ['subclass.input.ts', 'FACADE_SUBCLASS'],
         ['reflection.input.ts', 'EDITOR_REFLECTION'],
         ['mixed-versions.input.ts', 'MIXED_EDITOR_VERSIONS'],
+        ['namespace-import.input.ts', 'NAMESPACE_IMPORT'],
         ['invalid-syntax.input.ts', 'INVALID_SYNTAX'],
     ];
     for (const [name, expectedCode] of cases) {

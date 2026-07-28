@@ -112,7 +112,7 @@ function diagnosticFinding(sourceFile, fileName, diagnostic) {
         message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
     });
 }
-function applyEdits(source, edits) {
+function applyTextEdits(source, edits) {
     const ordered = [...edits].sort((left, right) => right.start - left.start || right.end - left.end);
     let lastStart = source.length + 1;
     let output = source;
@@ -354,29 +354,36 @@ function sortFindings(values) {
         left.column - right.column ||
         left.code.localeCompare(right.code)));
 }
-export function transformSource(source, fileName = 'source.ts') {
+function parseAndDetectImports(source, fileName) {
     const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKind(fileName));
     const parseDiagnostics = sourceFile.parseDiagnostics;
-    if (parseDiagnostics.length > 0) {
-        return Object.freeze({
-            code: source,
-            changed: false,
-            unresolved: sortFindings(parseDiagnostics.map((diagnostic) => diagnosticFinding(sourceFile, fileName, diagnostic))),
-        });
-    }
-    const imports = oldEditorImports(sourceFile);
-    if (imports.locals.size === 0) {
-        return Object.freeze({ code: source, changed: false, unresolved: Object.freeze([]) });
-    }
-    const unresolved = [];
+    return Object.freeze({
+        sourceFile,
+        parseDiagnostics,
+        imports: oldEditorImports(sourceFile),
+    });
+}
+function collectEditorCandidates(sourceFile, imports) {
+    const expressions = [];
+    visit(sourceFile, (node) => {
+        if (ts.isNewExpression(node) &&
+            ts.isIdentifier(node.expression) &&
+            imports.locals.has(node.expression.text)) {
+            expressions.push(node);
+        }
+    });
+    return Object.freeze(expressions);
+}
+function determineTransformationBlockers(sourceFile, fileName, imports, newExpressions, unresolved) {
+    let globallyBlocked = false;
     if (imports.unsupportedNamespace) {
         unresolved.push(finding(sourceFile, fileName, imports.unsupportedNamespace, 'NAMESPACE_IMPORT', 'Namespace access to the former editor export requires manual migration.'));
+        globallyBlocked = true;
     }
     if (imports.hasCurrentRuntimeImport) {
         unresolved.push(finding(sourceFile, fileName, imports.declarations[0], 'MIXED_EDITOR_VERSIONS', 'A file importing both former and current runtime entries must be separated manually.'));
+        globallyBlocked = true;
     }
-    const newExpressions = [];
-    let globalBlocked = Boolean(imports.unsupportedNamespace || imports.hasCurrentRuntimeImport);
     visit(sourceFile, (node) => {
         if (ts.isClassDeclaration(node) && node.heritageClauses) {
             for (const clause of node.heritageClauses) {
@@ -384,14 +391,10 @@ export function transformSource(source, fileName = 'source.ts') {
                     if (ts.isIdentifier(type.expression) &&
                         imports.locals.has(type.expression.text)) {
                         unresolved.push(finding(sourceFile, fileName, type, 'FACADE_SUBCLASS', 'Subclasses of the former editor must be redesigned around Core and Plugin composition.'));
-                        globalBlocked = true;
+                        globallyBlocked = true;
                     }
                 }
             }
-        }
-        if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
-            if (imports.locals.has(node.expression.text))
-                newExpressions.push(node);
         }
         if (ts.isCallExpression(node) &&
             ts.isPropertyAccessExpression(node.expression) &&
@@ -400,7 +403,7 @@ export function transformSource(source, fileName = 'source.ts') {
                 node.expression.name.text === 'hasOwnProperty') &&
             node.arguments.some((argument) => [...imports.locals].some((name) => argument.getText(sourceFile).includes(name)))) {
             unresolved.push(finding(sourceFile, fileName, node, 'EDITOR_REFLECTION', 'Reflection over the former editor surface cannot be rewritten safely.'));
-            globalBlocked = true;
+            globallyBlocked = true;
         }
     });
     const candidates = [];
@@ -410,7 +413,7 @@ export function transformSource(source, fileName = 'source.ts') {
             declaration.initializer !== expression ||
             !ts.isIdentifier(declaration.name)) {
             unresolved.push(finding(sourceFile, fileName, expression, 'CONSTRUCTOR_CONTEXT', 'The former constructor must be assigned to a simple local variable before migration.'));
-            globalBlocked = true;
+            globallyBlocked = true;
             continue;
         }
         const args = expression.arguments ?? ts.factory.createNodeArray();
@@ -449,15 +452,14 @@ export function transformSource(source, fileName = 'source.ts') {
     }
     if (newExpressions.length === 0) {
         unresolved.push(finding(sourceFile, fileName, imports.declarations[0], 'NO_STATIC_CONSTRUCTOR', 'No statically recognizable former editor constructor was found.'));
-        globalBlocked = true;
+        globallyBlocked = true;
     }
-    if (globalBlocked) {
-        return Object.freeze({
-            code: source,
-            changed: false,
-            unresolved: sortFindings(unresolved),
-        });
-    }
+    return Object.freeze({
+        candidates: Object.freeze(candidates),
+        globallyBlocked,
+    });
+}
+function buildTransformEdits(sourceFile, candidates) {
     const edits = [];
     let needsCoreImport = false;
     let needsFullImport = false;
@@ -510,51 +512,95 @@ export function transformSource(source, fileName = 'source.ts') {
         }
         transformed += 1;
     }
-    if (transformed === 0) {
+    return {
+        edits,
+        transformed,
+        needsCoreImport,
+        needsFullImport,
+        needsMigrationImport,
+    };
+}
+function replaceImportDeclarations(source, sourceFile, imports, edits) {
+    for (const declaration of imports.declarations) {
+        const replacement = importReplacement(sourceFile, declaration, imports.locals);
+        let end = declaration.end;
+        if (!replacement) {
+            if (source.slice(end, end + 2) === '\r\n')
+                end += 2;
+            else if (source[end] === '\n')
+                end += 1;
+        }
+        edits.push(Object.freeze({
+            start: declaration.getStart(sourceFile),
+            end,
+            text: replacement,
+        }));
+    }
+}
+function importInsertionPosition(source) {
+    const start = source.charCodeAt(0) === 0xfeff ? 1 : 0;
+    if (!source.startsWith('#!', start))
+        return start;
+    const lineEnd = source.indexOf('\n', start);
+    return lineEnd === -1 ? source.length : lineEnd + 1;
+}
+function injectNewImports(source, plan) {
+    const newImports = [];
+    if (plan.needsCoreImport) {
+        newImports.push(`import { ImageEditorCore } from '${PACKAGE_ROOT}/core';`);
+    }
+    if (plan.needsFullImport) {
+        newImports.push(`import { createFullPreset } from '${PACKAGE_ROOT}/presets/full';`);
+    }
+    if (plan.needsMigrationImport) {
+        newImports.push(`import { loadV2Snapshot } from '${PACKAGE_ROOT}/migrate-v2';`);
+    }
+    if (newImports.length > 0) {
+        const newline = source.includes('\r\n') ? '\r\n' : '\n';
+        const insertion = importInsertionPosition(source);
+        plan.edits.push(Object.freeze({
+            start: insertion,
+            end: insertion,
+            text: `${newImports.join(newline)}${newline}`,
+        }));
+    }
+}
+export function transformSource(source, fileName = 'source.ts') {
+    const parsed = parseAndDetectImports(source, fileName);
+    const { sourceFile, parseDiagnostics, imports } = parsed;
+    if (parseDiagnostics.length > 0) {
+        return Object.freeze({
+            code: source,
+            changed: false,
+            unresolved: sortFindings(parseDiagnostics.map((diagnostic) => diagnosticFinding(sourceFile, fileName, diagnostic))),
+        });
+    }
+    if (imports.locals.size === 0 && !imports.unsupportedNamespace) {
+        return Object.freeze({ code: source, changed: false, unresolved: Object.freeze([]) });
+    }
+    const unresolved = [];
+    const expressions = collectEditorCandidates(sourceFile, imports);
+    const analysis = determineTransformationBlockers(sourceFile, fileName, imports, expressions, unresolved);
+    if (analysis.globallyBlocked) {
         return Object.freeze({
             code: source,
             changed: false,
             unresolved: sortFindings(unresolved),
         });
     }
-    const allTransformed = transformed === candidates.length;
-    if (allTransformed) {
-        for (const declaration of imports.declarations) {
-            const replacement = importReplacement(sourceFile, declaration, imports.locals);
-            let end = declaration.end;
-            if (!replacement) {
-                if (source.slice(end, end + 2) === '\r\n')
-                    end += 2;
-                else if (source[end] === '\n')
-                    end += 1;
-            }
-            edits.push(Object.freeze({
-                start: declaration.getStart(sourceFile),
-                end,
-                text: replacement,
-            }));
-        }
+    const plan = buildTransformEdits(sourceFile, analysis.candidates);
+    if (plan.transformed === 0) {
+        return Object.freeze({
+            code: source,
+            changed: false,
+            unresolved: sortFindings(unresolved),
+        });
     }
-    const newImports = [];
-    if (needsCoreImport) {
-        newImports.push(`import { ImageEditorCore } from '${PACKAGE_ROOT}/core';`);
+    if (plan.transformed === analysis.candidates.length) {
+        replaceImportDeclarations(source, sourceFile, imports, plan.edits);
     }
-    if (needsFullImport) {
-        newImports.push(`import { createFullPreset } from '${PACKAGE_ROOT}/presets/full';`);
-    }
-    if (needsMigrationImport) {
-        newImports.push(`import { loadV2Snapshot } from '${PACKAGE_ROOT}/migrate-v2';`);
-    }
-    if (newImports.length > 0) {
-        const insertion = source.startsWith('#!') ? source.indexOf('\n') + 1 : 0;
-        const newline = source.includes('\r\n') ? '\r\n' : '\n';
-        edits.push(Object.freeze({
-            start: insertion,
-            end: insertion,
-            text: `${newImports.join(newline)}${newline}`,
-        }));
-    }
-    const code = applyEdits(source, edits);
+    injectNewImports(source, plan);
+    const code = applyTextEdits(source, plan.edits);
     return Object.freeze({
         code,
         changed: code !== source,
