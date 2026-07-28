@@ -23,6 +23,10 @@ const intentionalHistoricalPaths = new Map([
     ['docs/v2-maintenance-policy.md', 'published legacy branch policy'],
 ]);
 const currentExtensions = /\.(?:html|js|md|mts|ts|tsx|vue)$/u;
+const modularDemoCsp =
+    "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; " +
+    "img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; " +
+    "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
 const forbiddenCurrentPatterns = Object.freeze([
     [/\bnew\s+ImageEditor\s*\(/u, 'the removed monolithic constructor'],
     [/\bImageEditorOptions\b/u, 'the removed flat options type'],
@@ -111,7 +115,7 @@ async function verifyMarkdownLinks(files) {
     return linkCount;
 }
 
-async function verifyCurrentDemoSurface() {
+async function verifyCurrentDemoSurface(files) {
     const loader = await readFile(path.join(repositoryRoot, 'docs/js/demo-loader.js'), 'utf8');
     const demoPlans = new Map([
         [
@@ -151,6 +155,15 @@ async function verifyCurrentDemoSurface() {
             definition,
         ]),
     );
+    const discoveredPages = [];
+    for (const file of files.filter((candidate) => /^docs\/[^/]+\.html$/u.test(candidate))) {
+        const source = await readFile(path.join(repositoryRoot, file), 'utf8');
+        if (source.includes('js/demo-loader.js')) discoveredPages.push(path.posix.basename(file));
+    }
+    assertCondition(
+        discoveredPages.sort().join('\n') === [...demoPlans.keys()].sort().join('\n'),
+        'Every HTML page using the modular demo loader must have a reviewed Plugin plan and CSP.',
+    );
 
     for (const [page, expectedPluginIds] of demoPlans) {
         const source = await readFile(path.join(repositoryRoot, 'docs', page), 'utf8');
@@ -159,6 +172,15 @@ async function verifyCurrentDemoSurface() {
                 source.includes('js/demo-loader.js') &&
                 source.includes('data-demo-plugins='),
             `docs/${page} is not wired to the current shared demo runtime.`,
+        );
+        const cspMatches = [
+            ...source.matchAll(
+                /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"\s*\/?>/gu,
+            ),
+        ];
+        assertCondition(
+            cspMatches.length === 1 && cspMatches[0]?.[1] === modularDemoCsp,
+            `docs/${page} must declare the reviewed modular demo Content Security Policy.`,
         );
         const pluginAttribute = source.match(/\bdata-demo-plugins="([^"]+)"/u);
         const pluginIds = pluginAttribute?.[1]?.trim().split(/\s+/u) ?? [];
@@ -304,7 +326,7 @@ const [currentFileCount, localLinkCount, coreOptionCount, modularUmdModuleCount]
         verifyCoreOptionsReference(),
         verifyModularUmdDocumentation(),
     ]);
-await verifyCurrentDemoSurface();
+await verifyCurrentDemoSurface(files);
 
 for (const historicalPath of intentionalHistoricalPaths.keys()) {
     await access(path.join(repositoryRoot, historicalPath));
