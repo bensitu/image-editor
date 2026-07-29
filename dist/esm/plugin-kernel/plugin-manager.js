@@ -99,11 +99,29 @@ export class PluginManager {
             writable: true,
             value: options
         });
+        Object.defineProperty(this, "capabilityRegistry", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "operationRegistry", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: new OperationRegistry()
+        });
+        Object.defineProperty(this, "toolCoordinator", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "eventBus", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
         });
         Object.defineProperty(this, "stateStore", {
             enumerable: true,

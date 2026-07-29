@@ -341,68 +341,44 @@ interface PublishedPluginApi {
 }
 
 export class ImageEditorCore {
-    declare readonly options: ResolvedImageEditorCoreOptions;
-    declare private readonly slices: StateSliceRegistry;
-    declare private readonly objectProperties: ObjectPropertyRegistry;
-    declare private readonly transientObjects: TransientObjectRegistry<FabricNS.FabricObject>;
-    declare private readonly externalObjects: TransientObjectRegistry<FabricNS.FabricObject>;
-    declare private readonly history: HistoryCommitRouter;
-    declare private readonly exportContributors: ExportContributorRegistry;
-    declare private readonly mementos: MementoService;
-    declare private readonly snapshots: SnapshotService;
-    declare private readonly documentMutations: DocumentMutationCoordinator;
-    declare private readonly geometry: GeometryMutationCoordinator;
-    declare private plugins: PluginManager<CoreEventMap>;
-    declare private readonly installationPlan: PlannedPlugin[];
-    declare private readonly pluginApiHandles: Map<string, PublishedPluginApi>;
-    declare private readonly lifecycle: EditorLifecycleController;
-    declare private readonly viewportCache: ViewportCache;
-    declare private canvas: FabricNS.Canvas | null;
-    declare private canvasElement: HTMLCanvasElement | null;
-    declare private containerElement: HTMLElement | null;
-    declare private placeholderElement: HTMLElement | null;
-    declare private baseImage: FabricNS.FabricImage | null;
-    declare private imageMimeType: ImageMimeType | null;
-    declare private imageLoaded: boolean;
-    declare private baseImageScale: number;
-    declare private layoutMode: LayoutMode;
-    declare private geometryRevision: number;
-    declare private loadSequence: number;
-    declare private latestLoadSequence: number;
-    declare private stateLoadSequence: number;
-    declare private initialImageLoadActive: boolean;
-    declare private disposePromise: Promise<void> | null;
-    declare private emergencyResetPromise: Promise<void> | null;
-    declare private readonly diagnostics: CoreDiagnostic[];
+    readonly options: ResolvedImageEditorCoreOptions;
+    private readonly slices = new StateSliceRegistry();
+    private readonly objectProperties = new ObjectPropertyRegistry();
+    private readonly transientObjects: TransientObjectRegistry<FabricNS.FabricObject>;
+    private readonly externalObjects: TransientObjectRegistry<FabricNS.FabricObject>;
+    private readonly history = new HistoryCommitRouter();
+    private readonly exportContributors = new ExportContributorRegistry();
+    private readonly mementos: MementoService;
+    private readonly snapshots: SnapshotService;
+    private readonly documentMutations: DocumentMutationCoordinator;
+    private readonly geometry: GeometryMutationCoordinator;
+    private plugins: PluginManager<CoreEventMap>;
+    private readonly installationPlan: PlannedPlugin[] = [];
+    private readonly pluginApiHandles = new Map<string, PublishedPluginApi>();
+    private readonly lifecycle = new EditorLifecycleController();
+    private readonly viewportCache = new ViewportCache();
+    private canvas: FabricNS.Canvas | null = null;
+    private canvasElement: HTMLCanvasElement | null = null;
+    private containerElement: HTMLElement | null = null;
+    private placeholderElement: HTMLElement | null = null;
+    private baseImage: FabricNS.FabricImage | null = null;
+    private imageMimeType: ImageMimeType | null = null;
+    private imageLoaded = false;
+    private baseImageScale = 1;
+    private layoutMode: LayoutMode;
+    private geometryRevision = 0;
+    private loadSequence = 0;
+    private latestLoadSequence = 0;
+    private stateLoadSequence = 0;
+    private initialImageLoadActive = false;
+    private disposePromise: Promise<void> | null = null;
+    private emergencyResetPromise: Promise<void> | null = null;
+    private readonly diagnostics: CoreDiagnostic[] = [];
 
     constructor(
         readonly fabric: FabricModule,
         options: ImageEditorCoreOptions = {},
     ) {
-        this.slices = new StateSliceRegistry();
-        this.objectProperties = new ObjectPropertyRegistry();
-        this.history = new HistoryCommitRouter();
-        this.exportContributors = new ExportContributorRegistry();
-        this.installationPlan = [];
-        this.pluginApiHandles = new Map();
-        this.lifecycle = new EditorLifecycleController();
-        this.viewportCache = new ViewportCache();
-        this.canvas = null;
-        this.canvasElement = null;
-        this.containerElement = null;
-        this.placeholderElement = null;
-        this.baseImage = null;
-        this.imageMimeType = null;
-        this.imageLoaded = false;
-        this.baseImageScale = 1;
-        this.geometryRevision = 0;
-        this.loadSequence = 0;
-        this.latestLoadSequence = 0;
-        this.stateLoadSequence = 0;
-        this.initialImageLoadActive = false;
-        this.disposePromise = null;
-        this.emergencyResetPromise = null;
-        this.diagnostics = [];
         if (
             !fabric ||
             typeof fabric.Canvas !== 'function' ||

@@ -306,10 +306,10 @@ export function sameInstallationDefinition<TEvents extends object>(
 }
 
 export class PluginManager<TEvents extends object = PluginEventMap> implements Disposable {
-    declare private readonly capabilityRegistry: CapabilityRegistry;
+    private readonly capabilityRegistry: CapabilityRegistry;
     private readonly operationRegistry = new OperationRegistry();
-    declare private readonly toolCoordinator: ToolCoordinator;
-    declare private readonly eventBus: CommittedEventBus<TEvents>;
+    private readonly toolCoordinator: ToolCoordinator;
+    private readonly eventBus: CommittedEventBus<TEvents>;
     private readonly stateStore = new PluginStateStore();
     private readonly installed = new Map<string, InstalledPluginRecord<TEvents>>();
     private readonly installationOrder: string[] = [];

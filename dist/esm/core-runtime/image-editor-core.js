@@ -181,30 +181,204 @@ export class ImageEditorCore {
             writable: true,
             value: fabric
         });
-        this.slices = new StateSliceRegistry();
-        this.objectProperties = new ObjectPropertyRegistry();
-        this.history = new HistoryCommitRouter();
-        this.exportContributors = new ExportContributorRegistry();
-        this.installationPlan = [];
-        this.pluginApiHandles = new Map();
-        this.lifecycle = new EditorLifecycleController();
-        this.viewportCache = new ViewportCache();
-        this.canvas = null;
-        this.canvasElement = null;
-        this.containerElement = null;
-        this.placeholderElement = null;
-        this.baseImage = null;
-        this.imageMimeType = null;
-        this.imageLoaded = false;
-        this.baseImageScale = 1;
-        this.geometryRevision = 0;
-        this.loadSequence = 0;
-        this.latestLoadSequence = 0;
-        this.stateLoadSequence = 0;
-        this.initialImageLoadActive = false;
-        this.disposePromise = null;
-        this.emergencyResetPromise = null;
-        this.diagnostics = [];
+        Object.defineProperty(this, "options", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "slices", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new StateSliceRegistry()
+        });
+        Object.defineProperty(this, "objectProperties", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new ObjectPropertyRegistry()
+        });
+        Object.defineProperty(this, "transientObjects", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "externalObjects", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "history", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new HistoryCommitRouter()
+        });
+        Object.defineProperty(this, "exportContributors", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new ExportContributorRegistry()
+        });
+        Object.defineProperty(this, "mementos", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "snapshots", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "documentMutations", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "geometry", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "plugins", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "installationPlan", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: []
+        });
+        Object.defineProperty(this, "pluginApiHandles", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "lifecycle", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new EditorLifecycleController()
+        });
+        Object.defineProperty(this, "viewportCache", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new ViewportCache()
+        });
+        Object.defineProperty(this, "canvas", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "canvasElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "containerElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "placeholderElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "baseImage", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "imageMimeType", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "imageLoaded", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "baseImageScale", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 1
+        });
+        Object.defineProperty(this, "layoutMode", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "geometryRevision", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "loadSequence", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "latestLoadSequence", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "stateLoadSequence", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "initialImageLoadActive", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "disposePromise", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "emergencyResetPromise", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "diagnostics", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: []
+        });
         if (!fabric ||
             typeof fabric.Canvas !== 'function' ||
             typeof fabric.FabricImage !== 'function') {
