@@ -40,7 +40,8 @@
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",
-        "prepack": "npm run build"
+        "prepack": "npm run build",
+        "prepublishOnly": "node ../../scripts/check-codemod-package.mjs"
     },
     "publishConfig": {
         "access": "public",

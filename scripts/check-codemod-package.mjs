@@ -8,6 +8,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
+import { assertCodemodPackagePolicy } from './codemod-package-policy.mjs';
+
 const execFileAsync = promisify(execFile);
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
@@ -45,6 +47,12 @@ async function runCli(args, cwd, expectedCode) {
 
 try {
     if (!npmCliPath) throw new Error('npm_execpath is unavailable; run through an npm script.');
+    const [rootManifest, codemodManifest] = await Promise.all(
+        [path.join(repositoryRoot, 'package.json'), path.join(packageRoot, 'package.json')].map(
+            async (manifestPath) => JSON.parse(await readFile(manifestPath, 'utf8')),
+        ),
+    );
+    assertCodemodPackagePolicy(rootManifest, codemodManifest);
     const packed = await runNode(
         [npmCliPath, 'pack', '--json', '--pack-destination', temporaryRoot],
         packageRoot,
@@ -54,20 +62,6 @@ try {
         throw new Error('npm pack returned no codemod artifact.');
     }
     const packedFiles = packResult.files.map((entry) => entry.path).sort();
-    if (packedFiles.some((file) => file.startsWith('src/') || file.includes('/test'))) {
-        throw new Error('Codemod tarball contains source or test files.');
-    }
-    for (const required of [
-        'dist/cli.js',
-        'dist/index.js',
-        'dist/index.d.ts',
-        'README.md',
-        'LICENSE',
-    ]) {
-        if (!packedFiles.includes(required)) {
-            throw new Error(`Codemod tarball is missing ${required}.`);
-        }
-    }
 
     const tarballPath = path.join(temporaryRoot, packResult.filename);
     const { stdout: packedManifestSource } = await execFileAsync(
@@ -81,14 +75,9 @@ try {
         },
     );
     const packedManifest = JSON.parse(packedManifestSource);
+    assertCodemodPackagePolicy(rootManifest, packedManifest, packedFiles);
     if (packedManifest.name !== packResult.name || packedManifest.version !== packResult.version) {
         throw new Error('Packed Codemod package.json identity does not match npm pack.');
-    }
-    if (
-        packedManifest.publishConfig?.access !== 'public' ||
-        packedManifest.publishConfig?.provenance !== true
-    ) {
-        throw new Error('Packed Codemod package.json must require public provenance publishing.');
     }
 
     const consumerRoot = path.join(temporaryRoot, 'consumer');
