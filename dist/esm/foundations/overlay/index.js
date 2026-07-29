@@ -1,4 +1,4 @@
-import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, MEMENTO_HISTORY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS, PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS, } from '../../utils/internal-operation-conflict-domains.js';
 import { OverlayFoundationController } from './overlay-foundation-controller.js';
 export const OVERLAY_CAPABILITY = createCapabilityToken('foundation:overlay', '1.0.0');
@@ -62,6 +62,7 @@ export function overlayFoundationPlugin() {
                 { token: RENDER_REQUEST_CAPABILITY, range: '^1.0.0' },
                 { token: RASTER_MUTATION_CAPABILITY, range: '^1.0.0' },
                 { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
+                { token: MEMENTO_HISTORY_CAPABILITY, range: '^1.0.0' },
                 { token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
                 { token: IMAGE_RESOURCE_POLICY_CAPABILITY, range: '^1.0.0' },
                 { token: EXPORT_CONTRIBUTION_CAPABILITY, range: '^1.0.0' },
@@ -85,6 +86,7 @@ export function overlayFoundationPlugin() {
             const render = context.capabilities.require(RENDER_REQUEST_CAPABILITY);
             const raster = context.capabilities.require(RASTER_MUTATION_CAPABILITY);
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
+            const mementos = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
             const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
             const imageResources = context.capabilities.require(IMAGE_RESOURCE_POLICY_CAPABILITY);
             const exportPort = context.capabilities.require(EXPORT_CONTRIBUTION_CAPABILITY);
@@ -100,8 +102,13 @@ export function overlayFoundationPlugin() {
                 ...imageResources,
                 runOperation: (operationId, task) => context.operations.run(operationId, null, () => task()),
             });
+            context.operations.register({
+                id: 'overlay:gesture',
+                mode: 'mutation',
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+                reentrancy: 'queue',
+            });
             for (const operationId of [
-                'overlay:gesture',
                 'overlay:add',
                 'overlay:remove',
                 'overlay:set-hidden',
@@ -127,7 +134,7 @@ export function overlayFoundationPlugin() {
                 conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'reject',
             });
-            controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);
+            controller = new OverlayFoundationController(host, state, mementos, geometry, mutations, exportPort);
             context.capabilities.provide(OVERLAY_CAPABILITY, createRuntimeApi(controller), {
                 version: OVERLAY_CAPABILITY.version,
             });

@@ -4700,6 +4700,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/core-runtime/mutation/document-mutation-coordinator.js
 	const DEFAULT_ROLLBACK_TIMEOUT_MS$1 = 3e4;
+	const INTERACTIVE_MUTATION_BOUNDARY$1 = Symbol.for("@bensitu/image-editor/internal-interactive-mutation-boundary/v1");
+	function getInteractiveMutationBoundary(request) {
+		var _a;
+		return (_a = Reflect.get(request, INTERACTIVE_MUTATION_BOUNDARY$1)) !== null && _a !== void 0 ? _a : null;
+	}
+	function requireSealedInteractiveBoundary(transactionId, after) {
+		if (!after) throw new DocumentMutationInvariantError(transactionId, /* @__PURE__ */ new Error("Interactive mutation was not sealed before commit."));
+		return after;
+	}
 	function isCancellation(error) {
 		return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 	}
@@ -4828,7 +4837,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.usedTransactionIds.clear();
 		}
 		async performTopLevel(request, operationToken) {
-			const before = this.options.mementos.capture();
+			var _a;
+			const interactiveBoundary = getInteractiveMutationBoundary(request);
+			const before = (_a = interactiveBoundary === null || interactiveBoundary === void 0 ? void 0 : interactiveBoundary.before) !== null && _a !== void 0 ? _a : this.options.mementos.capture();
 			const session = {
 				before,
 				rollbackEntries: [],
@@ -4862,7 +4873,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 			let descriptor;
 			try {
-				const after = this.options.mementos.capture();
+				const after = interactiveBoundary ? requireSealedInteractiveBoundary(request.id, interactiveBoundary.after) : this.options.mementos.capture();
 				descriptor = Object.freeze({
 					transactionId: request.id,
 					parentTransactionId: null,
@@ -7711,6 +7722,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/foundations/overlay/overlay-foundation-controller.js
+	const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for("@bensitu/image-editor/internal-interactive-mutation-boundary/v1");
+	function withInteractiveMutationBoundary(request, boundary) {
+		return Object.assign(request, { [INTERACTIVE_MUTATION_BOUNDARY]: boundary });
+	}
 	function getActiveCanvasObjects(canvas) {
 		var _a;
 		const candidate = canvas;
@@ -7855,12 +7870,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 	var OverlayFoundationController = class {
-		constructor(host, state, geometry, mutations, exportPort) {
+		constructor(host, state, mementos, geometry, mutations, exportPort) {
 			Object.defineProperty(this, "host", {
 				enumerable: true,
 				configurable: true,
 				writable: true,
 				value: host
+			});
+			Object.defineProperty(this, "mementos", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: mementos
 			});
 			Object.defineProperty(this, "geometry", {
 				enumerable: true,
@@ -7947,6 +7968,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				value: 0
 			});
 			Object.defineProperty(this, "activeGesture", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
+			Object.defineProperty(this, "gestureCommitTail", {
 				enumerable: true,
 				configurable: true,
 				writable: true,
@@ -8700,6 +8727,23 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				rejectCompletion = reject;
 			});
 			const id = this.nextMutationId("gesture");
+			const objectIds = Object.freeze(targets.map((entry) => entry.persistentId));
+			const metadata = Object.freeze({
+				interactive: true,
+				objectIds
+			});
+			const previewController = new AbortController();
+			let before;
+			try {
+				before = this.mementos.captureMemento();
+			} catch (error) {
+				this.host.reportError(error, "Overlay gesture boundary capture failed.");
+				return;
+			}
+			const boundary = {
+				before,
+				after: null
+			};
 			const gesture = {
 				id,
 				action,
@@ -8707,21 +8751,30 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				completion,
 				resolve: resolveCompletion,
 				reject: rejectCompletion,
+				boundary,
+				previewController,
 				completionSettled: false,
 				previewWork: Promise.resolve(),
 				transaction: null,
-				context: null
+				context: Object.freeze({
+					transactionId: id,
+					parentTransactionId: null,
+					operationId: "overlay:gesture",
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+					historyOwner: "self",
+					eventOwner: "self",
+					signal: previewController.signal,
+					participantIds: Object.freeze([]),
+					metadata
+				})
 			};
 			this.activeGesture = gesture;
-			const transaction = this.mutations.run({
+			const request = withInteractiveMutationBoundary({
 				id,
 				kind: "overlay",
 				operationId: "overlay:gesture",
 				conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
-				metadata: Object.freeze({
-					interactive: true,
-					objectIds: targets.map((entry) => entry.persistentId)
-				}),
+				metadata,
 				mutate: async (context) => {
 					gesture.context = context;
 					await this.waitForGestureCompletion(gesture, context.signal);
@@ -8731,17 +8784,31 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				synchronize: (descriptor, context) => this.runInteractionPolicies(targets, descriptor, context, "synchronize"),
 				validate: (descriptor, context) => this.validateMutation(targets, descriptor, context),
 				describeCommit: (descriptor) => descriptor
-			}).then(() => void 0);
+			}, boundary);
+			let commitStarted = false;
+			const commit = () => {
+				commitStarted = true;
+				return this.mutations.run(request).then(() => void 0);
+			};
+			const previousCommit = this.gestureCommitTail;
+			const transaction = previousCommit ? previousCommit.then(commit) : commit();
 			gesture.transaction = transaction;
+			this.gestureCommitTail = transaction;
 			this.lastGestureTransaction = transaction;
-			transaction.then(() => this.clearGesture(gesture), () => this.clearGesture(gesture));
+			transaction.then(() => {
+				this.clearGesture(gesture);
+				if (this.gestureCommitTail === transaction) this.gestureCommitTail = null;
+			}, () => {
+				this.clearGesture(gesture);
+				if (this.gestureCommitTail === transaction) this.gestureCommitTail = null;
+			});
 			transaction.catch((error) => {
-				if (!isAbortError(error)) this.host.reportError(error, "Overlay gesture transaction failed.");
+				if (commitStarted && !isAbortError(error)) this.host.reportError(error, "Overlay gesture transaction failed.");
 			});
 		}
 		previewGesture(target, action) {
 			const gesture = this.activeGesture;
-			if (!target || !gesture || !gesture.context || gesture.completionSettled) return;
+			if (!target || !gesture || gesture.completionSettled) return;
 			const previewIds = new Set(this.resolveOverlayTargets(target).map((entry) => entry.persistentId));
 			if (gesture.targets.some((entry) => !previewIds.has(entry.persistentId))) {
 				this.failGesture(gesture, new CoreRuntimeError("[ImageEditor] Overlay preview target changed mid-gesture."));
@@ -8755,13 +8822,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		resolveGesture(gesture) {
 			if (gesture.completionSettled) return;
+			try {
+				gesture.boundary.after = this.mementos.captureMemento();
+			} catch (error) {
+				this.failGesture(gesture, error);
+				return;
+			}
 			gesture.completionSettled = true;
 			gesture.resolve();
+			this.clearGesture(gesture);
 		}
 		failGesture(gesture, error) {
 			if (gesture.completionSettled) return;
 			gesture.completionSettled = true;
+			gesture.previewController.abort(error);
 			gesture.reject(error);
+			this.clearGesture(gesture);
 		}
 		clearGesture(gesture) {
 			if (this.activeGesture === gesture) this.activeGesture = null;
@@ -9328,6 +9404,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						range: "^1.0.0"
 					},
 					{
+						token: MEMENTO_HISTORY_CAPABILITY,
+						range: "^1.0.0"
+					},
+					{
 						token: GEOMETRY_MUTATION_CAPABILITY,
 						range: "^1.0.0"
 					},
@@ -9362,6 +9442,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const render = context.capabilities.require(RENDER_REQUEST_CAPABILITY);
 				const raster = context.capabilities.require(RASTER_MUTATION_CAPABILITY);
 				const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
+				const mementos = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
 				const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
 				const imageResources = context.capabilities.require(IMAGE_RESOURCE_POLICY_CAPABILITY);
 				const exportPort = context.capabilities.require(EXPORT_CONTRIBUTION_CAPABILITY);
@@ -9377,8 +9458,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...imageResources,
 					runOperation: (operationId, task) => context.operations.run(operationId, null, () => task())
 				});
+				context.operations.register({
+					id: "overlay:gesture",
+					mode: "mutation",
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+					reentrancy: "queue"
+				});
 				for (const operationId of [
-					"overlay:gesture",
 					"overlay:add",
 					"overlay:remove",
 					"overlay:set-hidden",
@@ -9402,7 +9488,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				});
-				controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);
+				controller = new OverlayFoundationController(host, state, mementos, geometry, mutations, exportPort);
 				context.capabilities.provide(OVERLAY_CAPABILITY, createRuntimeApi(controller), { version: OVERLAY_CAPABILITY.version });
 				context.capabilities.provide(OVERLAY_REGISTRATION_CAPABILITY, createRegistrationApi(controller), {
 					version: OVERLAY_REGISTRATION_CAPABILITY.version,

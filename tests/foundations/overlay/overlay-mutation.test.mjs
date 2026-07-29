@@ -14,7 +14,7 @@ import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-e
 const TEST_KIND = 'example-test:gesture-rect';
 const TEST_OWNER = 'example-test:gesture-plugin';
 
-async function createEditor({ transform = false } = {}) {
+async function createEditor({ onDocumentCommitted, transform = false } = {}) {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
     const warnings = [];
     const errors = [];
@@ -33,7 +33,10 @@ async function createEditor({ transform = false } = {}) {
         version: '1.0.0',
         setupMode: 'sync',
         setup(context) {
-            context.events.on('document:committed', (descriptor) => committed.push(descriptor));
+            context.events.on('document:committed', (descriptor) => {
+                committed.push(descriptor);
+                return onDocumentCommitted?.(descriptor);
+            });
             context.events.on('geometry:committed', (descriptor) =>
                 geometryCommitted.push(descriptor),
             );
@@ -140,6 +143,16 @@ async function dispose(editor) {
     document.body.innerHTML = '';
 }
 
+function createDeferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, reject, resolve };
+}
+
 test('move, scale, and rotate previews commit one transaction only at gesture end', async (t) => {
     for (const scenario of [
         {
@@ -181,6 +194,190 @@ test('move, scale, and rotate previews commit one transaction only at gesture en
             await dispose(editor);
         });
     }
+});
+
+test('back-to-back gestures preserve independent History boundaries', async () => {
+    const { editor, history, overlay } = await createEditor();
+    const rect = addRect(editor, 'rect:back-to-back', { left: 10, top: 10 });
+
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 71, top: 63 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 200, top: 150 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+
+    await overlay.waitForIdle();
+    assert.equal(history.getState().size, 2);
+    assert.equal(history.canUndo(), true);
+
+    await history.undo();
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').left, 71);
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').top, 63);
+    await history.undo();
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').left, 10);
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').top, 10);
+    assert.equal(history.canUndo(), false);
+
+    await history.redo();
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').left, 71);
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').top, 63);
+    await history.redo();
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').left, 200);
+    assert.equal(overlay.getByPersistentId('rect:back-to-back').top, 150);
+    await dispose(editor);
+});
+
+test('mixed back-to-back transforms preserve every History boundary', async () => {
+    const { editor, history, overlay } = await createEditor();
+    const id = 'rect:mixed-transforms';
+    const rect = addRect(editor, id, { left: 10, top: 10 });
+    const initial = {
+        left: 10,
+        top: 10,
+        scaleX: 1,
+        scaleY: 1,
+        angle: 0,
+    };
+    const steps = [
+        {
+            action: 'drag',
+            eventName: 'object:moving',
+            patch: { left: 71, top: 63 },
+        },
+        {
+            action: 'drag',
+            eventName: 'object:moving',
+            patch: { left: 90, top: 75 },
+        },
+        {
+            action: 'scale',
+            eventName: 'object:scaling',
+            patch: { scaleX: 1.5, scaleY: 1.25 },
+        },
+        {
+            action: 'scale',
+            eventName: 'object:scaling',
+            patch: { scaleX: 2, scaleY: 0.8 },
+        },
+        {
+            action: 'rotate',
+            eventName: 'object:rotating',
+            patch: { angle: 35 },
+        },
+        {
+            action: 'rotate',
+            eventName: 'object:rotating',
+            patch: { angle: 80 },
+        },
+        {
+            action: 'drag',
+            eventName: 'object:moving',
+            patch: { left: 120, top: 95 },
+        },
+    ];
+    const expected = [];
+    let state = initial;
+
+    for (const step of steps) {
+        beginGesture(editor, rect, step.action);
+        rect.set(step.patch);
+        previewGesture(editor, rect, step.eventName);
+        endGesture(editor, rect);
+        state = { ...state, ...step.patch };
+        expected.push(state);
+    }
+
+    await overlay.waitForIdle();
+    assert.equal(history.getState().size, steps.length);
+
+    for (let index = expected.length - 1; index >= 0; index -= 1) {
+        await history.undo();
+        const restored = overlay.getByPersistentId(id);
+        assert.deepEqual(
+            {
+                left: restored.left,
+                top: restored.top,
+                scaleX: restored.scaleX,
+                scaleY: restored.scaleY,
+                angle: restored.angle,
+            },
+            index === 0 ? initial : expected[index - 1],
+        );
+    }
+
+    for (const expectedState of expected) {
+        await history.redo();
+        const restored = overlay.getByPersistentId(id);
+        assert.deepEqual(
+            {
+                left: restored.left,
+                top: restored.top,
+                scaleX: restored.scaleX,
+                scaleY: restored.scaleY,
+                angle: restored.angle,
+            },
+            expectedState,
+        );
+    }
+    await dispose(editor);
+});
+
+test('repeated before:transform events remain idempotent within one gesture', async () => {
+    const { committed, editor, errors, history, overlay } = await createEditor();
+    const rect = addRect(editor, 'rect:idempotent', { left: 10, top: 10 });
+
+    beginGesture(editor, rect, 'drag');
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 71, top: 63 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+    await overlay.waitForIdle();
+
+    assert.equal(history.getState().size, 1);
+    assert.equal(committed.length, 1);
+    assert.deepEqual(errors, []);
+    await dispose(editor);
+});
+
+test('slow committed observers do not retain the input gesture slot', async () => {
+    const observerStarted = createDeferred();
+    const releaseObserver = createDeferred();
+    let observerCount = 0;
+    const { editor, errors, history, overlay } = await createEditor({
+        onDocumentCommitted: async () => {
+            observerCount += 1;
+            if (observerCount !== 1) return;
+            observerStarted.resolve();
+            await releaseObserver.promise;
+        },
+    });
+    const id = 'rect:slow-observer';
+    const rect = addRect(editor, id, { left: 10, top: 10 });
+
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 71, top: 63 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+    await observerStarted.promise;
+    assert.equal(history.getState().size, 1);
+
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 200, top: 150 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+    releaseObserver.resolve();
+    await overlay.waitForIdle();
+
+    assert.equal(history.getState().size, 2);
+    assert.deepEqual(errors, []);
+    await history.undo();
+    assert.equal(overlay.getByPersistentId(id).left, 71);
+    assert.equal(overlay.getByPersistentId(id).top, 63);
+    await dispose(editor);
 });
 
 test('repeated gesture targets are idempotent while changed targets abort', async () => {
@@ -290,6 +487,85 @@ test('fatal policy failure rolls back while a recoverable object failure still c
         assert.ok(warnings.some(({ message }) => /recoverable overlay/.test(message)));
         await dispose(editor);
     });
+});
+
+test('a failed second gesture rolls back only its sealed boundary', async () => {
+    const { committed, editor, history, overlay } = await createEditor();
+    const id = 'rect:second-failure';
+    const rect = addRect(editor, id, { left: 10, top: 10 });
+    let synchronizeCount = 0;
+    overlay.registerInteractionPolicy({
+        id: 'example-test:second-gesture-failure',
+        kind: TEST_KIND,
+        ownerPluginId: TEST_OWNER,
+        synchronize: () => {
+            synchronizeCount += 1;
+            if (synchronizeCount === 2) {
+                throw new Error('synthetic second gesture failure');
+            }
+        },
+    });
+
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 71, top: 63 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 200, top: 150 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+
+    await assert.rejects(overlay.waitForIdle(), /synthetic second gesture failure/u);
+    const restored = overlay.getByPersistentId(id);
+    assert.equal(restored.left, 71);
+    assert.equal(restored.top, 63);
+    assert.equal(history.getState().size, 1);
+    assert.equal(committed.length, 1);
+    await dispose(editor);
+});
+
+test('a failed earlier gesture cancels queued commits without leaving unrecorded state', async () => {
+    const { committed, editor, history, overlay } = await createEditor();
+    const id = 'rect:earlier-failure';
+    let rect = addRect(editor, id, { left: 10, top: 10 });
+    let synchronizeCount = 0;
+    overlay.registerInteractionPolicy({
+        id: 'example-test:earlier-gesture-failure',
+        kind: TEST_KIND,
+        ownerPluginId: TEST_OWNER,
+        synchronize: () => {
+            synchronizeCount += 1;
+            if (synchronizeCount === 1) {
+                throw new Error('synthetic earlier gesture failure');
+            }
+        },
+    });
+
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 71, top: 63 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 200, top: 150 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+
+    await assert.rejects(overlay.waitForIdle(), /synthetic earlier gesture failure/u);
+    rect = overlay.getByPersistentId(id);
+    assert.equal(rect.left, 10);
+    assert.equal(rect.top, 10);
+    assert.equal(history.getState().size, 0);
+    assert.equal(committed.length, 0);
+
+    beginGesture(editor, rect, 'drag');
+    rect.set({ left: 55, top: 45 });
+    previewGesture(editor, rect, 'object:moving');
+    endGesture(editor, rect);
+    await overlay.waitForIdle();
+    assert.equal(history.getState().size, 1);
+    assert.equal(overlay.getByPersistentId(id).left, 55);
+    assert.equal(overlay.getByPersistentId(id).top, 45);
+    await dispose(editor);
 });
 
 test('ActiveSelection transforms two and many objects as one atomic gesture', async (t) => {

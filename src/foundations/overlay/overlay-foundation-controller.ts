@@ -9,6 +9,7 @@ import type * as FabricNS from 'fabric';
 import {
     CoreRuntimeError,
     type CoreExportOptions,
+    type CoreMemento,
     type DocumentMutationContext,
     type DocumentMutationPort,
     type GeometryMutationDescriptor,
@@ -24,6 +25,7 @@ import type {
     FabricRuntimePort,
     ExportContributionPort,
     ImageResourcePolicyPort,
+    MementoHistoryPort,
     RasterMutationPort,
     RenderRequestPort,
     SnapshotRegistrationPort,
@@ -80,6 +82,22 @@ interface IndexedOverlay {
     preview?: [boolean, boolean, number];
 }
 
+const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for(
+    '@bensitu/image-editor/internal-interactive-mutation-boundary/v1',
+);
+
+interface InteractiveMutationBoundary {
+    readonly before: CoreMemento;
+    after: CoreMemento | null;
+}
+
+function withInteractiveMutationBoundary<TRequest extends object>(
+    request: TRequest,
+    boundary: InteractiveMutationBoundary,
+): TRequest {
+    return Object.assign(request, { [INTERACTIVE_MUTATION_BOUNDARY]: boundary });
+}
+
 interface ActiveOverlayGesture {
     readonly id: string;
     action: OverlayMutationAction;
@@ -87,10 +105,12 @@ interface ActiveOverlayGesture {
     readonly completion: Promise<void>;
     readonly resolve: () => void;
     readonly reject: (error: unknown) => void;
+    readonly boundary: InteractiveMutationBoundary;
+    readonly previewController: AbortController;
     completionSettled: boolean;
     previewWork: Promise<void>;
     transaction: Promise<void> | null;
-    context: DocumentMutationContext | null;
+    context: DocumentMutationContext;
 }
 
 interface OverlayTransformEvent {
@@ -389,6 +409,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
     private registrationSequence = 0;
     private generatedIdSequence = 0;
     private activeGesture: ActiveOverlayGesture | null = null;
+    private gestureCommitTail: Promise<void> | null = null;
     private lastGestureTransaction: Promise<void> | null = null;
     private attached = false;
     private disposed = false;
@@ -441,6 +462,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
     constructor(
         private readonly host: OverlayCoreAccess,
         state: SnapshotRegistrationPort,
+        private readonly mementos: MementoHistoryPort,
         private readonly geometry: GeometryMutationPort,
         private readonly mutations: DocumentMutationPort,
         exportPort: ExportContributionPort,
@@ -1357,6 +1379,23 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             rejectCompletion = reject;
         });
         const id = this.nextMutationId('gesture');
+        const objectIds = Object.freeze(targets.map((entry) => entry.persistentId));
+        const metadata = Object.freeze({
+            interactive: true,
+            objectIds,
+        });
+        const previewController = new AbortController();
+        let before: CoreMemento;
+        try {
+            before = this.mementos.captureMemento();
+        } catch (error) {
+            this.host.reportError(error, 'Overlay gesture boundary capture failed.');
+            return;
+        }
+        const boundary: InteractiveMutationBoundary = {
+            before,
+            after: null,
+        };
         const gesture: ActiveOverlayGesture = {
             id,
             action,
@@ -1364,23 +1403,34 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             completion,
             resolve: resolveCompletion,
             reject: rejectCompletion,
+            boundary,
+            previewController,
             completionSettled: false,
             previewWork: Promise.resolve(),
             transaction: null,
-            context: null,
-        };
-        this.activeGesture = gesture;
-        const transaction = this.mutations
-            .run({
-                id,
-                kind: 'overlay',
+            context: Object.freeze({
+                transactionId: id,
+                parentTransactionId: null,
                 operationId: 'overlay:gesture',
                 conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
-                metadata: Object.freeze({
-                    interactive: true,
-                    objectIds: targets.map((entry) => entry.persistentId),
-                }),
-                mutate: async (context) => {
+                historyOwner: 'self',
+                eventOwner: 'self',
+                signal: previewController.signal,
+                participantIds: Object.freeze([]),
+                metadata,
+            }),
+        };
+        this.activeGesture = gesture;
+        const request = withInteractiveMutationBoundary(
+            {
+                id,
+                kind: 'overlay' as const,
+                operationId: 'overlay:gesture',
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+                metadata,
+                mutate: async (
+                    context: DocumentMutationContext,
+                ): Promise<OverlayMutationDescriptor> => {
                     gesture.context = context;
                     await this.waitForGestureCompletion(gesture, context.signal);
                     await gesture.previewWork;
@@ -1392,21 +1442,40 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                         context.metadata,
                     );
                 },
-                synchronize: (descriptor, context) =>
-                    this.runInteractionPolicies(targets, descriptor, context, 'synchronize'),
-                validate: (descriptor, context) =>
-                    this.validateMutation(targets, descriptor, context),
-                describeCommit: (descriptor) => descriptor,
-            })
-            .then(() => undefined);
+                synchronize: (
+                    descriptor: OverlayMutationDescriptor,
+                    context: DocumentMutationContext,
+                ) => this.runInteractionPolicies(targets, descriptor, context, 'synchronize'),
+                validate: (
+                    descriptor: OverlayMutationDescriptor,
+                    context: DocumentMutationContext,
+                ) => this.validateMutation(targets, descriptor, context),
+                describeCommit: (descriptor: OverlayMutationDescriptor) => descriptor,
+            },
+            boundary,
+        );
+        let commitStarted = false;
+        const commit = (): Promise<void> => {
+            commitStarted = true;
+            return this.mutations.run(request).then(() => undefined);
+        };
+        const previousCommit = this.gestureCommitTail;
+        const transaction = previousCommit ? previousCommit.then(commit) : commit();
         gesture.transaction = transaction;
+        this.gestureCommitTail = transaction;
         this.lastGestureTransaction = transaction;
         transaction.then(
-            () => this.clearGesture(gesture),
-            () => this.clearGesture(gesture),
+            () => {
+                this.clearGesture(gesture);
+                if (this.gestureCommitTail === transaction) this.gestureCommitTail = null;
+            },
+            () => {
+                this.clearGesture(gesture);
+                if (this.gestureCommitTail === transaction) this.gestureCommitTail = null;
+            },
         );
         void transaction.catch((error: unknown) => {
-            if (!isAbortError(error)) {
+            if (commitStarted && !isAbortError(error)) {
                 this.host.reportError(error, 'Overlay gesture transaction failed.');
             }
         });
@@ -1417,7 +1486,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         action: OverlayMutationAction,
     ): void {
         const gesture = this.activeGesture;
-        if (!target || !gesture || !gesture.context || gesture.completionSettled) return;
+        if (!target || !gesture || gesture.completionSettled) return;
         const previewIds = new Set(
             this.resolveOverlayTargets(target).map((entry) => entry.persistentId),
         );
@@ -1452,14 +1521,23 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     private resolveGesture(gesture: ActiveOverlayGesture): void {
         if (gesture.completionSettled) return;
+        try {
+            gesture.boundary.after = this.mementos.captureMemento();
+        } catch (error) {
+            this.failGesture(gesture, error);
+            return;
+        }
         gesture.completionSettled = true;
         gesture.resolve();
+        this.clearGesture(gesture);
     }
 
     private failGesture(gesture: ActiveOverlayGesture, error: unknown): void {
         if (gesture.completionSettled) return;
         gesture.completionSettled = true;
+        gesture.previewController.abort(error);
         gesture.reject(error);
+        this.clearGesture(gesture);
     }
 
     private clearGesture(gesture: ActiveOverlayGesture): void {

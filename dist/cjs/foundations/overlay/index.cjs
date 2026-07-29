@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_overlay = require('../../chunks/overlay-DWVXQmPz.cjs');
+const require_overlay = require('../../chunks/overlay-A4-7cITG.cjs');
 
 exports.OVERLAY_CAPABILITY = require_overlay.OVERLAY_CAPABILITY;
 exports.OVERLAY_REGISTRATION_CAPABILITY = require_overlay.OVERLAY_REGISTRATION_CAPABILITY;

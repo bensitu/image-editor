@@ -9,6 +9,14 @@ import {
 } from '../../src/core-runtime/mutation/index.js';
 import { OperationRegistry } from '../../src/plugin-kernel/index.js';
 
+const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for(
+    '@bensitu/image-editor/internal-interactive-mutation-boundary/v1',
+);
+
+function withInteractiveMutationBoundary(request, boundary) {
+    return Object.assign(request, { [INTERACTIVE_MUTATION_BOUNDARY]: boundary });
+}
+
 function createHarness({ historyAvailable = true, rollbackTimeoutMs } = {}) {
     const calls = [];
     const events = [];
@@ -16,6 +24,7 @@ function createHarness({ historyAvailable = true, rollbackTimeoutMs } = {}) {
     const registry = new OperationRegistry();
     let value = 0;
     let restoreFailure = null;
+    let historyFailure = null;
     let renderFailure = null;
     let captureFailureAt = null;
     let captureSequence = 0;
@@ -62,6 +71,7 @@ function createHarness({ historyAvailable = true, rollbackTimeoutMs } = {}) {
             isAvailable: () => historyAvailable,
             commit: (record) => {
                 calls.push('history');
+                if (historyFailure) throw historyFailure;
                 history.push(record);
             },
         },
@@ -102,6 +112,9 @@ function createHarness({ historyAvailable = true, rollbackTimeoutMs } = {}) {
         },
         failRestore(error) {
             restoreFailure = error;
+        },
+        failHistoryCommit(error) {
+            historyFailure = error;
         },
         failNextRender(error) {
             renderFailure = error;
@@ -205,6 +218,84 @@ test('successful mutation uses one Memento pair, one History record, and one eve
             metadata: {},
         },
     ]);
+});
+
+test('interactive mutations commit their pre-captured History boundaries', async () => {
+    const harness = createHarness();
+    harness.registerOperation('test:mutate');
+    const before = harness.mementos.capture();
+    harness.value = 1;
+    const after = harness.mementos.capture();
+    harness.value = 2;
+    harness.calls.length = 0;
+
+    await harness.coordinator.run(
+        withInteractiveMutationBoundary(
+            request(harness, {
+                mutate: () => {
+                    harness.calls.push('mutate');
+                    return 'result';
+                },
+            }),
+            { before, after },
+        ),
+    );
+
+    assert.deepEqual(harness.calls, ['mutate', 'render', 'history', 'event']);
+    assert.equal(harness.history[0].before, before);
+    assert.equal(harness.history[0].after, after);
+    assert.equal(harness.value, 2);
+});
+
+test('an unsealed interactive mutation rolls back without committing History', async () => {
+    const harness = createHarness();
+    harness.registerOperation('test:mutate');
+    const before = harness.mementos.capture();
+    harness.calls.length = 0;
+
+    await assert.rejects(
+        harness.coordinator.run(
+            withInteractiveMutationBoundary(request(harness), {
+                before,
+                after: null,
+            }),
+        ),
+        DocumentMutationError,
+    );
+
+    assert.equal(harness.value, before.core.value);
+    assert.equal(harness.history.length, 0);
+    assert.equal(harness.events.length, 0);
+    assert.equal(harness.calls.filter((call) => call === 'memento:capture').length, 0);
+});
+
+test('interactive History commit failure restores the sealed before boundary', async () => {
+    const harness = createHarness();
+    harness.registerOperation('test:mutate');
+    const before = harness.mementos.capture();
+    harness.value = 1;
+    const after = harness.mementos.capture();
+    harness.calls.length = 0;
+    harness.failHistoryCommit(new Error('synthetic interactive History failure'));
+
+    await assert.rejects(
+        harness.coordinator.run(
+            withInteractiveMutationBoundary(
+                request(harness, {
+                    mutate: () => {
+                        harness.calls.push('mutate');
+                        return 'result';
+                    },
+                }),
+                { before, after },
+            ),
+        ),
+        /synthetic interactive History failure/u,
+    );
+
+    assert.equal(harness.value, before.core.value);
+    assert.equal(harness.history.length, 0);
+    assert.equal(harness.events.length, 0);
 });
 
 test('failures before and during mutate rollback prepared participants in reverse', async (t) => {

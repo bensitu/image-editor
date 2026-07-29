@@ -52,6 +52,36 @@ interface ContextRecord {
 }
 
 const DEFAULT_ROLLBACK_TIMEOUT_MS = 30_000;
+const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for(
+    '@bensitu/image-editor/internal-interactive-mutation-boundary/v1',
+);
+
+interface InteractiveMutationBoundary {
+    readonly before: CoreMemento;
+    readonly after: CoreMemento | null;
+}
+
+function getInteractiveMutationBoundary<TResult>(
+    request: DocumentMutationRequest<TResult>,
+): InteractiveMutationBoundary | null {
+    return (
+        (Reflect.get(request, INTERACTIVE_MUTATION_BOUNDARY) as
+            InteractiveMutationBoundary | undefined) ?? null
+    );
+}
+
+function requireSealedInteractiveBoundary(
+    transactionId: string,
+    after: CoreMemento | null,
+): CoreMemento {
+    if (!after) {
+        throw new DocumentMutationInvariantError(
+            transactionId,
+            new Error('Interactive mutation was not sealed before commit.'),
+        );
+    }
+    return after;
+}
 
 function isCancellation(error: unknown): boolean {
     return (
@@ -205,7 +235,8 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
         request: NormalizedRequest<TResult>,
         operationToken: OperationToken,
     ): Promise<TResult> {
-        const before = this.options.mementos.capture();
+        const interactiveBoundary = getInteractiveMutationBoundary(request);
+        const before = interactiveBoundary?.before ?? this.options.mementos.capture();
         const session: TransactionSession = {
             before,
             rollbackEntries: [],
@@ -242,7 +273,9 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
 
         let descriptor: DocumentMutationDescriptor;
         try {
-            const after = this.options.mementos.capture();
+            const after = interactiveBoundary
+                ? requireSealedInteractiveBoundary(request.id, interactiveBoundary.after)
+                : this.options.mementos.capture();
             descriptor = Object.freeze({
                 transactionId: request.id,
                 parentTransactionId: null,

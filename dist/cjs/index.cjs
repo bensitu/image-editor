@@ -1,7 +1,7 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
 const require_plugin_identifier = require('./chunks/plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./chunks/core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./chunks/core-D_s-hE8G.cjs');
+const require_core = require('./chunks/core-DrH42DIy.cjs');
 
 exports.AFFINE_EPSILON = require_core.AFFINE_EPSILON;
 exports.CoreRuntimeError = require_core.CoreRuntimeError;

@@ -1751,6 +1751,15 @@ var StablePluginApiHandle = class {
 //#endregion
 //#region dist/esm/core-runtime/mutation/document-mutation-coordinator.js
 const DEFAULT_ROLLBACK_TIMEOUT_MS$1 = 3e4;
+const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for("@bensitu/image-editor/internal-interactive-mutation-boundary/v1");
+function getInteractiveMutationBoundary(request) {
+	var _a;
+	return (_a = Reflect.get(request, INTERACTIVE_MUTATION_BOUNDARY)) !== null && _a !== void 0 ? _a : null;
+}
+function requireSealedInteractiveBoundary(transactionId, after) {
+	if (!after) throw new DocumentMutationInvariantError(transactionId, /* @__PURE__ */ new Error("Interactive mutation was not sealed before commit."));
+	return after;
+}
 function isCancellation(error) {
 	return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 }
@@ -1879,7 +1888,9 @@ var DocumentMutationCoordinator = class {
 		this.usedTransactionIds.clear();
 	}
 	async performTopLevel(request, operationToken) {
-		const before = this.options.mementos.capture();
+		var _a;
+		const interactiveBoundary = getInteractiveMutationBoundary(request);
+		const before = (_a = interactiveBoundary === null || interactiveBoundary === void 0 ? void 0 : interactiveBoundary.before) !== null && _a !== void 0 ? _a : this.options.mementos.capture();
 		const session = {
 			before,
 			rollbackEntries: [],
@@ -1913,7 +1924,7 @@ var DocumentMutationCoordinator = class {
 		}
 		let descriptor;
 		try {
-			const after = this.options.mementos.capture();
+			const after = interactiveBoundary ? requireSealedInteractiveBoundary(request.id, interactiveBoundary.after) : this.options.mementos.capture();
 			descriptor = Object.freeze({
 				transactionId: request.id,
 				parentTransactionId: null,
@@ -4788,4 +4799,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-D_s-hE8G.cjs.map
+//# sourceMappingURL=core-DrH42DIy.cjs.map

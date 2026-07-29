@@ -64,6 +64,15 @@ async function createDrawStroke(draw) {
     return id;
 }
 
+function commitMoveGesture(editor, object, left, top) {
+    const canvas = editor.getCanvas();
+    canvas.fire('before:transform', { target: object, transform: { action: 'drag' } });
+    object.set({ left, top });
+    object.setCoords();
+    canvas.fire('object:moving', { target: object });
+    canvas.fire('object:modified', { target: object });
+}
+
 test('Foundation and every independent Annotation feature combination initialize cleanly', async () => {
     for (const featureSet of [[], ['text'], ['shape'], ['draw'], ['text', 'shape', 'draw']]) {
         const instance = await createEditor({
@@ -123,6 +132,80 @@ test('mixed Mask and Annotation selection, Crop, export, and flatten share Overl
     assert.deepEqual(instance.annotations.list(), []);
     assert.ok(instance.masks.getAll().some((candidate) => candidate.maskUid === mask.maskUid));
     assert.equal(instance.history.length, 1);
+    await dispose(instance.editor);
+});
+
+test('Mask and every Annotation object keep back-to-back transform History boundaries', async () => {
+    const instance = await createEditor({
+        draw: true,
+        mask: true,
+        shape: true,
+        text: true,
+    });
+    await load(instance.editor);
+    const mask = await instance.masks.create({ left: 118, top: 16, width: 24, height: 20 });
+    const textId = await instance.text.create({ text: 'Gesture', left: 20, top: 14 });
+    const shapeId = await instance.shape.create({
+        geometry: { kind: 'rect', left: 60, top: 28, width: 34, height: 24 },
+    });
+    const drawId = await createDrawStroke(instance.draw);
+    const entries = [mask.maskUid, textId, shapeId, drawId].map((id) => {
+        const object = instance.overlay.getByPersistentId(id);
+        assert.ok(object);
+        return {
+            id,
+            start: { left: object.left, top: object.top },
+            first: { left: object.left + 11, top: object.top + 7 },
+            second: { left: object.left + 23, top: object.top + 15 },
+        };
+    });
+    instance.history.clear();
+
+    for (const entry of entries) {
+        const object = instance.overlay.getByPersistentId(entry.id);
+        commitMoveGesture(instance.editor, object, entry.first.left, entry.first.top);
+        commitMoveGesture(instance.editor, object, entry.second.left, entry.second.top);
+    }
+    await instance.overlay.waitForIdle();
+    assert.equal(instance.history.length, entries.length * 2);
+
+    for (const entry of [...entries].reverse()) {
+        await instance.history.undo();
+        assert.deepEqual(
+            {
+                left: instance.overlay.getByPersistentId(entry.id).left,
+                top: instance.overlay.getByPersistentId(entry.id).top,
+            },
+            entry.first,
+        );
+        await instance.history.undo();
+        assert.deepEqual(
+            {
+                left: instance.overlay.getByPersistentId(entry.id).left,
+                top: instance.overlay.getByPersistentId(entry.id).top,
+            },
+            entry.start,
+        );
+    }
+
+    for (const entry of entries) {
+        await instance.history.redo();
+        assert.deepEqual(
+            {
+                left: instance.overlay.getByPersistentId(entry.id).left,
+                top: instance.overlay.getByPersistentId(entry.id).top,
+            },
+            entry.first,
+        );
+        await instance.history.redo();
+        assert.deepEqual(
+            {
+                left: instance.overlay.getByPersistentId(entry.id).left,
+                top: instance.overlay.getByPersistentId(entry.id).top,
+            },
+            entry.second,
+        );
+    }
     await dispose(instance.editor);
 });
 

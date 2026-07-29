@@ -15,6 +15,7 @@ import {
     FABRIC_RUNTIME_CAPABILITY,
     GEOMETRY_MUTATION_CAPABILITY,
     IMAGE_RESOURCE_POLICY_CAPABILITY,
+    MEMENTO_HISTORY_CAPABILITY,
     RASTER_MUTATION_CAPABILITY,
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
@@ -117,6 +118,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
                 { token: RENDER_REQUEST_CAPABILITY, range: '^1.0.0' },
                 { token: RASTER_MUTATION_CAPABILITY, range: '^1.0.0' },
                 { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
+                { token: MEMENTO_HISTORY_CAPABILITY, range: '^1.0.0' },
                 { token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
                 { token: IMAGE_RESOURCE_POLICY_CAPABILITY, range: '^1.0.0' },
                 { token: EXPORT_CONTRIBUTION_CAPABILITY, range: '^1.0.0' },
@@ -140,6 +142,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
             const render = context.capabilities.require(RENDER_REQUEST_CAPABILITY);
             const raster = context.capabilities.require(RASTER_MUTATION_CAPABILITY);
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
+            const mementos = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
             const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
             const imageResources = context.capabilities.require(IMAGE_RESOURCE_POLICY_CAPABILITY);
             const exportPort = context.capabilities.require(EXPORT_CONTRIBUTION_CAPABILITY);
@@ -156,8 +159,13 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
                 runOperation: (operationId: string, task: () => void | Promise<void>) =>
                     context.operations.run(operationId, null, () => task()),
             });
+            context.operations.register({
+                id: 'overlay:gesture',
+                mode: 'mutation',
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+                reentrancy: 'queue',
+            });
             for (const operationId of [
-                'overlay:gesture',
                 'overlay:add',
                 'overlay:remove',
                 'overlay:set-hidden',
@@ -186,6 +194,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
             controller = new OverlayFoundationController(
                 host,
                 state,
+                mementos,
                 geometry,
                 mutations,
                 exportPort,

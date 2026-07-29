@@ -5,6 +5,10 @@ import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/intern
 import { PluginManifestError, createDisposable, disposeInReverseSync, isRuntimeIdentifier, isValidSemVer, } from '../../sdk/index.js';
 import { applyDeltaToObject } from './overlay-transform-delta.js';
 import { OverlayRecoverableObjectError } from './overlay-errors.js';
+const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for('@bensitu/image-editor/internal-interactive-mutation-boundary/v1');
+function withInteractiveMutationBoundary(request, boundary) {
+    return Object.assign(request, { [INTERACTIVE_MUTATION_BOUNDARY]: boundary });
+}
 function getActiveCanvasObjects(canvas) {
     var _a;
     const candidate = canvas;
@@ -202,12 +206,18 @@ function parseExportOptions(value) {
     });
 }
 export class OverlayFoundationController {
-    constructor(host, state, geometry, mutations, exportPort) {
+    constructor(host, state, mementos, geometry, mutations, exportPort) {
         Object.defineProperty(this, "host", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: host
+        });
+        Object.defineProperty(this, "mementos", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: mementos
         });
         Object.defineProperty(this, "geometry", {
             enumerable: true,
@@ -294,6 +304,12 @@ export class OverlayFoundationController {
             value: 0
         });
         Object.defineProperty(this, "activeGesture", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "gestureCommitTail", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -1195,6 +1211,24 @@ export class OverlayFoundationController {
             rejectCompletion = reject;
         });
         const id = this.nextMutationId('gesture');
+        const objectIds = Object.freeze(targets.map((entry) => entry.persistentId));
+        const metadata = Object.freeze({
+            interactive: true,
+            objectIds,
+        });
+        const previewController = new AbortController();
+        let before;
+        try {
+            before = this.mementos.captureMemento();
+        }
+        catch (error) {
+            this.host.reportError(error, 'Overlay gesture boundary capture failed.');
+            return;
+        }
+        const boundary = {
+            before,
+            after: null,
+        };
         const gesture = {
             id,
             action,
@@ -1202,22 +1236,30 @@ export class OverlayFoundationController {
             completion,
             resolve: resolveCompletion,
             reject: rejectCompletion,
+            boundary,
+            previewController,
             completionSettled: false,
             previewWork: Promise.resolve(),
             transaction: null,
-            context: null,
+            context: Object.freeze({
+                transactionId: id,
+                parentTransactionId: null,
+                operationId: 'overlay:gesture',
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+                historyOwner: 'self',
+                eventOwner: 'self',
+                signal: previewController.signal,
+                participantIds: Object.freeze([]),
+                metadata,
+            }),
         };
         this.activeGesture = gesture;
-        const transaction = this.mutations
-            .run({
+        const request = withInteractiveMutationBoundary({
             id,
             kind: 'overlay',
             operationId: 'overlay:gesture',
             conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
-            metadata: Object.freeze({
-                interactive: true,
-                objectIds: targets.map((entry) => entry.persistentId),
-            }),
+            metadata,
             mutate: async (context) => {
                 gesture.context = context;
                 await this.waitForGestureCompletion(gesture, context.signal);
@@ -1227,20 +1269,35 @@ export class OverlayFoundationController {
             synchronize: (descriptor, context) => this.runInteractionPolicies(targets, descriptor, context, 'synchronize'),
             validate: (descriptor, context) => this.validateMutation(targets, descriptor, context),
             describeCommit: (descriptor) => descriptor,
-        })
-            .then(() => undefined);
+        }, boundary);
+        let commitStarted = false;
+        const commit = () => {
+            commitStarted = true;
+            return this.mutations.run(request).then(() => undefined);
+        };
+        const previousCommit = this.gestureCommitTail;
+        const transaction = previousCommit ? previousCommit.then(commit) : commit();
         gesture.transaction = transaction;
+        this.gestureCommitTail = transaction;
         this.lastGestureTransaction = transaction;
-        transaction.then(() => this.clearGesture(gesture), () => this.clearGesture(gesture));
+        transaction.then(() => {
+            this.clearGesture(gesture);
+            if (this.gestureCommitTail === transaction)
+                this.gestureCommitTail = null;
+        }, () => {
+            this.clearGesture(gesture);
+            if (this.gestureCommitTail === transaction)
+                this.gestureCommitTail = null;
+        });
         void transaction.catch((error) => {
-            if (!isAbortError(error)) {
+            if (commitStarted && !isAbortError(error)) {
                 this.host.reportError(error, 'Overlay gesture transaction failed.');
             }
         });
     }
     previewGesture(target, action) {
         const gesture = this.activeGesture;
-        if (!target || !gesture || !gesture.context || gesture.completionSettled)
+        if (!target || !gesture || gesture.completionSettled)
             return;
         const previewIds = new Set(this.resolveOverlayTargets(target).map((entry) => entry.persistentId));
         if (gesture.targets.some((entry) => !previewIds.has(entry.persistentId))) {
@@ -1258,14 +1315,24 @@ export class OverlayFoundationController {
     resolveGesture(gesture) {
         if (gesture.completionSettled)
             return;
+        try {
+            gesture.boundary.after = this.mementos.captureMemento();
+        }
+        catch (error) {
+            this.failGesture(gesture, error);
+            return;
+        }
         gesture.completionSettled = true;
         gesture.resolve();
+        this.clearGesture(gesture);
     }
     failGesture(gesture, error) {
         if (gesture.completionSettled)
             return;
         gesture.completionSettled = true;
+        gesture.previewController.abort(error);
         gesture.reject(error);
+        this.clearGesture(gesture);
     }
     clearGesture(gesture) {
         if (this.activeGesture === gesture)
