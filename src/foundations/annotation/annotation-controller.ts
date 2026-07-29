@@ -14,6 +14,7 @@ import type {
     RenderRequestPort,
 } from '../../sdk/index.js';
 import { createDisposable } from '../../sdk/index.js';
+import { placeSessionObject } from '../../utils/internal-layer-placement.js';
 import type {
     OverlayExportRenderer,
     OverlayFoundationApi,
@@ -562,7 +563,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             hasControls: false,
             excludeFromExport: true,
         });
-        canvas.add(preview);
+        placeSessionObject(canvas, preview);
         if (request.select === true) canvas.setActiveObject(preview);
         const classification = this.overlay.classify(preview);
         if (classification?.kind !== ANNOTATION_PREVIEW_KIND) {

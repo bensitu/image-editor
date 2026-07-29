@@ -6,6 +6,39 @@
 if (Object.prototype.hasOwnProperty.call(exports, "mosaicPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/utils/internal-layer-placement.js
+	function moveObjectTo(canvas, object, index) {
+		const canvasWithLayerApi = canvas;
+		if (typeof canvasWithLayerApi.moveObjectTo === "function") {
+			canvasWithLayerApi.moveObjectTo(object, index);
+			return;
+		}
+		try {
+			canvas.remove(object);
+			canvas.insertAt(index, object);
+		} catch {
+			canvas.add(object);
+		}
+	}
+	function ensureOnCanvas(canvas, object) {
+		if (!canvas.getObjects().includes(object)) canvas.add(object);
+	}
+	function withoutObject(canvas, object) {
+		return canvas.getObjects().filter((candidate) => candidate !== object);
+	}
+	function markSessionObject(object, sessionObjectType) {
+		const sessionObject = object;
+		sessionObject.editorObjectKind = "session";
+		sessionObject.sessionObjectType = sessionObjectType;
+		return sessionObject;
+	}
+	function placeSessionObject(canvas, sessionObject) {
+		sessionObject.editorLayerRole = "session";
+		ensureOnCanvas(canvas, sessionObject);
+		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
+	}
+
+//#endregion
 //#region dist/esm/plugins/mosaic/mosaic-brush.js
 	function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
 		const deltaX = x - centerX;
@@ -534,11 +567,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const source = this.requireBaseImage();
 			const cache = createMosaicRasterCache(source);
 			this.assertCachePolicy(cache);
-			const preview = createMosaicPreviewImage(this.host.fabric, source, cache);
-			const canvas = this.host.requireCanvas("enter Mosaic");
-			canvas.add(preview);
-			const sourceIndex = canvas.getObjects().indexOf(source);
-			canvas.moveObjectTo(preview, Math.max(0, sourceIndex + 1));
+			const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), "mosaicPreviewImage");
+			placeSessionObject(this.host.requireCanvas("enter Mosaic"), preview);
 			const state = Object.freeze({
 				sourceRevision: this.host.getGeometryRevision(),
 				sourceWidthPx: cache.widthPx,

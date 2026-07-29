@@ -8,6 +8,7 @@ import type * as FabricNS from 'fabric';
 
 import type { GeometryMutationPort } from '../../core/index.js';
 import type { OverlayRuntimeApi } from '../../foundations/overlay/index.js';
+import { markSessionObject, placeSessionObject } from '../../utils/internal-layer-placement.js';
 import {
     createDisposable,
     observePromise,
@@ -213,8 +214,8 @@ export class CropController {
         const overlayPolicy = normalizeCropOverlayPolicy(options.overlayPolicy);
         const preview = this.createPreview(baseImage, rect);
         const canvas = this.host.requireCanvas('enter Crop');
-        canvas.add(preview);
-        canvas.bringObjectToFront(preview);
+        markSessionObject(preview, 'cropRect');
+        placeSessionObject(canvas, preview);
         const state: CropSessionState = Object.freeze({
             rect,
             aspectRatio,
@@ -443,7 +444,7 @@ export class CropController {
         const baseImage = this.requireBaseImage();
         this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
         const canvas = this.host.requireCanvas('refresh Crop preview');
-        canvas.bringObjectToFront(session.preview);
+        placeSessionObject(canvas, session.preview);
         if (session.previewVisibility) {
             observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
                 this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');

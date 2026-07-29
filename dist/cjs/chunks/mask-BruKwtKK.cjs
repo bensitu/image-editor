@@ -3,6 +3,7 @@ const require_core = require('./core-SjIO7_D6.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_overlay = require('./overlay-DPn_scKI.cjs');
+const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-VBb127k8.cjs');
 
@@ -17,58 +18,6 @@ function markMaskObject(object, meta) {
 	if (meta.originalStroke !== void 0) mask.originalStroke = meta.originalStroke;
 	if (typeof meta.originalStrokeWidth === "number") mask.originalStrokeWidth = meta.originalStrokeWidth;
 	return mask;
-}
-function markSessionObject(object, sessionObjectType) {
-	const sessionObject = object;
-	sessionObject.editorObjectKind = "session";
-	sessionObject.sessionObjectType = sessionObjectType;
-	return sessionObject;
-}
-
-//#endregion
-//#region dist/esm/core/public-types.js
-function isMaskObject$1(object) {
-	const candidate = object;
-	return !!candidate && candidate.editorObjectKind === "mask" && typeof candidate.maskId === "number" && typeof candidate.maskUid === "string" && typeof candidate.maskName === "string";
-}
-function isSessionObject(object) {
-	const candidate = object;
-	return !!candidate && candidate.editorObjectKind === "session" && typeof candidate.sessionObjectType === "string";
-}
-
-//#endregion
-//#region dist/esm/core/layer-order.js
-function isPropertyMarkedSessionObject(object) {
-	const candidate = object;
-	return candidate.isCropRect === true || candidate.maskLabel === true || candidate.isMosaicPreview === true;
-}
-function moveObjectTo(canvas, object, index) {
-	const canvasWithLayerApi = canvas;
-	if (typeof canvasWithLayerApi.moveObjectTo === "function") {
-		canvasWithLayerApi.moveObjectTo(object, index);
-		return;
-	}
-	try {
-		canvas.remove(object);
-		canvas.insertAt(index, object);
-	} catch {
-		canvas.add(object);
-	}
-}
-function ensureOnCanvas(canvas, object) {
-	if (!canvas.getObjects().includes(object)) canvas.add(object);
-}
-function withoutObject(canvas, object) {
-	return canvas.getObjects().filter((candidate) => candidate !== object);
-}
-function findFirstSessionIndex(objects) {
-	return objects.findIndex((object) => isSessionObject(object) || isPropertyMarkedSessionObject(object));
-}
-function placeMaskObject(canvas, mask) {
-	ensureOnCanvas(canvas, mask);
-	const objects = withoutObject(canvas, mask);
-	const firstSessionIndex = findFirstSessionIndex(objects);
-	moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 
 //#endregion
@@ -591,7 +540,7 @@ function applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig) 
 function finalizeMaskAttachment(context, config, resolvedConfig, maskObject) {
 	const { canvas, options } = context;
 	context.setLastMask(maskObject);
-	placeMaskObject(canvas, maskObject);
+	require_internal_layer_placement.placeMaskObject(canvas, maskObject);
 	if (resolvedConfig.selectable !== false) canvas.setActiveObject(maskObject);
 	canvas.renderAll();
 	if (typeof config.onCreate === "function") try {
@@ -660,11 +609,10 @@ function createLabelForMask(context, mask) {
 		};
 		labelTextObject = new fabricModule.FabricText(labelText, textOptions);
 	}
-	markSessionObject(labelTextObject, "maskLabel");
+	require_internal_layer_placement.markSessionObject(labelTextObject, "maskLabel");
 	labelTextObject.maskLabel = true;
 	mask.labelObject = labelTextObject;
-	canvas.add(labelTextObject);
-	canvas.bringObjectToFront(labelTextObject);
+	require_internal_layer_placement.placeSessionObject(canvas, labelTextObject);
 	syncMaskLabel(context, mask);
 }
 function syncMaskLabel(context, mask) {
@@ -708,7 +656,7 @@ function hideAllMaskLabels(context) {
 			canvas.remove(l);
 		} catch {}
 	});
-	objs.filter(isMaskObject$1).forEach((o) => {
+	objs.filter(require_internal_layer_placement.isMaskObject).forEach((o) => {
 		try {
 			delete o.labelObject;
 		} catch {}
@@ -1449,4 +1397,4 @@ Object.defineProperty(exports, 'maskPluginRef', {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-yIkTFQuV.cjs.map
+//# sourceMappingURL=mask-BruKwtKK.cjs.map

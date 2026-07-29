@@ -159,6 +159,50 @@ test('Mosaic preview uses dirty regions and remains transient through multiple s
     await dispose(editor);
 });
 
+test('Mosaic session preview remains above committed Filters and persistent overlays', async () => {
+    const { editor, filtersApi, masksApi, mosaic } = await createEditor({
+        filters: true,
+        masks: true,
+        id: 'layer-authority',
+    });
+    await load(editor);
+    const canvas = editor.getCanvas();
+    const baseImage = canvas.getObjects()[0];
+    const mask = await masksApi.create({
+        left: 30,
+        top: 24,
+        width: 20,
+        height: 16,
+    });
+    await filtersApi.commit([{ type: 'sepia' }]);
+    const committedVisual = canvas
+        .getObjects()
+        .find((object) => object !== baseImage && object !== mask);
+    assert.ok(committedVisual);
+    const persistentOrder = masksApi.getAll();
+
+    await mosaic.enter();
+    await mosaic.beginStroke({ xPx: 20, yPx: 20 });
+    await mosaic.appendStroke({ xPx: 40, yPx: 20 });
+    const preview = canvas
+        .getObjects()
+        .find((object) => object !== baseImage && object !== committedVisual && object !== mask);
+    assert.ok(preview);
+    const objectsDuringSession = canvas.getObjects();
+    assert.equal(objectsDuringSession.indexOf(baseImage), 0);
+    assert.ok(objectsDuringSession.indexOf(committedVisual) < objectsDuringSession.indexOf(mask));
+    assert.ok(objectsDuringSession.indexOf(mask) < objectsDuringSession.indexOf(preview));
+    assert.equal(preview.editorObjectKind, 'session');
+    assert.equal(preview.sessionObjectType, 'mosaicPreviewImage');
+    assert.ok(mosaic.getSession().dirtyRectangle.widthPx > 0);
+
+    await mosaic.cancel();
+    assert.deepEqual(canvas.getObjects(), [baseImage, committedVisual, mask]);
+    assert.deepEqual(masksApi.getAll(), persistentOrder);
+    assert.equal(canvas.getObjects().includes(preview), false);
+    await dispose(editor);
+});
+
 test('Mosaic configuration is validated, immutable, and captured by active sessions', async () => {
     const { editor, mosaic } = await createEditor({ id: 'configuration' });
     await load(editor);
@@ -316,6 +360,44 @@ test('Mosaic commit bakes Filters in the parent and preserves generic Overlay id
     assert.equal(masksApi.getAll().length, 1);
     assert.equal(masksApi.getAll()[0], mask);
     assert.equal(mask.canvas, editor.getCanvas());
+    assert.equal(
+        editor
+            .getCanvas()
+            .getObjects()
+            .some(
+                (object) =>
+                    object.editorLayerRole === 'session' ||
+                    object.editorLayerRole === 'rasterVisual',
+            ),
+        false,
+    );
+    assert.equal(history.length, 1);
+    assert.equal(observer.events.length, 1);
+    await dispose(editor);
+});
+
+test('Mosaic unbaked commit preserves Filters and refreshes its visual for the new Base Image', async () => {
+    const { editor, filtersApi, history, mosaic, observer } = await createEditor({
+        filters: true,
+        id: 'unbaked-filters',
+    });
+    await load(editor);
+    await filtersApi.commit([{ type: 'sepia' }]);
+    const before = await editor.exportImageBase64({ format: 'png' });
+    history.clear();
+    observer.events.length = 0;
+
+    await mosaic.enter();
+    await drawTwoStrokes(mosaic);
+    await mosaic.commit({ bakeVisibleFilters: false });
+
+    const objects = editor.getCanvas().getObjects();
+    assert.equal(mosaic.isActive, false);
+    assert.deepEqual(filtersApi.getState().filters, [{ type: 'sepia' }]);
+    assert.equal(objects[0].editorObjectKind, 'baseImage');
+    assert.equal(objects[1].editorLayerRole, 'rasterVisual');
+    assert.equal(objects.length, 2);
+    assert.notEqual(await editor.exportImageBase64({ format: 'png' }), before);
     assert.equal(history.length, 1);
     assert.equal(observer.events.length, 1);
     await dispose(editor);

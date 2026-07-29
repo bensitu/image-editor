@@ -1,6 +1,6 @@
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
-import { markSessionObject } from '../core/editor-object-kind.js';
+import { markSessionObject, placeSessionObject } from '../utils/internal-layer-placement.js';
 export function removeLabelForMask(context, mask) {
     if (!context.canvas || !mask.labelObject)
         return;
@@ -57,8 +57,7 @@ function createLabelForMask(context, mask) {
     markSessionObject(labelTextObject, 'maskLabel');
     labelTextObject.maskLabel = true;
     mask.labelObject = labelTextObject;
-    canvas.add(labelTextObject);
-    canvas.bringObjectToFront(labelTextObject);
+    placeSessionObject(canvas, labelTextObject);
     syncMaskLabel(context, mask);
 }
 export function syncMaskLabel(context, mask) {

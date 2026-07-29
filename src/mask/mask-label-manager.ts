@@ -11,7 +11,7 @@ import type * as FabricNS from 'fabric';
 import type { FabricModule, MaskFactoryOptions, MaskObject } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
-import { markSessionObject } from '../core/editor-object-kind.js';
+import { markSessionObject, placeSessionObject } from '../utils/internal-layer-placement.js';
 
 /**
  * State the label helpers read from the editor runtime.
@@ -148,9 +148,7 @@ function createLabelForMask(context: MaskLabelManagerContext, mask: MaskObject):
     (labelTextObject as LabelText).maskLabel = true;
 
     mask.labelObject = labelTextObject;
-    canvas.add(labelTextObject);
-    // The supported Canvas API exposes `bringObjectToFront`.
-    canvas.bringObjectToFront(labelTextObject);
+    placeSessionObject(canvas, labelTextObject);
 
     syncMaskLabel(context, mask);
 }

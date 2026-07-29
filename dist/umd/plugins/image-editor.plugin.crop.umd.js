@@ -6,6 +6,39 @@
 if (Object.prototype.hasOwnProperty.call(exports, "cropPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/utils/internal-layer-placement.js
+	function moveObjectTo(canvas, object, index) {
+		const canvasWithLayerApi = canvas;
+		if (typeof canvasWithLayerApi.moveObjectTo === "function") {
+			canvasWithLayerApi.moveObjectTo(object, index);
+			return;
+		}
+		try {
+			canvas.remove(object);
+			canvas.insertAt(index, object);
+		} catch {
+			canvas.add(object);
+		}
+	}
+	function ensureOnCanvas(canvas, object) {
+		if (!canvas.getObjects().includes(object)) canvas.add(object);
+	}
+	function withoutObject(canvas, object) {
+		return canvas.getObjects().filter((candidate) => candidate !== object);
+	}
+	function markSessionObject(object, sessionObjectType) {
+		const sessionObject = object;
+		sessionObject.editorObjectKind = "session";
+		sessionObject.sessionObjectType = sessionObjectType;
+		return sessionObject;
+	}
+	function placeSessionObject(canvas, sessionObject) {
+		sessionObject.editorLayerRole = "session";
+		ensureOnCanvas(canvas, sessionObject);
+		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
+	}
+
+//#endregion
 //#region dist/esm/plugins/crop/crop-errors.js
 	var CropError = class extends Error {
 		constructor() {
@@ -556,8 +589,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const overlayPolicy = normalizeCropOverlayPolicy(options.overlayPolicy);
 			const preview = this.createPreview(baseImage, rect);
 			const canvas = this.host.requireCanvas("enter Crop");
-			canvas.add(preview);
-			canvas.bringObjectToFront(preview);
+			markSessionObject(preview, "cropRect");
+			placeSessionObject(canvas, preview);
 			const state = Object.freeze({
 				rect,
 				aspectRatio,
@@ -731,7 +764,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		refreshPreview(session) {
 			const baseImage = this.requireBaseImage();
 			this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
-			this.host.requireCanvas("refresh Crop preview").bringObjectToFront(session.preview);
+			placeSessionObject(this.host.requireCanvas("refresh Crop preview"), session.preview);
 			if (session.previewVisibility) (0, _bensitu_image_editor_sdk.observePromise)(Promise.resolve(session.previewVisibility.dispose()), (error) => {
 				this.host.reportWarning(error, "Crop preview visibility cleanup failed.");
 			});

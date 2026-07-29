@@ -3,6 +3,7 @@ const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-CSawOGVt.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
+const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 const require_error = require('./error-DjRQe7I0.cjs');
 
@@ -912,9 +913,7 @@ var FiltersController = class {
 			backgroundColor: this.host.backgroundColor,
 			transient: true
 		});
-		if (!canvas.getObjects().includes(image)) canvas.add(image);
-		const baseIndex = canvas.getObjects().indexOf(baseImage);
-		canvas.moveObjectTo(image, Math.max(0, baseIndex + 1));
+		require_internal_layer_placement.placeRasterVisualObject(canvas, image);
 	}
 	detachVisual(image) {
 		const canvas = this.host.getCanvas();
@@ -1230,4 +1229,4 @@ Object.defineProperty(exports, 'normalizeFilterDefinitions', {
     return normalizeFilterDefinitions;
   }
 });
-//# sourceMappingURL=filters-De26m7iN.cjs.map
+//# sourceMappingURL=filters-52ZvOp08.cjs.map

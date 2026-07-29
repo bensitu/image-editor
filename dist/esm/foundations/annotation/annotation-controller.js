@@ -1,4 +1,5 @@
 import { createDisposable } from '../../sdk/index.js';
+import { placeSessionObject } from '../../utils/internal-layer-placement.js';
 import { applyAnnotationGeometry } from './annotation-geometry.js';
 import { AnnotationError, AnnotationNotFoundError, AnnotationValidationError, } from './annotation-errors.js';
 import { isValidAnnotationMetadata, normalizeAnnotationMetadata, normalizeAnnotationName, } from './annotation-metadata.js';
@@ -445,7 +446,7 @@ export class AnnotationController {
             hasControls: false,
             excludeFromExport: true,
         });
-        canvas.add(preview);
+        placeSessionObject(canvas, preview);
         if (request.select === true)
             canvas.setActiveObject(preview);
         const classification = this.overlay.classify(preview);

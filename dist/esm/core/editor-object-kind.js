@@ -43,10 +43,4 @@ export function markAnnotationObject(object, meta) {
     }
     return annotation;
 }
-export function markSessionObject(object, sessionObjectType) {
-    const sessionObject = object;
-    sessionObject.editorObjectKind = 'session';
-    sessionObject.sessionObjectType = sessionObjectType;
-    return sessionObject;
-}
 //# sourceMappingURL=editor-object-kind.js.map

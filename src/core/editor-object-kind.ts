@@ -15,8 +15,6 @@ import type {
     AnnotationType,
     BaseImageObject,
     MaskObject,
-    SessionObject,
-    SessionObjectType,
 } from './public-types.js';
 
 export function markBaseImageObject(image: FabricNS.FabricImage): BaseImageObject {
@@ -89,14 +87,4 @@ export function markAnnotationObject(
         ).shapeAnnotationKind = meta.shapeAnnotationKind;
     }
     return annotation;
-}
-
-export function markSessionObject<T extends FabricNS.FabricObject>(
-    object: T,
-    sessionObjectType: SessionObjectType,
-): T & SessionObject {
-    const sessionObject = object as T & SessionObject;
-    sessionObject.editorObjectKind = 'session';
-    sessionObject.sessionObjectType = sessionObjectType;
-    return sessionObject;
 }

@@ -19,7 +19,7 @@ import type {
     ResolvedOptions,
 } from '../core/public-types.js';
 import { markMaskObject } from '../core/editor-object-kind.js';
-import { placeMaskObject } from '../core/layer-order.js';
+import { placeMaskObject } from '../utils/internal-layer-placement.js';
 import { reportWarning } from '../core/callback-reporter.js';
 import { copySafeOwnProperties } from '../core/safe-object-copy.js';
 import { attachMaskHoverHandlers } from './mask-style.js';

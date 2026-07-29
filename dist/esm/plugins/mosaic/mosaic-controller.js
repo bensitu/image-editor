@@ -1,4 +1,5 @@
 import { createDisposable, } from '../../sdk/index.js';
+import { markSessionObject, placeSessionObject } from '../../utils/internal-layer-placement.js';
 import { applyCircularMosaic, interpolateMosaicPoints, mergeDirtyRectangles, } from './mosaic-brush.js';
 import { MosaicIntegrationError, MosaicSessionError, MosaicValidationError, } from './mosaic-errors.js';
 import { createMosaicPreviewImage, createMosaicRasterCache, disposeMosaicRasterCache, writeMosaicDirtyRegion, } from './mosaic-raster-cache.js';
@@ -214,11 +215,9 @@ export class MosaicController {
         const source = this.requireBaseImage();
         const cache = createMosaicRasterCache(source);
         this.assertCachePolicy(cache);
-        const preview = createMosaicPreviewImage(this.host.fabric, source, cache);
+        const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), 'mosaicPreviewImage');
         const canvas = this.host.requireCanvas('enter Mosaic');
-        canvas.add(preview);
-        const sourceIndex = canvas.getObjects().indexOf(source);
-        canvas.moveObjectTo(preview, Math.max(0, sourceIndex + 1));
+        placeSessionObject(canvas, preview);
         const state = Object.freeze({
             sourceRevision: this.host.getGeometryRevision(),
             sourceWidthPx: cache.widthPx,

@@ -2,6 +2,7 @@ const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
+const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_error = require('./error-DjRQe7I0.cjs');
 
 //#region dist/esm/plugins/mosaic/mosaic-brush.js
@@ -486,11 +487,8 @@ var MosaicController = class {
 		const source = this.requireBaseImage();
 		const cache = createMosaicRasterCache(source);
 		this.assertCachePolicy(cache);
-		const preview = createMosaicPreviewImage(this.host.fabric, source, cache);
-		const canvas = this.host.requireCanvas("enter Mosaic");
-		canvas.add(preview);
-		const sourceIndex = canvas.getObjects().indexOf(source);
-		canvas.moveObjectTo(preview, Math.max(0, sourceIndex + 1));
+		const preview = require_internal_layer_placement.markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), "mosaicPreviewImage");
+		require_internal_layer_placement.placeSessionObject(this.host.requireCanvas("enter Mosaic"), preview);
 		const state = Object.freeze({
 			sourceRevision: this.host.getGeometryRevision(),
 			sourceWidthPx: cache.widthPx,
@@ -957,4 +955,4 @@ Object.defineProperty(exports, 'mosaicPluginRef', {
     return mosaicPluginRef;
   }
 });
-//# sourceMappingURL=mosaic-B3mWybBc.cjs.map
+//# sourceMappingURL=mosaic-HDL7r4lz.cjs.map

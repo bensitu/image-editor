@@ -1,3 +1,4 @@
+import { markSessionObject, placeSessionObject } from '../../utils/internal-layer-placement.js';
 import { createDisposable, observePromise, } from '../../sdk/index.js';
 import { CropIntegrationError, CropSessionError, CropValidationError } from './crop-errors.js';
 import { fitCropRectToAspectRatio, normalizeCropAspectRatio, normalizeCropRect, } from './crop-geometry.js';
@@ -188,8 +189,8 @@ export class CropController {
         const overlayPolicy = normalizeCropOverlayPolicy(options.overlayPolicy);
         const preview = this.createPreview(baseImage, rect);
         const canvas = this.host.requireCanvas('enter Crop');
-        canvas.add(preview);
-        canvas.bringObjectToFront(preview);
+        markSessionObject(preview, 'cropRect');
+        placeSessionObject(canvas, preview);
         const state = Object.freeze({
             rect,
             aspectRatio,
@@ -371,7 +372,7 @@ export class CropController {
         const baseImage = this.requireBaseImage();
         this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
         const canvas = this.host.requireCanvas('refresh Crop preview');
-        canvas.bringObjectToFront(session.preview);
+        placeSessionObject(canvas, session.preview);
         if (session.previewVisibility) {
             observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
                 this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');

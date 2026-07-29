@@ -1,6 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_overlay = require('./overlay-DPn_scKI.cjs');
+const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 
 //#region dist/esm/foundations/annotation/annotation-geometry.js
@@ -611,7 +612,7 @@ var AnnotationController = class {
 			hasControls: false,
 			excludeFromExport: true
 		});
-		canvas.add(preview);
+		require_internal_layer_placement.placeSessionObject(canvas, preview);
 		if (request.select === true) canvas.setActiveObject(preview);
 		const classification = this.overlay.classify(preview);
 		if ((classification === null || classification === void 0 ? void 0 : classification.kind) !== ANNOTATION_PREVIEW_KIND) {
@@ -1109,4 +1110,4 @@ Object.defineProperty(exports, 'annotationFoundationRef', {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-B3CbscQT.cjs.map
+//# sourceMappingURL=annotation-D14PLIge.cjs.map

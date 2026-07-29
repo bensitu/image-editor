@@ -196,12 +196,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (typeof meta.originalStrokeWidth === "number") mask.originalStrokeWidth = meta.originalStrokeWidth;
 		return mask;
 	}
-	function markSessionObject(object, sessionObjectType) {
-		const sessionObject = object;
-		sessionObject.editorObjectKind = "session";
-		sessionObject.sessionObjectType = sessionObjectType;
-		return sessionObject;
-	}
 
 //#endregion
 //#region dist/esm/core/public-types.js
@@ -215,7 +209,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 //#endregion
-//#region dist/esm/core/layer-order.js
+//#region dist/esm/utils/internal-layer-placement.js
+	function isInternallyMarkedSessionObject(object) {
+		return object.editorLayerRole === "session";
+	}
 	function isPropertyMarkedSessionObject(object) {
 		const candidate = object;
 		return candidate.isCropRect === true || candidate.maskLabel === true || candidate.isMosaicPreview === true;
@@ -240,13 +237,24 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return canvas.getObjects().filter((candidate) => candidate !== object);
 	}
 	function findFirstSessionIndex(objects) {
-		return objects.findIndex((object) => isSessionObject(object) || isPropertyMarkedSessionObject(object));
+		return objects.findIndex((object) => isSessionObject(object) || isInternallyMarkedSessionObject(object) || isPropertyMarkedSessionObject(object));
 	}
 	function placeMaskObject(canvas, mask) {
 		ensureOnCanvas(canvas, mask);
 		const objects = withoutObject(canvas, mask);
 		const firstSessionIndex = findFirstSessionIndex(objects);
 		moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
+	}
+	function markSessionObject(object, sessionObjectType) {
+		const sessionObject = object;
+		sessionObject.editorObjectKind = "session";
+		sessionObject.sessionObjectType = sessionObjectType;
+		return sessionObject;
+	}
+	function placeSessionObject(canvas, sessionObject) {
+		sessionObject.editorLayerRole = "session";
+		ensureOnCanvas(canvas, sessionObject);
+		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
 //#endregion
@@ -847,8 +855,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		markSessionObject(labelTextObject, "maskLabel");
 		labelTextObject.maskLabel = true;
 		mask.labelObject = labelTextObject;
-		canvas.add(labelTextObject);
-		canvas.bringObjectToFront(labelTextObject);
+		placeSessionObject(canvas, labelTextObject);
 		syncMaskLabel(context, mask);
 	}
 	function syncMaskLabel(context, mask) {

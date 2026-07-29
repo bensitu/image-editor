@@ -199,6 +199,33 @@ test('Crop sessions are transient across enter, update, aspect ratio, export, an
     await dispose(editor);
 });
 
+test('Crop session stays above a committed Filters raster visual', async () => {
+    const { crop, editor, filtersApi } = await createEditor({
+        filters: true,
+        id: 'layer-authority',
+    });
+    await load(editor);
+    await filtersApi.commit([{ type: 'sepia' }]);
+    const canvas = editor.getCanvas();
+    const baseImage = canvas.getObjects()[0];
+    const committedVisual = canvas
+        .getObjects()
+        .find((object) => object.editorLayerRole === 'rasterVisual');
+    assert.ok(committedVisual);
+
+    await crop.enter();
+
+    const preview = canvas.getObjects().find((object) => object.sessionObjectType === 'cropRect');
+    assert.ok(preview);
+    assert.deepEqual(canvas.getObjects(), [baseImage, committedVisual, preview]);
+    assert.equal(preview.editorObjectKind, 'session');
+    assert.equal(preview.editorLayerRole, 'session');
+
+    await crop.cancel();
+    assert.deepEqual(canvas.getObjects(), [baseImage, committedVisual]);
+    await dispose(editor);
+});
+
 test('Crop apply replaces one Base Image with accurate geometry, MIME, History, and undo', async () => {
     const { crop, editor, history, observer } = await createEditor({ id: 'apply' });
     await load(editor);

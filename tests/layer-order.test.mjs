@@ -32,8 +32,9 @@ const {
     placeAnnotationObject,
     placeBaseImageObject,
     placeMaskObject,
+    placeRasterVisualObject,
     placeSessionObject,
-} = await import('../src/core/layer-order.ts');
+} = await import('../src/utils/internal-layer-placement.ts');
 
 class MockCanvas {
     constructor(objects = []) {
@@ -82,6 +83,10 @@ function session(name) {
     return { name, editorObjectKind: 'session', sessionObjectType: 'mosaicPreviewCircle' };
 }
 
+function rasterVisual(name) {
+    return { name, editorLayerRole: 'rasterVisual' };
+}
+
 function other(name) {
     return { name };
 }
@@ -95,13 +100,21 @@ test('normalizeLayerOrder repairs base, other, overlay, session groups', () => {
         session('session1'),
         mask('mask1'),
         other('other1'),
+        rasterVisual('raster1'),
         base('base1'),
         annotation('annotation1'),
     ]);
 
     normalizeLayerOrder(canvas);
 
-    assert.deepEqual(names(canvas), ['base1', 'other1', 'mask1', 'annotation1', 'session1']);
+    assert.deepEqual(names(canvas), [
+        'base1',
+        'raster1',
+        'other1',
+        'mask1',
+        'annotation1',
+        'session1',
+    ]);
 });
 
 test('normalizeLayerOrder preserves editable overlay relative order', () => {
@@ -130,8 +143,10 @@ test('single-object placement inserts new objects into the correct layer band', 
     const mask1 = mask('mask1');
     const annotation1 = annotation('annotation1');
     const session2 = session('session2');
+    const raster1 = rasterVisual('raster1');
     const base2 = base('base2');
 
+    placeRasterVisualObject(canvas, raster1);
     placeMaskObject(canvas, mask1);
     placeAnnotationObject(canvas, annotation1);
     placeSessionObject(canvas, session2);
@@ -140,6 +155,7 @@ test('single-object placement inserts new objects into the correct layer band', 
     assert.deepEqual(names(canvas), [
         'base1',
         'base2',
+        'raster1',
         'other1',
         'mask1',
         'annotation1',

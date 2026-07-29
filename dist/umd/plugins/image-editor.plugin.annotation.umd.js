@@ -6,6 +6,33 @@
 if (Object.prototype.hasOwnProperty.call(exports, "annotationFoundationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/utils/internal-layer-placement.js
+	function moveObjectTo(canvas, object, index) {
+		const canvasWithLayerApi = canvas;
+		if (typeof canvasWithLayerApi.moveObjectTo === "function") {
+			canvasWithLayerApi.moveObjectTo(object, index);
+			return;
+		}
+		try {
+			canvas.remove(object);
+			canvas.insertAt(index, object);
+		} catch {
+			canvas.add(object);
+		}
+	}
+	function ensureOnCanvas(canvas, object) {
+		if (!canvas.getObjects().includes(object)) canvas.add(object);
+	}
+	function withoutObject(canvas, object) {
+		return canvas.getObjects().filter((candidate) => candidate !== object);
+	}
+	function placeSessionObject(canvas, sessionObject) {
+		sessionObject.editorLayerRole = "session";
+		ensureOnCanvas(canvas, sessionObject);
+		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
+	}
+
+//#endregion
 //#region dist/esm/foundations/annotation/annotation-geometry.js
 	function isFiniteMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
@@ -620,7 +647,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				hasControls: false,
 				excludeFromExport: true
 			});
-			canvas.add(preview);
+			placeSessionObject(canvas, preview);
 			if (request.select === true) canvas.setActiveObject(preview);
 			const classification = this.overlay.classify(preview);
 			if ((classification === null || classification === void 0 ? void 0 : classification.kind) !== ANNOTATION_PREVIEW_KIND) {

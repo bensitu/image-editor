@@ -3,6 +3,7 @@ const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 const require_overlay = require('./overlay-DPn_scKI.cjs');
+const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_error = require('./error-DjRQe7I0.cjs');
 
 //#region dist/esm/plugins/crop/crop-errors.js
@@ -509,8 +510,8 @@ var CropController = class {
 		const overlayPolicy = normalizeCropOverlayPolicy(options.overlayPolicy);
 		const preview = this.createPreview(baseImage, rect);
 		const canvas = this.host.requireCanvas("enter Crop");
-		canvas.add(preview);
-		canvas.bringObjectToFront(preview);
+		require_internal_layer_placement.markSessionObject(preview, "cropRect");
+		require_internal_layer_placement.placeSessionObject(canvas, preview);
 		const state = Object.freeze({
 			rect,
 			aspectRatio,
@@ -684,7 +685,7 @@ var CropController = class {
 	refreshPreview(session) {
 		const baseImage = this.requireBaseImage();
 		this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
-		this.host.requireCanvas("refresh Crop preview").bringObjectToFront(session.preview);
+		require_internal_layer_placement.placeSessionObject(this.host.requireCanvas("refresh Crop preview"), session.preview);
 		if (session.previewVisibility) require_core_capabilities.observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
 			this.host.reportWarning(error, "Crop preview visibility cleanup failed.");
 		});
@@ -990,4 +991,4 @@ Object.defineProperty(exports, 'cropPluginRef', {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-C22ESois.cjs.map
+//# sourceMappingURL=crop-q3HWB-eQ.cjs.map

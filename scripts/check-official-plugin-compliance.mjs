@@ -41,6 +41,7 @@ const publicSafeUtilities = new Set([
     'src/utils/abortable-promise.ts',
     'src/utils/error.ts',
     'src/utils/image-budget.ts',
+    'src/utils/internal-layer-placement.ts',
     'src/utils/internal-operation-conflict-domains.ts',
     'src/utils/safe-object-key.ts',
 ]);

@@ -213,9 +213,17 @@ test('Shape Snapshot, export, flatten, and Crop preserve public boundaries', asy
     await dispose(editor);
 });
 
-test('switching from Shape to Mosaic cleans preview without History', async () => {
-    const { editor, history, mosaicApi, shapes } = await createEditor({ mosaic: true });
+test('switching from Shape to Mosaic preserves Annotation layers and cleans the old preview', async () => {
+    const { annotations, editor, history, mosaicApi, shapes } = await createEditor({
+        mosaic: true,
+    });
     await load(editor);
+    const persistentId = await shapes.create({
+        geometry: { kind: 'rect', left: 20, top: 20, width: 35, height: 25 },
+    });
+    const persistentShape = shapeObject(editor, persistentId);
+    const annotationOrder = annotations.list().map(({ id }) => id);
+    history.clear();
     const snapshot = editor.saveState();
     await shapes.enter({ kind: 'line' });
     await shapes.updatePreview({
@@ -224,9 +232,24 @@ test('switching from Shape to Mosaic cleans preview without History', async () =
         end: { x: 80, y: 60 },
     });
     await mosaicApi.enter();
+    await mosaicApi.beginStroke({ xPx: 20, yPx: 20 });
+    await mosaicApi.appendStroke({ xPx: 40, yPx: 30 });
+    const mosaicPreview = editor
+        .getCanvas()
+        .getObjects()
+        .find((object) => object.sessionObjectType === 'mosaicPreviewImage');
+    assert.ok(mosaicPreview);
     assert.equal(shapes.getSession(), null);
     assert.equal(editor.saveState(), snapshot);
     assert.equal(history.length, 0);
+    assert.ok(
+        editor.getCanvas().getObjects().indexOf(persistentShape) <
+            editor.getCanvas().getObjects().indexOf(mosaicPreview),
+    );
+    assert.deepEqual(
+        annotations.list().map(({ id }) => id),
+        annotationOrder,
+    );
     await mosaicApi.cancel();
     await dispose(editor);
 });

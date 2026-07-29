@@ -28,6 +28,7 @@ import {
     type VisibleRasterBakeOptions,
     type VisibleRasterBakeResult,
 } from '../../sdk/index.js';
+import { placeRasterVisualObject } from '../../utils/internal-layer-placement.js';
 import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import {
     MAX_SUPPORTED_FILTER_COUNT,
@@ -668,9 +669,7 @@ export class FiltersController {
             backgroundColor: this.host.backgroundColor,
             transient: true,
         });
-        if (!canvas.getObjects().includes(image)) canvas.add(image);
-        const baseIndex = canvas.getObjects().indexOf(baseImage);
-        canvas.moveObjectTo(image, Math.max(0, baseIndex + 1));
+        placeRasterVisualObject(canvas, image);
     }
 
     private detachVisual(image: FabricNS.FabricImage | null): void {

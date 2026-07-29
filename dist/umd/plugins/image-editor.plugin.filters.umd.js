@@ -51,6 +51,48 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	]);
 
 //#endregion
+//#region dist/esm/core/public-types.js
+	function isBaseImageObject(object) {
+		return !!object && typeof object === "object" && object.editorObjectKind === "baseImage";
+	}
+
+//#endregion
+//#region dist/esm/utils/internal-layer-placement.js
+	function isRasterVisualObject(object) {
+		return object.editorLayerRole === "rasterVisual";
+	}
+	function moveObjectTo(canvas, object, index) {
+		const canvasWithLayerApi = canvas;
+		if (typeof canvasWithLayerApi.moveObjectTo === "function") {
+			canvasWithLayerApi.moveObjectTo(object, index);
+			return;
+		}
+		try {
+			canvas.remove(object);
+			canvas.insertAt(index, object);
+		} catch {
+			canvas.add(object);
+		}
+	}
+	function ensureOnCanvas(canvas, object) {
+		if (!canvas.getObjects().includes(object)) canvas.add(object);
+	}
+	function withoutObject(canvas, object) {
+		return canvas.getObjects().filter((candidate) => candidate !== object);
+	}
+	function markRasterVisualObject(object) {
+		const rasterVisual = object;
+		rasterVisual.editorLayerRole = "rasterVisual";
+		return rasterVisual;
+	}
+	function placeRasterVisualObject(canvas, rasterVisual) {
+		const markedVisual = markRasterVisualObject(rasterVisual);
+		ensureOnCanvas(canvas, markedVisual);
+		const objects = withoutObject(canvas, markedVisual);
+		moveObjectTo(canvas, markedVisual, objects.filter(isBaseImageObject).length + objects.filter(isRasterVisualObject).length);
+	}
+
+//#endregion
 //#region dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
@@ -998,9 +1040,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				backgroundColor: this.host.backgroundColor,
 				transient: true
 			});
-			if (!canvas.getObjects().includes(image)) canvas.add(image);
-			const baseIndex = canvas.getObjects().indexOf(baseImage);
-			canvas.moveObjectTo(image, Math.max(0, baseIndex + 1));
+			placeRasterVisualObject(canvas, image);
 		}
 		detachVisual(image) {
 			const canvas = this.host.getCanvas();
