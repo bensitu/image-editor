@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_crop = require('../../chunks/crop-C5cTj7qk.cjs');
+const require_crop = require('../../chunks/crop-B56gn62-.cjs');
 
 exports.CropError = require_crop.CropError;
 exports.CropIntegrationError = require_crop.CropIntegrationError;

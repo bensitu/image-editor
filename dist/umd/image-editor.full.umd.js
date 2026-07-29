@@ -1591,6 +1591,67 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 //#endregion
+//#region dist/esm/plugin-kernel/official-plugin-package-hints.js
+	const OFFICIAL_PLUGIN_PACKAGE_HINTS = Object.freeze([
+		Object.freeze({
+			pluginId: "foundation:overlay",
+			packageName: "@bensitu/image-editor/plugins/overlay"
+		}),
+		Object.freeze({
+			pluginId: "foundation:annotation",
+			packageName: "@bensitu/image-editor/plugins/annotation"
+		}),
+		Object.freeze({
+			pluginId: "plugin:transform",
+			packageName: "@bensitu/image-editor/plugins/transform"
+		}),
+		Object.freeze({
+			pluginId: "plugin:mask",
+			packageName: "@bensitu/image-editor/plugins/mask"
+		}),
+		Object.freeze({
+			pluginId: "plugin:history",
+			packageName: "@bensitu/image-editor/plugins/history"
+		}),
+		Object.freeze({
+			pluginId: "plugin:filters",
+			packageName: "@bensitu/image-editor/plugins/filters"
+		}),
+		Object.freeze({
+			pluginId: "plugin:crop",
+			packageName: "@bensitu/image-editor/plugins/crop"
+		}),
+		Object.freeze({
+			pluginId: "plugin:mosaic",
+			packageName: "@bensitu/image-editor/plugins/mosaic"
+		}),
+		Object.freeze({
+			pluginId: "annotation:text",
+			packageName: "@bensitu/image-editor/plugins/annotation-text"
+		}),
+		Object.freeze({
+			pluginId: "annotation:shape",
+			packageName: "@bensitu/image-editor/plugins/annotation-shape"
+		}),
+		Object.freeze({
+			pluginId: "annotation:draw",
+			packageName: "@bensitu/image-editor/plugins/annotation-draw"
+		}),
+		Object.freeze({
+			pluginId: "plugin:overlay-state",
+			packageName: "@bensitu/image-editor/plugins/overlay-state"
+		}),
+		Object.freeze({
+			pluginId: "plugin:dom-controls",
+			packageName: "@bensitu/image-editor/plugins/dom-controls"
+		})
+	]);
+	const packageHintsByPluginId = new Map(OFFICIAL_PLUGIN_PACKAGE_HINTS.map(({ pluginId, packageName }) => [pluginId, packageName]));
+	function getOfficialPluginPackageHint(pluginId) {
+		return packageHintsByPluginId.get(pluginId);
+	}
+
+//#endregion
 //#region dist/esm/plugin-kernel/plugin-state-store.js
 	function assertStateKey(key) {
 		if (key.trim().length === 0 || key.trim() !== key) throw new InvalidPluginDefinitionError("Plugin state keys must be non-empty trimmed strings.");
@@ -2068,13 +2129,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function sameInstallationDefinition(left, right) {
 		return left.ref === right.ref && left.manifest.id === right.manifest.id && left.manifest.version === right.manifest.version && left.manifest.apiVersion === right.manifest.apiVersion && left.manifest.engine === right.manifest.engine && sameArray(left.manifest.requiresPlugins, right.manifest.requiresPlugins, (leftRef, rightRef) => leftRef === rightRef) && sameArray(left.manifest.requires, right.manifest.requires, (leftRequirement, rightRequirement) => leftRequirement.token === rightRequirement.token && leftRequirement.range === rightRequirement.range) && sameArray(left.manifest.optional, right.manifest.optional, (leftRequirement, rightRequirement) => leftRequirement.token === rightRequirement.token && leftRequirement.range === rightRequirement.range) && sameArray(left.manifest.permissions, right.manifest.permissions, (leftPermission, rightPermission) => leftPermission === rightPermission) && left.setupMode === right.setupMode && left.setup === right.setup && left.onInit === right.onInit && left.onImageLoaded === right.onImageLoaded && left.onImageCleared === right.onImageCleared && left.onDispose === right.onDispose;
 	}
-	const pluginPackageHints = /* @__PURE__ */ new Map([
-		["foundation:overlay", "@bensitu/image-editor/plugins/overlay"],
-		["plugin:transform", "@bensitu/image-editor/plugins/transform"],
-		["plugin:mask", "@bensitu/image-editor/plugins/mask"],
-		["plugin:history", "@bensitu/image-editor/plugins/history"],
-		["plugin:filters", "@bensitu/image-editor/plugins/filters"]
-	]);
 	var PluginManager = class {
 		constructor(options = {}) {
 			var _a;
@@ -2462,12 +2516,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return Object.freeze(cleanupErrors);
 		}
 		createDependencyError(consumerPluginId, dependency, availablePluginIds) {
+			const packageHint = getOfficialPluginPackageHint(dependency.id);
 			return new PluginDependencyError({
 				consumerPluginId,
 				dependencyId: dependency.id,
 				requiredApiVersion: dependency.apiVersion,
 				availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
-				...pluginPackageHints.has(dependency.id) ? { packageHint: pluginPackageHints.get(dependency.id) } : {},
+				...packageHint ? { packageHint } : {},
 				planHint: "Pass the dependency to install([...]) or include it in composePlugins(...)."
 			});
 		}

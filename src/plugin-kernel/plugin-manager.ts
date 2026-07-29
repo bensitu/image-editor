@@ -41,6 +41,7 @@ import {
     type OperationExecutionContext,
     type OperationRunOptions,
 } from './operation-registry.js';
+import { getOfficialPluginPackageHint } from './official-plugin-package-hints.js';
 import { validatePluginManifest } from './plugin-manifest.js';
 import { isPluginRef, type PluginIdentity, type PluginRef } from './plugin-ref.js';
 import { PluginStateStore } from './plugin-state-store.js';
@@ -303,14 +304,6 @@ export function sameInstallationDefinition<TEvents extends object>(
         left.onDispose === right.onDispose
     );
 }
-
-const pluginPackageHints = new Map<string, string>([
-    ['foundation:overlay', '@bensitu/image-editor/plugins/overlay'],
-    ['plugin:transform', '@bensitu/image-editor/plugins/transform'],
-    ['plugin:mask', '@bensitu/image-editor/plugins/mask'],
-    ['plugin:history', '@bensitu/image-editor/plugins/history'],
-    ['plugin:filters', '@bensitu/image-editor/plugins/filters'],
-]);
 
 export class PluginManager<TEvents extends object = PluginEventMap> implements Disposable {
     declare private readonly capabilityRegistry: CapabilityRegistry;
@@ -849,14 +842,13 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         dependency: PluginRef<unknown>,
         availablePluginIds: readonly string[],
     ): PluginDependencyError {
+        const packageHint = getOfficialPluginPackageHint(dependency.id);
         return new PluginDependencyError({
             consumerPluginId,
             dependencyId: dependency.id,
             requiredApiVersion: dependency.apiVersion,
             availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
-            ...(pluginPackageHints.has(dependency.id)
-                ? { packageHint: pluginPackageHints.get(dependency.id)! }
-                : {}),
+            ...(packageHint ? { packageHint } : {}),
             planHint: 'Pass the dependency to install([...]) or include it in composePlugins(...).',
         });
     }

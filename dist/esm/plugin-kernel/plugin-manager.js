@@ -4,6 +4,7 @@ import { isPromiseLike } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginAggregateError, PluginAlreadyInstalledError, PluginBatchInstallError, PluginCapabilityError, PluginDefinitionConflictError, PluginDependencyCycleError, PluginDependencyError, PluginKernelDisposedError, PluginKernelStateError, PluginLifecycleError, PluginNotInstalledError, PluginPermissionError, PluginSetupError, PluginVersionMismatchError, } from './errors.js';
 import { acquirePluginDefinitionLease, isCanonicalPluginDefinition, markCanonicalPluginDefinition, releasePluginDefinitionLease, } from './plugin-definition-lease.js';
 import { OperationRegistry, } from './operation-registry.js';
+import { getOfficialPluginPackageHint } from './official-plugin-package-hints.js';
 import { validatePluginManifest } from './plugin-manifest.js';
 import { isPluginRef } from './plugin-ref.js';
 import { PluginStateStore } from './plugin-state-store.js';
@@ -89,13 +90,6 @@ export function sameInstallationDefinition(left, right) {
         left.onImageCleared === right.onImageCleared &&
         left.onDispose === right.onDispose);
 }
-const pluginPackageHints = new Map([
-    ['foundation:overlay', '@bensitu/image-editor/plugins/overlay'],
-    ['plugin:transform', '@bensitu/image-editor/plugins/transform'],
-    ['plugin:mask', '@bensitu/image-editor/plugins/mask'],
-    ['plugin:history', '@bensitu/image-editor/plugins/history'],
-    ['plugin:filters', '@bensitu/image-editor/plugins/filters'],
-]);
 export class PluginManager {
     constructor(options = {}) {
         var _a;
@@ -563,14 +557,13 @@ export class PluginManager {
         return Object.freeze(cleanupErrors);
     }
     createDependencyError(consumerPluginId, dependency, availablePluginIds) {
+        const packageHint = getOfficialPluginPackageHint(dependency.id);
         return new PluginDependencyError({
             consumerPluginId,
             dependencyId: dependency.id,
             requiredApiVersion: dependency.apiVersion,
             availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
-            ...(pluginPackageHints.has(dependency.id)
-                ? { packageHint: pluginPackageHints.get(dependency.id) }
-                : {}),
+            ...(packageHint ? { packageHint } : {}),
             planHint: 'Pass the dependency to install([...]) or include it in composePlugins(...).',
         });
     }
