@@ -1082,7 +1082,7 @@ var MaskPluginController = class {
 		});
 		return selectedId ? this.remove(selectedId) : Promise.resolve();
 	}
-	removeAll(options = {}) {
+	removeAll() {
 		const masks = [...this.getAll()];
 		if (masks.length === 0) return Promise.resolve();
 		return this.overlay.mutate({
@@ -1397,4 +1397,4 @@ Object.defineProperty(exports, 'maskPluginRef', {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-BruKwtKK.cjs.map
+//# sourceMappingURL=mask-BVij4yNX.cjs.map

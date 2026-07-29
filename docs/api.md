@@ -191,9 +191,10 @@ must have a versioned Codec. See [Overlay transform binding](./overlay-transform
 ### Mask
 
 `MaskPluginApi` exposes `create`, `getAll`, `remove`, `removeSelected`,
-`removeAll`, and `flatten`. Mask changes use Overlay transactions and History;
-labels and selection artifacts are transient. Configuration controls defaults,
-labels, rotation, list order, transform binding, and naming.
+`removeAll()`, and `flatten`. `removeAll()` takes no History option: Mask changes
+always use the shared Overlay transaction and History policy. Labels and
+selection artifacts are transient. Configuration controls defaults, labels,
+rotation, list order, transform binding, and naming.
 
 ### Filters
 

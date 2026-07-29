@@ -115,7 +115,6 @@ export function maskPlugin(
 export type {
     MaskPluginApi,
     MaskPluginOptions,
-    RemoveAllOptions,
     ResolvedMaskPluginOptions,
 } from './mask-controller.js';
 export type { DefaultMaskConfig, LabelConfig, MaskConfig, MaskObject } from '../../core/index.js';

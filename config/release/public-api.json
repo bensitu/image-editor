@@ -2744,12 +2744,6 @@
                     ]
                 },
                 {
-                    "name": "RemoveAllOptions",
-                    "kinds": [
-                        "InterfaceDeclaration"
-                    ]
-                },
-                {
                     "name": "ResolvedMaskPluginOptions",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -4237,7 +4231,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "c368a50f12ec11d0dd55c1f57c67e9f764fd246deabd67c2810901c7124689ae",
+        "graphSha256": "dbb071ddba359ac5ef1b0cdd8cf86a9348fa8691f14e23cbeb0d33273c23c133",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4517,11 +4511,11 @@
             },
             {
                 "file": "dist/types/plugins/mask/index.d.ts",
-                "sha256": "d7b9db7e68b175c7fc80948acf175d1dea16c36a02b6b48df997f572860f49fe"
+                "sha256": "32e3b5973a10f448472c64bd2e6b6a1eb5d8947d181f347a020a865f48be8524"
             },
             {
                 "file": "dist/types/plugins/mask/mask-controller.d.ts",
-                "sha256": "ec2f4003daec07b83accbbd52203e8d77736d8cc3f6b89321e32f7ddc4099f56"
+                "sha256": "3dd558811d645b9c8182822c99b26a391fcc777cb2f9703d73e09d09c085a0fb"
             },
             {
                 "file": "dist/types/plugins/mosaic/index.d.ts",
@@ -6609,12 +6603,6 @@
             },
             {
                 "name": "RectShapeGeometry",
-                "kinds": [
-                    "InterfaceDeclaration"
-                ]
-            },
-            {
-                "name": "RemoveAllOptions",
                 "kinds": [
                     "InterfaceDeclaration"
                 ]

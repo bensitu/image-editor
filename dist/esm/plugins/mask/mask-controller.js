@@ -499,8 +499,7 @@ export class MaskPluginController {
         });
         return selectedId ? this.remove(selectedId) : Promise.resolve();
     }
-    removeAll(options = {}) {
-        void options;
+    removeAll() {
         const masks = [...this.getAll()];
         if (masks.length === 0)
             return Promise.resolve();

@@ -30,15 +30,12 @@ export interface ResolvedMaskPluginOptions {
     readonly namePrefix: string;
     readonly onChange?: (masks: readonly MaskObject[]) => void;
 }
-export interface RemoveAllOptions {
-    readonly saveHistory?: boolean;
-}
 export interface MaskPluginApi {
     create(config?: MaskConfig): Promise<MaskObject>;
     getAll(): readonly MaskObject[];
     remove(id: string): Promise<void>;
     removeSelected(): Promise<void>;
-    removeAll(options?: RemoveAllOptions): Promise<void>;
+    removeAll(): Promise<void>;
     flatten(options?: import('../../foundations/overlay/index.js').FlattenOptions): Promise<void>;
 }
 type MaskCoreAccess = CoreDiagnosticsPort & CorePresentationPort & FabricRuntimePort & CanvasReadPort & RenderRequestPort & CanvasResizePort;
@@ -62,7 +59,7 @@ export declare class MaskPluginController implements MaskPluginApi, Disposable {
     getAll(): readonly MaskObject[];
     remove(id: string): Promise<void>;
     removeSelected(): Promise<void>;
-    removeAll(options?: RemoveAllOptions): Promise<void>;
+    removeAll(): Promise<void>;
     flatten(options?: import('../../foundations/overlay/index.js').FlattenOptions): Promise<void>;
     resetForImage(): void;
     dispose(): void;

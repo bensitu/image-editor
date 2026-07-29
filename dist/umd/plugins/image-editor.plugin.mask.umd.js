@@ -1325,7 +1325,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			return selectedId ? this.remove(selectedId) : Promise.resolve();
 		}
-		removeAll(options = {}) {
+		removeAll() {
 			const masks = [...this.getAll()];
 			if (masks.length === 0) return Promise.resolve();
 			return this.overlay.mutate({

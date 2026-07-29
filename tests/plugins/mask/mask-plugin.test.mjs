@@ -311,7 +311,7 @@ test('create, remove, removeSelected, and removeAll maintain counter and list or
         masks.getAll().map((mask) => mask.maskUid),
         [third.maskUid],
     );
-    await masks.removeAll({ saveHistory: false });
+    await masks.removeAll();
     assert.equal(masks.getAll().length, 0);
     const resetCounterMask = await masks.create();
     assert.equal(resetCounterMask.maskId, 1);
@@ -326,7 +326,7 @@ test('Mask snapshot restores geometry, hidden/locked state, hover handlers, and 
     await overlay.setHidden(first.maskUid, true);
     await overlay.setLocked(second.maskUid, true);
     const snapshot = editor.saveState();
-    await masks.removeAll({ saveHistory: false });
+    await masks.removeAll();
     await editor.loadFromState(snapshot);
     const restoredFirst = overlay.getByPersistentId(first.maskUid);
     const restoredSecond = overlay.getByPersistentId(second.maskUid);

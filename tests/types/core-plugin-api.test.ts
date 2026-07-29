@@ -135,6 +135,7 @@ type OptionalApiInference = Expect<Equal<typeof optional, TransformPluginApi | n
 type StateInference = Expect<Equal<typeof state, TransformPluginState>>;
 type OverlayApiInference = Expect<Equal<typeof overlay, OverlayFoundationApi>>;
 type MaskApiInference = Expect<Equal<typeof masks, MaskPluginApi>>;
+type MaskRemoveAllParameters = Expect<Equal<Parameters<MaskPluginApi['removeAll']>, []>>;
 type OptionalOverlayInference = Expect<Equal<typeof optionalOverlay, OverlayFoundationApi | null>>;
 type OptionalMaskInference = Expect<Equal<typeof optionalMasks, MaskPluginApi | null>>;
 type HistoryApiInference = Expect<Equal<typeof history, HistoryPort>>;
@@ -264,6 +265,7 @@ export type Assertions =
     | StateInference
     | OverlayApiInference
     | MaskApiInference
+    | MaskRemoveAllParameters
     | OptionalOverlayInference
     | OptionalMaskInference
     | HistoryApiInference

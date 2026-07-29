@@ -78,16 +78,12 @@ export interface ResolvedMaskPluginOptions {
     readonly onChange?: (masks: readonly MaskObject[]) => void;
 }
 
-export interface RemoveAllOptions {
-    readonly saveHistory?: boolean;
-}
-
 export interface MaskPluginApi {
     create(config?: MaskConfig): Promise<MaskObject>;
     getAll(): readonly MaskObject[];
     remove(id: string): Promise<void>;
     removeSelected(): Promise<void>;
-    removeAll(options?: RemoveAllOptions): Promise<void>;
+    removeAll(): Promise<void>;
     flatten(options?: import('../../foundations/overlay/index.js').FlattenOptions): Promise<void>;
 }
 
@@ -630,8 +626,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         return selectedId ? this.remove(selectedId) : Promise.resolve();
     }
 
-    removeAll(options: RemoveAllOptions = {}): Promise<void> {
-        void options;
+    removeAll(): Promise<void> {
         const masks = [...this.getAll()];
         if (masks.length === 0) return Promise.resolve();
         return this.overlay.mutate({
