@@ -146,4 +146,5 @@ examples/*/dist/
 
 # Internal engineering artifacts
 /docs/refactor/
+/docs/internal/
 /.internal/

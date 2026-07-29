@@ -60,6 +60,7 @@ const forbiddenTracked = tracked.filter(
     (file) =>
         file.startsWith('.internal/') ||
         file.startsWith('docs/refactor/') ||
+        file.startsWith('docs/internal/') ||
         /(?:^|\/)(?:codex[-_].*prompt|.*implementation[-_]report|stage[-_ ]?\d+.*(?:gate|report|result)|.*release[-_]candidate.*(?:evidence|manifest|provenance)|provenance\.json|.*\.tgz)$/iu.test(
             file,
         ),
@@ -69,7 +70,7 @@ assertCondition(
     `Private or generated evidence is tracked: ${forbiddenTracked.join(', ')}.`,
 );
 
-for (const probe of ['.internal/probe.json', 'docs/refactor/probe.md']) {
+for (const probe of ['.internal/probe.json', 'docs/refactor/probe.md', 'docs/internal/probe.md']) {
     try {
         await git(['check-ignore', '-q', probe]);
     } catch {
