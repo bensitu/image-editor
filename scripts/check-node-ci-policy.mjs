@@ -21,6 +21,7 @@ const REQUIRED_PR_SCRIPTS = Object.freeze([
     'package:check',
     'check:npm-pack-contents',
     'check:public-api',
+    'check:committed-dist',
     'check:security',
 ]);
 
@@ -114,6 +115,7 @@ for (const fragment of [
     'npm run package:check',
     'npm run check:npm-pack-contents',
     'npm run check:public-api',
+    'npm run check:committed-dist -- --skip-build',
     'npm run check:security',
     'npm run test:e2e',
     'npm run check:supply-chain-policy',

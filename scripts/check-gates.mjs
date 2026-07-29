@@ -42,6 +42,7 @@ const pullRequestChecks = Object.freeze([
     ['official Plugin compliance', 'check:official-plugins'],
     ['strict public type fixtures', 'test:types'],
     ['distribution build', 'build'],
+    ['committed distribution freshness', 'check:committed-dist', ['--', '--skip-build']],
     ['package runtime entries', 'test:package-entries'],
     ['package declaration consumers', 'test:package-types'],
     ['packed public entries', 'test:packed-entries'],
@@ -69,6 +70,7 @@ const releaseChecks = Object.freeze([
     ['official Plugin compliance', 'check:official-plugins'],
     ['strict public type fixtures', 'test:types'],
     ['distribution build', 'build'],
+    ['committed distribution freshness', 'check:committed-dist', ['--', '--skip-build']],
     ['package runtime entries', 'test:package-entries'],
     ['package declaration consumers', 'test:package-types'],
     ['packed public entries', 'test:packed-entries'],
@@ -234,9 +236,9 @@ async function validateReleasePreconditions() {
     console.log(`Release preconditions passed for ${version}.`);
 }
 
-function runNpm(scriptName) {
+function runNpm(scriptName, scriptArguments = []) {
     return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [npmCliPath, 'run', scriptName], {
+        const child = spawn(process.execPath, [npmCliPath, 'run', scriptName, ...scriptArguments], {
             cwd: repositoryRoot,
             stdio: 'inherit',
             windowsHide: true,
@@ -257,9 +259,9 @@ assertCondition(process.argv.length === 3, 'Gate profiles do not accept addition
 if (profile === 'release') await validateReleasePreconditions();
 
 const checks = profile === 'pr' ? pullRequestChecks : releaseChecks;
-for (const [index, [label, scriptName]] of checks.entries()) {
+for (const [index, [label, scriptName, scriptArguments]] of checks.entries()) {
     console.log(`\n[${index + 1}/${checks.length}] ${label}`);
-    await runNpm(scriptName);
+    await runNpm(scriptName, scriptArguments);
 }
 
 if (profile === 'release') {
