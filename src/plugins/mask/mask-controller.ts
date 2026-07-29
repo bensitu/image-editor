@@ -219,6 +219,16 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
     return prototype === Object.prototype || prototype === null;
 }
 
+function isFiniteOverlayStatePoint(value: unknown): value is OverlayStatePoint {
+    return (
+        isPlainRecord(value) &&
+        typeof value.x === 'number' &&
+        Number.isFinite(value.x) &&
+        typeof value.y === 'number' &&
+        Number.isFinite(value.y)
+    );
+}
+
 function maskStateKind(object: FabricNS.FabricObject): MaskStateKind {
     const kind = String(object.type ?? '').toLowerCase();
     if (kind === 'rect' || kind === 'circle' || kind === 'ellipse' || kind === 'polygon') {
@@ -230,9 +240,10 @@ function maskStateKind(object: FabricNS.FabricObject): MaskStateKind {
 function normalizedPolygonPoints(
     object: FabricNS.FabricObject,
 ): readonly OverlayStatePoint[] | null {
-    const points = (object as FabricNS.FabricObject & { points?: readonly OverlayStatePoint[] })
-        .points;
-    if (!Array.isArray(points) || points.length < 3 || points.length > 4_096) return null;
+    const candidate: unknown = Reflect.get(object, 'points');
+    const points = Array.isArray(candidate) ? Array.from<unknown>(candidate) : null;
+    if (!points || points.length < 3 || points.length > 4_096) return null;
+    if (!points.every(isFiniteOverlayStatePoint)) return null;
     const xs = points.map((point) => point.x);
     const ys = points.map((point) => point.y);
     const left = Math.min(...xs);

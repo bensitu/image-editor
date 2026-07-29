@@ -1,6 +1,6 @@
 const require_plugin_identifier = require('./plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_plugin_manager = require('./plugin-manager-zJ1rWeIE.cjs');
+const require_plugin_manager = require('./plugin-manager-CU2i7a0b.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 
@@ -1687,7 +1687,9 @@ var StablePluginApiHandle = class {
 			construct: (shadow, argumentsList, newTarget) => {
 				const target = this.requireTarget();
 				if (typeof target !== "function") throw this.incompatibleReplayError("is no longer constructable");
-				return Reflect.construct(target, argumentsList, newTarget);
+				const instance = Reflect.construct(target, argumentsList, newTarget);
+				if (!isProxyablePluginApi(instance)) throw this.incompatibleReplayError("returned a non-object from its constructor");
+				return instance;
 			},
 			deleteProperty: (shadow, property) => {
 				return Reflect.deleteProperty(this.requireTarget(), property);
@@ -1956,7 +1958,7 @@ var DocumentMutationCoordinator = class {
 		try {
 			return await this.executeRequest(request, context, parentRecord.session);
 		} catch (error) {
-			(_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 || (_b.failure = error);
+			(_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 || (_b.failure = require_plugin_manager.normalizeThrownError(error, `[ImageEditor] Nested document mutation "${request.id}" failed with a non-Error value.`));
 			throw error;
 		}
 	}
@@ -4786,4 +4788,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-u1Pb0Aua.cjs.map
+//# sourceMappingURL=core-D_s-hE8G.cjs.map

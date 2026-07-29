@@ -1,9 +1,9 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-u1Pb0Aua.cjs');
+const require_core = require('./core-D_s-hE8G.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-Duk2sAmz.cjs');
+const require_overlay = require('./overlay-DWVXQmPz.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-VBb127k8.cjs');
@@ -737,6 +737,9 @@ function isPlainRecord(value) {
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
 }
+function isFiniteOverlayStatePoint(value) {
+	return isPlainRecord(value) && typeof value.x === "number" && Number.isFinite(value.x) && typeof value.y === "number" && Number.isFinite(value.y);
+}
 function maskStateKind(object) {
 	var _a;
 	const kind = String((_a = object.type) !== null && _a !== void 0 ? _a : "").toLowerCase();
@@ -744,8 +747,10 @@ function maskStateKind(object) {
 	throw new require_core.CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
 }
 function normalizedPolygonPoints(object) {
-	const points = object.points;
-	if (!Array.isArray(points) || points.length < 3 || points.length > 4096) return null;
+	const candidate = Reflect.get(object, "points");
+	const points = Array.isArray(candidate) ? Array.from(candidate) : null;
+	if (!points || points.length < 3 || points.length > 4096) return null;
+	if (!points.every(isFiniteOverlayStatePoint)) return null;
 	const xs = points.map((point) => point.x);
 	const ys = points.map((point) => point.y);
 	const left = Math.min(...xs);
@@ -1393,4 +1398,4 @@ Object.defineProperty(exports, 'maskPluginRef', {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-DQ0M8leU.cjs.map
+//# sourceMappingURL=mask-Bt5KJnpB.cjs.map

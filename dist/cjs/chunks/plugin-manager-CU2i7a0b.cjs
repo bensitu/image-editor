@@ -405,6 +405,20 @@ var CommittedEventBus = class {
 };
 
 //#endregion
+//#region dist/esm/plugin-kernel/thrown-error.js
+function normalizeThrownError(cause, message) {
+	try {
+		if (cause instanceof Error) return cause;
+	} catch {}
+	const error = new Error(message);
+	Object.defineProperty(error, "cause", {
+		configurable: true,
+		value: cause
+	});
+	return error;
+}
+
+//#endregion
 //#region dist/esm/plugin-kernel/operation-registry.js
 const OPERATION_MODES = [
 	"read",
@@ -591,8 +605,9 @@ var OperationRegistry = class {
 	}
 	suspend(reason) {
 		this.assertActive("suspend operations");
-		this.suspendedReason = reason;
-		return this.abortAll(reason);
+		const suspendedReason = normalizeThrownError(reason, "[ImageEditor] Plugin Kernel operations were suspended with a non-Error reason.");
+		this.suspendedReason = suspendedReason;
+		return this.abortAll(suspendedReason);
 	}
 	dispose() {
 		if (this.disposed) return;
@@ -1253,7 +1268,7 @@ var ToolCoordinator = class {
 	}
 	disposeSync() {
 		if (this.disposed) return;
-		let exitError;
+		let exitError = null;
 		try {
 			const current = this.active;
 			this.active = null;
@@ -1267,7 +1282,7 @@ var ToolCoordinator = class {
 				}
 			}
 		} catch (error) {
-			exitError = error;
+			exitError = normalizeThrownError(error, "[ImageEditor] Tool disposal failed with a non-Error value.");
 		} finally {
 			this.active = null;
 			this.tools.clear();
@@ -1318,12 +1333,12 @@ var ToolCoordinator = class {
 	}
 	async dispose() {
 		if (this.disposed) return;
-		let exitError;
+		let exitError = null;
 		try {
 			await this.waitForTransition();
 			if (this.active) await this.exitCurrent("host-dispose");
 		} catch (error) {
-			exitError = error;
+			exitError = normalizeThrownError(error, "[ImageEditor] Tool disposal failed with a non-Error value.");
 		} finally {
 			this.active = null;
 			this.tools.clear();
@@ -2188,10 +2203,16 @@ Object.defineProperty(exports, 'RegistrationScope', {
     return RegistrationScope;
   }
 });
+Object.defineProperty(exports, 'normalizeThrownError', {
+  enumerable: true,
+  get: function () {
+    return normalizeThrownError;
+  }
+});
 Object.defineProperty(exports, 'sameInstallationDefinition', {
   enumerable: true,
   get: function () {
     return sameInstallationDefinition;
   }
 });
-//# sourceMappingURL=plugin-manager-zJ1rWeIE.cjs.map
+//# sourceMappingURL=plugin-manager-CU2i7a0b.cjs.map

@@ -394,7 +394,15 @@ export class TextAnnotationController implements Disposable {
             codec: {
                 type: 'annotation:textbox',
                 version: '1.0.0',
-                serialize: (object) => object.toObject(),
+                serialize: (object) => {
+                    const serialized: unknown = object.toObject();
+                    if (!isSerializedText(serialized)) {
+                        throw new AnnotationValidationError(
+                            'Text Annotation serialization produced malformed data.',
+                        );
+                    }
+                    return serialized;
+                },
                 validate: isSerializedText,
                 deserialize: async (value, context) => {
                     if (!isSerializedText(value)) {

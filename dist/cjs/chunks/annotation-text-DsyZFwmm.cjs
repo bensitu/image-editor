@@ -1,8 +1,8 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-Duk2sAmz.cjs');
-const require_annotation = require('./annotation-c-m9rjqg.cjs');
+const require_overlay = require('./overlay-DWVXQmPz.cjs');
+const require_annotation = require('./annotation-Dd6k1bWN.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-VBb127k8.cjs');
 
 //#region dist/esm/plugins/annotation-text/text-controller.js
@@ -251,7 +251,11 @@ var TextAnnotationController = class {
 			codec: {
 				type: "annotation:textbox",
 				version: "1.0.0",
-				serialize: (object) => object.toObject(),
+				serialize: (object) => {
+					const serialized = object.toObject();
+					if (!isSerializedText(serialized)) throw new require_annotation.AnnotationValidationError("Text Annotation serialization produced malformed data.");
+					return serialized;
+				},
 				validate: isSerializedText,
 				deserialize: async (value, context) => {
 					if (!isSerializedText(value)) throw new require_annotation.AnnotationValidationError("Serialized Text Annotation data is malformed.");
@@ -650,4 +654,4 @@ Object.defineProperty(exports, 'textAnnotationPluginRef', {
     return textAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-text-CMXgzLf0.cjs.map
+//# sourceMappingURL=annotation-text-DsyZFwmm.cjs.map

@@ -1065,6 +1065,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region dist/esm/plugin-kernel/thrown-error.js
+	function normalizeThrownError(cause, message) {
+		try {
+			if (cause instanceof Error) return cause;
+		} catch {}
+		const error = new Error(message);
+		Object.defineProperty(error, "cause", {
+			configurable: true,
+			value: cause
+		});
+		return error;
+	}
+
+//#endregion
 //#region dist/esm/plugin-kernel/operation-registry.js
 	const OPERATION_MODES = [
 		"read",
@@ -1251,8 +1265,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		suspend(reason) {
 			this.assertActive("suspend operations");
-			this.suspendedReason = reason;
-			return this.abortAll(reason);
+			const suspendedReason = normalizeThrownError(reason, "[ImageEditor] Plugin Kernel operations were suspended with a non-Error reason.");
+			this.suspendedReason = suspendedReason;
+			return this.abortAll(suspendedReason);
 		}
 		dispose() {
 			if (this.disposed) return;
@@ -1948,7 +1963,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		disposeSync() {
 			if (this.disposed) return;
-			let exitError;
+			let exitError = null;
 			try {
 				const current = this.active;
 				this.active = null;
@@ -1962,7 +1977,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				}
 			} catch (error) {
-				exitError = error;
+				exitError = normalizeThrownError(error, "[ImageEditor] Tool disposal failed with a non-Error value.");
 			} finally {
 				this.active = null;
 				this.tools.clear();
@@ -2013,12 +2028,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async dispose() {
 			if (this.disposed) return;
-			let exitError;
+			let exitError = null;
 			try {
 				await this.waitForTransition();
 				if (this.active) await this.exitCurrent("host-dispose");
 			} catch (error) {
-				exitError = error;
+				exitError = normalizeThrownError(error, "[ImageEditor] Tool disposal failed with a non-Error value.");
 			} finally {
 				this.active = null;
 				this.tools.clear();
@@ -4654,7 +4669,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				construct: (shadow, argumentsList, newTarget) => {
 					const target = this.requireTarget();
 					if (typeof target !== "function") throw this.incompatibleReplayError("is no longer constructable");
-					return Reflect.construct(target, argumentsList, newTarget);
+					const instance = Reflect.construct(target, argumentsList, newTarget);
+					if (!isProxyablePluginApi(instance)) throw this.incompatibleReplayError("returned a non-object from its constructor");
+					return instance;
 				},
 				deleteProperty: (shadow, property) => {
 					return Reflect.deleteProperty(this.requireTarget(), property);
@@ -4923,7 +4940,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			try {
 				return await this.executeRequest(request, context, parentRecord.session);
 			} catch (error) {
-				(_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 || (_b.failure = error);
+				(_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 || (_b.failure = normalizeThrownError(error, `[ImageEditor] Nested document mutation "${request.id}" failed with a non-Error value.`));
 				throw error;
 			}
 		}

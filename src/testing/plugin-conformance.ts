@@ -18,6 +18,7 @@ import {
     createCapabilityToken,
     type PluginManifest,
 } from '../sdk/index.js';
+import { normalizeThrownError } from '../plugin-kernel/thrown-error.js';
 import type {
     ConformanceAssertionResult,
     ConformanceAssertionStatus,
@@ -274,11 +275,14 @@ async function useFixture<TApi, TEvents extends object, TResult>(
 ): Promise<TResult> {
     const fixture = await createFixture(options);
     let result: TResult | undefined;
-    let operationFailure: unknown;
+    let operationFailure: Error | undefined;
     try {
         result = await operation(fixture);
     } catch (error) {
-        operationFailure = error;
+        operationFailure = normalizeThrownError(
+            error,
+            '[ImageEditor] Plugin conformance operation failed with a non-Error value.',
+        );
     }
     try {
         await disposeFixture(fixture);

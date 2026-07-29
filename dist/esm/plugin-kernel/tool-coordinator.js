@@ -2,6 +2,7 @@ import { createDisposable, isPromiseLike, } from './disposable.js';
 import { PluginKernelDisposedError, ToolRegistrationError, ToolTransitionError } from './errors.js';
 import { reportErrorSafely } from './reporting.js';
 import { isRuntimeIdentifier } from './plugin-identifier.js';
+import { normalizeThrownError } from './thrown-error.js';
 export class ToolCoordinator {
     constructor(options = {}) {
         Object.defineProperty(this, "options", {
@@ -64,7 +65,7 @@ export class ToolCoordinator {
     disposeSync() {
         if (this.disposed)
             return;
-        let exitError;
+        let exitError = null;
         try {
             const current = this.active;
             this.active = null;
@@ -79,7 +80,7 @@ export class ToolCoordinator {
             }
         }
         catch (error) {
-            exitError = error;
+            exitError = normalizeThrownError(error, '[ImageEditor] Tool disposal failed with a non-Error value.');
         }
         finally {
             this.active = null;
@@ -142,14 +143,14 @@ export class ToolCoordinator {
     async dispose() {
         if (this.disposed)
             return;
-        let exitError;
+        let exitError = null;
         try {
             await this.waitForTransition();
             if (this.active)
                 await this.exitCurrent('host-dispose');
         }
         catch (error) {
-            exitError = error;
+            exitError = normalizeThrownError(error, '[ImageEditor] Tool disposal failed with a non-Error value.');
         }
         finally {
             this.active = null;

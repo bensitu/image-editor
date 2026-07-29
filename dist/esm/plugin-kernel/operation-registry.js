@@ -1,6 +1,7 @@
 import { createDisposable } from './disposable.js';
 import { OperationConflictError, OperationRegistrationError, PluginKernelDisposedError, } from './errors.js';
 import { isRuntimeIdentifier } from './plugin-identifier.js';
+import { normalizeThrownError } from './thrown-error.js';
 const OPERATION_MODES = ['read', 'busy', 'animation', 'mutation'];
 const REENTRANCY_POLICIES = [
     'reject',
@@ -202,8 +203,9 @@ export class OperationRegistry {
     }
     suspend(reason) {
         this.assertActive('suspend operations');
-        this.suspendedReason = reason;
-        return this.abortAll(reason);
+        const suspendedReason = normalizeThrownError(reason, '[ImageEditor] Plugin Kernel operations were suspended with a non-Error reason.');
+        this.suspendedReason = suspendedReason;
+        return this.abortAll(suspendedReason);
     }
     dispose() {
         if (this.disposed)

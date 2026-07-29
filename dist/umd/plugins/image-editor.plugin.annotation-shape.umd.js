@@ -238,8 +238,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function dashArray(value) {
 		if (value === null) return null;
-		if (!Array.isArray(value) || value.length > 16 || value.some((entry) => typeof entry !== "number" || !Number.isFinite(entry) || entry < 0 || entry > 1e3)) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Shape stroke dash array is invalid.");
-		return Object.freeze([...value]);
+		const entries = Array.isArray(value) ? Array.from(value) : null;
+		if (!entries || entries.length > 16 || entries.some((entry) => typeof entry !== "number" || !Number.isFinite(entry) || entry < 0 || entry > 1e3)) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Shape stroke dash array is invalid.");
+		return Object.freeze(entries.map((entry) => finiteRange(entry, "Shape stroke dash entry", 0, 1e3)));
 	}
 	function shapeKind(value) {
 		if (value === "rect" || value === "line" || value === "arrow") return value;

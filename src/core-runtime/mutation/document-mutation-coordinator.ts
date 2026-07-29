@@ -6,6 +6,7 @@
 
 import type { Disposable } from '../../plugin-kernel/disposable.js';
 import type { OperationToken } from '../../plugin-kernel/operation-registry.js';
+import { normalizeThrownError } from '../../plugin-kernel/thrown-error.js';
 import {
     DocumentMutationError,
     DocumentMutationInvariantError,
@@ -41,7 +42,7 @@ interface TransactionSession {
     readonly rollbackEntries: RollbackEntry[];
     readonly validators: Array<() => Promise<void>>;
     readonly diagnostics: DocumentMutationDiagnostic[];
-    failure: unknown | null;
+    failure: Error | null;
     closed: boolean;
 }
 
@@ -296,7 +297,10 @@ export class DocumentMutationCoordinator implements DocumentMutationPort, Dispos
         try {
             return await this.executeRequest(request, context, parentRecord.session);
         } catch (error) {
-            parentRecord.session.failure ??= error;
+            parentRecord.session.failure ??= normalizeThrownError(
+                error,
+                `[ImageEditor] Nested document mutation "${request.id}" failed with a non-Error value.`,
+            );
             throw error;
         }
     }

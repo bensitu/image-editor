@@ -281,7 +281,10 @@ async function createAnnotationScene(): Promise<AnnotationSceneResult> {
     });
     const descriptors = requireAnnotations().list();
     const shapeKinds = [rectId, lineId, arrowId]
-        .map((id) => annotationObject(id).editorShapeKind)
+        .map((id): unknown => {
+            const kind: unknown = Reflect.get(annotationObject(id), 'editorShapeKind');
+            return kind;
+        })
         .filter((kind): kind is string => typeof kind === 'string')
         .sort();
     const firstDraw = annotationObject(firstDrawId);

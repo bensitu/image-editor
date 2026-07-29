@@ -79,8 +79,8 @@ export default tseslint.config(
             '@typescript-eslint/no-unsafe-assignment': 'off',
             '@typescript-eslint/no-unsafe-call': 'off',
             '@typescript-eslint/no-unsafe-member-access': 'off',
-            '@typescript-eslint/no-unsafe-return': 'off',
-            '@typescript-eslint/only-throw-error': 'off',
+            '@typescript-eslint/no-unsafe-return': 'error',
+            '@typescript-eslint/only-throw-error': 'error',
             '@typescript-eslint/prefer-promise-reject-errors': 'off',
             '@typescript-eslint/unbound-method': 'off',
             '@typescript-eslint/naming-convention': [

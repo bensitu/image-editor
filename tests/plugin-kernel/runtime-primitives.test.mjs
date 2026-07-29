@@ -201,6 +201,30 @@ test('ToolCoordinator clears active state and reports failed exits', async () =>
     assert.equal(errors.length, 1);
 });
 
+test('ToolCoordinator normalizes a non-Error thrown during synchronous disposal', async () => {
+    const coordinator = new ToolCoordinator();
+    coordinator.register(
+        {
+            id: 'third-party-example:non-error-exit',
+            enter: () => undefined,
+            exit: () => {
+                throw 'non-error exit failure';
+            },
+        },
+        'plugin:owner',
+    );
+    await coordinator.enter('third-party-example:non-error-exit', 'plugin:owner');
+
+    assert.throws(
+        () => coordinator.disposeSync(),
+        (error) =>
+            error instanceof Error &&
+            error.message === '[ImageEditor] Tool disposal failed with a non-Error value.' &&
+            error.cause === 'non-error exit failure',
+    );
+    assert.throws(() => coordinator.getActiveToolId(), PluginKernelDisposedError);
+});
+
 test('disposing an active tool registration exits it before removal', async () => {
     const reasons = [];
     const coordinator = new ToolCoordinator();

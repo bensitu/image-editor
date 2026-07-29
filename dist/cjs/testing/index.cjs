@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 const require_plugin_identifier = require('../chunks/plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('../chunks/core-capabilities-CWXMFfBX.cjs');
-const require_plugin_manager = require('../chunks/plugin-manager-zJ1rWeIE.cjs');
+const require_plugin_manager = require('../chunks/plugin-manager-CU2i7a0b.cjs');
 
 //#region dist/esm/testing/deferred-operation.js
 function createDeferredOperation() {
@@ -614,7 +614,7 @@ async function useFixture(options, operation) {
 	try {
 		result = await operation(fixture);
 	} catch (error) {
-		operationFailure = error;
+		operationFailure = require_plugin_manager.normalizeThrownError(error, "[ImageEditor] Plugin conformance operation failed with a non-Error value.");
 	}
 	try {
 		await disposeFixture(fixture);

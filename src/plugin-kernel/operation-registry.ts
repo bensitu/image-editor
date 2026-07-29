@@ -11,6 +11,7 @@ import {
     PluginKernelDisposedError,
 } from './errors.js';
 import { isRuntimeIdentifier } from './plugin-identifier.js';
+import { normalizeThrownError } from './thrown-error.js';
 
 export type OperationId = string;
 export type OperationMode = 'read' | 'busy' | 'animation' | 'mutation';
@@ -135,7 +136,7 @@ export class OperationRegistry implements Disposable {
     private readonly executingRequests = new Set<Promise<void>>();
     private readonly idleWaiters = new Set<() => void>();
     private pendingRequests: ScheduledOperation[] = [];
-    private suspendedReason: unknown | null = null;
+    private suspendedReason: Error | null = null;
     private disposed = false;
 
     register<TArgs>(definition: OperationDefinition<TArgs>, ownerPluginId: string): Disposable {
@@ -296,8 +297,12 @@ export class OperationRegistry implements Disposable {
     /** @internal Rejects future work and aborts current work after a fatal Core failure. */
     suspend(reason: unknown): Promise<void> {
         this.assertActive('suspend operations');
-        this.suspendedReason = reason;
-        return this.abortAll(reason);
+        const suspendedReason = normalizeThrownError(
+            reason,
+            '[ImageEditor] Plugin Kernel operations were suspended with a non-Error reason.',
+        );
+        this.suspendedReason = suspendedReason;
+        return this.abortAll(suspendedReason);
     }
 
     dispose(): void {

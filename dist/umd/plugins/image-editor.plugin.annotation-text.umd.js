@@ -459,7 +459,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				codec: {
 					type: "annotation:textbox",
 					version: "1.0.0",
-					serialize: (object) => object.toObject(),
+					serialize: (object) => {
+						const serialized = object.toObject();
+						if (!isSerializedText(serialized)) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Text Annotation serialization produced malformed data.");
+						return serialized;
+					},
 					validate: isSerializedText,
 					deserialize: async (value, context) => {
 						if (!isSerializedText(value)) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Serialized Text Annotation data is malformed.");

@@ -287,6 +287,28 @@ test('suspension aborts active work and rejects all future operations', async ()
     registry.dispose();
 });
 
+test('suspension normalizes a non-Error reason at the registry boundary', async () => {
+    const registry = new OperationRegistry();
+    registry.register(definition('test:suspend-value'), 'plugin:owner');
+
+    await registry.suspend('Core faulted without an Error instance.');
+
+    assert.throws(
+        () => registry.begin('test:suspend-value', 'plugin:owner'),
+        (error) =>
+            error instanceof Error &&
+            error.message ===
+                '[ImageEditor] Plugin Kernel operations were suspended with a non-Error reason.' &&
+            error.cause === 'Core faulted without an Error instance.',
+    );
+    await assert.rejects(
+        registry.run('test:suspend-value', 'plugin:owner', null, async () => undefined),
+        (error) =>
+            error instanceof Error && error.cause === 'Core faulted without an Error instance.',
+    );
+    registry.dispose();
+});
+
 test('disposal aborts active work and waitForIdle observes its final settlement', async () => {
     const registry = new OperationRegistry();
     registry.register(definition('test:dispose', { reentrancy: 'queue' }), 'plugin:owner');

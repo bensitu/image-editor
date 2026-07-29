@@ -1,6 +1,7 @@
 import { isDangerousStateKey } from '../plugin-kernel/plugin-identifier.js';
 import { isValidSemVer } from '../plugin-kernel/semver.js';
 import { CapabilityMissingError, CORE_API_VERSION, PluginSetupError, createCapabilityToken, } from '../sdk/index.js';
+import { normalizeThrownError } from '../plugin-kernel/thrown-error.js';
 import { createPluginTestHost, } from './plugin-test-host.js';
 import { assertBaseImageInvariant, assertBundleIsolation, assertCompoundTransaction, assertNoUndeclaredFabricGlobalMutation, assertOverlayMutationHistory, assertPackageDoesNotBundleCoreOrFabric, assertPeerDependencyContract, assertSliceMigration, assertStrongMultiInstanceIsolation, } from './responsibility-assertions.js';
 export const CONFORMANCE_PROFILE = '3.0';
@@ -113,7 +114,7 @@ async function useFixture(options, operation) {
         result = await operation(fixture);
     }
     catch (error) {
-        operationFailure = error;
+        operationFailure = normalizeThrownError(error, '[ImageEditor] Plugin conformance operation failed with a non-Error value.');
     }
     try {
         await disposeFixture(fixture);

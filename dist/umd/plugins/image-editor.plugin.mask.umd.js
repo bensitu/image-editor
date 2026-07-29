@@ -1008,6 +1008,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const prototype = Object.getPrototypeOf(value);
 		return prototype === Object.prototype || prototype === null;
 	}
+	function isFiniteOverlayStatePoint(value) {
+		return isPlainRecord(value) && typeof value.x === "number" && Number.isFinite(value.x) && typeof value.y === "number" && Number.isFinite(value.y);
+	}
 	function maskStateKind(object) {
 		var _a;
 		const kind = String((_a = object.type) !== null && _a !== void 0 ? _a : "").toLowerCase();
@@ -1015,8 +1018,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		throw new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
 	}
 	function normalizedPolygonPoints(object) {
-		const points = object.points;
-		if (!Array.isArray(points) || points.length < 3 || points.length > 4096) return null;
+		const candidate = Reflect.get(object, "points");
+		const points = Array.isArray(candidate) ? Array.from(candidate) : null;
+		if (!points || points.length < 3 || points.length > 4096) return null;
+		if (!points.every(isFiniteOverlayStatePoint)) return null;
 		const xs = points.map((point) => point.x);
 		const ys = points.map((point) => point.y);
 		const left = Math.min(...xs);

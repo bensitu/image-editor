@@ -45,7 +45,8 @@ export class StablePluginApiHandle {
                 if (typeof target !== 'function') {
                     throw this.incompatibleReplayError('is no longer callable');
                 }
-                return Reflect.apply(target, thisArgument, argumentsList);
+                const result = Reflect.apply(target, thisArgument, argumentsList);
+                return result;
             },
             construct: (shadow, argumentsList, newTarget) => {
                 void shadow;
@@ -53,7 +54,11 @@ export class StablePluginApiHandle {
                 if (typeof target !== 'function') {
                     throw this.incompatibleReplayError('is no longer constructable');
                 }
-                return Reflect.construct(target, argumentsList, newTarget);
+                const instance = Reflect.construct(target, argumentsList, newTarget);
+                if (!isProxyablePluginApi(instance)) {
+                    throw this.incompatibleReplayError('returned a non-object from its constructor');
+                }
+                return instance;
             },
             deleteProperty: (shadow, property) => {
                 void shadow;

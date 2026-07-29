@@ -38,12 +38,13 @@ function styleString(value, label, allowEmpty = false) {
 function dashArray(value) {
     if (value === null)
         return null;
-    if (!Array.isArray(value) ||
-        value.length > 16 ||
-        value.some((entry) => typeof entry !== 'number' || !Number.isFinite(entry) || entry < 0 || entry > 1000)) {
+    const entries = Array.isArray(value) ? Array.from(value) : null;
+    if (!entries ||
+        entries.length > 16 ||
+        entries.some((entry) => typeof entry !== 'number' || !Number.isFinite(entry) || entry < 0 || entry > 1000)) {
         throw new AnnotationValidationError('Shape stroke dash array is invalid.');
     }
-    return Object.freeze([...value]);
+    return Object.freeze(entries.map((entry) => finiteRange(entry, 'Shape stroke dash entry', 0, 1000)));
 }
 function shapeKind(value) {
     if (value === 'rect' || value === 'line' || value === 'arrow')

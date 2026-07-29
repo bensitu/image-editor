@@ -128,17 +128,20 @@ function styleString(value: unknown, label: string, allowEmpty = false): string 
 
 function dashArray(value: unknown): readonly number[] | null {
     if (value === null) return null;
+    const entries = Array.isArray(value) ? Array.from<unknown>(value) : null;
     if (
-        !Array.isArray(value) ||
-        value.length > 16 ||
-        value.some(
+        !entries ||
+        entries.length > 16 ||
+        entries.some(
             (entry) =>
                 typeof entry !== 'number' || !Number.isFinite(entry) || entry < 0 || entry > 1_000,
         )
     ) {
         throw new AnnotationValidationError('Shape stroke dash array is invalid.');
     }
-    return Object.freeze([...value]);
+    return Object.freeze(
+        entries.map((entry) => finiteRange(entry, 'Shape stroke dash entry', 0, 1_000)),
+    );
 }
 
 function shapeKind(value: unknown): ShapeAnnotationKind {

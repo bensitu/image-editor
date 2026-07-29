@@ -1,3 +1,4 @@
+import { normalizeThrownError } from '../../plugin-kernel/thrown-error.js';
 import { DocumentMutationError, DocumentMutationInvariantError, DocumentMutationRegistrationError, DocumentMutationUnrecoverableError, } from '../errors.js';
 import { cloneStateValue } from '../state/clone-state-value.js';
 import { BoundedReplayIdTracker } from './bounded-replay-id-tracker.js';
@@ -245,7 +246,7 @@ export class DocumentMutationCoordinator {
             return await this.executeRequest(request, context, parentRecord.session);
         }
         catch (error) {
-            (_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 ? _a : (_b.failure = error);
+            (_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 ? _a : (_b.failure = normalizeThrownError(error, `[ImageEditor] Nested document mutation "${request.id}" failed with a non-Error value.`));
             throw error;
         }
     }

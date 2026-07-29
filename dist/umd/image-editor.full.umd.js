@@ -1065,6 +1065,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region dist/esm/plugin-kernel/thrown-error.js
+	function normalizeThrownError(cause, message) {
+		try {
+			if (cause instanceof Error) return cause;
+		} catch {}
+		const error = new Error(message);
+		Object.defineProperty(error, "cause", {
+			configurable: true,
+			value: cause
+		});
+		return error;
+	}
+
+//#endregion
 //#region dist/esm/plugin-kernel/operation-registry.js
 	const OPERATION_MODES = [
 		"read",
@@ -1251,8 +1265,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		suspend(reason) {
 			this.assertActive("suspend operations");
-			this.suspendedReason = reason;
-			return this.abortAll(reason);
+			const suspendedReason = normalizeThrownError(reason, "[ImageEditor] Plugin Kernel operations were suspended with a non-Error reason.");
+			this.suspendedReason = suspendedReason;
+			return this.abortAll(suspendedReason);
 		}
 		dispose() {
 			if (this.disposed) return;
@@ -1948,7 +1963,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		disposeSync() {
 			if (this.disposed) return;
-			let exitError;
+			let exitError = null;
 			try {
 				const current = this.active;
 				this.active = null;
@@ -1962,7 +1977,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				}
 			} catch (error) {
-				exitError = error;
+				exitError = normalizeThrownError(error, "[ImageEditor] Tool disposal failed with a non-Error value.");
 			} finally {
 				this.active = null;
 				this.tools.clear();
@@ -2013,12 +2028,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async dispose() {
 			if (this.disposed) return;
-			let exitError;
+			let exitError = null;
 			try {
 				await this.waitForTransition();
 				if (this.active) await this.exitCurrent("host-dispose");
 			} catch (error) {
-				exitError = error;
+				exitError = normalizeThrownError(error, "[ImageEditor] Tool disposal failed with a non-Error value.");
 			} finally {
 				this.active = null;
 				this.tools.clear();
@@ -4621,7 +4636,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				construct: (shadow, argumentsList, newTarget) => {
 					const target = this.requireTarget();
 					if (typeof target !== "function") throw this.incompatibleReplayError("is no longer constructable");
-					return Reflect.construct(target, argumentsList, newTarget);
+					const instance = Reflect.construct(target, argumentsList, newTarget);
+					if (!isProxyablePluginApi(instance)) throw this.incompatibleReplayError("returned a non-object from its constructor");
+					return instance;
 				},
 				deleteProperty: (shadow, property) => {
 					return Reflect.deleteProperty(this.requireTarget(), property);
@@ -4890,7 +4907,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			try {
 				return await this.executeRequest(request, context, parentRecord.session);
 			} catch (error) {
-				(_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 || (_b.failure = error);
+				(_a = (_b = parentRecord.session).failure) !== null && _a !== void 0 || (_b.failure = normalizeThrownError(error, `[ImageEditor] Nested document mutation "${request.id}" failed with a non-Error value.`));
 				throw error;
 			}
 		}
@@ -12508,6 +12525,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const prototype = Object.getPrototypeOf(value);
 		return prototype === Object.prototype || prototype === null;
 	}
+	function isFiniteOverlayStatePoint(value) {
+		return isPlainRecord$4(value) && typeof value.x === "number" && Number.isFinite(value.x) && typeof value.y === "number" && Number.isFinite(value.y);
+	}
 	function maskStateKind(object) {
 		var _a;
 		const kind = String((_a = object.type) !== null && _a !== void 0 ? _a : "").toLowerCase();
@@ -12515,8 +12535,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		throw new CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
 	}
 	function normalizedPolygonPoints(object) {
-		const points = object.points;
-		if (!Array.isArray(points) || points.length < 3 || points.length > 4096) return null;
+		const candidate = Reflect.get(object, "points");
+		const points = Array.isArray(candidate) ? Array.from(candidate) : null;
+		if (!points || points.length < 3 || points.length > 4096) return null;
+		if (!points.every(isFiniteOverlayStatePoint)) return null;
 		const xs = points.map((point) => point.x);
 		const ys = points.map((point) => point.y);
 		const left = Math.min(...xs);
@@ -16439,7 +16461,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				codec: {
 					type: "annotation:textbox",
 					version: "1.0.0",
-					serialize: (object) => object.toObject(),
+					serialize: (object) => {
+						const serialized = object.toObject();
+						if (!isSerializedText(serialized)) throw new AnnotationValidationError("Text Annotation serialization produced malformed data.");
+						return serialized;
+					},
 					validate: isSerializedText,
 					deserialize: async (value, context) => {
 						if (!isSerializedText(value)) throw new AnnotationValidationError("Serialized Text Annotation data is malformed.");
@@ -16851,8 +16877,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function dashArray(value) {
 		if (value === null) return null;
-		if (!Array.isArray(value) || value.length > 16 || value.some((entry) => typeof entry !== "number" || !Number.isFinite(entry) || entry < 0 || entry > 1e3)) throw new AnnotationValidationError("Shape stroke dash array is invalid.");
-		return Object.freeze([...value]);
+		const entries = Array.isArray(value) ? Array.from(value) : null;
+		if (!entries || entries.length > 16 || entries.some((entry) => typeof entry !== "number" || !Number.isFinite(entry) || entry < 0 || entry > 1e3)) throw new AnnotationValidationError("Shape stroke dash array is invalid.");
+		return Object.freeze(entries.map((entry) => finiteRange$1(entry, "Shape stroke dash entry", 0, 1e3)));
 	}
 	function shapeKind(value) {
 		if (value === "rect" || value === "line" || value === "arrow") return value;
