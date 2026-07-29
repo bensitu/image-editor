@@ -45,6 +45,13 @@ const packageSubpathEntries = Object.freeze({
     [`${packageName}/presets/annotation`]: ['presets', 'annotation', 'index.js'],
     [`${packageName}/presets/full`]: ['presets', 'full', 'index.js'],
 });
+// Official dependency diagnostics may contain Plugin IDs, so isolation checks target
+// Overlay State implementation symbols instead of its package-entry text.
+const overlayStateImplementationSymbols = [
+    'OverlayStateController',
+    'OVERLAY_STATE_SCHEMA',
+    'overlayStatePlugin',
+];
 const forbiddenKernelSymbols = [
     'createMask',
     'MaskObject',
@@ -56,7 +63,7 @@ const forbiddenKernelSymbols = [
     'Brightness',
     'Contrast',
     'HistoryManager',
-    'overlay-state',
+    ...overlayStateImplementationSymbols,
     'TransformController',
 ];
 const fixtureForbiddenSymbols = Object.freeze({
@@ -72,7 +79,7 @@ const fixtureForbiddenSymbols = Object.freeze({
         'Brightness',
         'Contrast',
         'HistoryManager',
-        'overlay-state',
+        ...overlayStateImplementationSymbols,
     ],
     'core-mask': [
         'TransformPluginController',
