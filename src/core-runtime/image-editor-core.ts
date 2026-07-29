@@ -117,10 +117,7 @@ import {
 } from './state/index.js';
 import { inspectEncodedImageDataUrl } from './state/image-data-url.js';
 import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
-import {
-    FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
-    STATE_LOAD_CONFLICT_DOMAINS,
-} from '../utils/internal-operation-conflict-domains.js';
+import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS } from '../utils/internal-operation-conflict-domains.js';
 
 const DEFAULT_CORE_OPTIONS: ResolvedImageEditorCoreOptions = Object.freeze({
     canvasWidth: 800,
@@ -756,7 +753,7 @@ export class ImageEditorCore {
                             id: `core:load-image-transaction:${sequence}`,
                             kind: 'raster',
                             operationId: 'core:commit-load-image',
-                            conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
+                            conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                             signal: operationContext.signal,
                             metadata: Object.freeze({ sequence }),
                             mutate: async (commitContext) => {
@@ -897,7 +894,7 @@ export class ImageEditorCore {
                 id: `core:load-state-transaction:${sequence}`,
                 kind: 'compound',
                 operationId: 'core:load-state',
-                conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 ...(options.signal ? { signal: options.signal } : {}),
                 metadata: Object.freeze({ sequence }),
                 mutate: async (context) => {
@@ -1307,13 +1304,13 @@ export class ImageEditorCore {
         manager.registerHostOperation({
             id: 'core:commit-load-image',
             mode: 'mutation',
-            conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
+            conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
             reentrancy: 'queue',
         });
         manager.registerHostOperation({
             id: 'core:load-state',
             mode: 'mutation',
-            conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+            conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
             reentrancy: 'reject',
         });
         manager.registerHostOperation({

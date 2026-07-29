@@ -7,7 +7,7 @@ if (Object.prototype.hasOwnProperty.call(exports, "transformPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#region dist/esm/utils/internal-operation-conflict-domains.js
-	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
 		"geometry",
@@ -22,20 +22,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"overlay",
 		"state"
 	]);
-	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
-		"base-image",
-		"geometry",
-		"raster",
 		"overlay",
+		"selection",
 		"state"
 	]);
-	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
 		"overlay",
+		"selection",
 		"state"
 	]);
 

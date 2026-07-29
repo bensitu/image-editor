@@ -24,7 +24,10 @@ import {
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
-import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
+import {
+    DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
+    PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+} from '../../utils/internal-operation-conflict-domains.js';
 import { OverlayFoundationController } from './overlay-foundation-controller.js';
 import type {
     OverlayFoundationApi,
@@ -164,7 +167,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
                 context.operations.register({
                     id: operationId,
                     mode: 'mutation',
-                    conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                    conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'reject',
                 });
             }
@@ -177,7 +180,7 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
             context.operations.register({
                 id: 'overlay:flatten',
                 mode: 'mutation',
-                conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'reject',
             });
             controller = new OverlayFoundationController(

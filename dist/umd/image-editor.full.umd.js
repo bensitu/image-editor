@@ -3834,7 +3834,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/utils/internal-operation-conflict-domains.js
-	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
 		"geometry",
@@ -3849,20 +3849,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"overlay",
 		"state"
 	]);
-	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
-		"base-image",
-		"geometry",
-		"raster",
 		"overlay",
+		"selection",
 		"state"
 	]);
-	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
 		"overlay",
+		"selection",
 		"state"
 	]);
 
@@ -6368,7 +6363,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							id: `core:load-image-transaction:${sequence}`,
 							kind: "raster",
 							operationId: "core:commit-load-image",
-							conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
+							conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 							signal: operationContext.signal,
 							metadata: Object.freeze({ sequence }),
 							mutate: async (commitContext) => {
@@ -6486,7 +6481,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: `core:load-state-transaction:${sequence}`,
 					kind: "compound",
 					operationId: "core:load-state",
-					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					...options.signal ? { signal: options.signal } : {},
 					metadata: Object.freeze({ sequence }),
 					mutate: async (context) => {
@@ -6789,13 +6784,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			manager.registerHostOperation({
 				id: "core:commit-load-image",
 				mode: "mutation",
-				conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			manager.registerHostOperation({
 				id: "core:load-state",
 				mode: "mutation",
-				conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			manager.registerHostOperation({
@@ -8050,12 +8045,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: request.id,
 				kind: "overlay",
 				operationId: request.operationId,
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				...request.parent ? { parent: request.parent } : {},
 				...request.metadata ? { metadata: request.metadata } : {},
 				mutate: async (transaction) => {
@@ -8463,12 +8453,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id,
 				kind: "overlay",
 				operationId: "overlay:gesture",
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				metadata: Object.freeze({
 					interactive: true,
 					objectIds: targets.map((entry) => entry.persistentId)
@@ -9138,12 +9123,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				});
 				context.operations.register({
@@ -9155,7 +9135,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "overlay:flatten",
 					mode: "mutation",
-					conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				});
 				controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);
@@ -10289,12 +10269,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				}));
 				controller = new AnnotationController(Object.freeze({
@@ -11351,26 +11326,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "history:undo",
 					mode: "mutation",
-					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				context.operations.register({
 					id: "history:redo",
 					mode: "mutation",
-					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				for (const operationId of ["history:enable", "history:disable"]) context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"raster",
-						"overlay",
-						"state"
-					],
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				controller = new HistoryPluginController(state, { run: (operationId, body) => context.operations.run(operationId, null, () => body()) }, options, (error, message) => diagnostics.reportWarning(error, message));
@@ -12914,12 +12882,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				});
 				controller = new MaskPluginController(host, state, Object.freeze({
@@ -12940,17 +12903,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 		});
 	}
-
-//#endregion
-//#region dist/esm/plugins/filters/conflict-domain-sets.js
-	const FILTER_STATE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
-		"overlay",
-		"state"
-	]);
 
 //#endregion
 //#region dist/esm/plugins/filters/filters-errors.js
@@ -13564,7 +13516,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: transactionId,
 				kind: "plugin-state",
 				operationId: "filters:commit",
-				conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				metadata: Object.freeze({ filterCount: definitions.length }),
 				mutate: () => {
 					this.committedState = createState(this.normalizeDefinitions(definitions));
@@ -13600,7 +13552,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: transactionId,
 				kind: "plugin-state",
 				operationId: "filters:clear",
-				conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				mutate: () => {
 					this.committedState = emptyState;
 				},
@@ -13642,7 +13594,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: transactionId,
 					kind: "compound",
 					operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : "filters:bake",
-					conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					...parent ? { parent } : {},
 					metadata: Object.freeze({ filterCount: definitions.length }),
 					mutate: async (context) => {
@@ -14016,19 +13968,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					{
 						id: "filters:commit",
 						mode: "mutation",
-						conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+						conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{
 						id: "filters:clear",
 						mode: "mutation",
-						conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+						conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{
 						id: "filters:bake",
 						mode: "mutation",
-						conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+						conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{
@@ -16541,12 +16493,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				}));
 				for (const operationId of [
@@ -16556,11 +16503,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
-					conflictDomains: [
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.tools.register({
@@ -17178,12 +17121,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				}));
 				for (const operationId of [
@@ -17194,11 +17132,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
-					conflictDomains: [
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.tools.register({
@@ -17855,12 +17789,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				for (const operationId of ["annotation-draw:commit-stroke", "annotation-draw:commit-erase"]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				}));
 				for (const operationId of [
@@ -17875,11 +17804,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
-					conflictDomains: [
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.tools.register({
@@ -18782,12 +18707,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "overlay-state:import",
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				controller = new OverlayStateController(overlay, baseImage, canvas, limits);

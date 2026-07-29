@@ -6,6 +6,35 @@
 if (Object.prototype.hasOwnProperty.call(exports, "drawAnnotationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/utils/internal-operation-conflict-domains.js
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"overlay",
+		"selection",
+		"state"
+	]);
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
+		"overlay",
+		"selection",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
@@ -787,12 +816,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				for (const operationId of ["annotation-draw:commit-stroke", "annotation-draw:commit-erase"]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				}));
 				for (const operationId of [
@@ -807,11 +831,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
-					conflictDomains: [
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.tools.register({

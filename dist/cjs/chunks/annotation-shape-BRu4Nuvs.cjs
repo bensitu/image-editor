@@ -1,7 +1,8 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-DPn_scKI.cjs');
-const require_annotation = require('./annotation-D14PLIge.cjs');
+const require_overlay = require('./overlay-gGIA5Fte.cjs');
+const require_annotation = require('./annotation-wJFPAxvX.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-VBb127k8.cjs');
 
 //#region dist/esm/plugins/annotation-shape/shape-controller.js
@@ -568,12 +569,7 @@ function shapeAnnotationPlugin(options = {}) {
 			]) context.disposables.add(context.operations.register({
 				id: operationId,
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			}));
 			for (const operationId of [
@@ -584,11 +580,7 @@ function shapeAnnotationPlugin(options = {}) {
 			]) context.disposables.add(context.operations.register({
 				id: operationId,
 				mode: "busy",
-				conflictDomains: [
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			}));
 			context.disposables.add(context.tools.register({
@@ -654,4 +646,4 @@ Object.defineProperty(exports, 'shapeAnnotationPluginRef', {
     return shapeAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-shape-C741rezA.cjs.map
+//# sourceMappingURL=annotation-shape-BRu4Nuvs.cjs.map

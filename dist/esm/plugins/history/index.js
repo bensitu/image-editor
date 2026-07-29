@@ -1,5 +1,5 @@
 import { CORE_DIAGNOSTICS_CAPABILITY, MEMENTO_HISTORY_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
-import { STATE_LOAD_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
+import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { HistoryPluginController, } from './history-controller.js';
 export const HISTORY_CAPABILITY = createCapabilityToken('plugin:history', '1.0.0');
 export const historyPluginRef = definePluginRef('plugin:history', '1.0.0');
@@ -24,27 +24,20 @@ export function historyPlugin(options = {}) {
             context.operations.register({
                 id: 'history:undo',
                 mode: 'mutation',
-                conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             context.operations.register({
                 id: 'history:redo',
                 mode: 'mutation',
-                conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             for (const operationId of ['history:enable', 'history:disable']) {
                 context.operations.register({
                     id: operationId,
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 });
             }

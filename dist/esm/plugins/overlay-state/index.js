@@ -1,3 +1,4 @@
+import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { OVERLAY_CAPABILITY } from '../../foundations/overlay/index.js';
 import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { OverlayStateController } from './overlay-state-controller.js';
@@ -28,7 +29,7 @@ export function overlayStatePlugin(options = {}) {
             context.operations.register({
                 id: 'overlay-state:import',
                 mode: 'mutation',
-                conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             controller = new OverlayStateController(overlay, baseImage, canvas, limits);

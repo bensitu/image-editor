@@ -5,6 +5,7 @@
  */
 
 import type { CoreEventMap } from '../../core/index.js';
+import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import {
     CANVAS_READ_CAPABILITY,
     CORE_DIAGNOSTICS_CAPABILITY,
@@ -82,7 +83,7 @@ export function annotationFoundationPlugin(
                     context.operations.register({
                         id: operationId,
                         mode: 'mutation',
-                        conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                        conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                         reentrancy: 'reject',
                     }),
                 );

@@ -1,6 +1,7 @@
 import { CoreRuntimeError, } from '../../core/index.js';
 import { settleAbortable } from '../../utils/abortable-promise.js';
 import { isRasterAllocationWithinBudget } from '../../utils/image-budget.js';
+import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { PluginManifestError, createDisposable, disposeInReverseSync, isRuntimeIdentifier, isValidSemVer, } from '../../sdk/index.js';
 import { applyDeltaToObject } from './overlay-transform-delta.js';
 import { OverlayRecoverableObjectError } from './overlay-errors.js';
@@ -708,7 +709,7 @@ export class OverlayFoundationController {
             id: request.id,
             kind: 'overlay',
             operationId: request.operationId,
-            conflictDomains: ['document', 'overlay', 'selection', 'state'],
+            conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
             ...(request.parent ? { parent: request.parent } : {}),
             ...(request.metadata ? { metadata: request.metadata } : {}),
             mutate: async (transaction) => {
@@ -1212,7 +1213,7 @@ export class OverlayFoundationController {
             id,
             kind: 'overlay',
             operationId: 'overlay:gesture',
-            conflictDomains: ['document', 'overlay', 'selection', 'state'],
+            conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
             metadata: Object.freeze({
                 interactive: true,
                 objectIds: targets.map((entry) => entry.persistentId),

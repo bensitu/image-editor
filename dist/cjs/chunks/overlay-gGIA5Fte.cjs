@@ -1,8 +1,8 @@
 const require_plugin_identifier = require('./plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-SjIO7_D6.cjs');
+const require_core = require('./core-ByV0wgHe.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
-const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-CSawOGVt.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 
@@ -729,12 +729,7 @@ var OverlayFoundationController = class {
 			id: request.id,
 			kind: "overlay",
 			operationId: request.operationId,
-			conflictDomains: [
-				"document",
-				"overlay",
-				"selection",
-				"state"
-			],
+			conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 			...request.parent ? { parent: request.parent } : {},
 			...request.metadata ? { metadata: request.metadata } : {},
 			mutate: async (transaction) => {
@@ -1142,12 +1137,7 @@ var OverlayFoundationController = class {
 			id,
 			kind: "overlay",
 			operationId: "overlay:gesture",
-			conflictDomains: [
-				"document",
-				"overlay",
-				"selection",
-				"state"
-			],
+			conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 			metadata: Object.freeze({
 				interactive: true,
 				objectIds: targets.map((entry) => entry.persistentId)
@@ -1817,12 +1807,7 @@ function overlayFoundationPlugin() {
 			]) context.operations.register({
 				id: operationId,
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			context.operations.register({
@@ -1834,7 +1819,7 @@ function overlayFoundationPlugin() {
 			context.operations.register({
 				id: "overlay:flatten",
 				mode: "mutation",
-				conflictDomains: require_internal_operation_conflict_domains.RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+				conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);
@@ -1910,4 +1895,4 @@ Object.defineProperty(exports, 'restoreOverlayStateBounds', {
     return restoreOverlayStateBounds;
   }
 });
-//# sourceMappingURL=overlay-DPn_scKI.cjs.map
+//# sourceMappingURL=overlay-gGIA5Fte.cjs.map

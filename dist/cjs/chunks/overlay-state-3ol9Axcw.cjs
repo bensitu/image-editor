@@ -1,8 +1,9 @@
 const require_plugin_identifier = require('./plugin-identifier-gLkfk0AM.cjs');
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-SjIO7_D6.cjs');
+const require_core = require('./core-ByV0wgHe.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-DPn_scKI.cjs');
+const require_overlay = require('./overlay-gGIA5Fte.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 
 //#region dist/esm/plugins/overlay-state/overlay-state-errors.js
@@ -858,12 +859,7 @@ function overlayStatePlugin(options = {}) {
 			context.operations.register({
 				id: "overlay-state:import",
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			controller = new OverlayStateController(overlay, baseImage, canvas, limits);
@@ -943,4 +939,4 @@ Object.defineProperty(exports, 'overlayStatePluginRef', {
     return overlayStatePluginRef;
   }
 });
-//# sourceMappingURL=overlay-state-C7OhDkCO.cjs.map
+//# sourceMappingURL=overlay-state-3ol9Axcw.cjs.map

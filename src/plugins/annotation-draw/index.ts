@@ -6,6 +6,10 @@
 
 import type { CoreEventMap } from '../../core/index.js';
 import {
+    OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS,
+    PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+} from '../../utils/internal-operation-conflict-domains.js';
+import {
     ANNOTATION_AUTHORING_CAPABILITY,
     annotationFoundationRef,
 } from '../../foundations/annotation/index.js';
@@ -81,7 +85,7 @@ export function drawAnnotationPlugin(
                     context.operations.register({
                         id: operationId,
                         mode: 'mutation',
-                        conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                        conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                         reentrancy: 'reject',
                     }),
                 );
@@ -100,7 +104,7 @@ export function drawAnnotationPlugin(
                     context.operations.register({
                         id: operationId,
                         mode: 'busy',
-                        conflictDomains: ['overlay', 'selection', 'state'],
+                        conflictDomains: OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS,
                         reentrancy: 'queue',
                     }),
                 );

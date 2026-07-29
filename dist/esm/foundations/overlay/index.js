@@ -1,5 +1,5 @@
 import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
-import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
+import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS, PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS, } from '../../utils/internal-operation-conflict-domains.js';
 import { OverlayFoundationController } from './overlay-foundation-controller.js';
 export const OVERLAY_CAPABILITY = createCapabilityToken('foundation:overlay', '1.0.0');
 export const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken('foundation:overlay-registration', '1.0.0');
@@ -111,7 +111,7 @@ export function overlayFoundationPlugin() {
                 context.operations.register({
                     id: operationId,
                     mode: 'mutation',
-                    conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                    conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'reject',
                 });
             }
@@ -124,7 +124,7 @@ export function overlayFoundationPlugin() {
             context.operations.register({
                 id: 'overlay:flatten',
                 mode: 'mutation',
-                conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'reject',
             });
             controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);

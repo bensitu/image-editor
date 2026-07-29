@@ -3867,7 +3867,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/utils/internal-operation-conflict-domains.js
-	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
 		"geometry",
@@ -3882,20 +3882,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"overlay",
 		"state"
 	]);
-	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
-		"base-image",
-		"geometry",
-		"raster",
 		"overlay",
+		"selection",
 		"state"
 	]);
-	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
 		"overlay",
+		"selection",
 		"state"
 	]);
 
@@ -6401,7 +6396,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							id: `core:load-image-transaction:${sequence}`,
 							kind: "raster",
 							operationId: "core:commit-load-image",
-							conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
+							conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 							signal: operationContext.signal,
 							metadata: Object.freeze({ sequence }),
 							mutate: async (commitContext) => {
@@ -6519,7 +6514,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: `core:load-state-transaction:${sequence}`,
 					kind: "compound",
 					operationId: "core:load-state",
-					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					...options.signal ? { signal: options.signal } : {},
 					metadata: Object.freeze({ sequence }),
 					mutate: async (context) => {
@@ -6822,13 +6817,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			manager.registerHostOperation({
 				id: "core:commit-load-image",
 				mode: "mutation",
-				conflictDomains: FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			manager.registerHostOperation({
 				id: "core:load-state",
 				mode: "mutation",
-				conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			manager.registerHostOperation({

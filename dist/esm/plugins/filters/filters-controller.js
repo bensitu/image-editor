@@ -1,12 +1,11 @@
 import { createDisposable, } from '../../sdk/index.js';
 import { placeRasterVisualObject } from '../../utils/internal-layer-placement.js';
+import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { MAX_SUPPORTED_FILTER_COUNT, areFilterDefinitionsEqual, normalizeFilterDefinitions, } from './filter-definitions.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { copyBaseImagePresentation, createFilteredImageClone, disposeFabricImage, normalizeFilterBakeOptions, renderBakedImage, } from './filtered-image-renderer.js';
 import { FilterDefinitionError, FiltersPluginDisposedError, FiltersPreviewMissingError, } from './filters-errors.js';
-import { FILTER_STATE_MUTATION_CONFLICT_DOMAINS } from './conflict-domain-sets.js';
-import { RASTER_REPLACEMENT_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 const FILTERS_STATE_SCHEMA = 'image-editor.filters';
 const FILTERS_STATE_VERSION = 1;
 function createState(definitions) {
@@ -236,7 +235,7 @@ export class FiltersController {
             id: transactionId,
             kind: 'plugin-state',
             operationId: 'filters:commit',
-            conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+            conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
             metadata: Object.freeze({ filterCount: definitions.length }),
             mutate: () => {
                 this.committedState = createState(this.normalizeDefinitions(definitions));
@@ -279,7 +278,7 @@ export class FiltersController {
             id: transactionId,
             kind: 'plugin-state',
             operationId: 'filters:clear',
-            conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+            conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
             mutate: () => {
                 this.committedState = emptyState;
             },
@@ -325,7 +324,7 @@ export class FiltersController {
                 id: transactionId,
                 kind: 'compound',
                 operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : 'filters:bake',
-                conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 ...(parent ? { parent } : {}),
                 metadata: Object.freeze({ filterCount: definitions.length }),
                 mutate: async (context) => {

@@ -1,3 +1,4 @@
+import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, RENDER_REQUEST_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { OVERLAY_CAPABILITY, OVERLAY_REGISTRATION_CAPABILITY, overlayFoundationRef, } from '../overlay/index.js';
 import { AnnotationController } from './annotation-controller.js';
@@ -40,7 +41,7 @@ export function annotationFoundationPlugin(options = {}) {
                 context.disposables.add(context.operations.register({
                     id: operationId,
                     mode: 'mutation',
-                    conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                    conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'reject',
                 }));
             }

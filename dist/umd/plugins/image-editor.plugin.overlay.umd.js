@@ -7,7 +7,7 @@ if (Object.prototype.hasOwnProperty.call(exports, "overlayFoundationPlugin")) re
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#region dist/esm/utils/internal-operation-conflict-domains.js
-	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
 		"geometry",
@@ -22,20 +22,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"overlay",
 		"state"
 	]);
-	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
-		"base-image",
-		"geometry",
-		"raster",
 		"overlay",
+		"selection",
 		"state"
 	]);
-	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
 		"overlay",
+		"selection",
 		"state"
 	]);
 
@@ -812,12 +807,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: request.id,
 				kind: "overlay",
 				operationId: request.operationId,
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				...request.parent ? { parent: request.parent } : {},
 				...request.metadata ? { metadata: request.metadata } : {},
 				mutate: async (transaction) => {
@@ -1225,12 +1215,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id,
 				kind: "overlay",
 				operationId: "overlay:gesture",
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				metadata: Object.freeze({
 					interactive: true,
 					objectIds: targets.map((entry) => entry.persistentId)
@@ -1900,12 +1885,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				});
 				context.operations.register({
@@ -1917,7 +1897,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "overlay:flatten",
 					mode: "mutation",
-					conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				});
 				controller = new OverlayFoundationController(host, state, geometry, mutations, exportPort);

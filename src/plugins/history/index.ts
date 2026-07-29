@@ -14,7 +14,7 @@ import {
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
-import { STATE_LOAD_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
+import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import {
     HistoryPluginController,
     type HistoryPluginOptions,
@@ -47,27 +47,20 @@ export function historyPlugin(
             context.operations.register({
                 id: 'history:undo',
                 mode: 'mutation',
-                conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             context.operations.register({
                 id: 'history:redo',
                 mode: 'mutation',
-                conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+                conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             for (const operationId of ['history:enable', 'history:disable']) {
                 context.operations.register({
                     id: operationId,
                     mode: 'mutation',
-                    conflictDomains: [
-                        'document',
-                        'base-image',
-                        'geometry',
-                        'raster',
-                        'overlay',
-                        'state',
-                    ],
+                    conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                     reentrancy: 'queue',
                 });
             }

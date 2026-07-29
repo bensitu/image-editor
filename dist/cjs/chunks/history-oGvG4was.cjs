@@ -1,6 +1,6 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
-const require_core = require('./core-SjIO7_D6.cjs');
-const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-CSawOGVt.cjs');
+const require_core = require('./core-ByV0wgHe.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 
 //#region dist/esm/plugins/history/retained-size-estimator.js
@@ -368,26 +368,19 @@ function historyPlugin(options = {}) {
 			context.operations.register({
 				id: "history:undo",
 				mode: "mutation",
-				conflictDomains: require_internal_operation_conflict_domains.STATE_LOAD_CONFLICT_DOMAINS,
+				conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			context.operations.register({
 				id: "history:redo",
 				mode: "mutation",
-				conflictDomains: require_internal_operation_conflict_domains.STATE_LOAD_CONFLICT_DOMAINS,
+				conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			for (const operationId of ["history:enable", "history:disable"]) context.operations.register({
 				id: operationId,
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"base-image",
-					"geometry",
-					"raster",
-					"overlay",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			controller = new HistoryPluginController(state, { run: (operationId, body) => context.operations.run(operationId, null, () => body()) }, options, (error, message) => diagnostics.reportWarning(error, message));
@@ -427,4 +420,4 @@ Object.defineProperty(exports, 'historyPluginRef', {
     return historyPluginRef;
   }
 });
-//# sourceMappingURL=history-CYXu3va6.cjs.map
+//# sourceMappingURL=history-oGvG4was.cjs.map

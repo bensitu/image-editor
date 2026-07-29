@@ -30,6 +30,7 @@ import type {
 } from '../../sdk/index.js';
 import { settleAbortable } from '../../utils/abortable-promise.js';
 import { isRasterAllocationWithinBudget } from '../../utils/image-budget.js';
+import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import {
     PluginManifestError,
     createDisposable,
@@ -798,7 +799,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             id: request.id,
             kind: 'overlay',
             operationId: request.operationId,
-            conflictDomains: ['document', 'overlay', 'selection', 'state'],
+            conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
             ...(request.parent ? { parent: request.parent } : {}),
             ...(request.metadata ? { metadata: request.metadata } : {}),
             mutate: async (transaction) => {
@@ -1374,7 +1375,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                 id,
                 kind: 'overlay',
                 operationId: 'overlay:gesture',
-                conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                 metadata: Object.freeze({
                     interactive: true,
                     objectIds: targets.map((entry) => entry.persistentId),

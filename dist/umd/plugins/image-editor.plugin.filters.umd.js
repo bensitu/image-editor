@@ -7,7 +7,7 @@ if (Object.prototype.hasOwnProperty.call(exports, "filtersPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#region dist/esm/utils/internal-operation-conflict-domains.js
-	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
 		"geometry",
@@ -22,31 +22,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"overlay",
 		"state"
 	]);
-	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
-		"base-image",
-		"geometry",
-		"raster",
 		"overlay",
+		"selection",
 		"state"
 	]);
-	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
 		"overlay",
-		"state"
-	]);
-
-//#endregion
-//#region dist/esm/plugins/filters/conflict-domain-sets.js
-	const FILTER_STATE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
-		"overlay",
+		"selection",
 		"state"
 	]);
 
@@ -745,7 +729,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: transactionId,
 				kind: "plugin-state",
 				operationId: "filters:commit",
-				conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				metadata: Object.freeze({ filterCount: definitions.length }),
 				mutate: () => {
 					this.committedState = createState(this.normalizeDefinitions(definitions));
@@ -781,7 +765,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id: transactionId,
 				kind: "plugin-state",
 				operationId: "filters:clear",
-				conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				mutate: () => {
 					this.committedState = emptyState;
 				},
@@ -823,7 +807,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: transactionId,
 					kind: "compound",
 					operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : "filters:bake",
-					conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					...parent ? { parent } : {},
 					metadata: Object.freeze({ filterCount: definitions.length }),
 					mutate: async (context) => {
@@ -1197,19 +1181,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					{
 						id: "filters:commit",
 						mode: "mutation",
-						conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+						conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{
 						id: "filters:clear",
 						mode: "mutation",
-						conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+						conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{
 						id: "filters:bake",
 						mode: "mutation",
-						conflictDomains: RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+						conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 						reentrancy: "queue"
 					},
 					{

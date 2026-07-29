@@ -5,6 +5,7 @@
  */
 
 import type { CoreEventMap } from '../../core/index.js';
+import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { OVERLAY_CAPABILITY } from '../../foundations/overlay/index.js';
 import {
     BASE_IMAGE_READ_CAPABILITY,
@@ -50,7 +51,7 @@ export function overlayStatePlugin(
             context.operations.register({
                 id: 'overlay-state:import',
                 mode: 'mutation',
-                conflictDomains: ['document', 'overlay', 'selection', 'state'],
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             controller = new OverlayStateController(overlay, baseImage, canvas, limits);

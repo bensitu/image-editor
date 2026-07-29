@@ -7,7 +7,7 @@ if (Object.prototype.hasOwnProperty.call(exports, "historyPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#region dist/esm/utils/internal-operation-conflict-domains.js
-	const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
 		"geometry",
@@ -22,20 +22,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"overlay",
 		"state"
 	]);
-	const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
-		"base-image",
-		"geometry",
-		"raster",
 		"overlay",
+		"selection",
 		"state"
 	]);
-	const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
-		"document",
-		"base-image",
-		"geometry",
-		"raster",
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
 		"overlay",
+		"selection",
 		"state"
 	]);
 
@@ -405,26 +400,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "history:undo",
 					mode: "mutation",
-					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				context.operations.register({
 					id: "history:redo",
 					mode: "mutation",
-					conflictDomains: STATE_LOAD_CONFLICT_DOMAINS,
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				for (const operationId of ["history:enable", "history:disable"]) context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"base-image",
-						"geometry",
-						"raster",
-						"overlay",
-						"state"
-					],
+					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				controller = new HistoryPluginController(state, { run: (operationId, body) => context.operations.run(operationId, null, () => body()) }, options, (error, message) => diagnostics.reportWarning(error, message));

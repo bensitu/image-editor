@@ -1,4 +1,4 @@
-export const FULL_DOCUMENT_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+export const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
     'document',
     'base-image',
     'geometry',
@@ -13,20 +13,15 @@ export const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
     'overlay',
     'state',
 ]);
-export const RASTER_REPLACEMENT_CONFLICT_DOMAINS = Object.freeze([
+export const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
     'document',
-    'base-image',
-    'geometry',
-    'raster',
     'overlay',
+    'selection',
     'state',
 ]);
-export const STATE_LOAD_CONFLICT_DOMAINS = Object.freeze([
-    'document',
-    'base-image',
-    'geometry',
-    'raster',
+export const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
     'overlay',
+    'selection',
     'state',
 ]);
 //# sourceMappingURL=internal-operation-conflict-domains.js.map

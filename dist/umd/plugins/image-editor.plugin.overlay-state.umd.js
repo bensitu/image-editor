@@ -6,6 +6,35 @@
 if (Object.prototype.hasOwnProperty.call(exports, "overlayStatePlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/utils/internal-operation-conflict-domains.js
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"overlay",
+		"selection",
+		"state"
+	]);
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
+		"overlay",
+		"selection",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/plugins/overlay-state/overlay-state-errors.js
 	var OverlayStateValidationError = class extends TypeError {
 		constructor(issues) {
@@ -865,12 +894,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				context.operations.register({
 					id: "overlay-state:import",
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				controller = new OverlayStateController(overlay, baseImage, canvas, limits);

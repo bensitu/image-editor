@@ -1,23 +1,12 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
 const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
-const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-CSawOGVt.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 const require_error = require('./error-DjRQe7I0.cjs');
 
-//#region dist/esm/plugins/filters/conflict-domain-sets.js
-const FILTER_STATE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
-	"document",
-	"base-image",
-	"geometry",
-	"raster",
-	"overlay",
-	"state"
-]);
-
-//#endregion
 //#region dist/esm/plugins/filters/filters-errors.js
 var FilterDefinitionError = class extends TypeError {
 	constructor(message, path = "$") {
@@ -618,7 +607,7 @@ var FiltersController = class {
 			id: transactionId,
 			kind: "plugin-state",
 			operationId: "filters:commit",
-			conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+			conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 			metadata: Object.freeze({ filterCount: definitions.length }),
 			mutate: () => {
 				this.committedState = createState(this.normalizeDefinitions(definitions));
@@ -654,7 +643,7 @@ var FiltersController = class {
 			id: transactionId,
 			kind: "plugin-state",
 			operationId: "filters:clear",
-			conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+			conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 			mutate: () => {
 				this.committedState = emptyState;
 			},
@@ -696,7 +685,7 @@ var FiltersController = class {
 				id: transactionId,
 				kind: "compound",
 				operationId: (_g = parent === null || parent === void 0 ? void 0 : parent.operationId) !== null && _g !== void 0 ? _g : "filters:bake",
-				conflictDomains: require_internal_operation_conflict_domains.RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+				conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				...parent ? { parent } : {},
 				metadata: Object.freeze({ filterCount: definitions.length }),
 				mutate: async (context) => {
@@ -1070,19 +1059,19 @@ function filtersPlugin(options = {}) {
 				{
 					id: "filters:commit",
 					mode: "mutation",
-					conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+					conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				},
 				{
 					id: "filters:clear",
 					mode: "mutation",
-					conflictDomains: FILTER_STATE_MUTATION_CONFLICT_DOMAINS,
+					conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				},
 				{
 					id: "filters:bake",
 					mode: "mutation",
-					conflictDomains: require_internal_operation_conflict_domains.RASTER_REPLACEMENT_CONFLICT_DOMAINS,
+					conflictDomains: require_internal_operation_conflict_domains.DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				},
 				{
@@ -1229,4 +1218,4 @@ Object.defineProperty(exports, 'normalizeFilterDefinitions', {
     return normalizeFilterDefinitions;
   }
 });
-//# sourceMappingURL=filters-52ZvOp08.cjs.map
+//# sourceMappingURL=filters-S4CEH60J.cjs.map

@@ -6,6 +6,35 @@
 if (Object.prototype.hasOwnProperty.call(exports, "annotationFoundationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
+//#region dist/esm/utils/internal-operation-conflict-domains.js
+	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"raster",
+		"overlay",
+		"state"
+	]);
+	const GEOMETRY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"base-image",
+		"geometry",
+		"overlay",
+		"state"
+	]);
+	const PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS = Object.freeze([
+		"document",
+		"overlay",
+		"selection",
+		"state"
+	]);
+	const OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS = Object.freeze([
+		"overlay",
+		"selection",
+		"state"
+	]);
+
+//#endregion
 //#region dist/esm/utils/internal-layer-placement.js
 	function moveObjectTo(canvas, object, index) {
 		const canvasWithLayerApi = canvas;
@@ -1068,12 +1097,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "mutation",
-					conflictDomains: [
-						"document",
-						"overlay",
-						"selection",
-						"state"
-					],
+					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				}));
 				controller = new AnnotationController(Object.freeze({

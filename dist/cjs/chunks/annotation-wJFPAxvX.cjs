@@ -1,6 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-CWXMFfBX.cjs');
+const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-H4wymp0y.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
-const require_overlay = require('./overlay-DPn_scKI.cjs');
+const require_overlay = require('./overlay-gGIA5Fte.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
 
@@ -1033,12 +1034,7 @@ function annotationFoundationPlugin(options = {}) {
 			]) context.disposables.add(context.operations.register({
 				id: operationId,
 				mode: "mutation",
-				conflictDomains: [
-					"document",
-					"overlay",
-					"selection",
-					"state"
-				],
+				conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			}));
 			controller = new AnnotationController(Object.freeze({
@@ -1110,4 +1106,4 @@ Object.defineProperty(exports, 'annotationFoundationRef', {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-D14PLIge.cjs.map
+//# sourceMappingURL=annotation-wJFPAxvX.cjs.map
