@@ -4,7 +4,7 @@ const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 const require_overlay = require('./overlay-gGIA5Fte.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
-const require_error = require('./error-DjRQe7I0.cjs');
+const require_error = require('./error-B0eCc_5i.cjs');
 
 //#region dist/esm/plugins/crop/crop-errors.js
 var CropError = class extends Error {
@@ -253,8 +253,11 @@ function encodedBytes(dataUrl, expectedMimeType) {
 	const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
 	if (mimeType !== expectedMimeType) throw new CropValidationError(`Crop encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
 	const payload = dataUrl.slice(commaIndex + 1);
-	const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
-	return Math.floor(payload.length * 3 / 4) - padding;
+	try {
+		return require_error.base64PayloadByteLength(payload);
+	} catch {
+		throw new CropValidationError("Crop output contains a malformed base64 payload.");
+	}
 }
 async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
 	var _a;
@@ -991,4 +994,4 @@ Object.defineProperty(exports, 'cropPluginRef', {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-XtTUP6tP.cjs.map
+//# sourceMappingURL=crop-C5cTj7qk.cjs.map

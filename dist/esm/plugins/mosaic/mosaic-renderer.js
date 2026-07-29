@@ -1,4 +1,5 @@
 import { settleAbortable } from '../../utils/abortable-promise.js';
+import { base64PayloadByteLength } from '../../utils/base64-payload.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { MosaicValidationError } from './mosaic-errors.js';
@@ -52,8 +53,12 @@ function encodedBytes(dataUrl, expectedMimeType) {
         throw new MosaicValidationError(`Mosaic encoder returned ${mimeType || 'an unknown MIME'} instead of ${expectedMimeType}.`);
     }
     const payload = dataUrl.slice(commaIndex + 1);
-    const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0;
-    return Math.floor((payload.length * 3) / 4) - padding;
+    try {
+        return base64PayloadByteLength(payload);
+    }
+    catch {
+        throw new MosaicValidationError('Mosaic output contains a malformed base64 payload.');
+    }
 }
 async function decodeMosaicImage(fabric, dataUrl, timeoutMs, signal) {
     var _a;

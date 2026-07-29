@@ -3,7 +3,7 @@ const require_image_budget = require('./image-budget-BCsM4W1R.cjs');
 const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
-const require_error = require('./error-DjRQe7I0.cjs');
+const require_error = require('./error-B0eCc_5i.cjs');
 
 //#region dist/esm/plugins/mosaic/mosaic-brush.js
 function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
@@ -257,8 +257,11 @@ function encodedBytes(dataUrl, expectedMimeType) {
 	const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
 	if (mimeType !== expectedMimeType) throw new MosaicValidationError(`Mosaic encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
 	const payload = dataUrl.slice(commaIndex + 1);
-	const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
-	return Math.floor(payload.length * 3 / 4) - padding;
+	try {
+		return require_error.base64PayloadByteLength(payload);
+	} catch {
+		throw new MosaicValidationError("Mosaic output contains a malformed base64 payload.");
+	}
 }
 async function decodeMosaicImage(fabric, dataUrl, timeoutMs, signal) {
 	var _a;
@@ -955,4 +958,4 @@ Object.defineProperty(exports, 'mosaicPluginRef', {
     return mosaicPluginRef;
   }
 });
-//# sourceMappingURL=mosaic-HDL7r4lz.cjs.map
+//# sourceMappingURL=mosaic-1Guzwjb7.cjs.map

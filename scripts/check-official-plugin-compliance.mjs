@@ -39,6 +39,7 @@ const publicSafeUtilities = new Set([
     'src/mask/mask-label-manager.ts',
     'src/mask/mask-style.ts',
     'src/utils/abortable-promise.ts',
+    'src/utils/base64-payload.ts',
     'src/utils/error.ts',
     'src/utils/image-budget.ts',
     'src/utils/internal-layer-placement.ts',

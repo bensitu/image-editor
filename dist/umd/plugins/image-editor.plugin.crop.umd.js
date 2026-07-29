@@ -280,6 +280,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 //#endregion
+//#region dist/esm/utils/base64-payload.js
+	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
+	function base64PayloadByteLength(payload) {
+		const firstPaddingIndex = payload.indexOf("=");
+		const body = firstPaddingIndex === -1 ? payload : payload.slice(0, firstPaddingIndex);
+		const padding = firstPaddingIndex === -1 ? "" : payload.slice(firstPaddingIndex);
+		if (!STANDARD_BASE64_BODY_PATTERN.test(body) || padding !== "" && !/^={1,2}$/u.test(padding)) throw new TypeError("Base64 payload contains non-standard characters or padding.");
+		const remainder = payload.length % 4;
+		if (remainder === 1 || padding.length > 0 && remainder !== 0) throw new RangeError("Base64 payload length is malformed.");
+		return Math.floor(payload.length * 3 / 4) - padding.length;
+	}
+
+//#endregion
 //#region dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
@@ -332,8 +345,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
 		if (mimeType !== expectedMimeType) throw new CropValidationError(`Crop encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
 		const payload = dataUrl.slice(commaIndex + 1);
-		const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
-		return Math.floor(payload.length * 3 / 4) - padding;
+		try {
+			return base64PayloadByteLength(payload);
+		} catch {
+			throw new CropValidationError("Crop output contains a malformed base64 payload.");
+		}
 	}
 	async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
 		var _a;

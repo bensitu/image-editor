@@ -1,7 +1,8 @@
-import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { settleAbortable } from '../../utils/abortable-promise.js';
+import { base64PayloadByteLength } from '../../utils/base64-payload.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { FilterBakeValidationError } from './filters-errors.js';
 function abortError(message) {
@@ -98,8 +99,12 @@ function encodedBytes(dataUrl) {
         throw new FilterBakeValidationError('Filtered Raster output is not a base64 Data URL.');
     }
     const payload = dataUrl.slice(commaIndex + 1);
-    const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0;
-    return Math.floor((payload.length * 3) / 4) - padding;
+    try {
+        return base64PayloadByteLength(payload);
+    }
+    catch (error) {
+        throw new FilterBakeValidationError('Filtered Raster output contains a malformed base64 payload.', error);
+    }
 }
 async function decodeBakedImage(fabric, dataUrl, timeoutMs, signal) {
     var _a;

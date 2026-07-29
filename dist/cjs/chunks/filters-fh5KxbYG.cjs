@@ -5,7 +5,7 @@ const require_sdk = require('./sdk-gbqAx9cR.cjs');
 const require_abortable_promise = require('./abortable-promise-CBDJ8QeL.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-vE1rwXBj.cjs');
 const require_safe_object_key = require('./safe-object-key-DW_mnV6G.cjs');
-const require_error = require('./error-DjRQe7I0.cjs');
+const require_error = require('./error-B0eCc_5i.cjs');
 
 //#region dist/esm/plugins/filters/filters-errors.js
 var FilterDefinitionError = class extends TypeError {
@@ -331,8 +331,11 @@ function encodedBytes(dataUrl) {
 	const commaIndex = dataUrl.indexOf(",");
 	if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new FilterBakeValidationError("Filtered Raster output is not a base64 Data URL.");
 	const payload = dataUrl.slice(commaIndex + 1);
-	const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
-	return Math.floor(payload.length * 3 / 4) - padding;
+	try {
+		return require_error.base64PayloadByteLength(payload);
+	} catch (error) {
+		throw new FilterBakeValidationError("Filtered Raster output contains a malformed base64 payload.", error);
+	}
 }
 async function decodeBakedImage(fabric, dataUrl, timeoutMs, signal) {
 	var _a;
@@ -1218,4 +1221,4 @@ Object.defineProperty(exports, 'normalizeFilterDefinitions', {
     return normalizeFilterDefinitions;
   }
 });
-//# sourceMappingURL=filters-S4CEH60J.cjs.map
+//# sourceMappingURL=filters-fh5KxbYG.cjs.map
