@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
     DOCUMENT_MUTATION_CAPABILITY,
+    GEOMETRY_MUTATION_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
 } from '../../src/core-runtime/internal-capabilities.js';
 import {
@@ -12,6 +13,7 @@ import {
     ImageEditorCore,
     definePluginRef,
 } from '../../src/core/index.js';
+import { GeometryUnrecoverableError } from '../../src/core-runtime/errors.js';
 import { annotationFoundationRef } from '../../src/foundations/annotation/index.js';
 import { overlayFoundationRef } from '../../src/foundations/overlay/index.js';
 import { drawAnnotationPluginRef } from '../../src/plugins/annotation-draw/index.js';
@@ -25,7 +27,26 @@ import { mosaicPluginRef } from '../../src/plugins/mosaic/index.js';
 import { overlayStatePluginRef } from '../../src/plugins/overlay-state/index.js';
 import { transformPluginRef } from '../../src/plugins/transform/index.js';
 import { createFullPreset } from '../../src/presets/full/index.js';
+import { GEOMETRY_MUTATION_CONFLICT_DOMAINS } from '../../src/utils/internal-operation-conflict-domains.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../helpers/fabric-environment.mjs';
+
+function causeChainIncludes(root, expected, visited = new Set()) {
+    if (root === expected) return true;
+    if (!root || (typeof root !== 'object' && typeof root !== 'function') || visited.has(root)) {
+        return false;
+    }
+    visited.add(root);
+    if ('cause' in root && causeChainIncludes(root.cause, expected, visited)) return true;
+    for (const key of ['causes', 'errors', 'rollbackErrors']) {
+        if (
+            Array.isArray(root[key]) &&
+            root[key].some((entry) => causeChainIncludes(entry, expected, visited))
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
 
 function createFaultFixture({ shouldReplayFail = () => false } = {}) {
     const fixtureId = crypto.randomUUID();
@@ -116,6 +137,94 @@ function createFaultFixture({ shouldReplayFail = () => false } = {}) {
     };
 }
 
+function createGeometryFaultFixture() {
+    const fixtureId = crypto.randomUUID();
+    const ref = definePluginRef(`example-test:geometry-fault-${fixtureId}`, '1.0.0');
+    const operationId = `example-test:geometry-fault-mutate-${fixtureId}`;
+    const applyFailure = new Error('synthetic Geometry participant apply failure');
+    const rollbackFailure = new Error('synthetic Geometry participant rollback failure');
+    const restoreFailure = new Error('synthetic Geometry Memento restore failure');
+    let failRestore = true;
+    let sequence = 0;
+    let value = 1;
+    const plugin = Object.freeze({
+        ref,
+        version: '1.0.0',
+        setupMode: 'sync',
+        requires: [
+            { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
+            { token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
+        ],
+        permissions: ['core:geometry-participant'],
+        setup(context) {
+            const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
+            const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
+            context.operations.register({
+                id: operationId,
+                mode: 'mutation',
+                conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
+                reentrancy: 'reject',
+            });
+            context.addDisposable(
+                state.registerSlice({
+                    id: ref.id,
+                    version: 1,
+                    capturePolicy: 'always',
+                    capture: () => ({ value }),
+                    validate: (candidate) =>
+                        candidate &&
+                        typeof candidate === 'object' &&
+                        Number.isFinite(candidate.value)
+                            ? { valid: true, value: candidate }
+                            : { valid: false, message: 'Geometry fault state is malformed.' },
+                    restore: (snapshot, restoreContext) => {
+                        if (failRestore && restoreContext.mode === 'trusted-memento') {
+                            throw restoreFailure;
+                        }
+                        value = snapshot.value;
+                    },
+                    clearState: () => {
+                        value = 0;
+                    },
+                }),
+            );
+            context.addDisposable(
+                geometry.registerParticipant({
+                    id: `${ref.id}:participant`,
+                    order: 0,
+                    supports: (mutation) => mutation.operationId === operationId,
+                    prepare: () => Object.freeze({ before: value }),
+                    apply: () => {
+                        value += 1;
+                        throw applyFailure;
+                    },
+                    rollback: () => {
+                        throw rollbackFailure;
+                    },
+                }),
+            );
+            return Object.freeze({
+                trigger: () =>
+                    geometry.run({
+                        id: `${ref.id}:transaction:${++sequence}`,
+                        kind: 'transform',
+                        operationId,
+                        mutateBase: () => undefined,
+                    }),
+            });
+        },
+    });
+    return {
+        applyFailure,
+        plugin,
+        restoreFailure,
+        rollbackFailure,
+        allowRestore: () => {
+            failRestore = false;
+        },
+    };
+}
+
 async function faultEditor(editor, fixture, ids) {
     if (editor.getPlugin(historyPluginRef) === null) editor.use(historyPlugin());
     const api = editor.use(fixture.plugin);
@@ -124,6 +233,51 @@ async function faultEditor(editor, fixture, ids) {
     assert.equal(editor.getLifecycleState(), 'faulted');
     return api;
 }
+
+test('real Core Geometry assembly faults when participant rollback and Memento restore fail', async () => {
+    const ids = resetEditorDom();
+    const reportedErrors = [];
+    const editor = new ImageEditorCore(fabric, {
+        onError: (error, message) => reportedErrors.push({ error, message }),
+    });
+    const fixture = createGeometryFaultFixture();
+    const api = editor.use(fixture.plugin);
+    await editor.init({ canvas: ids.canvas });
+    await editor.loadImage(makeImageDataUrl());
+
+    await assert.rejects(api.trigger(), (error) => {
+        assert.equal(error instanceof GeometryUnrecoverableError, true);
+        assert.equal(error.cause, fixture.applyFailure);
+        assert.equal(causeChainIncludes(error, fixture.rollbackFailure), true);
+        assert.equal(causeChainIncludes(error, fixture.restoreFailure), true);
+        return true;
+    });
+
+    assert.equal(editor.getLifecycleState(), 'faulted');
+    await assert.rejects(editor.loadImage(makeImageDataUrl()), EditorFaultedError);
+    assert.ok(
+        editor
+            .getDiagnostics()
+            .some(
+                (diagnostic) =>
+                    diagnostic.behavior === 'fatal-restore' &&
+                    diagnostic.cause === fixture.applyFailure,
+            ),
+    );
+    assert.ok(
+        reportedErrors.some(
+            ({ error }) =>
+                causeChainIncludes(error, fixture.rollbackFailure) &&
+                causeChainIncludes(error, fixture.restoreFailure),
+        ),
+    );
+
+    fixture.allowRestore();
+    await editor.emergencyReset();
+    assert.equal(editor.getLifecycleState(), 'configured');
+    await editor.init({ canvas: ids.canvas });
+    await editor.disposeAsync();
+});
 
 test('fatal restore faults Core, rejects ordinary work, and emergencyReset replays clean state', async () => {
     const ids = resetEditorDom();
