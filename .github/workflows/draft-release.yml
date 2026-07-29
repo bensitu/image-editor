@@ -100,8 +100,11 @@ jobs:
 
             - name: Validate requested version
               shell: bash
+              env:
+                  INPUT_VERSION: ${{ inputs.version }}
+                  GH_TOKEN: ${{ github.token }}
               run: |
-                  VERSION="${{ github.event.inputs.version }}"
+                  VERSION="${INPUT_VERSION}"
                   VERSION="${VERSION#v}"
 
                   if ! node -e "process.exit(require('semver').valid(process.argv[1]) ? 0 : 1)" "${VERSION}"; then
@@ -135,8 +138,6 @@ jobs:
                     echo "VERSION=${VERSION}"
                     echo "TAG_NAME=${TAG_NAME}"
                   } >> "${GITHUB_ENV}"
-              env:
-                  GH_TOKEN: ${{ github.token }}
 
             - name: Run release gate and pack artifacts
               shell: bash

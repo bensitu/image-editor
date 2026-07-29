@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import * as prettier from 'prettier';
 
 import { LEGACY_DEMO_CDN_ASSETS } from '../config/docs/legacy-demo-security.mjs';
+import { findUnsafeWorkflowRunInputs } from './workflow-input-policy.mjs';
 
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
@@ -76,6 +77,13 @@ let pinnedActionCount = 0;
 for (const workflowPath of workflowPaths) {
     const relativePath = path.relative(repositoryRoot, workflowPath).replaceAll('\\', '/');
     const source = await readFile(workflowPath, 'utf8');
+    await prettier.format(source, { filepath: workflowPath });
+    const unsafeInputs = findUnsafeWorkflowRunInputs(source);
+    assertCondition(
+        unsafeInputs.length === 0,
+        `${relativePath} interpolates workflow input directly into run: ` +
+            unsafeInputs.map(({ expression, line }) => `line ${line} (${expression})`).join(', '),
+    );
     for (const [index, line] of source.split(/\r?\n/u).entries()) {
         if (!line.trimStart().startsWith('uses:')) continue;
         const match = ACTION_LINE_PATTERN.exec(line);

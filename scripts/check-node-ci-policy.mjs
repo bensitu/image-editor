@@ -116,6 +116,7 @@ for (const fragment of [
     'npm run check:public-api',
     'npm run check:security',
     'npm run test:e2e',
+    'npm run check:supply-chain-policy',
 ]) {
     assertCondition(
         ciWorkflow.includes(fragment),
