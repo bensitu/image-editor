@@ -557,7 +557,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		configure(patch) {
 			this.assertActive("configure Mosaic");
-			this.configuration = normalizeConfiguration(this.configuration, patch);
+			const session = this.session;
+			if (session && session.activeStrokeIndex !== null) throw new MosaicSessionError("End the active Mosaic stroke before configuring it.");
+			const configuration = normalizeConfiguration(this.configuration, patch);
+			const sessionConfiguration = session ? normalizeConfiguration(session.state.configuration, patch) : null;
+			this.configuration = configuration;
+			if (session && sessionConfiguration) {
+				session.state = Object.freeze({
+					...session.state,
+					configuration: sessionConfiguration
+				});
+				this.refreshBrushPreviewPresentation(session);
+			}
 			this.emitStatus();
 		}
 		getSession() {
@@ -583,8 +594,26 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const cache = createMosaicRasterCache(source);
 			this.assertCachePolicy(cache);
 			const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), "mosaicPreviewImage");
+			const brushPreview = markSessionObject(new this.host.fabric.Circle({
+				left: 0,
+				top: 0,
+				radius: configuration.brushSizePx / 2,
+				originX: "center",
+				originY: "center",
+				fill: "rgba(0,0,0,0)",
+				stroke: "#333333",
+				strokeWidth: 1,
+				strokeDashArray: [4, 4],
+				strokeUniform: true,
+				selectable: false,
+				evented: false,
+				excludeFromExport: true,
+				objectCaching: false,
+				visible: false
+			}), "mosaicPreviewCircle");
 			const canvas = this.host.requireCanvas("enter Mosaic");
 			placeSessionObject(canvas, preview);
+			placeSessionObject(canvas, brushPreview);
 			const state = Object.freeze({
 				sourceRevision: this.host.getGeometryRevision(),
 				sourceWidthPx: cache.widthPx,
@@ -599,11 +628,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				state,
 				cache,
 				preview,
+				brushPreview,
+				previewInteraction: null,
 				strokes: [],
 				activeStrokeIndex: null,
 				userPointCount: 0,
 				interpolatedPointCount: 0
 			};
+			this.session.previewInteraction = this.bindBrushPreview(this.session);
+			this.refreshBrushPreviewPresentation(this.session);
 			this.host.requestRender();
 			this.emitStatus();
 		}
@@ -614,10 +647,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const point = this.normalizePoint(value, session);
 			this.assertPointBudget(session);
 			this.assertInterpolatedPointBudget(session, 1);
-			session.strokes.push([point]);
+			const stroke = {
+				configuration: session.state.configuration,
+				points: [point]
+			};
+			session.strokes.push(stroke);
 			session.activeStrokeIndex = session.strokes.length - 1;
 			session.userPointCount += 1;
-			this.applyPreviewPoints(session, [point]);
+			this.applyPreviewPoints(session, [point], stroke.configuration);
 			session.interpolatedPointCount += 1;
 			this.updateSessionState(session, true);
 		}
@@ -629,12 +666,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const stroke = session.strokes[strokeIndex];
 			const point = this.normalizePoint(value, session);
 			this.assertPointBudget(session);
-			const previous = stroke[stroke.length - 1];
-			const interpolated = interpolateMosaicPoints(previous, point, session.state.configuration.brushSizePx / 2);
+			const previous = stroke.points[stroke.points.length - 1];
+			const interpolated = interpolateMosaicPoints(previous, point, stroke.configuration.brushSizePx / 2);
 			this.assertInterpolatedPointBudget(session, interpolated.length);
-			stroke.push(point);
+			stroke.points.push(point);
 			session.userPointCount += 1;
-			this.applyPreviewPoints(session, interpolated);
+			this.applyPreviewPoints(session, interpolated, stroke.configuration);
 			session.interpolatedPointCount += interpolated.length;
 			this.updateSessionState(session, true);
 		}
@@ -654,10 +691,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.assertSourceCurrent(session);
 			if (session.activeStrokeIndex !== null) throw new MosaicSessionError("End the active Mosaic stroke before commit.");
 			const normalizedOptions = normalizeMosaicCommitOptions(options, session.state.configuration, (_b = (_a = this.host.getImageInfo()) === null || _a === void 0 ? void 0 : _a.mimeType) !== null && _b !== void 0 ? _b : null);
-			const strokes = Object.freeze(session.strokes.map((stroke) => Object.freeze(stroke.map((point) => Object.freeze({ ...point })))));
+			const strokes = Object.freeze(session.strokes.map((stroke) => Object.freeze({
+				configuration: Object.freeze({ ...stroke.configuration }),
+				points: Object.freeze(stroke.points.map((point) => Object.freeze({ ...point })))
+			})));
 			const state = session.state;
-			this.closeSession();
-			if (state.pointCount === 0) return;
+			if (state.pointCount === 0) {
+				this.closeSession();
+				return;
+			}
+			this.hideBrushPreview(session);
 			const mutationId = `mosaic:commit:${++this.mutationSequence}`;
 			const resources = {
 				cache: null,
@@ -691,7 +734,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						resources.cache = cache;
 						this.assertCachePolicy(cache);
 						const replayBudget = { count: 0 };
-						for (const stroke of strokes) replayStroke(cache, stroke, state.configuration, replayBudget);
+						for (const stroke of strokes) replayStroke(cache, stroke.points, stroke.configuration, replayBudget);
 						const rendered = await renderMosaicImage(this.host, source, cache, normalizedOptions, signal);
 						resources.replacement = rendered.image;
 						resources.replacedSource = source;
@@ -705,13 +748,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				committed = true;
 				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 			} finally {
+				if (this.session === session) this.closeSession();
 				disposeMosaicRasterCache(resources.cache);
 				if (!committed && resources.replacement && this.host.getBaseImage() !== resources.replacement) resources.replacement.dispose();
 			}
 		}
 		ownsPreview(object) {
-			var _a;
-			return ((_a = this.session) === null || _a === void 0 ? void 0 : _a.preview) === object;
+			var _a, _b;
+			return ((_a = this.session) === null || _a === void 0 ? void 0 : _a.preview) === object || ((_b = this.session) === null || _b === void 0 ? void 0 : _b.brushPreview) === object;
 		}
 		closeForImage() {
 			if (this.session) this.closeSession();
@@ -722,12 +766,67 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.listeners.clear();
 			this.disposed = true;
 		}
-		applyPreviewPoints(session, points) {
+		bindBrushPreview(session) {
+			const canvas = this.host.requireCanvas("bind the Mosaic brush preview");
+			const stopMoving = canvas.on("mouse:move", (event) => {
+				const point = event.scenePoint;
+				if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+					this.hideBrushPreview(session);
+					return;
+				}
+				this.moveBrushPreview(session, point);
+			});
+			const stopLeaving = canvas.on("mouse:out", () => this.hideBrushPreview(session));
+			return (0, _bensitu_image_editor_sdk.createDisposable)(() => {
+				stopLeaving();
+				stopMoving();
+			});
+		}
+		moveBrushPreview(session, scenePoint) {
+			if (this.session !== session) return;
+			const baseImage = this.requireBaseImage();
+			const imagePoint = new this.host.fabric.Point(scenePoint.x, scenePoint.y).transform(this.host.fabric.util.invertTransform(baseImage.calcTransformMatrix()));
+			const halfWidth = Number(baseImage.width) / 2;
+			const halfHeight = Number(baseImage.height) / 2;
+			if (imagePoint.x < -halfWidth || imagePoint.x >= halfWidth || imagePoint.y < -halfHeight || imagePoint.y >= halfHeight) {
+				this.hideBrushPreview(session);
+				return;
+			}
+			session.brushPreview.set({
+				left: scenePoint.x,
+				top: scenePoint.y,
+				visible: true
+			});
+			session.brushPreview.setCoords();
+			this.host.requestRender();
+		}
+		hideBrushPreview(session) {
+			if (this.session !== session || session.brushPreview.visible === false) return;
+			session.brushPreview.set({ visible: false });
+			this.host.requestRender();
+		}
+		refreshBrushPreviewPresentation(session) {
+			const baseImage = this.requireBaseImage();
+			session.brushPreview.set({
+				radius: session.state.configuration.brushSizePx / 2,
+				scaleX: baseImage.scaleX,
+				scaleY: baseImage.scaleY,
+				angle: baseImage.angle,
+				skewX: baseImage.skewX,
+				skewY: baseImage.skewY,
+				flipX: baseImage.flipX,
+				flipY: baseImage.flipY
+			});
+			session.brushPreview.setCoords();
+			placeSessionObject(this.host.requireCanvas("refresh the Mosaic brush preview"), session.brushPreview);
+			this.host.requestRender();
+		}
+		applyPreviewPoints(session, points, configuration) {
 			let dirty = null;
 			for (const point of points) dirty = mergeDirtyRectangles(dirty, applyCircularMosaic(session.cache.imageData, {
 				...point,
-				radiusPx: session.state.configuration.brushSizePx / 2,
-				blockSizePx: session.state.configuration.pixelBlockSizePx
+				radiusPx: configuration.brushSizePx / 2,
+				blockSizePx: configuration.pixelBlockSizePx
 			}));
 			if (!dirty) return;
 			writeMosaicDirtyRegion(session.cache.context, session.cache.imageData, dirty);
@@ -768,8 +867,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.session;
 			if (!session) return;
 			this.session = null;
+			if (session.previewInteraction) {
+				try {
+					(0, _bensitu_image_editor_sdk.observePromise)(Promise.resolve(session.previewInteraction.dispose()), (error) => {
+						this.host.reportWarning(error, "Mosaic brush preview cleanup failed.");
+					});
+				} catch (error) {
+					this.host.reportWarning(error, "Mosaic brush preview cleanup failed.");
+				}
+				session.previewInteraction = null;
+			}
 			const canvas = this.host.getCanvas();
+			if (canvas === null || canvas === void 0 ? void 0 : canvas.getObjects().includes(session.brushPreview)) canvas.remove(session.brushPreview);
 			if (canvas === null || canvas === void 0 ? void 0 : canvas.getObjects().includes(session.preview)) canvas.remove(session.preview);
+			session.brushPreview.dispose();
 			session.preview.dispose();
 			disposeMosaicRasterCache(session.cache);
 			this.host.requestRender();

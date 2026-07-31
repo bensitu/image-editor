@@ -114,6 +114,20 @@ async function load(editor) {
     await editor.loadImage(makeImageDataUrl({ width: 120, height: 80 }));
 }
 
+function makeMosaicPatternDataUrl(width = 120, height = 80) {
+    const canvas = fabric.document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    for (let y = 0; y < height; y += 2) {
+        for (let x = 0; x < width; x += 2) {
+            context.fillStyle = (x / 2 + y / 2) % 2 === 0 ? '#102a43' : '#f0b429';
+            context.fillRect(x, y, 2, 2);
+        }
+    }
+    return canvas.toDataURL('image/png');
+}
+
 async function dispose(editor) {
     await editor.disposeAsync();
     document.body.innerHTML = '';
@@ -146,7 +160,15 @@ test('Mosaic preview uses dirty regions and remains transient through multiple s
     assert.ok(session.dirtyRectangle.widthPx < 120);
     assert.ok(session.dirtyRectangle.heightPx < 80);
     assert.equal(editor.getCanvas().getObjects()[0], baseImage);
-    assert.equal(editor.getCanvas().getObjects().length, 2);
+    assert.equal(editor.getCanvas().getObjects().length, 3);
+    assert.deepEqual(
+        editor
+            .getCanvas()
+            .getObjects()
+            .filter((object) => object.editorObjectKind === 'session')
+            .map((object) => object.sessionObjectType),
+        ['mosaicPreviewImage', 'mosaicPreviewCircle'],
+    );
     assert.equal(editor.saveState(), snapshot);
     assert.equal(await editor.exportImageBase64({ format: 'png' }), exported);
     assert.equal(history.length, 0);
@@ -186,12 +208,17 @@ test('Mosaic session preview remains above committed Filters and persistent over
     await mosaic.appendStroke({ xPx: 40, yPx: 20 });
     const preview = canvas
         .getObjects()
-        .find((object) => object !== baseImage && object !== committedVisual && object !== mask);
+        .find((object) => object.sessionObjectType === 'mosaicPreviewImage');
+    const brushPreview = canvas
+        .getObjects()
+        .find((object) => object.sessionObjectType === 'mosaicPreviewCircle');
     assert.ok(preview);
+    assert.ok(brushPreview);
     const objectsDuringSession = canvas.getObjects();
     assert.equal(objectsDuringSession.indexOf(baseImage), 0);
     assert.ok(objectsDuringSession.indexOf(committedVisual) < objectsDuringSession.indexOf(mask));
     assert.ok(objectsDuringSession.indexOf(mask) < objectsDuringSession.indexOf(preview));
+    assert.ok(objectsDuringSession.indexOf(preview) < objectsDuringSession.indexOf(brushPreview));
     assert.equal(preview.editorObjectKind, 'session');
     assert.equal(preview.sessionObjectType, 'mosaicPreviewImage');
     assert.ok(mosaic.getSession().dirtyRectangle.widthPx > 0);
@@ -203,7 +230,7 @@ test('Mosaic session preview remains above committed Filters and persistent over
     await dispose(editor);
 });
 
-test('Mosaic configuration is validated, immutable, and captured by active sessions', async () => {
+test('Mosaic configuration updates active sessions and their brush preview between strokes', async () => {
     const { editor, mosaic } = await createEditor({ id: 'configuration' });
     await load(editor);
     await mosaic.configure({ brushSizePx: 18, pixelBlockSizePx: 6, quality: 0.7 });
@@ -218,12 +245,62 @@ test('Mosaic configuration is validated, immutable, and captured by active sessi
     await assert.rejects(mosaic.configure({ brushSizePx: 0 }), /brushSizePx/i);
 
     await mosaic.enter();
-    const captured = mosaic.getSession().configuration;
-    await mosaic.configure({ brushSizePx: 30 });
-    assert.equal(captured.brushSizePx, 18);
-    assert.equal(mosaic.getSession().configuration.brushSizePx, 18);
+    const canvas = editor.getCanvas();
+    const baseImage = canvas.getObjects()[0];
+    const brushPreview = canvas
+        .getObjects()
+        .find((object) => object.sessionObjectType === 'mosaicPreviewCircle');
+    assert.ok(brushPreview);
+    assert.equal(brushPreview.visible, false);
+    assert.equal(brushPreview.radius, 9);
+
+    const imageCenter = new fabric.Point(0, 0).transform(baseImage.calcTransformMatrix());
+    canvas.fire('mouse:move', { scenePoint: imageCenter });
+    assert.equal(brushPreview.visible, true);
+    assert.equal(brushPreview.left, imageCenter.x);
+    assert.equal(brushPreview.top, imageCenter.y);
+
+    await mosaic.configure({ brushSizePx: 30, pixelBlockSizePx: 9 });
+    assert.equal(mosaic.getSession().configuration.brushSizePx, 30);
+    assert.equal(mosaic.getSession().configuration.pixelBlockSizePx, 9);
     assert.equal(mosaic.getConfiguration().brushSizePx, 30);
+    assert.equal(brushPreview.radius, 15);
+
+    await mosaic.beginStroke({ xPx: 60, yPx: 40 });
+    await assert.rejects(mosaic.configure({ brushSizePx: 36 }), /end the active mosaic stroke/i);
+    await mosaic.endStroke();
+    assert.ok(mosaic.getSession().dirtyRectangle.widthPx >= 30);
+    canvas.fire('mouse:out', { scenePoint: imageCenter });
+    assert.equal(brushPreview.visible, false);
     await mosaic.cancel();
+    await dispose(editor);
+});
+
+test('Mosaic preserves each completed stroke configuration when committing', async () => {
+    const { editor, mosaic } = await createEditor({
+        id: 'per-stroke-configuration',
+        mosaicOptions: { brushSizePx: 12, pixelBlockSizePx: 3 },
+    });
+    await editor.loadImage(makeMosaicPatternDataUrl());
+    await mosaic.enter();
+    await mosaic.beginStroke({ xPx: 64, yPx: 20 });
+    await mosaic.appendStroke({ xPx: 72, yPx: 20 });
+    await mosaic.endStroke();
+    await mosaic.configure({ brushSizePx: 32, pixelBlockSizePx: 11 });
+    await mosaic.beginStroke({ xPx: 75, yPx: 45 });
+    await mosaic.appendStroke({ xPx: 92, yPx: 55 });
+    await mosaic.endStroke();
+
+    const preview = editor
+        .getCanvas()
+        .getObjects()
+        .find((object) => object.sessionObjectType === 'mosaicPreviewImage');
+    assert.ok(preview);
+    const previewDataUrl = preview.getElement().toDataURL('image/png');
+
+    await mosaic.commit({ format: 'png' });
+
+    assert.equal(editor.getCanvas().getObjects()[0].getElement().src, previewDataUrl);
     await dispose(editor);
 });
 
@@ -310,14 +387,36 @@ test('Mosaic commit replaces pixels once with accurate MIME, History, and undo',
     const { editor, history, mosaic, observer } = await createEditor({ id: 'commit' });
     await load(editor);
     const before = await editor.exportImageBase64({ format: 'png' });
+    const canvas = editor.getCanvas();
+    const originalBaseImage = canvas.getObjects()[0];
     await mosaic.enter();
     await drawTwoStrokes(mosaic);
+    const mosaicPreview = canvas
+        .getObjects()
+        .find((object) => object.sessionObjectType === 'mosaicPreviewImage');
+    assert.ok(mosaicPreview);
+    const originalRemove = canvas.remove;
+    let baseImageAtPreviewRemoval = null;
+    canvas.remove = function (...objects) {
+        if (objects.includes(mosaicPreview)) {
+            baseImageAtPreviewRemoval = this.getObjects().find(
+                (object) => object.editorObjectKind === 'baseImage',
+            );
+        }
+        return Reflect.apply(originalRemove, this, objects);
+    };
 
-    await mosaic.commit({ format: 'jpeg', quality: 0.8 });
+    try {
+        await mosaic.commit({ format: 'jpeg', quality: 0.8 });
+    } finally {
+        canvas.remove = originalRemove;
+    }
 
     assert.equal(mosaic.isActive, false);
-    assert.equal(editor.getCanvas().getObjects().length, 1);
-    assert.equal(editor.getCanvas().getObjects()[0].editorObjectKind, 'baseImage');
+    assert.equal(canvas.getObjects().length, 1);
+    assert.equal(canvas.getObjects()[0].editorObjectKind, 'baseImage');
+    assert.notEqual(baseImageAtPreviewRemoval, originalBaseImage);
+    assert.equal(baseImageAtPreviewRemoval, canvas.getObjects()[0]);
     assert.equal(editor.getImageInfo().naturalWidth, 120);
     assert.equal(editor.getImageInfo().naturalHeight, 80);
     assert.equal(editor.getImageInfo().mimeType, 'image/jpeg');

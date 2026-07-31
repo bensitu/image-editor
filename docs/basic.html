@@ -338,17 +338,6 @@
 
                     <section class="panel-section">
                         <h2>Public APIs Used</h2>
-                        <p class="note">
-                            This page installs only Transform, History, Filters, and Crop. Crop's
-                            UMD imports the shared Overlay contract, so the Overlay Foundation
-                            script is loaded first but is not installed as a runtime module here.
-                            See
-                            <a href="js/basic-demo.js">basic-demo.js</a>. Repository source loads
-                            Fabric from <code>node_modules</code> and Image Editor from
-                            <code>../dist/umd</code>; the GitHub Pages package uses versioned CDN
-                            URLs and npm <code>@latest</code>. Pin one exact package version in
-                            production.
-                        </p>
                         <div class="api-list">
                             <code>new ImageEditor.ImageEditorCore()</code>
                             <code>ImageEditor.composePlugins()</code>

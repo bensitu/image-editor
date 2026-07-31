@@ -351,3 +351,184 @@ test('basic demo shows Fabric controls for the active Crop preview', async ({ pa
     expect(Math.abs(exportedSize.width - resized.width)).toBeLessThanOrEqual(2);
     expect(Math.abs(exportedSize.height - resized.height)).toBeLessThanOrEqual(2);
 });
+
+test('mask and mosaic demo updates its dashed brush and preserves the preview through commit', async ({
+    page,
+}) => {
+    await page.goto('/docs/mask-mosaic.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await page.locator('#loadSampleButton').click();
+    await expect(page.locator('#enterMosaicModeButton')).toBeEnabled();
+    await page.evaluate(() => {
+        interface MosaicProbeObject {
+            editorObjectKind?: string;
+            radius?: number;
+            sessionObjectType?: string;
+            strokeDashArray?: readonly number[];
+            visible?: boolean;
+        }
+        interface MosaicProbeCanvas {
+            getObjects(): MosaicProbeObject[];
+        }
+        interface MosaicProbe {
+            baseAtPreviewRemoval?: MosaicProbeObject;
+            canvas?: MosaicProbeCanvas;
+            originalBase?: MosaicProbeObject;
+            previewCircle?: MosaicProbeObject;
+            previewImage?: MosaicProbeObject;
+        }
+        const browser = window as unknown as {
+            fabric?: {
+                Canvas?: {
+                    prototype?: {
+                        add?: (...objects: MosaicProbeObject[]) => unknown;
+                        remove?: (...objects: MosaicProbeObject[]) => unknown;
+                    };
+                };
+            };
+            __mosaicSessionProbe?: MosaicProbe;
+        };
+        const prototype = browser.fabric?.Canvas?.prototype;
+        const originalAdd = prototype?.add;
+        const originalRemove = prototype?.remove;
+        if (
+            !prototype ||
+            typeof originalAdd !== 'function' ||
+            typeof originalRemove !== 'function'
+        ) {
+            throw new Error('Fabric Canvas mutation methods are unavailable.');
+        }
+        const probe: MosaicProbe = {};
+        browser.__mosaicSessionProbe = probe;
+        prototype.add = function (this: MosaicProbeCanvas, ...objects: MosaicProbeObject[]) {
+            probe.canvas = this;
+            for (const object of objects) {
+                if (object.sessionObjectType === 'mosaicPreviewImage') {
+                    probe.previewImage = object;
+                    probe.originalBase = this.getObjects().find(
+                        (candidate) => candidate.editorObjectKind === 'baseImage',
+                    );
+                } else if (object.sessionObjectType === 'mosaicPreviewCircle') {
+                    probe.previewCircle = object;
+                }
+            }
+            return Reflect.apply(originalAdd, this, objects);
+        };
+        prototype.remove = function (this: MosaicProbeCanvas, ...objects: MosaicProbeObject[]) {
+            if (probe.previewImage && objects.includes(probe.previewImage)) {
+                probe.baseAtPreviewRemoval = this.getObjects().find(
+                    (candidate) => candidate.editorObjectKind === 'baseImage',
+                );
+            }
+            return Reflect.apply(originalRemove, this, objects);
+        };
+    });
+
+    await page.locator('#enterMosaicModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('mosaic');
+    const initialPreview = await page.evaluate(() => {
+        const probe = (
+            window as unknown as {
+                __mosaicSessionProbe?: {
+                    previewCircle?: {
+                        radius?: number;
+                        strokeDashArray?: readonly number[];
+                        visible?: boolean;
+                    };
+                    previewImage?: unknown;
+                };
+            }
+        ).__mosaicSessionProbe;
+        return {
+            hasCircle: Boolean(probe?.previewCircle),
+            hasImage: Boolean(probe?.previewImage),
+            radius: probe?.previewCircle?.radius,
+            strokeDashArray: probe?.previewCircle?.strokeDashArray,
+            visible: probe?.previewCircle?.visible,
+        };
+    });
+    expect(initialPreview).toEqual({
+        hasCircle: true,
+        hasImage: true,
+        radius: 24,
+        strokeDashArray: [4, 4],
+        visible: false,
+    });
+
+    await page.locator('#canvasContainer').scrollIntoViewIfNeeded();
+    const bounds = await page.locator('#canvasContainer .upper-canvas').boundingBox();
+    if (!bounds) throw new Error('Mosaic canvas bounds are unavailable.');
+    const center = {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height / 2,
+    };
+    await page.mouse.move(center.x, center.y);
+    await expect
+        .poll(() =>
+            page.evaluate(
+                () =>
+                    (
+                        window as unknown as {
+                            __mosaicSessionProbe?: { previewCircle?: { visible?: boolean } };
+                        }
+                    ).__mosaicSessionProbe?.previewCircle?.visible,
+            ),
+        )
+        .toBe(true);
+
+    await page.locator('#mosaicBrushSizeInput').fill('80');
+    await page.locator('#mosaicBlockSizeInput').fill('18');
+    await expect(page.locator('#statusMosaic')).toHaveText('80px / 18px');
+    await expect
+        .poll(() =>
+            page.evaluate(
+                () =>
+                    (
+                        window as unknown as {
+                            __mosaicSessionProbe?: { previewCircle?: { radius?: number } };
+                        }
+                    ).__mosaicSessionProbe?.previewCircle?.radius,
+            ),
+        )
+        .toBe(40);
+
+    await page.locator('#canvasContainer .upper-canvas').click();
+    await expect(page.locator('#statusLastOperation')).toHaveText('mosaic:end-stroke');
+    await page.locator('#exitMosaicModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+
+    const commitProbe = await page.evaluate(() => {
+        const probe = (
+            window as unknown as {
+                __mosaicSessionProbe?: {
+                    baseAtPreviewRemoval?: unknown;
+                    canvas?: {
+                        getObjects(): Array<{
+                            editorObjectKind?: string;
+                            sessionObjectType?: string;
+                        }>;
+                    };
+                    originalBase?: unknown;
+                };
+            }
+        ).__mosaicSessionProbe;
+        const finalBase = probe?.canvas
+            ?.getObjects()
+            .find((object) => object.editorObjectKind === 'baseImage');
+        return {
+            baseChangedBeforePreviewRemoval:
+                Boolean(probe?.baseAtPreviewRemoval) &&
+                probe?.baseAtPreviewRemoval !== probe?.originalBase,
+            finalBaseWasReady: probe?.baseAtPreviewRemoval === finalBase,
+            remainingSessionObjects:
+                probe?.canvas
+                    ?.getObjects()
+                    .filter((object) => object.editorObjectKind === 'session').length ?? -1,
+        };
+    });
+    expect(commitProbe).toEqual({
+        baseChangedBeforePreviewRemoval: true,
+        finalBaseWasReady: true,
+        remainingSessionObjects: 0,
+    });
+});

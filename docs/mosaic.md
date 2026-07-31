@@ -40,9 +40,10 @@ await mosaic.commit();
 ```
 
 Points between input samples are interpolated so a fast pointer does not leave gaps. The brush is
-circular and pixelates only covered pixels. The transient preview is excluded from Snapshot state,
-normal export, History, and committed document events. `cancel()` removes it and restores the exact
-committed view.
+circular and pixelates only covered pixels. While the pointer is over the image, the Plugin renders
+a transient dashed circle at the natural-pixel brush diameter. The cursor and raster preview are
+excluded from Snapshot state, normal export, History, and committed document events. `cancel()`
+removes them and restores the exact committed view.
 
 `getSession()` returns immutable stroke, point, source revision, configuration, and dirty-rectangle
 status. `subscribe()` supports UI adapters without introducing a DOM dependency. Starting Crop
@@ -56,17 +57,21 @@ preview surface after every point. Dirty state remains bounded by the natural im
 Commit replays the captured strokes against the current transactional source.
 
 The default configuration is a 24-pixel brush, an 8-pixel block, source-format output, quality
-`0.92`, and at most 4,096 points. `configure()` changes runtime defaults outside an active session;
-each session captures an immutable configuration when it starts.
+`0.92`, and at most 4,096 points. `configure()` changes both the runtime defaults and an active
+session when no stroke is in progress. Each new stroke captures the current brush and block sizes,
+so controls can change them between strokes without changing earlier preview pixels or the committed
+result.
 
 ```ts
 await mosaic.configure({ brushSizePx: 32, pixelBlockSizePx: 10 });
 await mosaic.enter({ configuration: { maxPointCount: 2_000 } });
+await mosaic.configure({ brushSizePx: 48 }); // Applies to the next stroke immediately.
 ```
 
 `brushSizePx` must be from `1` to `4096`, `pixelBlockSizePx` an integer from `1` to `1024`, quality
 from `0` to `1`, and `maxPointCount` an integer from `1` to `100000`. Points must be finite and
-within the natural image bounds.
+within the natural image bounds. Configuration changes reject while a stroke is active; call
+`endStroke()` first.
 
 ## Filters, History, and output
 
