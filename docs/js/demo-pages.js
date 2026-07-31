@@ -139,6 +139,13 @@
         if ('disabled' in (element || {})) element.disabled = disabled;
     }
 
+    function setLinkDisabled(id, disabled) {
+        const element = getOptionalElement(id);
+        if (!element || element.tagName !== 'A') return;
+        element.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+        element.tabIndex = disabled ? -1 : 0;
+    }
+
     function setControlValue(id, value) {
         const element = getOptionalElement(id);
         if ('value' in (element || {})) element.value = String(value);
@@ -681,10 +688,15 @@
         const canUseIdleImage = !!editor && hasImage && !busy && activeToolMode === null;
         const canUseImageFilters = canUseIdleImage;
         const canUseTextConfig =
-            !!editor && hasImage && (activeToolMode === null || activeToolMode === 'text');
+            !!editor && hasImage && !busy && (activeToolMode === null || activeToolMode === 'text');
         const canUseShapeConfig =
-            !!editor && hasImage && (activeToolMode === null || activeToolMode === 'shape');
-        const canUseDrawSubMode = !!editor && hasImage && activeToolMode === 'draw';
+            !!editor &&
+            hasImage &&
+            !busy &&
+            (activeToolMode === null || activeToolMode === 'shape');
+        const canUseDrawConfig =
+            !!editor && hasImage && !busy && (activeToolMode === null || activeToolMode === 'draw');
+        const canUseDrawSubMode = !!editor && hasImage && !busy && activeToolMode === 'draw';
         const selectedAnnotation = selected.annotation;
         const drawSession = kit?.draw?.getSession() || null;
         const drawConfig = kit?.draw?.getConfiguration() || null;
@@ -741,7 +753,6 @@
             'annotationTransformBindingInput',
             !isIntegratedEditorPage || !editor || busy || activeToolMode !== null,
         );
-        setDisabled('createMaskButton', !canUseIdleImage);
         setDisabled('createTextAnnotationButton', !canUseIdleImage);
         setDisabled('textValueInput', !canUseTextConfig);
         setDisabled('textColorInput', !canUseTextConfig);
@@ -749,11 +760,13 @@
         setImageFilterControlsDisabled(!canUseImageFilters);
         setDisabled('createShapeAnnotationButton', !canUseIdleImage);
         setDisabled('enterShapeModeButton', !canUseIdleImage);
-        setDisabled('exitShapeModeButton', !(!!editor && activeToolMode === 'shape'));
+        setDisabled('exitShapeModeButton', activeToolMode !== 'shape' || busy);
         setDisabled('shapeKindSelect', !canUseShapeConfig);
         setDisabled('shapeStrokeInput', !canUseShapeConfig);
         setDisabled('shapeStrokeWidthInput', !canUseShapeConfig);
         setDisabled('shapeFillInput', !canUseShapeConfig);
+        setDisabled('drawColorInput', !canUseDrawConfig);
+        setDisabled('drawBrushSizeInput', !canUseDrawConfig);
         setDisabled('drawBrushSubModeButton', !canUseDrawSubMode);
         setDisabled('drawEraseSubModeButton', !canUseDrawSubMode);
         setDisabled('eraserBrushSizeInput', !canUseDrawSubMode);
@@ -769,6 +782,7 @@
         setDisabled('exitMosaicModeButton', activeToolMode !== 'mosaic' || busy);
         setDisabled('mosaicBrushSizeInput', !hasImage || busy);
         setDisabled('mosaicBlockSizeInput', !hasImage || busy);
+        setDisabled('maskShapeSelect', !canUseIdleImage);
         setDisabled('createMaskButton', !canUseIdleImage);
         setDisabled('removeSelectedMaskButton', !selected.mask || busy);
         setDisabled('removeAllMasksButton', masks.length === 0 || busy);
@@ -806,8 +820,18 @@
         }
         setDisabled('undoButton', busy || !historyState?.canUndo || activeToolMode !== null);
         setDisabled('redoButton', busy || !historyState?.canRedo || activeToolMode !== null);
+        for (const id of [
+            'exportFormatSelect',
+            'exportQualityInput',
+            'exportMasksInput',
+            'exportAnnotationsInput',
+        ]) {
+            setDisabled(id, !canUseIdleImage);
+        }
         setDisabled('exportImageButton', !canUseIdleImage);
         setDisabled('downloadExportButton', !canUseIdleImage);
+        const exportLinkHref = getOptionalElement('exportDownloadLink')?.getAttribute('href') || '';
+        setLinkDisabled('exportDownloadLink', !exportLinkHref.startsWith('data:image/'));
         if (drawConfig) setControlValue('eraserBrushSizeInput', drawConfig.eraser.radius);
 
         document.querySelectorAll('[data-mask-preset]').forEach((button) => {
@@ -873,16 +897,21 @@
         const kit = getKit();
         if (!target || !kit) return;
         const selected = new Set(selectedIds);
+        const disabled = isDemoBusy();
         const elements = items.map((item) => {
             const descriptor = describe(item);
             const element = document.createElement('li');
             element.className = descriptor.className;
             element.classList.toggle('active', selected.has(descriptor.id));
-            element.tabIndex = 0;
+            element.tabIndex = disabled ? -1 : 0;
             element.setAttribute('role', 'button');
             element.setAttribute('aria-pressed', selected.has(descriptor.id) ? 'true' : 'false');
+            element.setAttribute('aria-disabled', disabled ? 'true' : 'false');
             element.textContent = descriptor.label;
-            const select = () => kit.overlays.select([descriptor.id]);
+            const select = () => {
+                if (isDemoBusy()) return;
+                kit.overlays.select([descriptor.id]);
+            };
             element.addEventListener('click', select);
             element.addEventListener('keydown', (event) => {
                 if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -1907,6 +1936,11 @@
         for (const id of ['mosaicBrushSizeInput', 'mosaicBlockSizeInput']) {
             getOptionalElement(id)?.addEventListener('input', updateMosaicConfiguration);
         }
+
+        getOptionalElement('exportDownloadLink')?.addEventListener('click', (event) => {
+            if (event.currentTarget.getAttribute('aria-disabled') !== 'true') return;
+            event.preventDefault();
+        });
 
         getOptionalElement('createMaskButton')?.addEventListener('click', () => createMask());
         document.querySelectorAll('[data-mask-preset]').forEach((button) => {

@@ -360,7 +360,7 @@
                             <span>Include overlays in export</span>
                             <input id="exportAnnotationsInput" type="checkbox" checked />
                         </label>
-                        <input id="exportMasksInput" class="sr-only" type="checkbox" checked />
+                        <input id="exportMasksInput" type="checkbox" checked hidden />
                         <div class="control-grid">
                             <button id="exportImageButton" class="button primary" type="button">
                                 Export preview
@@ -377,6 +377,8 @@
                                 class="button"
                                 href="#"
                                 download="image-editor-annotation.png"
+                                aria-disabled="true"
+                                tabindex="-1"
                             >
                                 Save last export
                             </a>

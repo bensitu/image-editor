@@ -223,12 +223,7 @@
                             <span>Include overlays in export</span>
                             <input id="exportMasksInput" type="checkbox" checked />
                         </label>
-                        <input
-                            id="exportAnnotationsInput"
-                            class="sr-only"
-                            type="checkbox"
-                            checked
-                        />
+                        <input id="exportAnnotationsInput" type="checkbox" checked hidden />
                         <div class="control-grid">
                             <button id="exportImageButton" class="button primary" type="button">
                                 Export preview
@@ -245,6 +240,8 @@
                                 class="button"
                                 href="#"
                                 download="image-editor-mask-mosaic.png"
+                                aria-disabled="true"
+                                tabindex="-1"
                             >
                                 Save last export
                             </a>

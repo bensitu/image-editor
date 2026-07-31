@@ -501,11 +501,16 @@ body:not(.landing-page) .hero h1 {
 }
 
 .button:disabled,
+.button[aria-disabled='true'],
 .field input:disabled,
 .field select:disabled {
     cursor: not-allowed;
     opacity: 0.52;
     transform: none;
+}
+
+.button[aria-disabled='true'] {
+    pointer-events: none;
 }
 
 .button:focus-visible,
@@ -741,6 +746,12 @@ canvas {
 .annotation-item.active {
     background: linear-gradient(135deg, var(--accent), var(--tech));
     color: #ffffff;
+}
+
+.mask-item[aria-disabled='true'],
+.annotation-item[aria-disabled='true'] {
+    cursor: not-allowed;
+    opacity: 0.52;
 }
 
 .export-preview {

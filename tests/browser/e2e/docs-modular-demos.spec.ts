@@ -154,6 +154,56 @@ for (const plan of demoPlans) {
     });
 }
 
+test('image-dependent demo settings and export actions follow their available state', async ({
+    page,
+}) => {
+    await page.goto('/docs/annotation.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await expect(page.locator('#drawColorInput')).toBeDisabled();
+    await expect(page.locator('#drawBrushSizeInput')).toBeDisabled();
+    await expect(page.locator('#exportFormatSelect')).toBeDisabled();
+    await expect(page.locator('#exportQualityInput')).toBeDisabled();
+    await expect(page.locator('#exportAnnotationsInput')).toBeDisabled();
+    await expect(page.locator('#exportMasksInput')).toHaveAttribute('hidden', '');
+    await expect(page.locator('#exportDownloadLink')).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.locator('#exportDownloadLink')).toHaveAttribute('tabindex', '-1');
+
+    await page.locator('#loadSampleButton').click();
+    await expect(page.locator('#drawColorInput')).toBeEnabled();
+    await expect(page.locator('#drawBrushSizeInput')).toBeEnabled();
+    await expect(page.locator('#exportFormatSelect')).toBeEnabled();
+    await expect(page.locator('#exportQualityInput')).toBeEnabled();
+    await expect(page.locator('#exportAnnotationsInput')).toBeEnabled();
+    await expect(page.locator('#exportDownloadLink')).toHaveAttribute('aria-disabled', 'true');
+
+    await page.locator('#exportImageButton').click();
+    await expect(page.locator('#exportDownloadLink')).toHaveAttribute('aria-disabled', 'false');
+    await expect(page.locator('#exportDownloadLink')).toHaveAttribute('tabindex', '0');
+    await expect(page.locator('#exportDownloadLink')).toHaveAttribute('href', /^data:image\/png/u);
+
+    await page.goto('/docs/mask-mosaic.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await expect(page.locator('#maskShapeSelect')).toBeDisabled();
+    await expect(page.locator('#exportMasksInput')).toBeDisabled();
+    await expect(page.locator('#exportAnnotationsInput')).toHaveAttribute('hidden', '');
+    await expect(page.locator('#exportDownloadLink')).toHaveAttribute('aria-disabled', 'true');
+
+    await page.locator('#loadSampleButton').click();
+    await expect(page.locator('#maskShapeSelect')).toBeEnabled();
+    await expect(page.locator('#exportMasksInput')).toBeEnabled();
+
+    await page.goto('/docs/basic.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await expect(page.locator('#exportMasksInput')).toHaveAttribute('hidden', '');
+    await expect(page.locator('#exportAnnotationsInput')).toHaveAttribute('hidden', '');
+
+    await page.goto('/docs/integrated-editor.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await expect(page.locator('#maskTransformBindingInput')).toBeEnabled();
+    await expect(page.locator('#annotationTransformBindingInput')).toBeEnabled();
+    await expect(page.locator('#exportFormatSelect')).toBeDisabled();
+});
+
 test('basic demo keeps the image painted throughout animated zoom controls', async ({ page }) => {
     await page.goto('/docs/basic.html');
     await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');

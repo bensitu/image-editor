@@ -307,13 +307,8 @@
                                 />
                             </label>
                         </div>
-                        <input id="exportMasksInput" class="sr-only" type="checkbox" checked />
-                        <input
-                            id="exportAnnotationsInput"
-                            class="sr-only"
-                            type="checkbox"
-                            checked
-                        />
+                        <input id="exportMasksInput" type="checkbox" checked hidden />
+                        <input id="exportAnnotationsInput" type="checkbox" checked hidden />
                         <div class="control-grid">
                             <button id="exportImageButton" class="button primary" type="button">
                                 Export preview
@@ -330,6 +325,8 @@
                                 class="button"
                                 href="#"
                                 download="image-editor-basic.png"
+                                aria-disabled="true"
+                                tabindex="-1"
                             >
                                 Save last export
                             </a>
