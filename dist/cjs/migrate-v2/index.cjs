@@ -1,10 +1,10 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_plugin_identifier = require('../chunks/plugin-identifier-gLkfk0AM.cjs');
+const require_plugin_identifier = require('../chunks/plugin-identifier-XGwyoPRa.cjs');
 
 //#region dist/esm/migrate-v2/index.js
 const SOURCE_SCHEMA = "image-editor.canvas@2";
 const TARGET_SCHEMA = "image-editor.state@3";
-const MAX_INPUT_BYTES = 16 * 1024 * 1024;
+const MAX_INPUT_BYTES = 16777216;
 const MAX_OBJECT_COUNT = 1e5;
 const MAX_DEPTH = 64;
 const MAX_CANVAS_DIMENSION = 32768;

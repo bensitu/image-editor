@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "maskPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
@@ -938,7 +937,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugins/mask/mask-controller.js
 	const MASK_PLUGIN_ID = "plugin:mask";
-	const MAX_MASK_OBJECT_BYTES = 512 * 1024;
+	const MAX_MASK_OBJECT_BYTES = 524288;
 	const MASK_SERIALIZED_OBJECT_PROPERTIES = [
 		"hasControls",
 		"selectable",

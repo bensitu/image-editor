@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "filtersPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",

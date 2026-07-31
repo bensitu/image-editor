@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "domControlsPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/plugins/dom-controls/dom-controls-controller.js
 	var DomControlsConfigurationError = class extends Error {
 		constructor() {

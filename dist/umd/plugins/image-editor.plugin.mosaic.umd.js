@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "mosaicPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-layer-placement.js
 	function moveObjectTo(canvas, object, index) {
 		const canvasWithLayerApi = canvas;
@@ -584,7 +583,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const cache = createMosaicRasterCache(source);
 			this.assertCachePolicy(cache);
 			const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), "mosaicPreviewImage");
-			placeSessionObject(this.host.requireCanvas("enter Mosaic"), preview);
+			const canvas = this.host.requireCanvas("enter Mosaic");
+			placeSessionObject(canvas, preview);
 			const state = Object.freeze({
 				sourceRevision: this.host.getGeometryRevision(),
 				sourceWidthPx: cache.widthPx,

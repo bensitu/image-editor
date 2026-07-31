@@ -4,7 +4,6 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorFull = {})));
 })(this, function(exports) {
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/plugin-kernel/errors.js
 	function createPluginErrorOptions(pluginId, cause) {
 		return {
@@ -2262,7 +2261,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						this.installationOrder.push(pluginId);
 					}
 				} catch (cause) {
-					throw new PluginBatchInstallError(cause, [...cause instanceof PluginSetupError ? cause.cleanupErrors : [], ...this.rollbackPendingBatchSync(pendingRecords)]);
+					const cleanupErrors = [...cause instanceof PluginSetupError ? cause.cleanupErrors : [], ...this.rollbackPendingBatchSync(pendingRecords)];
+					throw new PluginBatchInstallError(cause, cleanupErrors);
 				}
 				return Object.freeze({
 					apisByPluginId: prepared.apisByPluginId,
@@ -2363,7 +2363,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				for (const pluginId of this.installationOrder) {
 					const record = this.installed.get(pluginId);
 					if (!(record === null || record === void 0 ? void 0 : record.plugin.onInit)) continue;
-					if (isPromiseLike(record.plugin.onInit(record.lifecycleContext))) throw new PluginLifecycleError(pluginId, "init", /* @__PURE__ */ new Error("Synchronous plugin onInit returned a Promise."));
+					const result = record.plugin.onInit(record.lifecycleContext);
+					if (isPromiseLike(result)) throw new PluginLifecycleError(pluginId, "init", /* @__PURE__ */ new Error("Synchronous plugin onInit returned a Promise."));
 				}
 				this.hostState = "initialized";
 			} catch (error) {
@@ -2775,7 +2776,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...plugin.optional ? { optional: plugin.optional } : {},
 				...plugin.permissions ? { permissions: plugin.permissions } : {}
 			});
-			return markCanonicalPluginDefinition(Object.freeze({
+			const normalized = Object.freeze({
 				...plugin,
 				ref: plugin.ref,
 				manifest,
@@ -2785,7 +2786,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...manifest.optional ? { optional: manifest.optional } : {},
 					...manifest.permissions ? { permissions: manifest.permissions } : {}
 				} : {}
-			}), plugin);
+			});
+			return markCanonicalPluginDefinition(normalized, plugin);
 		}
 		getAsyncInstallationHost() {
 			return this;
@@ -4406,7 +4408,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} catch (error) {
 				throw new GeometryMutationError(request.id, "metadata must be safely JSON-serializable.", error);
 			}
-			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
+			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 65536;
 			if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) throw new GeometryMutationError(request.id, `metadata exceeds ${maxMetadataBytes} bytes.`);
 			return clonedMetadata;
 		}
@@ -5102,7 +5104,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (error instanceof DocumentMutationRegistrationError) throw error;
 				throw new DocumentMutationRegistrationError("Mutation metadata must be safely JSON-serializable.", request.id);
 			}
-			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
+			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 65536;
 			if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) throw new DocumentMutationRegistrationError(`Mutation metadata exceeds ${maxMetadataBytes} bytes.`, request.id);
 			return Object.freeze({
 				...request,
@@ -5452,9 +5454,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		26,
 		10
 	];
-	const HEADER_PROBE_BASE64_CHARACTERS = Math.ceil(256 * 1024 / 3) * 4;
+	const HEADER_PROBE_BASE64_CHARACTERS = Math.ceil(262144 / 3) * 4;
 	const MAX_DATA_URL_HEADER_LENGTH = 64;
-	const ASCII_CHUNK_SIZE = 8 * 1024;
+	const ASCII_CHUNK_SIZE = 8192;
 	function matchesAscii(bytes, offset, value) {
 		if (offset < 0 || offset + value.length > bytes.length) return false;
 		for (let index = 0; index < value.length; index += 1) if (bytes[offset + index] !== value.charCodeAt(index)) return false;
@@ -5611,14 +5613,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return EXTERNAL_RESOURCE_KEYS.has(normalized) || normalized.endsWith("url");
 	}
 	const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
-		maxInputBytes: 16 * 1024 * 1024,
+		maxInputBytes: 16777216,
 		maxDepth: 64,
 		maxObjectCount: 1e5,
 		maxPluginCount: 256,
-		maxPluginPayloadBytes: 4 * 1024 * 1024,
-		maxMetadataBytes: 256 * 1024,
-		maxStringLength: 16 * 1024 * 1024,
-		maxDataUrlBytes: 16 * 1024 * 1024,
+		maxPluginPayloadBytes: 4194304,
+		maxMetadataBytes: 262144,
+		maxStringLength: 16777216,
+		maxDataUrlBytes: 16777216,
 		maxDecodedPixels: 5e7,
 		maxImageDimension: 32768,
 		externalUrlPolicy: "reject"
@@ -6063,10 +6065,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		backgroundColor: "#ffffff",
 		layoutMode: "expand",
 		groupSelection: true,
-		maxInputBytes: 32 * 1024 * 1024,
-		maxInputPixels: 64 * 1024 * 1024,
+		maxInputBytes: 33554432,
+		maxInputPixels: 67108864,
 		imageLoadTimeoutMs: 3e4,
-		maxExportPixels: 64 * 1024 * 1024,
+		maxExportPixels: 67108864,
 		maxExportDimension: 16384,
 		exportMultiplier: 1,
 		initialImageBase64: ""
@@ -6453,7 +6455,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return this.reportWarning((_a = warning.details) === null || _a === void 0 ? void 0 : _a.cause, warning.message);
 			}, Object.freeze({
 				...DEFAULT_SNAPSHOT_LIMITS,
-				maxInputBytes: Math.ceil(this.options.maxInputBytes * 4 / 3) + 1024 * 1024,
+				maxInputBytes: Math.ceil(this.options.maxInputBytes * 4 / 3) + 1048576,
 				maxStringLength: Math.ceil(this.options.maxInputBytes * 4 / 3) + 1024,
 				maxDataUrlBytes: this.options.maxInputBytes,
 				maxDecodedPixels: Math.min(this.options.maxInputPixels, this.options.maxExportPixels),
@@ -9290,7 +9292,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const sourceCorners = object.getCoords();
 				if (sourceCorners.length !== 4) throw new TypeError("Overlay State bounds require four object corners.");
 				if (cornersMatch(sourceCorners, targetCorners)) return;
-				applyDeltaToObject(object, fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners))), { fabricUtil });
+				const delta = fabricUtil.multiplyTransformMatrices(frameFromCorners(targetCorners), fabricUtil.invertTransform(frameFromCorners(sourceCorners)));
+				applyDeltaToObject(object, delta, { fabricUtil });
 			}
 			object.setCoords();
 			if (!cornersMatch(object.getCoords(), targetCorners)) throw new TypeError("Overlay State bounds could not be restored precisely.");
@@ -9701,7 +9704,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const MAX_ANNOTATION_NAME_LENGTH = 128;
 	const MAX_ANNOTATION_METADATA_DEPTH = 4;
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
-	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
+	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
 	function isPlainRecord$7(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -11388,7 +11391,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/plugins/history/history-controller.js
-	const DEFAULT_MAX_HISTORY_BYTES = 128 * 1024 * 1024;
+	const DEFAULT_MAX_HISTORY_BYTES = 134217728;
 	function resolveMaxSize(value) {
 		return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 50;
 	}
@@ -12541,7 +12544,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugins/mask/mask-controller.js
 	const MASK_PLUGIN_ID = "plugin:mask";
-	const MAX_MASK_OBJECT_BYTES = 512 * 1024;
+	const MAX_MASK_OBJECT_BYTES = 524288;
 	const MASK_SERIALIZED_OBJECT_PROPERTIES = [
 		"hasControls",
 		"selectable",
@@ -15114,7 +15117,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		refreshPreview(session) {
 			const baseImage = this.requireBaseImage();
 			this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
-			placeSessionObject(this.host.requireCanvas("refresh Crop preview"), session.preview);
+			const canvas = this.host.requireCanvas("refresh Crop preview");
+			placeSessionObject(canvas, session.preview);
 			if (session.previewVisibility) observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
 				this.host.reportWarning(error, "Crop preview visibility cleanup failed.");
 			});
@@ -15870,7 +15874,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const cache = createMosaicRasterCache(source);
 			this.assertCachePolicy(cache);
 			const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), "mosaicPreviewImage");
-			placeSessionObject(this.host.requireCanvas("enter Mosaic"), preview);
+			const canvas = this.host.requireCanvas("enter Mosaic");
+			placeSessionObject(canvas, preview);
 			const state = Object.freeze({
 				sourceRevision: this.host.getGeometryRevision(),
 				sourceWidthPx: cache.widthPx,
@@ -16306,7 +16311,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const TEXT_PLUGIN_ID = "annotation:text";
 	const MAX_TEXT_LENGTH = 2e4;
 	const MAX_FONT_FIELD_LENGTH = 256;
-	const MAX_TEXT_OBJECT_BYTES = 256 * 1024;
+	const MAX_TEXT_OBJECT_BYTES = 262144;
 	const MAX_TEXT_WIDTH = 1e5;
 	const MAX_COORDINATE$1 = 1e7;
 	function isPlainRecord$3(value) {
@@ -16942,7 +16947,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const SHAPE_ANNOTATION_KIND = "annotation:shape";
 	const SHAPE_PLUGIN_ID = "annotation:shape";
 	const MAX_COORDINATE = 1e7;
-	const MAX_SHAPE_OBJECT_BYTES = 256 * 1024;
+	const MAX_SHAPE_OBJECT_BYTES = 262144;
 	const MIN_GEOMETRY_SIZE = .5;
 	function isPlainRecord$2(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -17659,7 +17664,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#region dist/esm/plugins/annotation-draw/draw-controller.js
 	const DRAW_ANNOTATION_KIND = "annotation:draw";
 	const DRAW_PLUGIN_ID = "annotation:draw";
-	const MAX_DRAW_OBJECT_BYTES = 512 * 1024;
+	const MAX_DRAW_OBJECT_BYTES = 524288;
 	function isPlainRecord$1(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -18842,7 +18847,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		validate(payload, options = {}) {
 			var _a;
 			this.assertActive("validate Overlay State");
-			const structural = validateOverlayStateDocument(payload, resolveOverlayStateLimits(this.configuredLimits, options.limits));
+			const limits = resolveOverlayStateLimits(this.configuredLimits, options.limits);
+			const structural = validateOverlayStateDocument(payload, limits);
 			if (!structural.valid || !structural.document) return structural;
 			const issues = this.validateCodecs(structural.document, (_a = options.missingKindPolicy) !== null && _a !== void 0 ? _a : "error");
 			return issues.length > 0 ? invalidResult(issues) : Object.freeze({
@@ -18853,7 +18859,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		migrate(payload, options = {}) {
 			this.assertActive("migrate Overlay State");
-			const result = validateOverlayStateDocument(payload, resolveOverlayStateLimits(this.configuredLimits, options.limits));
+			const limits = resolveOverlayStateLimits(this.configuredLimits, options.limits);
+			const result = validateOverlayStateDocument(payload, limits);
 			if (!result.valid || !result.document) throw new OverlayStateValidationError(result.errors);
 			return result.document;
 		}

@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay) {
 if (Object.prototype.hasOwnProperty.call(exports, "annotationFoundationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
@@ -179,7 +178,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const MAX_ANNOTATION_NAME_LENGTH = 128;
 	const MAX_ANNOTATION_METADATA_DEPTH = 4;
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
-	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
+	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
 	function isPlainRecord$1(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);

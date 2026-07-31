@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_plugins_annotation, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay) {
 if (Object.prototype.hasOwnProperty.call(exports, "shapeAnnotationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
@@ -217,7 +216,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const SHAPE_ANNOTATION_KIND = "annotation:shape";
 	const SHAPE_PLUGIN_ID = "annotation:shape";
 	const MAX_COORDINATE = 1e7;
-	const MAX_SHAPE_OBJECT_BYTES = 256 * 1024;
+	const MAX_SHAPE_OBJECT_BYTES = 262144;
 	const MIN_GEOMETRY_SIZE = .5;
 	function isPlainRecord(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;

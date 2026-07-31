@@ -28,7 +28,7 @@
     "devDependencies": {
         "@bensitu/image-editor": "file:../../..",
         "fabric": "7.4.0",
-        "rolldown": "1.2.0",
+        "rolldown": "1.2.1",
         "typescript": "6.0.3"
     },
     "engines": {

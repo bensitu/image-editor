@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_plugins_annotation, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay) {
 if (Object.prototype.hasOwnProperty.call(exports, "textAnnotationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
@@ -218,7 +217,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const TEXT_PLUGIN_ID = "annotation:text";
 	const MAX_TEXT_LENGTH = 2e4;
 	const MAX_FONT_FIELD_LENGTH = 256;
-	const MAX_TEXT_OBJECT_BYTES = 256 * 1024;
+	const MAX_TEXT_OBJECT_BYTES = 262144;
 	const MAX_TEXT_WIDTH = 1e5;
 	const MAX_COORDINATE = 1e7;
 	function isPlainRecord(value) {

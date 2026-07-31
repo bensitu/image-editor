@@ -4,7 +4,6 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditor = global.ImageEditor || {})));
 })(this, function(exports) {
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/plugin-kernel/errors.js
 	function createPluginErrorOptions(pluginId, cause) {
 		return {
@@ -2262,7 +2261,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						this.installationOrder.push(pluginId);
 					}
 				} catch (cause) {
-					throw new PluginBatchInstallError(cause, [...cause instanceof PluginSetupError ? cause.cleanupErrors : [], ...this.rollbackPendingBatchSync(pendingRecords)]);
+					const cleanupErrors = [...cause instanceof PluginSetupError ? cause.cleanupErrors : [], ...this.rollbackPendingBatchSync(pendingRecords)];
+					throw new PluginBatchInstallError(cause, cleanupErrors);
 				}
 				return Object.freeze({
 					apisByPluginId: prepared.apisByPluginId,
@@ -2363,7 +2363,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				for (const pluginId of this.installationOrder) {
 					const record = this.installed.get(pluginId);
 					if (!(record === null || record === void 0 ? void 0 : record.plugin.onInit)) continue;
-					if (isPromiseLike(record.plugin.onInit(record.lifecycleContext))) throw new PluginLifecycleError(pluginId, "init", /* @__PURE__ */ new Error("Synchronous plugin onInit returned a Promise."));
+					const result = record.plugin.onInit(record.lifecycleContext);
+					if (isPromiseLike(result)) throw new PluginLifecycleError(pluginId, "init", /* @__PURE__ */ new Error("Synchronous plugin onInit returned a Promise."));
 				}
 				this.hostState = "initialized";
 			} catch (error) {
@@ -2775,7 +2776,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...plugin.optional ? { optional: plugin.optional } : {},
 				...plugin.permissions ? { permissions: plugin.permissions } : {}
 			});
-			return markCanonicalPluginDefinition(Object.freeze({
+			const normalized = Object.freeze({
 				...plugin,
 				ref: plugin.ref,
 				manifest,
@@ -2785,7 +2786,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...manifest.optional ? { optional: manifest.optional } : {},
 					...manifest.permissions ? { permissions: manifest.permissions } : {}
 				} : {}
-			}), plugin);
+			});
+			return markCanonicalPluginDefinition(normalized, plugin);
 		}
 		getAsyncInstallationHost() {
 			return this;
@@ -4439,7 +4441,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} catch (error) {
 				throw new GeometryMutationError(request.id, "metadata must be safely JSON-serializable.", error);
 			}
-			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
+			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 65536;
 			if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) throw new GeometryMutationError(request.id, `metadata exceeds ${maxMetadataBytes} bytes.`);
 			return clonedMetadata;
 		}
@@ -5135,7 +5137,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (error instanceof DocumentMutationRegistrationError) throw error;
 				throw new DocumentMutationRegistrationError("Mutation metadata must be safely JSON-serializable.", request.id);
 			}
-			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 64 * 1024;
+			const maxMetadataBytes = (_b = this.options.maxMetadataBytes) !== null && _b !== void 0 ? _b : 65536;
 			if (new TextEncoder().encode(serializedMetadata).byteLength > maxMetadataBytes) throw new DocumentMutationRegistrationError(`Mutation metadata exceeds ${maxMetadataBytes} bytes.`, request.id);
 			return Object.freeze({
 				...request,
@@ -5485,9 +5487,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		26,
 		10
 	];
-	const HEADER_PROBE_BASE64_CHARACTERS = Math.ceil(256 * 1024 / 3) * 4;
+	const HEADER_PROBE_BASE64_CHARACTERS = Math.ceil(262144 / 3) * 4;
 	const MAX_DATA_URL_HEADER_LENGTH = 64;
-	const ASCII_CHUNK_SIZE = 8 * 1024;
+	const ASCII_CHUNK_SIZE = 8192;
 	function matchesAscii(bytes, offset, value) {
 		if (offset < 0 || offset + value.length > bytes.length) return false;
 		for (let index = 0; index < value.length; index += 1) if (bytes[offset + index] !== value.charCodeAt(index)) return false;
@@ -5644,14 +5646,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return EXTERNAL_RESOURCE_KEYS.has(normalized) || normalized.endsWith("url");
 	}
 	const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
-		maxInputBytes: 16 * 1024 * 1024,
+		maxInputBytes: 16777216,
 		maxDepth: 64,
 		maxObjectCount: 1e5,
 		maxPluginCount: 256,
-		maxPluginPayloadBytes: 4 * 1024 * 1024,
-		maxMetadataBytes: 256 * 1024,
-		maxStringLength: 16 * 1024 * 1024,
-		maxDataUrlBytes: 16 * 1024 * 1024,
+		maxPluginPayloadBytes: 4194304,
+		maxMetadataBytes: 262144,
+		maxStringLength: 16777216,
+		maxDataUrlBytes: 16777216,
 		maxDecodedPixels: 5e7,
 		maxImageDimension: 32768,
 		externalUrlPolicy: "reject"
@@ -6096,10 +6098,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		backgroundColor: "#ffffff",
 		layoutMode: "expand",
 		groupSelection: true,
-		maxInputBytes: 32 * 1024 * 1024,
-		maxInputPixels: 64 * 1024 * 1024,
+		maxInputBytes: 33554432,
+		maxInputPixels: 67108864,
 		imageLoadTimeoutMs: 3e4,
-		maxExportPixels: 64 * 1024 * 1024,
+		maxExportPixels: 67108864,
 		maxExportDimension: 16384,
 		exportMultiplier: 1,
 		initialImageBase64: ""
@@ -6486,7 +6488,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return this.reportWarning((_a = warning.details) === null || _a === void 0 ? void 0 : _a.cause, warning.message);
 			}, Object.freeze({
 				...DEFAULT_SNAPSHOT_LIMITS,
-				maxInputBytes: Math.ceil(this.options.maxInputBytes * 4 / 3) + 1024 * 1024,
+				maxInputBytes: Math.ceil(this.options.maxInputBytes * 4 / 3) + 1048576,
 				maxStringLength: Math.ceil(this.options.maxInputBytes * 4 / 3) + 1024,
 				maxDataUrlBytes: this.options.maxInputBytes,
 				maxDecodedPixels: Math.min(this.options.maxInputPixels, this.options.maxExportPixels),

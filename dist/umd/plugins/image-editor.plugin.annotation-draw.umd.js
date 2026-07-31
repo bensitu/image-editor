@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_plugins_annotation, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay) {
 if (Object.prototype.hasOwnProperty.call(exports, "drawAnnotationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
@@ -304,7 +303,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#region dist/esm/plugins/annotation-draw/draw-controller.js
 	const DRAW_ANNOTATION_KIND = "annotation:draw";
 	const DRAW_PLUGIN_ID = "annotation:draw";
-	const MAX_DRAW_OBJECT_BYTES = 512 * 1024;
+	const MAX_DRAW_OBJECT_BYTES = 524288;
 	function isPlainRecord(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);

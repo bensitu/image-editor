@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "historyPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
@@ -112,7 +111,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/plugins/history/history-controller.js
-	const DEFAULT_MAX_HISTORY_BYTES = 128 * 1024 * 1024;
+	const DEFAULT_MAX_HISTORY_BYTES = 134217728;
 	function resolveMaxSize(value) {
 		return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 50;
 	}

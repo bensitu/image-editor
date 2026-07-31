@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_plugins_overlay, _bensitu_image_editor_sdk, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "overlayStatePlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
@@ -647,7 +646,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		validate(payload, options = {}) {
 			var _a;
 			this.assertActive("validate Overlay State");
-			const structural = validateOverlayStateDocument(payload, resolveOverlayStateLimits(this.configuredLimits, options.limits));
+			const limits = resolveOverlayStateLimits(this.configuredLimits, options.limits);
+			const structural = validateOverlayStateDocument(payload, limits);
 			if (!structural.valid || !structural.document) return structural;
 			const issues = this.validateCodecs(structural.document, (_a = options.missingKindPolicy) !== null && _a !== void 0 ? _a : "error");
 			return issues.length > 0 ? invalidResult(issues) : Object.freeze({
@@ -658,7 +658,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		migrate(payload, options = {}) {
 			this.assertActive("migrate Overlay State");
-			const result = validateOverlayStateDocument(payload, resolveOverlayStateLimits(this.configuredLimits, options.limits));
+			const limits = resolveOverlayStateLimits(this.configuredLimits, options.limits);
+			const result = validateOverlayStateDocument(payload, limits);
 			if (!result.valid || !result.document) throw new OverlayStateValidationError(result.errors);
 			return result.document;
 		}

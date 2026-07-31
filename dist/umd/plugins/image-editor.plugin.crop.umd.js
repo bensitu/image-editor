@@ -5,7 +5,6 @@
 })(this, function(exports, _bensitu_image_editor_plugins_overlay, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "cropPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-
 //#region dist/esm/utils/internal-layer-placement.js
 	function moveObjectTo(canvas, object, index) {
 		const canvasWithLayerApi = canvas;
@@ -780,7 +779,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		refreshPreview(session) {
 			const baseImage = this.requireBaseImage();
 			this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
-			placeSessionObject(this.host.requireCanvas("refresh Crop preview"), session.preview);
+			const canvas = this.host.requireCanvas("refresh Crop preview");
+			placeSessionObject(canvas, session.preview);
 			if (session.previewVisibility) (0, _bensitu_image_editor_sdk.observePromise)(Promise.resolve(session.previewVisibility.dispose()), (error) => {
 				this.host.reportWarning(error, "Crop preview visibility cleanup failed.");
 			});
