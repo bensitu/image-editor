@@ -231,3 +231,123 @@ test('basic demo keeps the image painted throughout animated zoom controls', asy
         expect(probe.dimensionSamples.filter(({ alpha }) => alpha === 0)).toEqual([]);
     }
 });
+
+test('basic demo shows Fabric controls for the active Crop preview', async ({ page }) => {
+    await page.goto('/docs/basic.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await page.locator('#loadSampleButton').click();
+    await expect(page.locator('#enterCropModeButton')).toBeEnabled();
+    await page.evaluate(() => {
+        const browser = window as unknown as {
+            fabric?: {
+                Canvas?: {
+                    prototype?: {
+                        setActiveObject?: (object: unknown, event?: unknown) => unknown;
+                    };
+                };
+            };
+            __cropControlProbe?: Readonly<{ canvas: unknown; object: unknown }>;
+        };
+        const prototype = browser.fabric?.Canvas?.prototype;
+        const setActiveObject = prototype?.setActiveObject;
+        if (!prototype || typeof setActiveObject !== 'function') {
+            throw new Error('Fabric Canvas activation is unavailable.');
+        }
+        prototype.setActiveObject = function (object: unknown, event?: unknown) {
+            browser.__cropControlProbe = Object.freeze({ canvas: this, object });
+            return Reflect.apply(setActiveObject, this, [object, event]);
+        };
+    });
+
+    await page.locator('#enterCropModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('crop');
+    await expect(page.locator('#applyCropButton')).toBeEnabled();
+    await page.locator('#canvasContainer').scrollIntoViewIfNeeded();
+    const probe = await page.evaluate(() => {
+        const browser = window as unknown as {
+            __cropControlProbe?: {
+                canvas: {
+                    getActiveObject(): unknown;
+                    getWidth(): number;
+                    getHeight(): number;
+                };
+                object: {
+                    evented?: boolean;
+                    getCoords(): Array<{ x: number; y: number }>;
+                    hasControls?: boolean;
+                    height?: number;
+                    isControlVisible(key: string): boolean;
+                    oCoords?: Readonly<Record<string, Readonly<{ x: number; y: number }>>>;
+                    selectable?: boolean;
+                    width?: number;
+                };
+            };
+        };
+        const captured = browser.__cropControlProbe;
+        const upperCanvas = document.querySelector<HTMLCanvasElement>(
+            '#canvasContainer .upper-canvas',
+        );
+        if (!captured || !upperCanvas) throw new Error('Crop control activation was not captured.');
+        const bounds = upperCanvas.getBoundingClientRect();
+        const topLeft = captured.object.oCoords?.tl ?? captured.object.getCoords()[0];
+        if (!topLeft) throw new Error('Crop control coordinates are unavailable.');
+        return {
+            active: captured.canvas.getActiveObject() === captured.object,
+            evented: captured.object.evented,
+            hasControls: captured.object.hasControls,
+            rotationControlVisible: captured.object.isControlVisible('mtr'),
+            selectable: captured.object.selectable,
+            size: { height: captured.object.height, width: captured.object.width },
+            topLeft: {
+                x: bounds.left + (topLeft.x / captured.canvas.getWidth()) * bounds.width,
+                y: bounds.top + (topLeft.y / captured.canvas.getHeight()) * bounds.height,
+            },
+        };
+    });
+    expect(probe).toMatchObject({
+        active: true,
+        evented: true,
+        hasControls: true,
+        rotationControlVisible: false,
+        selectable: true,
+    });
+
+    await page.mouse.move(probe.topLeft.x, probe.topLeft.y);
+    await page.mouse.down();
+    await page.mouse.move(probe.topLeft.x + 80, probe.topLeft.y + 60, { steps: 4 });
+    await page.mouse.up();
+    const resized = await page.evaluate(() => {
+        const browser = window as unknown as {
+            __cropControlProbe?: {
+                object: { height?: number; scaleX?: number; scaleY?: number; width?: number };
+            };
+        };
+        const object = browser.__cropControlProbe?.object;
+        if (!object) throw new Error('Crop control activation was not captured.');
+        return {
+            height: Number(object.height),
+            width: Number(object.width),
+        };
+    });
+    const resizeDiagnostic = JSON.stringify({ probe, resized });
+    expect(resized.width, resizeDiagnostic).toBeLessThan(Number(probe.size.width) - 40);
+    expect(resized.height, resizeDiagnostic).toBeLessThan(Number(probe.size.height) - 20);
+    await page.locator('#applyCropButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+    await page.locator('#exportImageButton').click();
+    await expect
+        .poll(() =>
+            page
+                .locator('#exportPreview')
+                .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+        )
+        .toBeGreaterThan(0);
+    const exportedSize = await page.locator('#exportPreview').evaluate((image) => ({
+        height: (image as HTMLImageElement).naturalHeight,
+        width: (image as HTMLImageElement).naturalWidth,
+    }));
+    expect(exportedSize.width).toBeLessThan(Number(probe.size.width) - 40);
+    expect(exportedSize.height).toBeLessThan(Number(probe.size.height) - 20);
+    expect(Math.abs(exportedSize.width - resized.width)).toBeLessThanOrEqual(2);
+    expect(Math.abs(exportedSize.height - resized.height)).toBeLessThanOrEqual(2);
+});

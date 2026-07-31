@@ -59,9 +59,11 @@ type CropHost = CoreStatusPort &
 interface CropRuntimeSession {
     state: CropSessionState;
     readonly preview: FabricNS.Rect;
+    previewInteraction: Disposable | null;
     previewVisibility: Disposable | null;
     candidates: CropOverlayCandidates;
     readonly selectionIds: readonly string[];
+    synchronizingPreview: boolean;
 }
 
 const EMPTY_CANDIDATES: CropOverlayCandidates = Object.freeze({
@@ -117,6 +119,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     const prototype = Object.getPrototypeOf(value);
     return prototype === Object.prototype || prototype === null;
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+    return Math.max(minimum, Math.min(maximum, value));
+}
+
+function cropRectsMatch(left: CropRect, right: CropRect): boolean {
+    return (
+        left.leftPx === right.leftPx &&
+        left.topPx === right.topPx &&
+        left.widthPx === right.widthPx &&
+        left.heightPx === right.heightPx
+    );
 }
 
 export class CropController {
@@ -227,11 +242,16 @@ export class CropController {
         this.session = {
             state,
             preview,
+            previewInteraction: null,
             previewVisibility: null,
             candidates: EMPTY_CANDIDATES,
             selectionIds: this.overlay?.getSelection().ids ?? Object.freeze([]),
+            synchronizingPreview: false,
         };
+        this.session.previewInteraction = this.bindPreviewInteraction(this.session);
         this.refreshPreview(this.session);
+        canvas.setActiveObject(preview);
+        this.host.requestRender();
         this.emitStatus();
     }
 
@@ -407,11 +427,23 @@ export class CropController {
             strokeWidth: 1,
             strokeDashArray: [6, 4],
             strokeUniform: true,
-            selectable: false,
-            evented: false,
-            hasControls: false,
+            selectable: true,
+            evented: true,
+            hasControls: true,
+            lockRotation: true,
+            lockScalingFlip: true,
+            lockSkewingX: true,
+            lockSkewingY: true,
+            transparentCorners: false,
+            cornerColor: '#ffffff',
+            cornerStrokeColor: '#00aaff',
+            borderColor: '#00aaff',
+            cornerSize: 12,
+            touchCornerSize: 24,
+            hoverCursor: 'move',
             excludeFromExport: true,
         });
+        preview.setControlVisible('mtr', false);
         this.applyPreviewPresentation(baseImage, preview, rect);
         return preview;
     }
@@ -437,7 +469,107 @@ export class CropController {
             flipX: baseImage.flipX,
             flipY: baseImage.flipY,
         });
+        const freeAspectRatio = this.session?.state.aspectRatio === null;
+        preview.setControlsVisibility({
+            ml: freeAspectRatio,
+            mt: freeAspectRatio,
+            mr: freeAspectRatio,
+            mb: freeAspectRatio,
+            mtr: false,
+        });
         preview.setCoords();
+    }
+
+    private bindPreviewInteraction(session: CropRuntimeSession): Disposable {
+        const synchronizeLive = (): void => this.synchronizePreview(session, false);
+        const synchronizeFinal = (): void => this.synchronizePreview(session, true);
+        const stopMoving = session.preview.on('moving', synchronizeLive);
+        const stopScaling = session.preview.on('scaling', synchronizeLive);
+        const stopModified = session.preview.on('modified', synchronizeFinal);
+        return createDisposable(() => {
+            stopModified();
+            stopScaling();
+            stopMoving();
+        });
+    }
+
+    private synchronizePreview(session: CropRuntimeSession, finalize: boolean): void {
+        if (this.session !== session || session.synchronizingPreview) return;
+        session.synchronizingPreview = true;
+        try {
+            const rect = this.readPreviewRect(session);
+            const changed = !cropRectsMatch(rect, session.state.rect);
+            if (changed) session.state = Object.freeze({ ...session.state, rect });
+            if (finalize) {
+                this.refreshPreview(session);
+            } else {
+                this.host.requestRender();
+            }
+            if (changed) this.emitStatus();
+        } catch (error) {
+            this.host.reportWarning(error, 'Crop could not synchronize its interactive preview.');
+            this.refreshPreview(session);
+        } finally {
+            session.synchronizingPreview = false;
+        }
+    }
+
+    private readPreviewRect(session: CropRuntimeSession): CropRect {
+        const baseImage = this.requireBaseImage();
+        const relativeMatrix = this.host.fabric.util.multiplyTransformMatrices(
+            this.host.fabric.util.invertTransform(baseImage.calcTransformMatrix()),
+            session.preview.calcTransformMatrix(),
+        );
+        const halfWidth = Number(session.preview.width) / 2;
+        const halfHeight = Number(session.preview.height) / 2;
+        const corners = [
+            new this.host.fabric.Point(-halfWidth, -halfHeight),
+            new this.host.fabric.Point(halfWidth, -halfHeight),
+            new this.host.fabric.Point(halfWidth, halfHeight),
+            new this.host.fabric.Point(-halfWidth, halfHeight),
+        ].map((point) => point.transform(relativeMatrix));
+        const xCoordinates = corners.map((point) => point.x);
+        const yCoordinates = corners.map((point) => point.y);
+        const left = Math.min(...xCoordinates) + session.state.sourceWidthPx / 2;
+        const top = Math.min(...yCoordinates) + session.state.sourceHeightPx / 2;
+        const width = Math.max(...xCoordinates) - Math.min(...xCoordinates);
+        const height = Math.max(...yCoordinates) - Math.min(...yCoordinates);
+        if (![left, top, width, height].every(Number.isFinite)) {
+            throw new CropValidationError('Interactive Crop geometry is invalid.');
+        }
+        return this.constrainPreviewRect(session, {
+            leftPx: left,
+            topPx: top,
+            widthPx: width,
+            heightPx: height,
+        });
+    }
+
+    private constrainPreviewRect(session: CropRuntimeSession, value: CropRect): CropRect {
+        const limits = this.limits(session);
+        const width = clamp(Math.abs(value.widthPx), limits.minimumWidthPx, limits.widthPx);
+        const height = clamp(Math.abs(value.heightPx), limits.minimumHeightPx, limits.heightPx);
+        const centerX = value.leftPx + value.widthPx / 2;
+        const centerY = value.topPx + value.heightPx / 2;
+        let rect = normalizeCropRect(
+            {
+                leftPx: clamp(centerX - width / 2, 0, limits.widthPx - width),
+                topPx: clamp(centerY - height / 2, 0, limits.heightPx - height),
+                widthPx: width,
+                heightPx: height,
+            },
+            limits,
+        );
+        if (session.state.aspectRatio !== null) {
+            rect = normalizeCropRect(
+                fitCropRectToAspectRatio(rect, session.state.aspectRatio, {
+                    widthPx: session.state.sourceWidthPx,
+                    heightPx: session.state.sourceHeightPx,
+                }),
+                limits,
+            );
+        }
+        return rect;
     }
 
     private refreshPreview(session: CropRuntimeSession): void {
@@ -472,12 +604,23 @@ export class CropController {
         const session = this.session;
         if (!session) return;
         this.session = null;
+        if (session.previewInteraction) {
+            try {
+                observePromise(Promise.resolve(session.previewInteraction.dispose()), (error) => {
+                    this.host.reportWarning(error, 'Crop preview interaction cleanup failed.');
+                });
+            } catch (error) {
+                this.host.reportWarning(error, 'Crop preview interaction cleanup failed.');
+            }
+            session.previewInteraction = null;
+        }
         if (session.previewVisibility) {
             observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
                 this.host.reportWarning(error, 'Crop preview visibility cleanup failed.');
             });
         }
         const canvas = this.host.getCanvas();
+        if (canvas?.getActiveObjects().includes(session.preview)) canvas.discardActiveObject();
         if (canvas?.getObjects().includes(session.preview)) canvas.remove(session.preview);
         session.preview.dispose();
         if (restoreSelection && this.overlay) {

@@ -7736,6 +7736,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const active = (_a = candidate.getActiveObject) === null || _a === void 0 ? void 0 : _a.call(candidate);
 		return active ? [active] : [];
 	}
+	function isSessionCanvasObject(object) {
+		const candidate = object;
+		return candidate.editorObjectKind === "session" && typeof candidate.sessionObjectType === "string";
+	}
+	const EMPTY_SELECTION_STATE = Object.freeze({
+		ids: Object.freeze([]),
+		primaryId: null,
+		kinds: Object.freeze([])
+	});
 	function isAbortError(error) {
 		return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 	}
@@ -7951,6 +7960,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				configurable: true,
 				writable: true,
 				value: []
+			});
+			Object.defineProperty(this, "retainedSelection", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: EMPTY_SELECTION_STATE
 			});
 			Object.defineProperty(this, "preservedRecords", {
 				enumerable: true,
@@ -8227,21 +8242,31 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		getSelection() {
 			var _a, _b;
 			this.assertActive("read overlay selection");
-			const classifications = getActiveCanvasObjects(this.host.requireCanvas("read overlay selection")).map((object) => this.byObject.get(object)).filter((entry) => entry !== void 0).map((entry) => this.classificationFor(entry));
-			return Object.freeze({
+			const canvas = this.host.requireCanvas("read overlay selection");
+			const classifications = getActiveCanvasObjects(canvas).map((object) => this.byObject.get(object)).filter((entry) => entry !== void 0).map((entry) => this.classificationFor(entry));
+			if (classifications.length === 0 && canvas.getObjects().some((object) => isSessionCanvasObject(object))) return this.retainedSelection;
+			this.retainedSelection = Object.freeze({
 				ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
 				primaryId: (_b = (_a = classifications[0]) === null || _a === void 0 ? void 0 : _a.persistentId) !== null && _b !== void 0 ? _b : null,
 				kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))])
 			});
+			return this.retainedSelection;
 		}
 		select(ids) {
 			this.assertActive("select overlays");
 			this.applySelection(ids);
 		}
 		applySelection(ids) {
+			var _a, _b;
 			const canvas = this.host.getCanvas();
 			if (!canvas) throw new CoreRuntimeError("[ImageEditor] Overlay selection requires Canvas.");
 			const objects = ids.map((id) => this.requireIndexed(id).object);
+			const classifications = objects.map((object) => this.classificationFor(this.byObject.get(object)));
+			this.retainedSelection = Object.freeze({
+				ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
+				primaryId: (_b = (_a = classifications[0]) === null || _a === void 0 ? void 0 : _a.persistentId) !== null && _b !== void 0 ? _b : null,
+				kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))])
+			});
 			if (objects.length === 0) canvas.discardActiveObject();
 			else if (objects.length === 1) canvas.setActiveObject(objects[0]);
 			else canvas.setActiveObject(new this.host.fabric.ActiveSelection(objects, { canvas }));
@@ -8250,6 +8275,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		discardSelection() {
 			this.assertActive("discard overlay selection");
+			this.retainedSelection = EMPTY_SELECTION_STATE;
 			this.host.requireCanvas("discard overlay selection").discardActiveObject();
 			this.host.requestRender();
 			this.emitSelection();
@@ -14821,6 +14847,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const prototype = Object.getPrototypeOf(value);
 		return prototype === Object.prototype || prototype === null;
 	}
+	function clamp(value, minimum, maximum) {
+		return Math.max(minimum, Math.min(maximum, value));
+	}
+	function cropRectsMatch(left, right) {
+		return left.leftPx === right.leftPx && left.topPx === right.topPx && left.widthPx === right.widthPx && left.heightPx === right.heightPx;
+	}
 	var CropController = class {
 		constructor(host, geometry, raster, overlay, visibleRasterBake, visibleRasterBakeStatus, configuration) {
 			Object.defineProperty(this, "host", {
@@ -14956,11 +14988,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.session = {
 				state,
 				preview,
+				previewInteraction: null,
 				previewVisibility: null,
 				candidates: EMPTY_CANDIDATES,
-				selectionIds: (_c = (_b = this.overlay) === null || _b === void 0 ? void 0 : _b.getSelection().ids) !== null && _c !== void 0 ? _c : Object.freeze([])
+				selectionIds: (_c = (_b = this.overlay) === null || _b === void 0 ? void 0 : _b.getSelection().ids) !== null && _c !== void 0 ? _c : Object.freeze([]),
+				synchronizingPreview: false
 			};
+			this.session.previewInteraction = this.bindPreviewInteraction(this.session);
 			this.refreshPreview(this.session);
+			canvas.setActiveObject(preview);
+			this.host.requestRender();
 			this.emitStatus();
 		}
 		updateRect(value) {
@@ -15088,15 +15125,28 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				strokeWidth: 1,
 				strokeDashArray: [6, 4],
 				strokeUniform: true,
-				selectable: false,
-				evented: false,
-				hasControls: false,
+				selectable: true,
+				evented: true,
+				hasControls: true,
+				lockRotation: true,
+				lockScalingFlip: true,
+				lockSkewingX: true,
+				lockSkewingY: true,
+				transparentCorners: false,
+				cornerColor: "#ffffff",
+				cornerStrokeColor: "#00aaff",
+				borderColor: "#00aaff",
+				cornerSize: 12,
+				touchCornerSize: 24,
+				hoverCursor: "move",
 				excludeFromExport: true
 			});
+			preview.setControlVisible("mtr", false);
 			this.applyPreviewPresentation(baseImage, preview, rect);
 			return preview;
 		}
 		applyPreviewPresentation(baseImage, preview, rect) {
+			var _a;
 			const matrix = baseImage.calcTransformMatrix();
 			const offsetX = rect.leftPx + rect.widthPx / 2 - Number(baseImage.width) / 2;
 			const offsetY = rect.topPx + rect.heightPx / 2 - Number(baseImage.height) / 2;
@@ -15113,7 +15163,95 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				flipX: baseImage.flipX,
 				flipY: baseImage.flipY
 			});
+			const freeAspectRatio = ((_a = this.session) === null || _a === void 0 ? void 0 : _a.state.aspectRatio) === null;
+			preview.setControlsVisibility({
+				ml: freeAspectRatio,
+				mt: freeAspectRatio,
+				mr: freeAspectRatio,
+				mb: freeAspectRatio,
+				mtr: false
+			});
 			preview.setCoords();
+		}
+		bindPreviewInteraction(session) {
+			const synchronizeLive = () => this.synchronizePreview(session, false);
+			const synchronizeFinal = () => this.synchronizePreview(session, true);
+			const stopMoving = session.preview.on("moving", synchronizeLive);
+			const stopScaling = session.preview.on("scaling", synchronizeLive);
+			const stopModified = session.preview.on("modified", synchronizeFinal);
+			return createDisposable(() => {
+				stopModified();
+				stopScaling();
+				stopMoving();
+			});
+		}
+		synchronizePreview(session, finalize) {
+			if (this.session !== session || session.synchronizingPreview) return;
+			session.synchronizingPreview = true;
+			try {
+				const rect = this.readPreviewRect(session);
+				const changed = !cropRectsMatch(rect, session.state.rect);
+				if (changed) session.state = Object.freeze({
+					...session.state,
+					rect
+				});
+				if (finalize) this.refreshPreview(session);
+				else this.host.requestRender();
+				if (changed) this.emitStatus();
+			} catch (error) {
+				this.host.reportWarning(error, "Crop could not synchronize its interactive preview.");
+				this.refreshPreview(session);
+			} finally {
+				session.synchronizingPreview = false;
+			}
+		}
+		readPreviewRect(session) {
+			const baseImage = this.requireBaseImage();
+			const relativeMatrix = this.host.fabric.util.multiplyTransformMatrices(this.host.fabric.util.invertTransform(baseImage.calcTransformMatrix()), session.preview.calcTransformMatrix());
+			const halfWidth = Number(session.preview.width) / 2;
+			const halfHeight = Number(session.preview.height) / 2;
+			const corners = [
+				new this.host.fabric.Point(-halfWidth, -halfHeight),
+				new this.host.fabric.Point(halfWidth, -halfHeight),
+				new this.host.fabric.Point(halfWidth, halfHeight),
+				new this.host.fabric.Point(-halfWidth, halfHeight)
+			].map((point) => point.transform(relativeMatrix));
+			const xCoordinates = corners.map((point) => point.x);
+			const yCoordinates = corners.map((point) => point.y);
+			const left = Math.min(...xCoordinates) + session.state.sourceWidthPx / 2;
+			const top = Math.min(...yCoordinates) + session.state.sourceHeightPx / 2;
+			const width = Math.max(...xCoordinates) - Math.min(...xCoordinates);
+			const height = Math.max(...yCoordinates) - Math.min(...yCoordinates);
+			if (![
+				left,
+				top,
+				width,
+				height
+			].every(Number.isFinite)) throw new CropValidationError("Interactive Crop geometry is invalid.");
+			return this.constrainPreviewRect(session, {
+				leftPx: left,
+				topPx: top,
+				widthPx: width,
+				heightPx: height
+			});
+		}
+		constrainPreviewRect(session, value) {
+			const limits = this.limits(session);
+			const width = clamp(Math.abs(value.widthPx), limits.minimumWidthPx, limits.widthPx);
+			const height = clamp(Math.abs(value.heightPx), limits.minimumHeightPx, limits.heightPx);
+			const centerX = value.leftPx + value.widthPx / 2;
+			const centerY = value.topPx + value.heightPx / 2;
+			let rect = normalizeCropRect({
+				leftPx: clamp(centerX - width / 2, 0, limits.widthPx - width),
+				topPx: clamp(centerY - height / 2, 0, limits.heightPx - height),
+				widthPx: width,
+				heightPx: height
+			}, limits);
+			if (session.state.aspectRatio !== null) rect = normalizeCropRect(fitCropRectToAspectRatio(rect, session.state.aspectRatio, {
+				widthPx: session.state.sourceWidthPx,
+				heightPx: session.state.sourceHeightPx
+			}), limits);
+			return rect;
 		}
 		refreshPreview(session) {
 			const baseImage = this.requireBaseImage();
@@ -15132,10 +15270,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.session;
 			if (!session) return;
 			this.session = null;
+			if (session.previewInteraction) {
+				try {
+					observePromise(Promise.resolve(session.previewInteraction.dispose()), (error) => {
+						this.host.reportWarning(error, "Crop preview interaction cleanup failed.");
+					});
+				} catch (error) {
+					this.host.reportWarning(error, "Crop preview interaction cleanup failed.");
+				}
+				session.previewInteraction = null;
+			}
 			if (session.previewVisibility) observePromise(Promise.resolve(session.previewVisibility.dispose()), (error) => {
 				this.host.reportWarning(error, "Crop preview visibility cleanup failed.");
 			});
 			const canvas = this.host.getCanvas();
+			if (canvas === null || canvas === void 0 ? void 0 : canvas.getActiveObjects().includes(session.preview)) canvas.discardActiveObject();
 			if (canvas === null || canvas === void 0 ? void 0 : canvas.getObjects().includes(session.preview)) canvas.remove(session.preview);
 			session.preview.dispose();
 			if (restoreSelection && this.overlay) try {

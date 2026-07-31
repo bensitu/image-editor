@@ -17,6 +17,15 @@ function getActiveCanvasObjects(canvas) {
     const active = (_a = candidate.getActiveObject) === null || _a === void 0 ? void 0 : _a.call(candidate);
     return active ? [active] : [];
 }
+function isSessionCanvasObject(object) {
+    const candidate = object;
+    return (candidate.editorObjectKind === 'session' && typeof candidate.sessionObjectType === 'string');
+}
+const EMPTY_SELECTION_STATE = Object.freeze({
+    ids: Object.freeze([]),
+    primaryId: null,
+    kinds: Object.freeze([]),
+});
 function isAbortError(error) {
     return (typeof error === 'object' &&
         error !== null &&
@@ -284,6 +293,12 @@ export class OverlayFoundationController {
             configurable: true,
             writable: true,
             value: []
+        });
+        Object.defineProperty(this, "retainedSelection", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: EMPTY_SELECTION_STATE
         });
         Object.defineProperty(this, "preservedRecords", {
             enumerable: true,
@@ -598,26 +613,39 @@ export class OverlayFoundationController {
     getSelection() {
         var _a, _b;
         this.assertActive('read overlay selection');
-        const active = getActiveCanvasObjects(this.host.requireCanvas('read overlay selection'));
+        const canvas = this.host.requireCanvas('read overlay selection');
+        const active = getActiveCanvasObjects(canvas);
         const classifications = active
             .map((object) => this.byObject.get(object))
             .filter((entry) => entry !== undefined)
             .map((entry) => this.classificationFor(entry));
-        return Object.freeze({
+        if (classifications.length === 0 &&
+            canvas.getObjects().some((object) => isSessionCanvasObject(object))) {
+            return this.retainedSelection;
+        }
+        this.retainedSelection = Object.freeze({
             ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
             primaryId: (_b = (_a = classifications[0]) === null || _a === void 0 ? void 0 : _a.persistentId) !== null && _b !== void 0 ? _b : null,
             kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))]),
         });
+        return this.retainedSelection;
     }
     select(ids) {
         this.assertActive('select overlays');
         this.applySelection(ids);
     }
     applySelection(ids) {
+        var _a, _b;
         const canvas = this.host.getCanvas();
         if (!canvas)
             throw new CoreRuntimeError('[ImageEditor] Overlay selection requires Canvas.');
         const objects = ids.map((id) => this.requireIndexed(id).object);
+        const classifications = objects.map((object) => this.classificationFor(this.byObject.get(object)));
+        this.retainedSelection = Object.freeze({
+            ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
+            primaryId: (_b = (_a = classifications[0]) === null || _a === void 0 ? void 0 : _a.persistentId) !== null && _b !== void 0 ? _b : null,
+            kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))]),
+        });
         if (objects.length === 0) {
             canvas.discardActiveObject();
         }
@@ -632,6 +660,7 @@ export class OverlayFoundationController {
     }
     discardSelection() {
         this.assertActive('discard overlay selection');
+        this.retainedSelection = EMPTY_SELECTION_STATE;
         this.host.requireCanvas('discard overlay selection').discardActiveObject();
         this.host.requestRender();
         this.emitSelection();

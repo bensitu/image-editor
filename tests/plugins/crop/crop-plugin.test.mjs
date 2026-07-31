@@ -181,6 +181,13 @@ test('Crop sessions are transient across enter, update, aspect ratio, export, an
     });
     assert.equal(editor.getCanvas().getObjects().length, 2);
     assert.equal(editor.getCanvas().getObjects()[0], baseImage);
+    const preview = editor.getCanvas().getObjects()[1];
+    assert.equal(preview.selectable, true);
+    assert.equal(preview.evented, true);
+    assert.equal(preview.hasControls, true);
+    assert.equal(preview.isControlVisible('mtr'), false);
+    assert.equal(preview.isControlVisible('ml'), true);
+    assert.equal(editor.getCanvas().getActiveObject(), preview);
     assert.equal(editor.saveState(), snapshot);
     assert.equal(await editor.exportImageBase64({ format: 'png' }), exported);
 
@@ -196,6 +203,52 @@ test('Crop sessions are transient across enter, update, aspect ratio, export, an
     assert.equal(crop.getSession(), null);
     assert.equal(editor.getCanvas().getObjects().length, 1);
     assert.equal(editor.saveState(), snapshot);
+    await dispose(editor);
+});
+
+test('Crop controls synchronize moved and scaled preview geometry before apply', async () => {
+    const { crop, editor } = await createEditor({ id: 'interactive-preview' });
+    await load(editor);
+    await crop.enter({ rect: { leftPx: 10, topPx: 8, widthPx: 60, heightPx: 48 } });
+    const canvas = editor.getCanvas();
+    const baseImage = canvas.getObjects()[0];
+    const preview = canvas.getObjects().find((object) => object.sessionObjectType === 'cropRect');
+    assert.ok(preview);
+
+    const baseMatrix = baseImage.calcTransformMatrix();
+    preview.set({
+        left: preview.left + baseMatrix[0] * 5,
+        top: preview.top + baseMatrix[1] * 5,
+    });
+    preview.fire('moving');
+    assert.deepEqual(crop.getSession().rect, {
+        leftPx: 15,
+        topPx: 8,
+        widthPx: 60,
+        heightPx: 48,
+    });
+
+    preview.set({ scaleX: preview.scaleX * 0.5, scaleY: preview.scaleY * 0.5 });
+    preview.fire('scaling');
+    const scaledRect = crop.getSession().rect;
+    assert.ok(scaledRect.widthPx < 60);
+    assert.ok(scaledRect.heightPx < 48);
+    preview.fire('modified', { target: preview });
+    assert.equal(preview.width, scaledRect.widthPx);
+    assert.equal(preview.height, scaledRect.heightPx);
+    assert.equal(preview.scaleX, baseImage.scaleX);
+    assert.equal(preview.scaleY, baseImage.scaleY);
+
+    await crop.setAspectRatio('1:1');
+    assert.equal(preview.isControlVisible('ml'), false);
+    preview.set({ scaleX: preview.scaleX * 0.75, scaleY: preview.scaleY * 0.5 });
+    preview.fire('modified', { target: preview });
+    const fixedRect = crop.getSession().rect;
+    assert.equal(fixedRect.widthPx, fixedRect.heightPx);
+
+    await crop.apply();
+    assert.equal(editor.getImageInfo().naturalWidth, fixedRect.widthPx);
+    assert.equal(editor.getImageInfo().naturalHeight, fixedRect.heightPx);
     await dispose(editor);
 });
 

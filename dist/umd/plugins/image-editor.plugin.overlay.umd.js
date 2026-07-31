@@ -219,6 +219,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const active = (_a = candidate.getActiveObject) === null || _a === void 0 ? void 0 : _a.call(candidate);
 		return active ? [active] : [];
 	}
+	function isSessionCanvasObject(object) {
+		const candidate = object;
+		return candidate.editorObjectKind === "session" && typeof candidate.sessionObjectType === "string";
+	}
+	const EMPTY_SELECTION_STATE = Object.freeze({
+		ids: Object.freeze([]),
+		primaryId: null,
+		kinds: Object.freeze([])
+	});
 	function isAbortError(error) {
 		return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 	}
@@ -434,6 +443,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				configurable: true,
 				writable: true,
 				value: []
+			});
+			Object.defineProperty(this, "retainedSelection", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: EMPTY_SELECTION_STATE
 			});
 			Object.defineProperty(this, "preservedRecords", {
 				enumerable: true,
@@ -710,21 +725,31 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		getSelection() {
 			var _a, _b;
 			this.assertActive("read overlay selection");
-			const classifications = getActiveCanvasObjects(this.host.requireCanvas("read overlay selection")).map((object) => this.byObject.get(object)).filter((entry) => entry !== void 0).map((entry) => this.classificationFor(entry));
-			return Object.freeze({
+			const canvas = this.host.requireCanvas("read overlay selection");
+			const classifications = getActiveCanvasObjects(canvas).map((object) => this.byObject.get(object)).filter((entry) => entry !== void 0).map((entry) => this.classificationFor(entry));
+			if (classifications.length === 0 && canvas.getObjects().some((object) => isSessionCanvasObject(object))) return this.retainedSelection;
+			this.retainedSelection = Object.freeze({
 				ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
 				primaryId: (_b = (_a = classifications[0]) === null || _a === void 0 ? void 0 : _a.persistentId) !== null && _b !== void 0 ? _b : null,
 				kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))])
 			});
+			return this.retainedSelection;
 		}
 		select(ids) {
 			this.assertActive("select overlays");
 			this.applySelection(ids);
 		}
 		applySelection(ids) {
+			var _a, _b;
 			const canvas = this.host.getCanvas();
 			if (!canvas) throw new _bensitu_image_editor_core.CoreRuntimeError("[ImageEditor] Overlay selection requires Canvas.");
 			const objects = ids.map((id) => this.requireIndexed(id).object);
+			const classifications = objects.map((object) => this.classificationFor(this.byObject.get(object)));
+			this.retainedSelection = Object.freeze({
+				ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
+				primaryId: (_b = (_a = classifications[0]) === null || _a === void 0 ? void 0 : _a.persistentId) !== null && _b !== void 0 ? _b : null,
+				kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))])
+			});
 			if (objects.length === 0) canvas.discardActiveObject();
 			else if (objects.length === 1) canvas.setActiveObject(objects[0]);
 			else canvas.setActiveObject(new this.host.fabric.ActiveSelection(objects, { canvas }));
@@ -733,6 +758,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		discardSelection() {
 			this.assertActive("discard overlay selection");
+			this.retainedSelection = EMPTY_SELECTION_STATE;
 			this.host.requireCanvas("discard overlay selection").discardActiveObject();
 			this.host.requestRender();
 			this.emitSelection();

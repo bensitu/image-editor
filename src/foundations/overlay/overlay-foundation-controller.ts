@@ -128,6 +128,22 @@ function getActiveCanvasObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[
     return active ? [active] : [];
 }
 
+function isSessionCanvasObject(object: FabricNS.FabricObject): boolean {
+    const candidate = object as FabricNS.FabricObject & {
+        editorObjectKind?: unknown;
+        sessionObjectType?: unknown;
+    };
+    return (
+        candidate.editorObjectKind === 'session' && typeof candidate.sessionObjectType === 'string'
+    );
+}
+
+const EMPTY_SELECTION_STATE: OverlaySelectionState = Object.freeze({
+    ids: Object.freeze([]),
+    primaryId: null,
+    kinds: Object.freeze([]),
+});
+
 function isAbortError(error: unknown): boolean {
     return (
         typeof error === 'object' &&
@@ -405,6 +421,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
     private readonly byObject = new WeakMap<FabricNS.FabricObject, IndexedOverlay>();
     private readonly selectionListeners = new Set<(state: OverlaySelectionState) => void>();
     private readonly registrations: Disposable[] = [];
+    private retainedSelection = EMPTY_SELECTION_STATE;
     private preservedRecords: SerializedOverlayRecord[] = [];
     private registrationSequence = 0;
     private generatedIdSequence = 0;
@@ -688,16 +705,24 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     getSelection(): OverlaySelectionState {
         this.assertActive('read overlay selection');
-        const active = getActiveCanvasObjects(this.host.requireCanvas('read overlay selection'));
+        const canvas = this.host.requireCanvas('read overlay selection');
+        const active = getActiveCanvasObjects(canvas);
         const classifications = active
             .map((object) => this.byObject.get(object))
             .filter((entry): entry is IndexedOverlay => entry !== undefined)
             .map((entry) => this.classificationFor(entry));
-        return Object.freeze({
+        if (
+            classifications.length === 0 &&
+            canvas.getObjects().some((object) => isSessionCanvasObject(object))
+        ) {
+            return this.retainedSelection;
+        }
+        this.retainedSelection = Object.freeze({
             ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
             primaryId: classifications[0]?.persistentId ?? null,
             kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))]),
         });
+        return this.retainedSelection;
     }
 
     select(ids: readonly string[]): void {
@@ -709,6 +734,14 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         const canvas = this.host.getCanvas();
         if (!canvas) throw new CoreRuntimeError('[ImageEditor] Overlay selection requires Canvas.');
         const objects = ids.map((id) => this.requireIndexed(id).object);
+        const classifications = objects.map((object) =>
+            this.classificationFor(this.byObject.get(object)!),
+        );
+        this.retainedSelection = Object.freeze({
+            ids: Object.freeze(classifications.map((entry) => entry.persistentId)),
+            primaryId: classifications[0]?.persistentId ?? null,
+            kinds: Object.freeze([...new Set(classifications.map((entry) => entry.kind))]),
+        });
         if (objects.length === 0) {
             canvas.discardActiveObject();
         } else if (objects.length === 1) {
@@ -722,6 +755,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     discardSelection(): void {
         this.assertActive('discard overlay selection');
+        this.retainedSelection = EMPTY_SELECTION_STATE;
         this.host.requireCanvas('discard overlay selection').discardActiveObject();
         this.host.requestRender();
         this.emitSelection();
