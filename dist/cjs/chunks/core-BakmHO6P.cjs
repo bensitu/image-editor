@@ -4367,6 +4367,7 @@ var ImageEditorCore = class {
 		});
 		image.setCoords();
 		canvas.sendObjectToBack(image);
+		canvas.renderAll();
 	}
 	setCanvasSize(width, height) {
 		if (!this.canvas) return;
@@ -4799,4 +4800,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-CJFF96DE.cjs.map
+//# sourceMappingURL=core-BakmHO6P.cjs.map

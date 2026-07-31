@@ -7351,6 +7351,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			image.setCoords();
 			canvas.sendObjectToBack(image);
+			canvas.renderAll();
 		}
 		setCanvasSize(width, height) {
 			if (!this.canvas) return;

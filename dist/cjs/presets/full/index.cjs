@@ -1,18 +1,18 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
 const require_core_capabilities = require('../../chunks/core-capabilities-3eNZsGJV.cjs');
-const require_core = require('../../chunks/core-CJFF96DE.cjs');
-const require_overlay = require('../../chunks/overlay-CJHKQQlx.cjs');
-const require_annotation = require('../../chunks/annotation-kceP6hf-.cjs');
+const require_core = require('../../chunks/core-BakmHO6P.cjs');
+const require_overlay = require('../../chunks/overlay-CSM2i74R.cjs');
+const require_annotation = require('../../chunks/annotation-sXg00EnF.cjs');
 const require_transform = require('../../chunks/transform-CaTYyg50.cjs');
-const require_mask = require('../../chunks/mask-DAtlF1ZR.cjs');
-const require_history = require('../../chunks/history-2ibaWCvi.cjs');
+const require_mask = require('../../chunks/mask-Cto9PKn6.cjs');
+const require_history = require('../../chunks/history-B7vPAEls.cjs');
 const require_filters = require('../../chunks/filters-ChbEL415.cjs');
-const require_crop = require('../../chunks/crop-kXLR98MO.cjs');
+const require_crop = require('../../chunks/crop-cS_1TcWr.cjs');
 const require_mosaic = require('../../chunks/mosaic-CaG4Rato.cjs');
-const require_annotation_text = require('../../chunks/annotation-text-BvokNBTU.cjs');
-const require_annotation_shape = require('../../chunks/annotation-shape-BXOo7VKy.cjs');
-const require_annotation_draw = require('../../chunks/annotation-draw-C06z2o6I.cjs');
-const require_overlay_state = require('../../chunks/overlay-state-CTqncKbu.cjs');
+const require_annotation_text = require('../../chunks/annotation-text-DkBzbZjn.cjs');
+const require_annotation_shape = require('../../chunks/annotation-shape-DBhPZcEP.cjs');
+const require_annotation_draw = require('../../chunks/annotation-draw-CWGOZ2UX.cjs');
+const require_overlay_state = require('../../chunks/overlay-state-DWAF5B63.cjs');
 const require_preset_support = require('../../chunks/preset-support-BDSqE4Hg.cjs');
 
 //#region dist/esm/presets/full/index.js

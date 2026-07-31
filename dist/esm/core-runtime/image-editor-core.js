@@ -1410,6 +1410,7 @@ export class ImageEditorCore {
         image.set({ left: ((_e = image.left) !== null && _e !== void 0 ? _e : 0) - bounds.left, top: ((_f = image.top) !== null && _f !== void 0 ? _f : 0) - bounds.top });
         image.setCoords();
         canvas.sendObjectToBack(image);
+        canvas.renderAll();
     }
     setCanvasSize(width, height) {
         if (!this.canvas)

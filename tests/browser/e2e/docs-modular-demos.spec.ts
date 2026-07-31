@@ -153,3 +153,81 @@ for (const plan of demoPlans) {
         expect(browserSecurityMessages).toEqual([]);
     });
 }
+
+test('basic demo keeps the image painted throughout animated zoom controls', async ({ page }) => {
+    await page.goto('/docs/basic.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await page.locator('#loadSampleButton').click();
+    await expect(page.locator('#canvasContainer')).toBeVisible();
+    await expect(page.locator('#zoomInButton')).toBeEnabled();
+
+    const captureZoomFrames = async (buttonSelector: string) =>
+        page.evaluate(async (selector) => {
+            const canvas = document.querySelector<HTMLCanvasElement>(
+                '#canvasContainer .lower-canvas',
+            );
+            const zoomButton = document.querySelector<HTMLButtonElement>(selector);
+            const context = canvas?.getContext('2d', { willReadFrequently: true });
+            if (!canvas || !zoomButton || !context)
+                throw new Error('Zoom frame probe is unavailable.');
+
+            const frameSamples: Array<Readonly<{ alpha: number; height: number; width: number }>> =
+                [];
+            const dimensionSamples: Array<
+                Readonly<{ alpha: number; height: number; width: number }>
+            > = [];
+            const startedAt = performance.now();
+            const readSample = (): Readonly<{ alpha: number; height: number; width: number }> => {
+                const x = Math.max(0, Math.floor(canvas.width / 2));
+                const y = Math.max(0, Math.floor(canvas.height / 2));
+                return Object.freeze({
+                    alpha: context.getImageData(x, y, 1, 1).data[3] ?? 0,
+                    height: canvas.height,
+                    width: canvas.width,
+                });
+            };
+            const dimensionObserver = new MutationObserver(() => {
+                dimensionSamples.push(readSample());
+            });
+            dimensionObserver.observe(canvas, {
+                attributeFilter: ['height', 'width'],
+                attributes: true,
+            });
+
+            return new Promise<
+                Readonly<{
+                    dimensionSamples: typeof dimensionSamples;
+                    frameSamples: typeof frameSamples;
+                }>
+            >((resolve, reject) => {
+                let operationStarted = false;
+                const sampleFrame = (): void => {
+                    frameSamples.push(readSample());
+                    operationStarted ||= zoomButton.disabled;
+                    if (operationStarted && !zoomButton.disabled) {
+                        dimensionObserver.disconnect();
+                        resolve(Object.freeze({ dimensionSamples, frameSamples }));
+                        return;
+                    }
+                    if (performance.now() - startedAt >= 5_000) {
+                        dimensionObserver.disconnect();
+                        reject(new Error('Animated zoom did not settle within five seconds.'));
+                        return;
+                    }
+                    requestAnimationFrame(sampleFrame);
+                };
+                requestAnimationFrame(sampleFrame);
+                zoomButton.click();
+                operationStarted = zoomButton.disabled;
+            });
+        }, buttonSelector);
+
+    for (const buttonSelector of ['#zoomInButton', '#zoomOutButton']) {
+        const probe = await captureZoomFrames(buttonSelector);
+        expect(probe.frameSamples.length).toBeGreaterThan(0);
+        expect(probe.frameSamples[0]?.alpha).toBeGreaterThan(0);
+        expect(probe.frameSamples.filter(({ alpha }) => alpha === 0)).toEqual([]);
+        expect(probe.dimensionSamples.length).toBeGreaterThan(0);
+        expect(probe.dimensionSamples.filter(({ alpha }) => alpha === 0)).toEqual([]);
+    }
+});

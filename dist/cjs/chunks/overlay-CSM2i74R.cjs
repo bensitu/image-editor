@@ -1,6 +1,6 @@
 const require_plugin_identifier = require('./plugin-identifier-XGwyoPRa.cjs');
 const require_core_capabilities = require('./core-capabilities-3eNZsGJV.cjs');
-const require_core = require('./core-CJFF96DE.cjs');
+const require_core = require('./core-BakmHO6P.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-Czw13i49.cjs');
@@ -1971,4 +1971,4 @@ Object.defineProperty(exports, 'restoreOverlayStateBounds', {
     return restoreOverlayStateBounds;
   }
 });
-//# sourceMappingURL=overlay-CJHKQQlx.cjs.map
+//# sourceMappingURL=overlay-CSM2i74R.cjs.map

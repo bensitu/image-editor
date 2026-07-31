@@ -1621,6 +1621,10 @@ export class ImageEditorCore {
         image.set({ left: (image.left ?? 0) - bounds.left, top: (image.top ?? 0) - bounds.top });
         image.setCoords();
         canvas.sendObjectToBack(image);
+        // Fabric clears both backing stores when setDimensions changes the canvas size. Render the
+        // finalized scene synchronously so the browser cannot paint that cleared state before the
+        // requestRenderAll callback scheduled by Fabric runs on the next animation frame.
+        canvas.renderAll();
     }
 
     private setCanvasSize(width: number, height: number): void {
