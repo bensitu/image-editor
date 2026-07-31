@@ -50,7 +50,7 @@ function mockCanvas(cw, ch) {
 }
 
 /**
- * Build a sentinel `ResolvedOptions` value. The helper only forwards
+ * Build a sentinel `MaskFactoryOptions` value. The helper only forwards
  * the value to factory callbacks so an opaque object suffices for the
  * identity / argument-passing assertions.
  */

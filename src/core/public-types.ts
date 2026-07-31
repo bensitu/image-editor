@@ -1,80 +1,21 @@
 /**
- * Defines mask configuration and Fabric object contracts used by shared mask helpers.
+ * Defines Mask contracts and editor-owned Fabric object markers shared by Core and the Mask Plugin.
  *
- * Public package entries expose only the explicitly selected mask contracts from this module.
+ * Public package entries re-export only the documented Mask contracts. Base-image and session
+ * markers remain internal implementation details used to keep transient objects out of persistent
+ * state and to maintain Canvas layer order.
  *
  * @module
  */
 
 import type * as FabricNS from 'fabric';
 
-// ─── Fabric module convenience ───────────────────────────────────────────────
-
-/**
- * The full supported Fabric.js module type (i.e. `import * as fabric from 'fabric'`).
- * Used when consumers need to type the value they pass into
- * `new ImageEditor(fabric, options)`.
- */
-export type FabricModule = Omit<typeof FabricNS, 'default'> & { default?: unknown };
-
-// ─── Layout primitives ──────────────────────────────────────────────────────
-
-/**
- * Mutually exclusive image layout mode used by {@link ImageEditor.setLayoutMode}.
- *
- * - `'fit'` scales the image down to fit inside the visible workspace.
- * - `'cover'` scales large images down to cover the visible workspace and
- *   keeps overflowing axes scrollable.
- * - `'expand'` grows the canvas to fit the loaded image.
- */
-export type LayoutMode = 'fit' | 'cover' | 'expand';
-
-// ─── Image format primitives ─────────────────────────────────────────────────
-
-/**
- * Canonical alpha-aware MIME types supported by export and downsample paths.
- *
- * Used by `ImageEditorOptions.downsampleMimeType` and by the
- * export pipeline when emitting MIME strings.
- */
-export type ImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
-
-/**
- * Accepted file-type tokens for `ImageExportOptions`. The export pipeline normalizes `'jpg'` to
- * `'jpeg'` and accepts both bare format tokens (`'png'`) and full MIME types
- * (`'image/png'`) for ergonomic interop.
- */
-export type ImageFileType =
-    'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp';
-
-/**
- * Export region for base64, File, and download exports.
- *
- * - `'image'` clips to the current image bounding box.
- * - `'canvas'` exports the full Fabric canvas.
- */
-export type ExportArea = 'image' | 'canvas';
-
-export type AnnotationType = 'text' | 'draw' | 'shape';
+import type { FabricModule, LayoutMode } from '../core-runtime/public-types.js';
 
 export type SessionObjectType =
-    | 'cropRect'
-    | 'maskLabel'
-    | 'mosaicPreviewCircle'
-    | 'mosaicPreviewImage'
-    | 'textPreview'
-    | 'drawPreview'
-    | 'eraserPreview'
-    | 'shapePreview';
+    'cropRect' | 'maskLabel' | 'mosaicPreviewCircle' | 'mosaicPreviewImage';
 
-export type EditorToolMode = 'crop' | 'mosaic' | 'text' | 'draw' | 'shape';
-
-/**
- * Render order for mask and annotation sidebar lists.
- *
- * - 'front-to-back' shows the topmost canvas overlay first.
- * - 'back-to-front' follows Fabric object order from bottom to top.
- */
+/** Render order for Mask lists exposed by the Mask Plugin. */
 export type OverlayListOrder = 'front-to-back' | 'back-to-front';
 
 export interface BaseImageObject extends FabricNS.FabricImage {
@@ -87,90 +28,31 @@ export interface SessionObject extends FabricNS.FabricObject {
 }
 
 /**
- * Intermediate raster format used by `applyCrop`.
+ * Fabric object augmented with the persistent identity and interaction metadata owned by the Mask
+ * Plugin.
  *
- * `'source'` preserves the MIME type of the image currently committed to
- * the Fabric canvas when it is known, falling back to PNG otherwise.
- */
-export type CropExportFileType = ImageFileType | 'source';
-
-/**
- * Intermediate raster format used by Mosaic mode when committing edited
- * pixels back into the base image.
- *
- * `'source'` preserves the current image MIME type when known, falling back
- * to PNG otherwise.
- */
-export type MosaicOutputFileType = ImageFileType | 'source';
-
-export type CropAspectRatioPreset =
-    'free' | '1:1' | '3:4' | '4:3' | '3:2' | '2:3' | '9:16' | '16:9';
-
-export type CropAspectRatio =
-    CropAspectRatioPreset | number | `${number}:${number}` | { width: number; height: number };
-
-// ─── Mask object ─────────────────────────────────────────────────────────────
-
-/**
- * A Fabric.js object augmented with mask-specific runtime properties.
- * Returned from {@link ImageEditor.createMask} and exposed in mask-related
- * event callbacks.
- *
- * Instances returned by `getMasks()`, `getSelection()`, and lifecycle
- * callbacks are live Fabric objects. Treat them as read-only unless an
- * ImageEditor method explicitly asks you to pass one back. Direct mutation
- * bypasses editor history, metadata synchronization, and change callbacks.
- *
- * The marker flags `isCropRect` and `maskLabel` identify session-only objects
- * (the active crop rectangle and label overlays). They are filtered out of
- * history snapshots by the state serializer.
+ * Values returned by `MaskPluginApi.getAll()` and passed to `MaskPluginOptions.onChange` are live
+ * editor-owned objects. Consumers should treat them as read-only and use the Mask or Overlay APIs
+ * for mutations so History, persistence, and selection state remain coordinated.
  */
 export interface MaskObject extends FabricNS.FabricObject {
     editorObjectKind: 'mask';
-    /** Unique numeric identifier assigned at creation time. */
+    /** Stable creation sequence used by generated display names and Snapshot records. */
     maskId: number;
-    /** Stable internal identifier used to restore overlapping masks deterministically. */
+    /** Persistent Mask identifier used by Overlay State, Snapshot restore, and API operations. */
     maskUid: string;
-    /** Human-readable label shown in the mask list (`maskName` option + id). */
+    /** Human-readable label derived from the configured name prefix. */
     maskName: string;
-    /** Original opacity stored to support hover highlight / restore. */
+    /** Original opacity retained for hover and selection style restoration. */
     originalAlpha: number;
-    /** Original stroke captured for hover/selection style restore. */
+    /** Original stroke retained for hover and selection style restoration. */
     originalStroke?: FabricNS.TFiller | string | null;
-    /** Original stroke width captured for hover/selection style restore. */
+    /** Original stroke width retained for hover and selection style restoration. */
     originalStrokeWidth?: number;
-    /** Active label overlay object, if currently displayed. */
+    /** Transient label object displayed for the selected Mask. */
     labelObject?: FabricNS.FabricObject;
 }
 
-/**
- * A Fabric.js object augmented with annotation-specific runtime properties.
- *
- * Instances returned by `getAnnotations()`, `getSelection()`, and lifecycle
- * callbacks are live Fabric objects. Treat them as read-only unless an
- * ImageEditor method explicitly asks you to pass one back. Direct mutation
- * bypasses editor history, metadata synchronization, and change callbacks.
- */
-export interface AnnotationObject extends FabricNS.FabricObject {
-    editorObjectKind: 'annotation';
-    annotationId: number;
-    annotationType: AnnotationType;
-    annotationName: string;
-    annotationHidden?: boolean;
-    annotationLocked?: boolean;
-    annotationSelectable?: boolean;
-    annotationEvented?: boolean;
-    annotationHasControls?: boolean;
-    annotationEditable?: boolean;
-}
-
-export type ShapeAnnotationKind = 'rect' | 'line' | 'arrow';
-
-/**
- * Type guard — returns `true` when `object` carries the runtime mask metadata
- * (`maskId: number`) so consumers can filter `canvas.getObjects`
- * deterministically.
- */
 export function isBaseImageObject(object: unknown): object is BaseImageObject {
     return (
         !!object &&
@@ -190,17 +72,6 @@ export function isMaskObject(object: unknown): object is MaskObject {
     );
 }
 
-export function isAnnotationObject(object: unknown): object is AnnotationObject {
-    const candidate = object as Partial<AnnotationObject> | null | undefined;
-    return (
-        !!candidate &&
-        candidate.editorObjectKind === 'annotation' &&
-        typeof candidate.annotationId === 'number' &&
-        typeof candidate.annotationType === 'string' &&
-        typeof candidate.annotationName === 'string'
-    );
-}
-
 export function isSessionObject(object: unknown): object is SessionObject {
     const candidate = object as Partial<SessionObject> | null | undefined;
     return (
@@ -210,576 +81,108 @@ export function isSessionObject(object: unknown): object is SessionObject {
     );
 }
 
-export function isEditableOverlayObject(object: unknown): object is MaskObject | AnnotationObject {
-    return isMaskObject(object) || isAnnotationObject(object);
-}
-
-// ─── Lifecycle callbacks ───────────────────────────────────────────────────
-
-/**
- * Public operation/reason associated with lifecycle and state callbacks.
- */
-export type ImageEditorOperation =
-    | 'init'
-    | 'loadImage'
-    | 'loadFromState'
-    | 'saveState'
-    | 'setCanvasSize'
-    | 'resizeToContainer'
-    | 'relayout'
-    | 'scaleImage'
-    | 'rotateImage'
-    | 'flipHorizontal'
-    | 'flipVertical'
-    | 'resetImageTransform'
-    | 'setImageFilterConfig'
-    | 'resetImageFilterConfig'
-    | 'clearImageFilters'
-    | 'commitImageFilters'
-    | 'createMask'
-    | 'removeSelectedMask'
-    | 'removeAllMasks'
-    | 'mergeMasks'
-    | 'createTextAnnotation'
-    | 'createShapeAnnotation'
-    | 'enterTextMode'
-    | 'exitTextMode'
-    | 'enterShapeMode'
-    | 'exitShapeMode'
-    | 'setShapeConfig'
-    | 'resetShapeConfig'
-    | 'setTextConfig'
-    | 'resetTextConfig'
-    | 'setTextColor'
-    | 'setTextFontSize'
-    | 'enterDrawMode'
-    | 'exitDrawMode'
-    | 'setDrawConfig'
-    | 'resetDrawConfig'
-    | 'createDrawAnnotation'
-    | 'setDrawColor'
-    | 'setDrawBrushSize'
-    | 'setDrawSubMode'
-    | 'setEraserConfig'
-    | 'resetEraserConfig'
-    | 'commitEraserStroke'
-    | 'updateSelectedAnnotation'
-    | 'updateAnnotation'
-    | 'removeSelectedAnnotation'
-    | 'removeAllAnnotations'
-    | 'deleteSelectedObject'
-    | 'mergeAnnotations'
-    | 'bringSelectedObjectForward'
-    | 'sendSelectedObjectBackward'
-    | 'bringSelectedObjectToFront'
-    | 'sendSelectedObjectToBack'
-    | 'enterCropMode'
-    | 'setCropAspectRatio'
-    | 'applyCrop'
-    | 'cancelCrop'
-    | 'enterMosaicMode'
-    | 'exitMosaicMode'
-    | 'applyMosaic'
-    | 'setMosaicConfig'
-    | 'resetMosaicConfig'
-    | 'setMosaicBrushSize'
-    | 'setMosaicBlockSize'
-    | 'undo'
-    | 'redo'
-    | 'exportOverlayState'
-    | 'validateOverlayState'
-    | 'importOverlayState'
-    | 'exportImageBase64'
-    | 'exportImageFile'
-    | 'downloadImage'
-    | 'dispose';
-
-/**
- * Context passed to lifecycle and state callbacks.
- */
-export interface ImageEditorCallbackContext {
-    /** Public operation/reason that caused this notification. */
-    operation: ImageEditorOperation;
-    /**
-     * True when the callback was caused by an internal composite operation
-     * such as merge, crop, undo, or redo.
-     */
-    isInternalOperation?: boolean;
-}
-
-/**
- * Snapshot of the currently committed image and its display geometry.
- */
-export interface ImageInfo {
-    width: number;
-    height: number;
-    displayWidth: number;
-    displayHeight: number;
-    scale: number;
-    rotation: number;
-    canvasWidth: number;
-    canvasHeight: number;
-}
-
-/**
- * Safe snapshot of externally visible editor state.
- */
-export interface ImageEditorState {
-    hasImage: boolean;
-    image: ImageInfo | null;
-    maskCount: number;
-    annotationCount: number;
-    currentScale: number;
-    currentRotation: number;
-    isFlippedHorizontally: boolean;
-    isFlippedVertically: boolean;
-    isBusy: boolean;
-    activeToolMode: EditorToolMode | null;
-    isCropMode: boolean;
-    isMosaicMode: boolean;
-    isTextMode: boolean;
-    isDrawMode: boolean;
-    isShapeMode: boolean;
-    canUndo: boolean;
-    canRedo: boolean;
-    canvasWidth: number;
-    canvasHeight: number;
-}
-
-/**
- * Public selection payload for mask and annotation selection changes.
- */
-export interface ImageEditorSelection {
-    selectedMask: MaskObject | null;
-    selectedMasks: MaskObject[];
-    selectedAnnotation: AnnotationObject | null;
-    selectedAnnotations: AnnotationObject[];
-    selectedObjectKind: 'mask' | 'annotation' | null;
-}
-
-// ─── Label and crop sub-configs ──────────────────────────────────────────────
-
-/**
- * Configuration for the label shown above a selected mask.
- *
- * Consumers can either tweak label text via `getText` and `textOptions`, or
- * fully take over rendering via `create`. `textOptions` is deep-merged with
- * the editor's defaults so unspecified keys remain.
- */
+/** Configuration for the transient label displayed above the selected Mask. */
 export interface LabelConfig {
     /**
-     * Returns the text to render for a given mask.
+     * Returns the label text. `maskIndex` is the stable creation index (`mask.maskId - 1`), not the
+     * current list position.
      *
-     * The `maskIndex` argument is the stable creation index (`mask.maskId - 1`)
-     * rather than the live list position.
-     *
-     * @default `(mask) => mask.maskName`
+     * @defaultValue `(mask) => mask.maskName`
      */
     getText?: (mask: MaskObject, maskIndex: number) => string;
-
-    /**
-     * Fabric.js text property overrides for the label text object.
-     * Merged with sensible defaults (monospace 12px white on dark bg).
-     */
+    /** Fabric text properties merged into the default label style. */
     textOptions?: Partial<FabricNS.TextProps>;
-
     /**
-     * Supply a factory that builds the label object directly.
-     * When provided, `getText` and `textOptions` are ignored.
-     *
-     * @returns A Fabric.js Text instance, or `null` to fall back to defaults.
+     * Creates a label object directly. Returning `null` uses the default Fabric text builder.
      */
     create?: (mask: MaskObject, fabric: FabricModule) => FabricNS.FabricText | null;
 }
 
-/**
- * Crop-mode configuration. Defaults are applied during editor construction.
- */
-export interface CropConfig {
-    /**
-     * Default aspect ratio used when entering crop mode.
-     *
-     * @default 'free'
-     */
-    aspectRatio?: CropAspectRatio;
-    /** Minimum crop rect width in pixels. @default 100 */
-    minWidth?: number;
-    /** Minimum crop rect height in pixels. @default 100 */
-    minHeight?: number;
-    /** Inset from the image bounding box when entering crop mode. @default 10 */
-    padding?: number;
-    /** Whether to hide masks during crop preview. @default true */
-    hideMasksDuringCrop?: boolean;
-    /**
-     * Whether to keep masks (relative to the new image) after applying crop.
-     * @default false
-     */
-    preserveMasksAfterCrop?: boolean;
-    /** Whether the crop rect itself can be rotated. @default false */
-    allowRotationOfCropRect?: boolean;
-    /**
-     * Format used for the intermediate image generated by applyCrop().
-     *
-     * - `'source'` keeps the currently loaded image's actual MIME format
-     *   when known.
-     * - `'png'` uses a lossless PNG intermediate.
-     * - `'jpeg'` / `'jpg'` / `'webp'` use lossy intermediates with
-     *   crop export quality.
-     *
-     * @default 'source'
-     */
-    exportFileType?: CropExportFileType;
-    /**
-     * Lossy quality used when crop export format resolves to jpeg/webp.
-     * Ignored for PNG.
-     * @default options.downsampleQuality
-     */
-    exportQuality?: number;
-}
+/** Resolved Mask Plugin values exposed to numeric factories and custom Fabric generators. */
+export type MaskFactoryOptions = Readonly<{
+    layoutMode: LayoutMode;
+    defaultMaskWidth: number;
+    defaultMaskHeight: number;
+    defaultMaskConfig: DefaultMaskConfig;
+    maskRotatable: boolean;
+    maskLabelOnSelect: boolean;
+    maskLabelOffset: number;
+    maskName: string;
+    maskListOrder: OverlayListOrder;
+    label: LabelConfig;
+    onWarning: ((error: unknown, message: string) => void) | null;
+}>;
 
 /**
- * Crop configuration after defaults are applied. `exportQuality` remains
- * optional so `undefined` can continue to mean "fall back to
- * `downsampleQuality`".
+ * Numeric Mask property accepted as Canvas pixels, a percentage string, or a resolver invoked when
+ * the Mask is created.
  */
-export type ResolvedCropConfig = Required<Omit<CropConfig, 'exportQuality'>> &
-    Pick<CropConfig, 'exportQuality'>;
-
-/**
- * Mosaic-mode configuration. Constructor-level `defaultMosaicConfig` uses
- * this shape to initialize the editor's current Mosaic tool config; runtime
- * setters update only the current config.
- */
-export interface MosaicConfig {
-    /**
-     * Brush diameter in canvas pixels.
-     * The preview circle uses this diameter.
-     * @default 48
-     */
-    brushSize?: number;
-
-    /**
-     * Pixel block size in source-image pixels.
-     * Larger values produce chunkier mosaic.
-     * @default 8
-     */
-    blockSize?: number;
-
-    /**
-     * Stroke color for the brush preview circle.
-     * @default '#333'
-     */
-    previewStroke?: string;
-
-    /**
-     * Stroke width for the brush preview circle.
-     * @default 1
-     */
-    previewStrokeWidth?: number;
-
-    /**
-     * Optional dash pattern for the brush preview circle.
-     * @default [4, 4]
-     */
-    previewStrokeDashArray?: readonly number[] | null;
-
-    /**
-     * Fill for the brush preview circle.
-     * @default 'rgba(0,0,0,0)'
-     */
-    previewFill?: string;
-
-    /**
-     * Output format used when committing the mosaiced base image.
-     *
-     * - 'source' preserves the current image MIME type when known.
-     * - image format values follow the same normalization rules as export.
-     *
-     * @default 'source'
-     */
-    outputFileType?: MosaicOutputFileType;
-
-    /**
-     * Lossy quality used when outputFileType resolves to jpeg/webp.
-     * Ignored for PNG. Defaults to options.downsampleQuality.
-     */
-    outputQuality?: number;
-}
-
-/**
- * Mosaic config after defaults and normalization are applied.
- */
-export interface ResolvedMosaicConfig {
-    brushSize: number;
-    blockSize: number;
-    previewStroke: string;
-    previewStrokeWidth: number;
-    previewStrokeDashArray: readonly number[] | null;
-    previewFill: string;
-    outputFileType: MosaicOutputFileType;
-    outputQuality?: number;
-}
-
-// ─── Annotation config primitives ───────────────────────────────────────────
-
-export interface TextAnnotationConfig {
-    text?: string;
-    left?: MaskNumericProp;
-    top?: MaskNumericProp;
-    width?: number;
-    fontSize?: number;
-    fontFamily?: string;
-    fontWeight?: string | number;
-    fill?: string;
-    backgroundColor?: string;
-    textAlign?: 'left' | 'center' | 'right' | 'justify';
-    angle?: number;
-    selectable?: boolean;
-    evented?: boolean;
-    editable?: boolean;
-    enterEditing?: boolean;
-    annotationHidden?: boolean;
-    annotationLocked?: boolean;
-    styles?: Partial<FabricNS.TextboxProps>;
-}
-
-export interface ResolvedTextAnnotationConfig {
-    text: string;
-    left?: number;
-    top?: number;
-    width: number;
-    fontSize: number;
-    fontFamily: string;
-    fontWeight: string | number;
-    fill: string;
-    backgroundColor: string;
-    textAlign: 'left' | 'center' | 'right' | 'justify';
-    angle: number;
-    selectable: boolean;
-    evented: boolean;
-    editable: boolean;
-    enterEditing: boolean;
-    annotationHidden: boolean;
-    annotationLocked: boolean;
-    styles: Partial<FabricNS.TextboxProps>;
-}
-
-export interface DrawConfig {
-    brushSize?: number;
-    color?: string;
-    opacity?: number;
-    lineCap?: CanvasLineCap;
-    lineJoin?: CanvasLineJoin;
-    selectable?: boolean;
-    evented?: boolean;
-    annotationHidden?: boolean;
-    annotationLocked?: boolean;
-}
-
-export interface ResolvedDrawConfig {
-    brushSize: number;
-    color: string;
-    opacity: number;
-    lineCap: CanvasLineCap;
-    lineJoin: CanvasLineJoin;
-    selectable: boolean;
-    evented: boolean;
-    annotationHidden: boolean;
-    annotationLocked: boolean;
-}
-
-export interface EraserConfig {
-    /**
-     * Brush diameter in canvas pixels.
-     */
-    brushSize?: number;
-    target?: 'drawAnnotations';
-    previewStroke?: string;
-    previewStrokeWidth?: number;
-    previewFill?: string;
-}
-
-export interface ResolvedEraserConfig {
-    brushSize: number;
-    target: 'drawAnnotations';
-    previewStroke: string;
-    previewStrokeWidth: number;
-    previewFill: string;
-}
-
-export type OverlayNumericProp = MaskNumericProp;
-
-export interface ShapeAnnotationConfig {
-    shape?: ShapeAnnotationKind;
-    left?: OverlayNumericProp;
-    top?: OverlayNumericProp;
-    width?: number;
-    height?: number;
-    x1?: OverlayNumericProp;
-    y1?: OverlayNumericProp;
-    x2?: OverlayNumericProp;
-    y2?: OverlayNumericProp;
-    stroke?: string;
-    strokeWidth?: number;
-    fill?: string;
-    opacity?: number;
-    angle?: number;
-    selectable?: boolean;
-    evented?: boolean;
-    annotationHidden?: boolean;
-    annotationLocked?: boolean;
-    strokeDashArray?: readonly number[] | null;
-    arrowHeadLength?: number;
-    styles?: Partial<FabricNS.FabricObjectProps>;
-}
-
-export interface ResolvedShapeAnnotationConfig {
-    shape: ShapeAnnotationKind;
-    left?: number;
-    top?: number;
-    width: number;
-    height: number;
-    x1?: number;
-    y1?: number;
-    x2?: number;
-    y2?: number;
-    stroke: string;
-    strokeWidth: number;
-    fill: string;
-    opacity: number;
-    angle: number;
-    selectable: boolean;
-    evented: boolean;
-    annotationHidden: boolean;
-    annotationLocked: boolean;
-    strokeDashArray: readonly number[] | null;
-    arrowHeadLength: number;
-    styles: Partial<FabricNS.FabricObjectProps>;
-}
-
-// ─── Mask config primitives ──────────────────────────────────────────────────
-
-/**
- * A numeric property that may be provided as:
- *   - a plain `number` in canvas pixels,
- *   - a CSS-style percentage string (`"50%"`) — resolved against the canvas
- *     width or height depending on the field's axis,
- *   - or a factory `(canvas, MaskFactoryOptions) => number` invoked at apply
- *     time.
- */
-export type MaskFactoryOptions = Readonly<
-    Pick<
-        ResolvedOptions,
-        | 'layoutMode'
-        | 'defaultMaskWidth'
-        | 'defaultMaskHeight'
-        | 'defaultMaskConfig'
-        | 'maskRotatable'
-        | 'maskLabelOnSelect'
-        | 'maskLabelOffset'
-        | 'maskName'
-        | 'maskListOrder'
-        | 'label'
-        | 'onWarning'
-    >
->;
-
 export type MaskNumericProp =
     | number
     | `${number}%`
     | string
     | ((canvas: FabricNS.Canvas, options: MaskFactoryOptions) => number);
 
-/**
- * Polygon vertex accepted by `MaskConfig.points`. Coerced to `{ x, y }`
- * internally regardless of input form.
- */
+/** Polygon vertex accepted in object or tuple form. */
 export type PolygonPoint = { x: number; y: number } | [number, number];
 
 export type MaskShapeKind = 'rect' | 'circle' | 'ellipse' | 'polygon';
 
-/**
- * Configuration object passed to {@link ImageEditor.createMask}.
- *
- * Falsy values (`0`, `false`, `null`, `''`, `NaN`) supplied via `styles` and
- * via the boolean flags below are applied verbatim — the editor never
- * substitutes a default in their place.
- */
+/** Configuration passed to `MaskPluginApi.create()`. */
 export interface MaskConfig {
-    /** Shape type. @default 'rect' */
+    /** Shape type. @defaultValue `'rect'` */
     shape?: MaskShapeKind | (string & {});
-
-    /**
-     * Polygon vertex array. Required when `shape === 'polygon'`.
-     * Each element may be `{ x, y }` or `[x, y]`.
-     */
+    /** Polygon vertices required when `shape` is `polygon`. */
     points?: PolygonPoint[];
-
-    /** Mask width (rect) / used as diameter hint for circle. */
+    /** Mask width, or a diameter hint for circles. */
     width?: MaskNumericProp;
-    /** Mask height (rect/ellipse). */
+    /** Mask height for rectangles and ellipses. */
     height?: MaskNumericProp;
-    /** Horizontal border-radius for Rect, or x-radius for Ellipse. */
+    /** Horizontal rectangle corner radius or ellipse x-radius. */
     rx?: MaskNumericProp;
-    /** Vertical border-radius for Rect, or y-radius for Ellipse. */
+    /** Vertical rectangle corner radius or ellipse y-radius. */
     ry?: MaskNumericProp;
-    /** Radius for Circle. Defaults to `min(width, height) / 2`. */
+    /** Circle radius. Defaults to half the smaller resolved dimension. */
     radius?: MaskNumericProp;
-
-    /**
-     * Left position. Supports number, `"50%"`, or a factory. Percentages are
-     * resolved against canvas width.
-     * If omitted and a previous mask exists, auto-placed to its right.
-     */
+    /** Horizontal position. Percentages resolve against Canvas width. */
     left?: MaskNumericProp;
-    /**
-     * Top position. Same flexibility as `left`. Percentages are resolved
-     * against canvas height.
-     */
+    /** Vertical position. Percentages resolve against Canvas height. */
     top?: MaskNumericProp;
-
-    /** Rotation angle in degrees. @default 0 */
+    /** Rotation angle in degrees. @defaultValue `0` */
     angle?: number;
-    /** CSS fill color. @default 'rgba(0,0,0,0.5)' */
+    /** CSS fill color. @defaultValue `'rgba(0,0,0,0.5)'` */
     color?: string;
-    /** Opacity 0–1. @default 0.5 */
+    /** Opacity from zero through one. @defaultValue `0.5` */
     alpha?: number;
-    /** Pixel gap between auto-placed masks. @default 5 */
+    /** Gap used by automatic placement. @defaultValue `5` */
     gap?: number;
-
-    /** Whether the mask can be selected and moved. @default true */
+    /** Whether the Mask can be selected and moved. @defaultValue `true` */
     selectable?: boolean;
-    /** Whether the mask receives Fabric pointer events. @default true */
+    /** Whether the Mask receives Fabric pointer events. @defaultValue `true` */
     evented?: boolean;
-    /** Whether transform handles are shown. @default true */
+    /** Whether Fabric transform controls are visible. @defaultValue `true` */
     hasControls?: boolean;
-    /** Keep stroke width visually uniform regardless of scale. @default true */
+    /** Keep stroke width visually uniform while the Mask scales. @defaultValue `true` */
     strokeUniform?: boolean;
-    /** Selection border color. @default 'red' */
+    /** Selection border color. @defaultValue `'red'` */
     borderColor?: string;
-    /** Control corner color. @default 'black' */
+    /** Transform control color. @defaultValue `'black'` */
     cornerColor?: string;
-    /** Control corner size in pixels. @default 8 */
+    /** Transform control size in pixels. @defaultValue `8` */
     cornerSize?: number;
-    /** Transparent corners. @default false */
+    /** Whether Fabric renders transparent transform-control corners. @defaultValue `false` */
     transparentCorners?: boolean;
-
-    /**
-     * Additional raw Fabric.js object properties merged into the shape.
-     * May include `stroke`, `strokeWidth`, `strokeDashArray`, etc. Falsy
-     * values are preserved verbatim.
-     */
+    /** Additional supported Fabric object properties. Falsy values are preserved. */
     styles?: Partial<FabricNS.FabricObjectProps>;
-
     /**
-     * Called synchronously after the mask is created, added to the canvas,
-     * and `saveState` has run.
+     * Runs synchronously after the Mask is attached, selected when applicable, and rendered, but
+     * before the surrounding Overlay mutation commits. Callback failures are reported as warnings
+     * and do not replace the successfully created Mask.
      */
     onCreate?: (mask: MaskObject, canvas: FabricNS.Canvas) => void;
-
     /**
-     * Bypass the built-in shape logic and supply a Fabric.js object directly.
-     * Receives the fully resolved config, canvas, and Mask factory options.
+     * Creates a custom Fabric object instead of a built-in shape. Throwing or returning an invalid
+     * object rejects the surrounding Mask mutation.
      */
     fabricGenerator?: (
         config: ResolvedMaskConfig,
@@ -788,19 +191,10 @@ export interface MaskConfig {
     ) => FabricNS.FabricObject;
 }
 
-/**
- * Constructor-level defaults applied to newly created masks.
- *
- * Uses the same shape as {@link MaskConfig}, except lifecycle hooks and custom
- * Fabric object factories remain per-call only.
- */
+/** Defaults applied to new Masks; callbacks and custom factories remain per-call values. */
 export type DefaultMaskConfig = Omit<Partial<MaskConfig>, 'onCreate' | 'fabricGenerator'>;
 
-/**
- * Fully resolved mask config produced after defaults and percentage resolution
- * have been applied. Exposed because consumers may receive it via
- * `MaskConfig.fabricGenerator`.
- */
+/** Fully resolved configuration supplied to a custom `fabricGenerator`. */
 export interface ResolvedMaskConfig extends MaskConfig {
     shape: NonNullable<MaskConfig['shape']>;
     width: number;
@@ -810,376 +204,4 @@ export interface ResolvedMaskConfig extends MaskConfig {
     gap: number;
     angle: number;
     selectable: boolean;
-}
-
-// ─── Main options ────────────────────────────────────────────────────────────
-
-/**
- * Configuration passed to the {@link ImageEditor} constructor.
- *
- * All properties are optional. The editor applies documented defaults during
- * construction and ignores unknown keys without throwing.
- */
-export interface ImageEditorOptions {
-    // Canvas size
-    /** Initial and hidden-container fallback canvas width in pixels. @default 800 */
-    canvasWidth?: number;
-    /** Initial and hidden-container fallback canvas height in pixels. @default 600 */
-    canvasHeight?: number;
-    /** Fabric canvas background color. @default 'transparent' */
-    backgroundColor?: string;
-
-    // Animation
-    /** Duration of scale/rotate animations in ms. @default 300 */
-    animationDuration?: number;
-    /** Minimum allowed scale factor. @default 0.1 */
-    minScale?: number;
-    /** Maximum allowed scale factor. @default 5.0 */
-    maxScale?: number;
-    /** Scale delta per zoom step. @default 0.05 */
-    scaleStep?: number;
-    /** Rotation step in degrees. Non-finite values fall back to the default. @default 90 */
-    rotationStep?: number;
-
-    /**
-     * When true, masks follow the base image when it is scaled, rotated,
-     * flipped, or reset. @default false
-     */
-    bindMasksToImageTransform?: boolean;
-    /**
-     * When true, annotations follow the base image when it is scaled, rotated,
-     * flipped, or reset. @default false
-     */
-    bindAnnotationsToImageTransform?: boolean;
-    /**
-     * Controls whether text glyphs stay readable or mirror with the base image
-     * when annotation transform binding is enabled. @default 'preserve-readable'
-     */
-    textAnnotationFlipBehavior?: 'preserve-readable' | 'mirror';
-
-    // Layout
-    /**
-     * Initial layout mode used for image loads until changed by
-     * {@link ImageEditor.setLayoutMode}.
-     *
-     * Invalid JavaScript runtime values fall back to `'expand'` during
-     * construction. Use `setLayoutMode()` to change the mode for future
-     * image loads.
-     *
-     * @default 'expand'
-     */
-    defaultLayoutMode?: LayoutMode;
-
-    // Down-sampling.
-    /** Downsample very large images on load. @default true */
-    downsampleOnLoad?: boolean;
-    /** Max pixel width before downsampling kicks in. @default 4000 */
-    downsampleMaxWidth?: number;
-    /** Max pixel height before downsampling kicks in. @default 3000 */
-    downsampleMaxHeight?: number;
-    /** Lossy quality used when downsampling and exporting. @default 0.92 */
-    downsampleQuality?: number | null;
-    /**
-     * When `true`, alpha-capable source MIME types (`image/png`,
-     * `image/webp`) are preserved through downsampling unless
-     * `downsampleMimeType` is explicitly set.
-     * @default true
-     */
-    preserveSourceFormat?: boolean;
-    /**
-     * Explicit MIME type to use for downsampled output. When set, overrides
-     * `preserveSourceFormat` and forces the resampler to emit this MIME using
-     * `downsampleQuality`.
-     * @default null
-     */
-    downsampleMimeType?: ImageMimeType | null;
-
-    // File loading.
-    /**
-     * Normalize supported JPEG EXIF orientation values during file-input loading.
-     *
-     * Applies only to JPEG files loaded through the editor's file-loading path.
-     * `loadImage(dataUrl)` keeps using the supplied image data as-is.
-     * Non-identity orientations are normalized through a canvas and therefore
-     * re-encoded as JPEG.
-     *
-     * @default true
-     */
-    autoOrientImage?: boolean;
-    /**
-     * JPEG quality used when `autoOrientImage` re-encodes a rotated or mirrored
-     * file-input JPEG. `null` falls back to `downsampleQuality`.
-     * @default null
-     */
-    autoOrientImageQuality?: number | null;
-    /**
-     * Maximum encoded input byte length accepted before image decode.
-     *
-     * File input uses `file.size`; `loadImage(dataUrl)` estimates the decoded
-     * base64 payload size. Invalid JavaScript runtime values fall back to the
-     * default guard.
-     *
-     * @default 50000000
-     */
-    maxInputBytes?: number | null;
-    /**
-     * Maximum source-image pixel count accepted from PNG/JPEG/WebP headers
-     * before image decode when dimensions can be read cheaply. Invalid
-     * JavaScript runtime values fall back to the default guard.
-     *
-     * @default 50000000
-     */
-    maxInputPixels?: number | null;
-
-    // Image-load timeout
-    /**
-     * Maximum duration (ms) for both decode and Fabric image creation steps
-     * during `loadImage`. @default 30000
-     */
-    imageLoadTimeoutMs?: number;
-    /**
-     * Maximum number of undo/redo snapshots retained in memory.
-     * Each entry stores a full serialized canvas snapshot. When the loaded
-     * image is represented as a data URL, that data can be duplicated in
-     * every retained snapshot, so lower this for large images or
-     * memory-constrained hosts.
-     * Values are normalized to a positive integer. @default 50
-     */
-    maxHistorySize?: number;
-
-    // Export
-    /** Output resolution multiplier for exports. @default 1 */
-    exportMultiplier?: number;
-    /**
-     * Maximum output pixel count after applying the export multiplier.
-     * Invalid values fall back to the default guard. @default 50000000
-     */
-    maxExportPixels?: number | null;
-    /**
-     * Maximum output width or height after applying the export multiplier.
-     * This guards browser canvas single-dimension limits. Invalid values fall
-     * back to the default guard. @default 16384
-     */
-    maxExportDimension?: number | null;
-    /**
-     * Default export region for exportImageBase64/exportImageFile/downloadImage.
-     * @default 'image'
-     */
-    exportAreaByDefault?: ExportArea;
-    /**
-     * Default mask compositing behavior for
-     * exportImageBase64/exportImageFile/downloadImage.
-     * @default true
-     */
-    mergeMasksByDefault?: boolean;
-    /**
-     * Default annotation compositing behavior for
-     * exportImageBase64/exportImageFile/downloadImage.
-     * @default true
-     */
-    mergeAnnotationsByDefault?: boolean;
-
-    // Mask defaults
-    /** Default width for new rect/ellipse masks. @default 50 */
-    defaultMaskWidth?: number;
-    /** Default height for new rect/ellipse masks. @default 80 */
-    defaultMaskHeight?: number;
-    /**
-     * Global defaults used by {@link ImageEditor.createMask}.
-     *
-     * Per-call `createMask(config)` values override these defaults.
-     */
-    defaultMaskConfig?: DefaultMaskConfig;
-    /** Allow masks to be rotated by the user. @default false */
-    maskRotatable?: boolean;
-    /** Show a name label above a selected mask. @default true */
-    maskLabelOnSelect?: boolean;
-    /** Pixel offset of the label from the mask's top-left corner. @default 3 */
-    maskLabelOffset?: number;
-    /** Name prefix for auto-generated mask names. @default 'mask' */
-    maskName?: string;
-    /** Name prefix for auto-generated text annotations. @default 'text' */
-    textAnnotationName?: string;
-    /** Name prefix for auto-generated draw annotations. @default 'draw' */
-    drawAnnotationName?: string;
-    /** Name prefix for auto-generated shape annotations. @default 'shape' */
-    shapeAnnotationName?: string;
-    /** Mask list render order. @default 'front-to-back' */
-    maskListOrder?: OverlayListOrder;
-    /** Annotation list render order. @default 'front-to-back' */
-    annotationListOrder?: OverlayListOrder;
-
-    /** Allow multi-object group selection on the canvas. @default false */
-    groupSelection?: boolean;
-
-    // Placeholder
-    /** Show a placeholder when no image is loaded. @default true */
-    showPlaceholder?: boolean;
-
-    /**
-     * Base64 data URL to auto-load when the editor is initialized.
-     * @default null
-     */
-    initialImageBase64?: string | null;
-
-    /** Default filename used by {@link ImageEditor.downloadImage}. @default 'edited_image' */
-    defaultDownloadFileName?: string;
-
-    // Callbacks
-    /** Called when a valid image load is about to start. */
-    onImageLoadStart?: (context: ImageEditorCallbackContext) => void;
-    /** Called after an image is successfully loaded onto the canvas. */
-    onImageLoaded?: (imageInfo: ImageInfo, context: ImageEditorCallbackContext) => void;
-    /** Called when a previously loaded image stops being current. */
-    onImageCleared?: (
-        previousImage: FabricNS.FabricImage | null,
-        context: ImageEditorCallbackContext,
-    ) => void;
-    /** Called after externally visible editor state changes. */
-    onImageChanged?: (state: ImageEditorState, context: ImageEditorCallbackContext) => void;
-    /** Called when the public busy state changes. */
-    onBusyChange?: (isBusy: boolean, context: ImageEditorCallbackContext) => void;
-    /** Called when the active tool mode changes. */
-    onToolModeChange?: (
-        activeToolMode: EditorToolMode | null,
-        previousToolMode: EditorToolMode | null,
-        context: ImageEditorCallbackContext,
-    ) => void;
-    /** Called when undo/redo availability changes. */
-    onHistoryChange?: (
-        history: { canUndo: boolean; canRedo: boolean },
-        context: ImageEditorCallbackContext,
-    ) => void;
-    /** Called once after `dispose()` tears down the editor. */
-    onEditorDisposed?: (context: ImageEditorCallbackContext) => void;
-    /** Called after the mask collection changes. */
-    onMasksChanged?: (masks: MaskObject[], context: ImageEditorCallbackContext) => void;
-    /** Called after the annotation collection changes. */
-    onAnnotationsChanged?: (
-        annotations: AnnotationObject[],
-        context: ImageEditorCallbackContext,
-    ) => void;
-    /** Called after mask or annotation selection changes. */
-    onSelectionChange?: (
-        selection: ImageEditorSelection,
-        context: ImageEditorCallbackContext,
-    ) => void;
-    /**
-     * Called when the editor reports an error.
-     *
-     * Argument order is `(error, message)` so the original thrown value is
-     * preserved as the first argument and a human-readable description is
-     * the second. Callback exceptions are caught and
-     * logged without masking the original editor error.
-     */
-    onError?: (error: unknown, message: string) => void;
-    /**
-     * Called when the editor reports a recoverable warning. Same
-     * `(error, message)` argument order as `onError`.
-     */
-    onWarning?: (error: unknown, message: string) => void;
-
-    // Nested configs are deep-merged with editor defaults.
-    /** Selected-mask label configuration. */
-    label?: LabelConfig;
-    /** Crop-mode configuration. */
-    crop?: CropConfig;
-    /**
-     * Default Mosaic configuration used to initialize the current Mosaic tool config.
-     *
-     * Runtime calls such as setMosaicConfig(), setMosaicBrushSize(), and
-     * setMosaicBlockSize() update the current tool config only.
-     */
-    defaultMosaicConfig?: MosaicConfig;
-    /** Default Text annotation configuration. */
-    defaultTextConfig?: TextAnnotationConfig;
-    /** Default Draw mode configuration. */
-    defaultDrawConfig?: DrawConfig;
-    /** Default Draw-mode eraser configuration. */
-    defaultEraserConfig?: EraserConfig;
-    /** Default Shape annotation configuration. */
-    defaultShapeConfig?: ShapeAnnotationConfig;
-}
-
-// ─── Internal resolved options ───────────────────────────────────────────────
-
-/**
- * Fully resolved options with every required field guaranteed present after
- * merging defaults with the user-supplied partial options.
- */
-export interface ResolvedOptions extends Required<
-    Omit<
-        ImageEditorOptions,
-        | 'label'
-        | 'crop'
-        | 'defaultMosaicConfig'
-        | 'defaultTextConfig'
-        | 'defaultDrawConfig'
-        | 'defaultEraserConfig'
-        | 'defaultShapeConfig'
-        | 'onImageLoadStart'
-        | 'onImageLoaded'
-        | 'onImageCleared'
-        | 'onImageChanged'
-        | 'onBusyChange'
-        | 'onToolModeChange'
-        | 'onHistoryChange'
-        | 'onEditorDisposed'
-        | 'onMasksChanged'
-        | 'onAnnotationsChanged'
-        | 'onSelectionChange'
-        | 'onError'
-        | 'onWarning'
-        | 'downsampleQuality'
-        | 'maxInputBytes'
-        | 'maxInputPixels'
-        | 'maxExportPixels'
-        | 'maxExportDimension'
-    >
-> {
-    downsampleQuality: number;
-    maxInputBytes: number;
-    maxInputPixels: number;
-    maxExportPixels: number;
-    maxExportDimension: number;
-    /** Current layout mode used by future image loads. */
-    layoutMode: LayoutMode;
-    label: LabelConfig;
-    crop: ResolvedCropConfig;
-    defaultMosaicConfig: ResolvedMosaicConfig;
-    defaultTextConfig: ResolvedTextAnnotationConfig;
-    defaultDrawConfig: ResolvedDrawConfig;
-    defaultEraserConfig: ResolvedEraserConfig;
-    defaultShapeConfig: ResolvedShapeAnnotationConfig;
-    onImageLoadStart: ((context: ImageEditorCallbackContext) => void) | null;
-    onImageLoaded: ((imageInfo: ImageInfo, context: ImageEditorCallbackContext) => void) | null;
-    onImageCleared:
-        | ((
-              previousImage: FabricNS.FabricImage | null,
-              context: ImageEditorCallbackContext,
-          ) => void)
-        | null;
-    onImageChanged: ((state: ImageEditorState, context: ImageEditorCallbackContext) => void) | null;
-    onBusyChange: ((isBusy: boolean, context: ImageEditorCallbackContext) => void) | null;
-    onToolModeChange:
-        | ((
-              activeToolMode: EditorToolMode | null,
-              previousToolMode: EditorToolMode | null,
-              context: ImageEditorCallbackContext,
-          ) => void)
-        | null;
-    onHistoryChange:
-        | ((
-              history: { canUndo: boolean; canRedo: boolean },
-              context: ImageEditorCallbackContext,
-          ) => void)
-        | null;
-    onEditorDisposed: ((context: ImageEditorCallbackContext) => void) | null;
-    onMasksChanged: ((masks: MaskObject[], context: ImageEditorCallbackContext) => void) | null;
-    onAnnotationsChanged:
-        ((annotations: AnnotationObject[], context: ImageEditorCallbackContext) => void) | null;
-    onSelectionChange:
-        ((selection: ImageEditorSelection, context: ImageEditorCallbackContext) => void) | null;
-    onError: ((error: unknown, message: string) => void) | null;
-    onWarning: ((error: unknown, message: string) => void) | null;
 }

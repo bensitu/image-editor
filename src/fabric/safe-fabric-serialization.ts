@@ -59,6 +59,7 @@ const ROOT_TYPE_PROPERTIES: Readonly<Record<string, ReadonlySet<string>>> = Obje
     line: new Set(['x1', 'x2', 'y1', 'y2']),
     path: new Set(['path']),
     polygon: new Set(['points']),
+    polyline: new Set(['points']),
     textbox: new Set([
         'charSpacing',
         'direction',

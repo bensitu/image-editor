@@ -230,11 +230,12 @@ function isFiniteOverlayStatePoint(value: unknown): value is OverlayStatePoint {
 }
 
 function maskStateKind(object: FabricNS.FabricObject): MaskStateKind {
-    const kind = String(object.type ?? '').toLowerCase();
-    if (kind === 'rect' || kind === 'circle' || kind === 'ellipse' || kind === 'polygon') {
-        return kind;
-    }
-    throw new CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
+    if (object.isType('Rect', 'rect')) return 'rect';
+    if (object.isType('Circle', 'circle')) return 'circle';
+    if (object.isType('Ellipse', 'ellipse')) return 'ellipse';
+    if (object.isType('Polygon', 'polygon')) return 'polygon';
+    const constructorName = object.constructor.name || 'unknown';
+    throw new CoreRuntimeError(`[ImageEditor] Mask kind "${constructorName}" cannot be persisted.`);
 }
 
 function normalizedPolygonPoints(

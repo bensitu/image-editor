@@ -220,11 +220,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.valueKind = valueKind;
 		}
 	};
-	var PluginVersionMismatchError = class extends PluginError {
-		constructor(pluginId, installedVersion, requestedVersion, installedApiVersion, requestedApiVersion) {
-			super("PLUGIN_VERSION_MISMATCH", `[ImageEditor] Plugin "${pluginId}" cannot be reused: installed implementation/API versions are "${installedVersion}"/"${installedApiVersion}", requested versions are "${requestedVersion}"/"${requestedApiVersion}".`, { pluginId });
-		}
-	};
 	var OperationRegistrationError = class extends PluginError {
 		constructor(message, pluginId) {
 			super("OPERATION_REGISTRATION_ERROR", `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
@@ -563,7 +558,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugin-kernel/plugin-manifest.js
 	const CORE_API_VERSION = "3.0.0";
-	const CORE_API_RANGE = `^${CORE_API_VERSION}`;
 	const MAX_VERSION_LENGTH = 64;
 	const MAX_PLUGIN_DEPENDENCIES = 64;
 	const MAX_CAPABILITY_REQUIREMENTS = 64;
@@ -2231,7 +2225,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (this.topLevelInstallActive) throw new PluginKernelStateError("start a concurrent plugin installation", this.hostState);
 			this.topLevelInstallActive = true;
 			try {
-				const outcome = this.performInstallSync(plugin, "strict", []);
+				const outcome = this.performInstallSync(plugin);
 				return Object.freeze({
 					api: outcome.api,
 					installedPlugin: outcome.installedPlugin
@@ -2568,20 +2562,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				throw this.createDependencyError(plugin.ref.id, dependency, [...this.installed.keys()]);
 			}
 		}
-		performInstallSync(input, mode, parentStack) {
+		performInstallSync(input) {
 			const plugin = this.normalizePluginDefinition(input);
 			if (plugin.setupMode !== "sync") throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`, plugin.ref.id);
 			const pluginId = plugin.ref.id;
-			if (parentStack.includes(pluginId)) throw new InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(" -> ")}.`, pluginId);
-			const existing = this.installed.get(pluginId);
-			if (existing) {
-				if (mode === "strict") throw new PluginAlreadyInstalledError(pluginId);
-				if (!sameInstallationDefinition(existing.plugin, plugin)) throw new PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
-				return {
-					api: existing.api,
-					installedPlugin: existing.plugin
-				};
-			}
+			if (this.installed.get(pluginId)) throw new PluginAlreadyInstalledError(pluginId);
 			this.assertPluginDependenciesInstalled(plugin);
 			const { required, optional } = this.resolveCapabilities(plugin);
 			acquirePluginDefinitionLease(plugin, this, pluginId);
@@ -2641,7 +2626,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!permission || ((_a = plugin.manifest.permissions) === null || _a === void 0 ? void 0 : _a.includes(permission))) return;
 			throw new PluginPermissionError(plugin.ref.id, permission, capabilityId);
 		}
-		createContexts(plugin, scope, required, optional, dependencyInstaller) {
+		createContexts(plugin, scope, required, optional) {
 			const pluginId = plugin.id;
 			const state = this.stateStore.createScoped(pluginId, (disposable) => scope.add(disposable), (disposable) => scope.addFinalizer(disposable), () => scope.active);
 			const capabilities = Object.freeze({
@@ -2730,9 +2715,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return scope.add(this.eventBus.on(eventName, listener));
 				}
 			});
-			const ensurePlugin = dependencyInstaller !== null && dependencyInstaller !== void 0 ? dependencyInstaller : (() => {
-				throw new PluginKernelStateError("install a composed dependency from synchronous Plugin setup", this.hostState);
-			});
 			const disposables = Object.freeze({
 				get active() {
 					return scope.active;
@@ -2751,13 +2733,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					operations: setupOperations,
 					tools: setupTools,
 					events: setupEvents,
-					disposables,
-					addDisposable: (disposable) => {
-						scope.assertOpen();
-						return scope.add(disposable);
-					},
-					ensure: (dependency) => ensurePlugin(dependency),
-					ensurePlugin
+					disposables
 				}),
 				lifecycle
 			};

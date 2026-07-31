@@ -301,7 +301,7 @@ test('batch failure removes only current APIs and aggregates reverse cleanup fai
     manager.disposeSync();
 });
 
-test('nested Plugin Plans preserve child identity and typed API mapping at runtime', () => {
+test('nested Plugin Plans preserve child identity and typed API mapping at runtime', async () => {
     const baseRef = definePluginRef('example:plan-base', '1.0.0');
     const topRef = definePluginRef('example:plan-top', '1.0.0');
     const base = createPlugin(baseRef);
@@ -318,5 +318,5 @@ test('nested Plugin Plans preserve child identity and typed API mapping at runti
     assert.equal(apis.top.id, topRef.id);
     assert.equal(editor.getPlugin(baseRef)?.id, baseRef.id);
     assert.equal(editor.getPlugin(topRef)?.id, topRef.id);
-    editor.dispose();
+    await editor.disposeAsync();
 });

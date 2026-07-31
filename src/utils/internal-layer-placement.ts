@@ -1,9 +1,9 @@
 /**
- * Internal layer-placement authority for editor-owned Fabric objects.
+ * Places editor-owned raster visuals, Masks, and transient session objects in stable Canvas bands.
  *
- * The invariant is base images at the bottom, raster visuals next, host
- * objects above raster visuals, editable overlays above host objects, and
- * session-only objects at the top.
+ * Core owns Base Image placement. The Overlay Foundation owns persistent Annotation ordering. This
+ * helper covers the remaining shared objects: raster previews sit above Base Images, Masks stay
+ * below session UI, and session objects remain at the top of the Canvas stack.
  *
  * @module
  */
@@ -12,10 +12,7 @@ import type * as FabricNS from 'fabric';
 
 import {
     isBaseImageObject,
-    isEditableOverlayObject,
     isSessionObject,
-    type AnnotationObject,
-    type BaseImageObject,
     type MaskObject,
     type SessionObject,
     type SessionObjectType,
@@ -76,9 +73,7 @@ function moveObjectTo(canvas: FabricNS.Canvas, object: FabricNS.FabricObject, in
 }
 
 function ensureOnCanvas(canvas: FabricNS.Canvas, object: FabricNS.FabricObject): void {
-    if (!canvas.getObjects().includes(object)) {
-        canvas.add(object);
-    }
+    if (!canvas.getObjects().includes(object)) canvas.add(object);
 }
 
 function withoutObject(
@@ -95,61 +90,6 @@ function findFirstSessionIndex(objects: FabricNS.FabricObject[]): number {
             isInternallyMarkedSessionObject(object) ||
             isPropertyMarkedSessionObject(object),
     );
-}
-
-function getOrderedGroups(canvas: FabricNS.Canvas): {
-    baseImages: BaseImageObject[];
-    rasterVisuals: RasterVisualObject[];
-    overlays: Array<MaskObject | AnnotationObject>;
-    sessions: FabricNS.FabricObject[];
-    others: FabricNS.FabricObject[];
-} {
-    const baseImages: BaseImageObject[] = [];
-    const rasterVisuals: RasterVisualObject[] = [];
-    const overlays: Array<MaskObject | AnnotationObject> = [];
-    const sessions: FabricNS.FabricObject[] = [];
-    const others: FabricNS.FabricObject[] = [];
-
-    for (const object of canvas.getObjects()) {
-        if (isBaseImageObject(object)) {
-            baseImages.push(object);
-        } else if (isRasterVisualObject(object)) {
-            rasterVisuals.push(object);
-        } else if (isEditableOverlayObject(object)) {
-            overlays.push(object);
-        } else if (
-            isSessionObject(object) ||
-            isInternallyMarkedSessionObject(object) ||
-            isPropertyMarkedSessionObject(object)
-        ) {
-            sessions.push(object);
-        } else {
-            others.push(object);
-        }
-    }
-
-    return { baseImages, rasterVisuals, overlays, sessions, others };
-}
-
-export function normalizeLayerOrder(canvas: FabricNS.Canvas): void {
-    const groups = getOrderedGroups(canvas);
-    const ordered: FabricNS.FabricObject[] = [
-        ...groups.baseImages,
-        ...groups.rasterVisuals,
-        ...groups.others,
-        ...groups.overlays,
-        ...groups.sessions,
-    ];
-
-    ordered.forEach((object, index) => {
-        moveObjectTo(canvas, object, index);
-    });
-}
-
-export function placeBaseImageObject(canvas: FabricNS.Canvas, image: BaseImageObject): void {
-    ensureOnCanvas(canvas, image);
-    const targetIndex = withoutObject(canvas, image).filter(isBaseImageObject).length;
-    moveObjectTo(canvas, image, targetIndex);
 }
 
 export function markRasterVisualObject<T extends FabricNS.FabricObject>(
@@ -179,13 +119,6 @@ export function placeMaskObject(canvas: FabricNS.Canvas, mask: MaskObject): void
     moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 
-export function placeAnnotationObject(canvas: FabricNS.Canvas, annotation: AnnotationObject): void {
-    ensureOnCanvas(canvas, annotation);
-    const objects = withoutObject(canvas, annotation);
-    const firstSessionIndex = findFirstSessionIndex(objects);
-    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
-}
-
 export function markSessionObject<T extends FabricNS.FabricObject>(
     object: T,
     sessionObjectType: SessionObjectType,
@@ -203,21 +136,4 @@ export function placeSessionObject(
     (sessionObject as InternalLayerObject).editorLayerRole = 'session';
     ensureOnCanvas(canvas, sessionObject);
     moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
-}
-
-export function getEditableOverlayRange(canvas: FabricNS.Canvas): {
-    start: number;
-    end: number;
-    overlays: Array<MaskObject | AnnotationObject>;
-} {
-    const objects = canvas.getObjects();
-    const overlayIndexes = objects
-        .map((object, index) => ({ object, index }))
-        .filter(({ object }) => isEditableOverlayObject(object));
-    if (overlayIndexes.length === 0) return { start: -1, end: -1, overlays: [] };
-    return {
-        start: overlayIndexes[0]!.index,
-        end: overlayIndexes[overlayIndexes.length - 1]!.index,
-        overlays: overlayIndexes.map(({ object }) => object as MaskObject | AnnotationObject),
-    };
 }

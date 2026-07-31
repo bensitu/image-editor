@@ -93,13 +93,7 @@ test('init cleanup failure enters faulted and blocks ordinary calls', async (t) 
         },
     };
     const { editor, ids } = createCore(injectedFabric);
-    t.after(() => {
-        try {
-            editor.dispose();
-        } catch {
-            // The test intentionally installs a Canvas whose disposal fails.
-        }
-    });
+    t.after(() => editor.disposeAsync().catch(() => undefined));
     editor.use(
         lifecycleProbePlugin(() => {
             throw new Error('synthetic init failure');
@@ -212,7 +206,7 @@ test('asynchronous disposal aggregates synchronous cleanup failures and still co
     assert.equal(editor.getLifecycleState(), 'disposed');
 });
 
-test('Core Presentation capability reads the current layout mode', () => {
+test('Core Presentation capability reads the current layout mode', async () => {
     const editor = new ImageEditorCore(fabric, { defaultLayoutMode: 'fit' });
     const plugin = {
         ref: definePluginRef('example-test:presentation-probe', '1.0.0'),
@@ -231,7 +225,7 @@ test('Core Presentation capability reads the current layout mode', () => {
     assert.equal(probe.getLayoutMode(), 'cover');
     assert.throws(() => editor.setLayoutMode('stretch'), TypeError);
     assert.equal(probe.getLayoutMode(), 'cover');
-    editor.dispose();
+    await editor.disposeAsync();
 });
 
 test('root cutover keeps one Canvas and Base Image owner with no EditorRuntime constructor', async () => {

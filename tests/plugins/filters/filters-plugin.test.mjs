@@ -23,7 +23,7 @@ function installCommittedEventObserver(editor) {
         setupMode: 'sync',
         setup(context) {
             const events = [];
-            context.addDisposable(
+            context.disposables.add(
                 context.events.on('document:committed', (descriptor) => events.push(descriptor)),
             );
             return { events };

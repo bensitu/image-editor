@@ -18,7 +18,7 @@ function stripReflection(matrix, fabric) {
     return angleMagnitude(flipY) < angleMagnitude(flipX) ? flipY : flipX;
 }
 export function applyAnnotationGeometry(object, mutation, fabricModule, preserveReadable) {
-    var _a, _b, _c;
+    var _a;
     if (mutation.kind !== 'transform')
         return;
     const delta = mutation.affineDelta;
@@ -30,17 +30,12 @@ export function applyAnnotationGeometry(object, mutation, fabricModule, preserve
         Point: fabricModule.Point,
     };
     object.setCoords();
-    const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
-    const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
     const originalCenter = object.getCenterPoint();
     const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = delta;
     const targetCenter = new fabric.Point(a * originalCenter.x + c * originalCenter.y + e, b * originalCenter.x + d * originalCenter.y + f);
     const orientationDelta = preserveReadable ? stripReflection(delta, fabric) : delta;
     let restoreCenter = originalCenter;
     try {
-        object.set({ originX: 'center', originY: 'center' });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
-        object.setCoords();
         const nextMatrix = fabric.multiplyTransformMatrices(orientationDelta, object.calcTransformMatrix());
         if (!isFiniteMatrix(nextMatrix))
             return;
@@ -51,7 +46,7 @@ export function applyAnnotationGeometry(object, mutation, fabricModule, preserve
             scaleX: decomposed.scaleX,
             scaleY: decomposed.scaleY,
             skewX: decomposed.skewX,
-            skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0,
+            skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0,
         });
         if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
             object.set({
@@ -62,7 +57,6 @@ export function applyAnnotationGeometry(object, mutation, fabricModule, preserve
         restoreCenter = targetCenter;
     }
     finally {
-        object.set({ originX: previousOriginX, originY: previousOriginY });
         object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
     }

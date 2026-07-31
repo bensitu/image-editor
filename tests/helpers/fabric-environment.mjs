@@ -96,10 +96,10 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
     return ids;
 }
 
-export function disposeEditor(editor) {
+export async function disposeEditor(editor) {
     if (editor) {
         try {
-            editor.dispose();
+            await editor.disposeAsync();
         } catch {
             // Test teardown must tolerate an intentionally faulted editor.
         }

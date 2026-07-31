@@ -25,4 +25,3 @@ export interface DisposeInReverseOptions {
     readonly errorSink?: PluginErrorSink;
 }
 export declare function disposeInReverse(disposables: readonly Disposable[], options?: DisposeInReverseOptions): Promise<readonly unknown[]>;
-export declare function createCompositeDisposable(disposables: readonly Disposable[], options?: DisposeInReverseOptions): Disposable;

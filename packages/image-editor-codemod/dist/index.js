@@ -236,7 +236,7 @@ function importReplacement(sourceFile, node, oldLocals) {
     }
     if (parts.length === 0)
         return '';
-    const keyword = clause.isTypeOnly ? 'import type' : 'import';
+    const keyword = clause.phaseModifier === ts.SyntaxKind.TypeKeyword ? 'import type' : 'import';
     return `${keyword} ${parts.join(', ')} from ${node.moduleSpecifier.getText(sourceFile)};`;
 }
 function visit(node, callback) {

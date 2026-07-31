@@ -75,7 +75,7 @@ test('privileged Capability access requires the exact manifest permission before
     manager.disposeSync();
 });
 
-test('Core exposes Fabric runtime only to Plugins declaring object access', () => {
+test('Core exposes Fabric runtime only to Plugins declaring object access', async () => {
     const ref = definePluginRef('example:fabric-runtime-denied', '1.0.0');
     let setupCalls = 0;
     const plugin = permissionPlugin(ref, FABRIC_RUNTIME_CAPABILITY, undefined, () => {
@@ -92,7 +92,7 @@ test('Core exposes Fabric runtime only to Plugins declaring object access', () =
             error.capabilityId === FABRIC_RUNTIME_CAPABILITY.id,
     );
     assert.equal(setupCalls, 0);
-    editor.dispose();
+    await editor.disposeAsync();
 });
 
 test('official Plugins declare narrow permissions and never global Fabric mutation', () => {
@@ -110,7 +110,7 @@ test('official Plugins declare narrow permissions and never global Fabric mutati
     }
 });
 
-test('Overlay registration access is separated from the safe runtime Capability', () => {
+test('Overlay registration access is separated from the safe runtime Capability', async () => {
     const deniedRef = definePluginRef('example:overlay-registration-denied', '1.0.0');
     let setupCalls = 0;
     const denied = definePlugin({
@@ -139,7 +139,7 @@ test('Overlay registration access is separated from the safe runtime Capability'
     );
     assert.equal(setupCalls, 0);
     assert.equal(deniedEditor.getPlugin(overlayFoundationRef), null);
-    deniedEditor.dispose();
+    await deniedEditor.disposeAsync();
 
     const allowedRef = definePluginRef('example:overlay-registration-allowed', '1.0.0');
     const allowed = definePlugin({
@@ -176,7 +176,7 @@ test('Overlay registration access is separated from the safe runtime Capability'
     const allowedEditor = new ImageEditorCore(fabric);
     const [, api] = allowedEditor.install([overlayFoundationPlugin(), allowed]);
     assert.equal(api.ready, true);
-    allowedEditor.dispose();
+    await allowedEditor.disposeAsync();
 });
 
 test('persistent Overlay Kind registration rejects a missing Codec without leaking the Kind', async () => {

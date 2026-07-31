@@ -40,18 +40,6 @@ export function isApproximatelyIdentityTransform(matrix: number[], epsilon = 1e-
     );
 }
 
-export function computeImageTransformDelta(
-    beforeMatrix: number[],
-    afterMatrix: number[],
-    fabricUtil: FabricUtilAccess,
-): number[] {
-    if (!isFiniteTransformMatrix(beforeMatrix) || !isFiniteTransformMatrix(afterMatrix)) return [];
-    return fabricUtil.multiplyTransformMatrices(
-        afterMatrix,
-        fabricUtil.invertTransform(beforeMatrix),
-    );
-}
-
 export function deltaHasReflection(delta: number[]): boolean {
     if (!isFiniteTransformMatrix(delta)) return false;
     const [a, b, c, d] = delta;
@@ -94,8 +82,6 @@ export function applyDeltaToObject(
     if (!isFiniteTransformMatrix(fullDelta) || isApproximatelyIdentityTransform(fullDelta)) return;
     const { fabricUtil } = context;
     object.setCoords();
-    const previousOriginX = object.originX ?? 'left';
-    const previousOriginY = object.originY ?? 'top';
     const previousTransform = {
         angle: object.angle,
         scaleX: object.scaleX,
@@ -113,9 +99,6 @@ export function applyDeltaToObject(
     let restoreCenter = originalCenter;
     let committed = false;
     try {
-        object.set({ originX: 'center', originY: 'center' });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
-        object.setCoords();
         const nextMatrix = fabricUtil.multiplyTransformMatrices(
             orientationDelta,
             object.calcTransformMatrix() as number[],
@@ -140,7 +123,6 @@ export function applyDeltaToObject(
         committed = true;
     } finally {
         if (!committed) object.set(previousTransform);
-        object.set({ originX: previousOriginX, originY: previousOriginY });
         object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
     }

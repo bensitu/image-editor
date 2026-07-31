@@ -55,7 +55,7 @@ export interface WatermarkPluginApi extends ConfigurablePluginApi<WatermarkConfi
 
 export interface WatermarkPluginOptions {
     readonly configuration?: Partial<WatermarkConfiguration>;
-    readonly codec?: FabricObjectCodec<FabricNS.Text, SerializedWatermark>;
+    readonly codec?: FabricObjectCodec<FabricNS.FabricText, SerializedWatermark>;
 }
 
 interface SerializedWatermark {
@@ -72,7 +72,7 @@ interface WatermarkState {
     readonly configuration: WatermarkConfiguration;
 }
 
-type MarkedText = FabricNS.Text & {
+type MarkedText = FabricNS.FabricText & {
     referenceWatermark?: true;
     referenceWatermarkId?: string;
 };
@@ -138,7 +138,7 @@ function serialize(object: MarkedText): SerializedWatermark {
     });
 }
 
-function mark(object: FabricNS.Text, id?: string): MarkedText {
+function mark(object: FabricNS.FabricText, id?: string): MarkedText {
     const marked = object as MarkedText;
     marked.referenceWatermark = true;
     if (id) marked.referenceWatermarkId = id;
@@ -168,7 +168,7 @@ function resolveWatermark(
 
 function createDefaultCodec(
     fabric: FabricModule,
-): FabricObjectCodec<FabricNS.Text, SerializedWatermark> {
+): FabricObjectCodec<FabricNS.FabricText, SerializedWatermark> {
     return Object.freeze({
         type: 'reference-watermark:text',
         version: '1.0.0',
@@ -177,7 +177,7 @@ function createDefaultCodec(
         deserialize(data: unknown) {
             if (!validateSerialized(data)) throw new TypeError('Watermark payload is invalid.');
             return mark(
-                new fabric.Text(data.text, {
+                new fabric.FabricText(data.text, {
                     left: data.left,
                     top: data.top,
                     opacity: data.opacity,
@@ -326,7 +326,7 @@ export function createWatermarkPlugin(
                     const resolved = resolveWatermark(input, configuration);
                     const id = `watermark-${++counter}`;
                     const object = mark(
-                        new fabric.Text(resolved.text, {
+                        new fabric.FabricText(resolved.text, {
                             left: resolved.left,
                             top: resolved.top,
                             opacity: resolved.opacity,

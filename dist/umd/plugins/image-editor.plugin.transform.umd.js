@@ -37,10 +37,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#region dist/esm/fabric/fabric-animation.js
 	const ANIMATION_SETTLE_GRACE_MS = 1e3;
 	const ANIMATION_ABORT_QUIESCENCE_MS = 50;
-	function animateProps(object, props, options, guard) {
+	function animateProps(object, props, options, control) {
 		return new Promise((resolve, reject) => {
 			const propCount = Object.keys(props).length;
-			if (propCount === 0 || guard.isDisposed()) {
+			if (propCount === 0 || control.isDisposed()) {
 				resolve();
 				return;
 			}
@@ -109,7 +109,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			};
 			const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
 			timeoutId = setTimeout(abortAndQuiesce, duration + ANIMATION_SETTLE_GRACE_MS);
-			unregisterAborter = guard.registerAnimationAborter(abortAndQuiesce);
+			unregisterAborter = control.registerAnimationAborter(abortAndQuiesce);
 			try {
 				aborters = collectAnimationAborters(object.animate(props, {
 					duration,
@@ -119,7 +119,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							scheduleQuiescenceSettlement();
 							return;
 						}
-						if (guard.isDisposed()) return;
+						if (control.isDisposed()) return;
 						(_a = options.onChange) === null || _a === void 0 || _a.call(options);
 					},
 					onComplete: () => {
@@ -518,7 +518,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 		}
 		captureRollback(image) {
-			var _a, _b;
 			return Object.freeze({
 				transform: this.getState(),
 				image: Object.freeze({
@@ -529,8 +528,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					angle: Number(image.angle) || 0,
 					flipX: image.flipX === true,
 					flipY: image.flipY === true,
-					originX: (_a = image.originX) !== null && _a !== void 0 ? _a : "left",
-					originY: (_b = image.originY) !== null && _b !== void 0 ? _b : "top"
+					originX: "left",
+					originY: "top"
 				})
 			});
 		}

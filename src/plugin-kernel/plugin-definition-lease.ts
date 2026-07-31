@@ -23,7 +23,7 @@ export function resolvePluginDefinitionIdentity(definition: object): object {
     return current;
 }
 
-export function aliasPluginDefinitionIdentity<TDefinition extends object>(
+function aliasPluginDefinitionIdentity<TDefinition extends object>(
     snapshot: TDefinition,
     source: object,
 ): TDefinition {

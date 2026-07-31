@@ -1,7 +1,6 @@
 /**
- * Pure layout helpers and a small viewport cache used by the
- * `image-loader` pipeline. The layout manager owns three concerns
- * used by the image-load pipeline:
+ * Pure layout helpers and a small viewport cache used by Core image loading and resizing. The
+ * layout manager owns three concerns:
  *
  * 1. Selecting the layout strategy from the current canonical layout mode.
  * 2. Computing canvas dimensions and image scale for the selected
@@ -9,11 +8,10 @@
  * 3. Measuring the visible container viewport with a hidden-tab cache
  *    and a final fall-back to `options.canvasWidth/canvasHeight`.
  *
- * The module also exposes a single sizing primitive,
- * `applyCanvasDimensions`, which is the only place in the editor
- * that calls `Canvas.setDimensions`. It rounds to integer pixels
- * and forces a synchronous reflow on the container so that auto
- * scrollbars settle before the next paint.
+ * The module also exposes Core's sizing primitive, `applyCanvasDimensions`. It rounds to integer
+ * pixels and forces a synchronous reflow on the container so auto scrollbars settle before the
+ * next paint. Isolated Mask factory use may call `Canvas.setDimensions` only when no Core resize
+ * port was supplied; the installed Mask Plugin always delegates resizing to Core.
  *
  * The layout manager intentionally
  * does NOT mutate developer CSS:
@@ -26,7 +24,7 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { LayoutMode } from '../core/public-types.js';
+import type { LayoutMode } from '../core-runtime/public-types.js';
 import { forceReflow } from '../utils/dom.js';
 
 // ─── Strategy selection ──────────────────────────────────────────────────────
@@ -138,14 +136,12 @@ export class ViewportCache {
 // ─── Layout computation ──────────────────────────────────────────────────────
 
 /**
- * Result of a layout computation. The image-loader applies these
- * values to the Fabric canvas and the image object after a successful
- * decode and Fabric load.
+ * Result of a layout computation. Core applies these values to the Fabric Canvas and Base Image
+ * after image decoding succeeds.
  *
  * `imageScale` is the Fabric `scaleX/scaleY` value that produces the
  * desired on-canvas size for the image. `baseImageScale` is the
- * editor's anchor scale used when computing zoom factors — see
- * `image/transform-controller.ts` for how it is consumed.
+ * editor's anchor scale used by the Transform Plugin when computing zoom factors.
  */
 interface LayoutResult {
     canvasWidth: number;

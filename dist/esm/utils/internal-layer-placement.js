@@ -1,4 +1,4 @@
-import { isBaseImageObject, isEditableOverlayObject, isSessionObject, } from '../core/public-types.js';
+import { isBaseImageObject, isSessionObject, } from '../core/public-types.js';
 function isRasterVisualObject(object) {
     return (object.editorLayerRole ===
         'rasterVisual');
@@ -28,9 +28,8 @@ function moveObjectTo(canvas, object, index) {
     }
 }
 function ensureOnCanvas(canvas, object) {
-    if (!canvas.getObjects().includes(object)) {
+    if (!canvas.getObjects().includes(object))
         canvas.add(object);
-    }
 }
 function withoutObject(canvas, object) {
     return canvas.getObjects().filter((candidate) => candidate !== object);
@@ -39,51 +38,6 @@ function findFirstSessionIndex(objects) {
     return objects.findIndex((object) => isSessionObject(object) ||
         isInternallyMarkedSessionObject(object) ||
         isPropertyMarkedSessionObject(object));
-}
-function getOrderedGroups(canvas) {
-    const baseImages = [];
-    const rasterVisuals = [];
-    const overlays = [];
-    const sessions = [];
-    const others = [];
-    for (const object of canvas.getObjects()) {
-        if (isBaseImageObject(object)) {
-            baseImages.push(object);
-        }
-        else if (isRasterVisualObject(object)) {
-            rasterVisuals.push(object);
-        }
-        else if (isEditableOverlayObject(object)) {
-            overlays.push(object);
-        }
-        else if (isSessionObject(object) ||
-            isInternallyMarkedSessionObject(object) ||
-            isPropertyMarkedSessionObject(object)) {
-            sessions.push(object);
-        }
-        else {
-            others.push(object);
-        }
-    }
-    return { baseImages, rasterVisuals, overlays, sessions, others };
-}
-export function normalizeLayerOrder(canvas) {
-    const groups = getOrderedGroups(canvas);
-    const ordered = [
-        ...groups.baseImages,
-        ...groups.rasterVisuals,
-        ...groups.others,
-        ...groups.overlays,
-        ...groups.sessions,
-    ];
-    ordered.forEach((object, index) => {
-        moveObjectTo(canvas, object, index);
-    });
-}
-export function placeBaseImageObject(canvas, image) {
-    ensureOnCanvas(canvas, image);
-    const targetIndex = withoutObject(canvas, image).filter(isBaseImageObject).length;
-    moveObjectTo(canvas, image, targetIndex);
 }
 export function markRasterVisualObject(object) {
     const rasterVisual = object;
@@ -103,12 +57,6 @@ export function placeMaskObject(canvas, mask) {
     const firstSessionIndex = findFirstSessionIndex(objects);
     moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
-export function placeAnnotationObject(canvas, annotation) {
-    ensureOnCanvas(canvas, annotation);
-    const objects = withoutObject(canvas, annotation);
-    const firstSessionIndex = findFirstSessionIndex(objects);
-    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
-}
 export function markSessionObject(object, sessionObjectType) {
     const sessionObject = object;
     sessionObject.editorObjectKind = 'session';
@@ -119,18 +67,5 @@ export function placeSessionObject(canvas, sessionObject) {
     sessionObject.editorLayerRole = 'session';
     ensureOnCanvas(canvas, sessionObject);
     moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
-}
-export function getEditableOverlayRange(canvas) {
-    const objects = canvas.getObjects();
-    const overlayIndexes = objects
-        .map((object, index) => ({ object, index }))
-        .filter(({ object }) => isEditableOverlayObject(object));
-    if (overlayIndexes.length === 0)
-        return { start: -1, end: -1, overlays: [] };
-    return {
-        start: overlayIndexes[0].index,
-        end: overlayIndexes[overlayIndexes.length - 1].index,
-        overlays: overlayIndexes.map(({ object }) => object),
-    };
 }
 //# sourceMappingURL=internal-layer-placement.js.map

@@ -153,7 +153,7 @@ Avoid:
 // Replaces the old runtime.
 // The new implementation uses the Plugin SDK.
 // Kept for compatibility with the previous version.
-// Temporary v3 path.
+// Temporary alternate path.
 ```
 
 Use current responsibility and removal condition instead:

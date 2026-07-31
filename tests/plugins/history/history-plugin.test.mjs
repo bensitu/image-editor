@@ -301,7 +301,7 @@ test('undo and redo failures rollback the attempted restore and keep the pointer
                 requires: [{ token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' }],
                 setup(context) {
                     const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
-                    context.addDisposable(
+                    context.disposables.add(
                         state.registerSlice({
                             id: failureRef.id,
                             version: 1,

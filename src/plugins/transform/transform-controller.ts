@@ -456,8 +456,8 @@ export class TransformPluginController {
                 angle: Number(image.angle) || 0,
                 flipX: image.flipX === true,
                 flipY: image.flipY === true,
-                originX: image.originX ?? 'left',
-                originY: image.originY ?? 'top',
+                originX: 'left',
+                originY: 'top',
             }),
         });
     }

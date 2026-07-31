@@ -4,7 +4,6 @@
  * @module
  */
 
-import { PluginAggregateError } from './errors.js';
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -139,20 +138,4 @@ export async function disposeInReverse(
         }
     }
     return errors;
-}
-
-export function createCompositeDisposable(
-    disposables: readonly Disposable[],
-    options: DisposeInReverseOptions = {},
-): Disposable {
-    return createDisposable(async () => {
-        const errors = await disposeInReverse(disposables, options);
-        if (errors.length > 0) {
-            throw new PluginAggregateError(
-                'One or more composite cleanup items failed.',
-                errors,
-                options.pluginId ? { pluginId: options.pluginId } : {},
-            );
-        }
-    });
 }

@@ -119,7 +119,7 @@ test('lifecycle callbacks use install order and dispose uses reverse order', asy
         pluginDefinition(`example-test:${name}`, {
             setup: (context) => {
                 calls.push(`setup:${name}`);
-                context.addDisposable(createDisposable(() => calls.push(`cleanup:${name}`)));
+                context.disposables.add(createDisposable(() => calls.push(`cleanup:${name}`)));
                 return { name };
             },
             onInit: async () => {
@@ -169,7 +169,7 @@ test('synchronous disposal reports detached lifecycle work and still completes c
     const manager = new PluginManager({ errorSink: (error) => reported.push(error) });
     const plugin = pluginDefinition('example-test:sync-dispose-promise', {
         setup: (context) => {
-            context.addDisposable(createDisposable(() => calls.push('scope:dispose')));
+            context.disposables.add(createDisposable(() => calls.push('scope:dispose')));
             return {};
         },
         onDispose: () => {

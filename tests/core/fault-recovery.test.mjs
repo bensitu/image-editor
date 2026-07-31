@@ -78,7 +78,7 @@ function createFaultFixture({ shouldReplayFail = () => false } = {}) {
                 conflictDomains: ['document', 'state'],
                 reentrancy: 'reject',
             });
-            context.addDisposable(
+            context.disposables.add(
                 state.registerSlice({
                     id: ref.id,
                     version: 1,
@@ -165,7 +165,7 @@ function createGeometryFaultFixture() {
                 conflictDomains: GEOMETRY_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'reject',
             });
-            context.addDisposable(
+            context.disposables.add(
                 state.registerSlice({
                     id: ref.id,
                     version: 1,
@@ -188,7 +188,7 @@ function createGeometryFaultFixture() {
                     },
                 }),
             );
-            context.addDisposable(
+            context.disposables.add(
                 geometry.registerParticipant({
                     id: `${ref.id}:participant`,
                     order: 0,

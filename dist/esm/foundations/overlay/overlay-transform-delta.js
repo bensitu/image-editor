@@ -6,11 +6,6 @@ export function isApproximatelyIdentityTransform(matrix, epsilon = 1e-10) {
     return (matrix.length === identity.length &&
         matrix.every((value, index) => Math.abs(value - identity[index]) <= epsilon));
 }
-export function computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil) {
-    if (!isFiniteTransformMatrix(beforeMatrix) || !isFiniteTransformMatrix(afterMatrix))
-        return [];
-    return fabricUtil.multiplyTransformMatrices(afterMatrix, fabricUtil.invertTransform(beforeMatrix));
-}
 export function deltaHasReflection(delta) {
     if (!isFiniteTransformMatrix(delta))
         return false;
@@ -42,13 +37,11 @@ export function stripReflectionFromDelta(delta, fabricUtil) {
         : flipXCandidate;
 }
 export function applyDeltaToObject(object, fullDelta, context) {
-    var _a, _b, _c;
+    var _a;
     if (!isFiniteTransformMatrix(fullDelta) || isApproximatelyIdentityTransform(fullDelta))
         return;
     const { fabricUtil } = context;
     object.setCoords();
-    const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
-    const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
     const previousTransform = {
         angle: object.angle,
         scaleX: object.scaleX,
@@ -66,9 +59,6 @@ export function applyDeltaToObject(object, fullDelta, context) {
     let restoreCenter = originalCenter;
     let committed = false;
     try {
-        object.set({ originX: 'center', originY: 'center' });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
-        object.setCoords();
         const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, object.calcTransformMatrix());
         if (!isFiniteTransformMatrix(nextMatrix))
             return;
@@ -79,7 +69,7 @@ export function applyDeltaToObject(object, fullDelta, context) {
             scaleX: decomposed.scaleX,
             scaleY: decomposed.scaleY,
             skewX: decomposed.skewX,
-            skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0,
+            skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0,
         });
         if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
             object.set({
@@ -93,7 +83,6 @@ export function applyDeltaToObject(object, fullDelta, context) {
     finally {
         if (!committed)
             object.set(previousTransform);
-        object.set({ originX: previousOriginX, originY: previousOriginY });
         object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
     }

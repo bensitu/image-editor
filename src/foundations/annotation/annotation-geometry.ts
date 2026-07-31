@@ -62,8 +62,6 @@ export function applyAnnotationGeometry(
         Point: fabricModule.Point,
     };
     object.setCoords();
-    const previousOriginX = object.originX ?? 'left';
-    const previousOriginY = object.originY ?? 'top';
     const originalCenter = object.getCenterPoint();
     const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = delta;
     const targetCenter = new fabric.Point(
@@ -73,9 +71,6 @@ export function applyAnnotationGeometry(
     const orientationDelta = preserveReadable ? stripReflection(delta, fabric) : delta;
     let restoreCenter = originalCenter;
     try {
-        object.set({ originX: 'center', originY: 'center' });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
-        object.setCoords();
         const nextMatrix = fabric.multiplyTransformMatrices(
             orientationDelta,
             object.calcTransformMatrix() as number[],
@@ -98,7 +93,6 @@ export function applyAnnotationGeometry(
         }
         restoreCenter = targetCenter;
     } finally {
-        object.set({ originX: previousOriginX, originY: previousOriginY });
         object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
     }

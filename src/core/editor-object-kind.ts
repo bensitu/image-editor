@@ -1,27 +1,15 @@
 /**
- * Metadata markers for objects owned by the editor runtime.
+ * Applies persistent Mask metadata to Fabric objects created by the Mask Plugin.
  *
- * All base images, masks, annotations, and session-only objects should be
- * marked through these helpers so public type guards can reject unmarked
- * duck-typed objects reliably.
+ * Base Images are marked by Core when they are adopted. Session markers are owned by the shared
+ * layer-placement helper, and Annotation identity is owned by the Annotation Foundation.
  *
  * @module
  */
 
 import type * as FabricNS from 'fabric';
 
-import type {
-    AnnotationObject,
-    AnnotationType,
-    BaseImageObject,
-    MaskObject,
-} from './public-types.js';
-
-export function markBaseImageObject(image: FabricNS.FabricImage): BaseImageObject {
-    const baseImage = image as BaseImageObject;
-    baseImage.editorObjectKind = 'baseImage';
-    return baseImage;
-}
+import type { MaskObject } from './public-types.js';
 
 export function markMaskObject(
     object: FabricNS.FabricObject,
@@ -45,46 +33,4 @@ export function markMaskObject(
         mask.originalStrokeWidth = meta.originalStrokeWidth;
     }
     return mask;
-}
-
-export function markAnnotationObject(
-    object: FabricNS.FabricObject,
-    meta: {
-        annotationId: number;
-        annotationType: AnnotationType;
-        annotationName: string;
-        annotationHidden?: boolean;
-        annotationLocked?: boolean;
-        annotationSelectable?: boolean;
-        annotationEvented?: boolean;
-        annotationHasControls?: boolean;
-        annotationEditable?: boolean;
-        shapeAnnotationKind?: 'rect' | 'line' | 'arrow';
-    },
-): AnnotationObject {
-    const annotation = object as AnnotationObject;
-    annotation.editorObjectKind = 'annotation';
-    annotation.annotationId = meta.annotationId;
-    annotation.annotationType = meta.annotationType;
-    annotation.annotationName = meta.annotationName;
-    annotation.annotationHidden = meta.annotationHidden ?? false;
-    annotation.annotationLocked = meta.annotationLocked ?? false;
-    if (typeof meta.annotationSelectable === 'boolean') {
-        annotation.annotationSelectable = meta.annotationSelectable;
-    }
-    if (typeof meta.annotationEvented === 'boolean') {
-        annotation.annotationEvented = meta.annotationEvented;
-    }
-    if (typeof meta.annotationHasControls === 'boolean') {
-        annotation.annotationHasControls = meta.annotationHasControls;
-    }
-    if (typeof meta.annotationEditable === 'boolean') {
-        annotation.annotationEditable = meta.annotationEditable;
-    }
-    if (meta.shapeAnnotationKind) {
-        (
-            annotation as AnnotationObject & { shapeAnnotationKind?: 'rect' | 'line' | 'arrow' }
-        ).shapeAnnotationKind = meta.shapeAnnotationKind;
-    }
-    return annotation;
 }

@@ -141,7 +141,7 @@ export function applyMaskUnselectedStyle(mask: MaskObject): void {
  *
  * Handlers are tagged on `mask.imageEditorMaskHandlers` so
  * {@link reattachMaskHoverHandlers} can drop them before binding a new
- * pair, avoiding duplicates after a `loadFromJSON` restore.
+ * pair, avoiding duplicates after Snapshot restoration or runtime reattachment.
  *
  * Calling this twice binds duplicate listeners; use {@link reattachMaskHoverHandlers}
  * when refreshing an existing mask.

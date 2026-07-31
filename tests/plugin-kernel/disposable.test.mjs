@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-    PluginAggregateError,
-    createCompositeDisposable,
     createDisposable,
     disposeInReverse,
     disposeInReverseSync,
@@ -61,22 +59,6 @@ test('reverse cleanup continues after errors and reports each failure', async ()
     assert.deepEqual(errors, [primaryFailure]);
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].code, 'PLUGIN_CLEANUP_FAILED');
-});
-
-test('composite disposable aggregates cleanup errors after completing all cleanup', async () => {
-    const order = [];
-    const composite = createCompositeDisposable([
-        createDisposable(() => order.push(1)),
-        createDisposable(() => {
-            order.push(2);
-            throw new Error('two');
-        }),
-        createDisposable(() => order.push(3)),
-    ]);
-
-    await assert.rejects(composite.dispose(), PluginAggregateError);
-    assert.deepEqual(order, [3, 2, 1]);
-    await composite.dispose();
 });
 
 test('synchronous cleanup reports PromiseLike work and observes later rejections', async () => {

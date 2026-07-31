@@ -1,4 +1,3 @@
-import { PluginAggregateError } from './errors.js';
 import { reportWarningSafely } from './reporting.js';
 export function isPromiseLike(value) {
     return ((typeof value === 'object' || typeof value === 'function') &&
@@ -101,13 +100,5 @@ export async function disposeInReverse(disposables, options = {}) {
         }
     }
     return errors;
-}
-export function createCompositeDisposable(disposables, options = {}) {
-    return createDisposable(async () => {
-        const errors = await disposeInReverse(disposables, options);
-        if (errors.length > 0) {
-            throw new PluginAggregateError('One or more composite cleanup items failed.', errors, options.pluginId ? { pluginId: options.pluginId } : {});
-        }
-    });
 }
 //# sourceMappingURL=disposable.js.map

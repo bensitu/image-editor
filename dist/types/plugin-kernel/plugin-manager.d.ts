@@ -57,12 +57,10 @@ export declare class PluginManager<TEvents extends object = PluginEventMap> impl
     private rollbackPendingBatchSync;
     private createDependencyError;
     private assertPluginDependenciesInstalled;
-    private performInstall;
     private performInstallSync;
     private resolveCapabilities;
     private assertCapabilityPermission;
     private createContexts;
-    private rollbackInstalledPlugin;
     private normalizePluginDefinition;
     private performDispose;
     private cleanupAll;

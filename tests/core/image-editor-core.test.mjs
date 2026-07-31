@@ -127,7 +127,7 @@ test('ImageEditorCore installs typed plugins before init and loads a core-only i
         flipX: false,
         flipY: false,
     });
-    disposeEditor(editor);
+    await disposeEditor(editor);
 });
 
 test('Transform plugin preserves scale clamp, zoom, rotation, flips, and one-mutation reset', async () => {
@@ -177,7 +177,7 @@ test('Transform plugin preserves scale clamp, zoom, rotation, flips, and one-mut
     });
     assert.equal(descriptors.length, beforeResetEvents + 1);
     assert.equal(descriptors.at(-1).operationId, 'transform:reset');
-    disposeEditor(editor);
+    await disposeEditor(editor);
 });
 
 test('public Snapshot restores Core and Transform state without restoring Plugin options', async () => {
@@ -199,7 +199,7 @@ test('public Snapshot restores Core and Transform state without restoring Plugin
         flipY: false,
     });
     assert.equal(editor.isImageLoaded(), true);
-    disposeEditor(editor);
+    await disposeEditor(editor);
 });
 
 test('Transform failure uses targeted rollback and emits no committed event', async () => {
@@ -231,5 +231,5 @@ test('Transform failure uses targeted rollback and emits no committed event', as
     await assert.rejects(transform.scale(1.4), /synthetic final-snap failure/);
     assert.deepEqual(transform.getState(), before);
     assert.equal(descriptors.length, 0);
-    disposeEditor(editor);
+    await disposeEditor(editor);
 });

@@ -52,6 +52,7 @@ const ROOT_TYPE_PROPERTIES = Object.freeze({
     line: new Set(['x1', 'x2', 'y1', 'y2']),
     path: new Set(['path']),
     polygon: new Set(['points']),
+    polyline: new Set(['points']),
     textbox: new Set([
         'charSpacing',
         'direction',

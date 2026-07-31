@@ -32,7 +32,7 @@ function stateParticipantPlugin() {
                 conflictDomains: ['document', 'state'],
                 reentrancy: 'reject',
             });
-            context.addDisposable(
+            context.disposables.add(
                 state.registerSlice({
                     id: pluginRef.id,
                     version: 1,

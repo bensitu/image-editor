@@ -1,14 +1,14 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
-const require_core_capabilities = require('../../chunks/core-capabilities-3eNZsGJV.cjs');
-const require_core = require('../../chunks/core-BakmHO6P.cjs');
-const require_overlay = require('../../chunks/overlay-PTe0btlf.cjs');
-const require_annotation = require('../../chunks/annotation-smLNvJo4.cjs');
-const require_transform = require('../../chunks/transform-CaTYyg50.cjs');
-const require_history = require('../../chunks/history-B7vPAEls.cjs');
-const require_annotation_text = require('../../chunks/annotation-text-DlLMVmus.cjs');
-const require_annotation_shape = require('../../chunks/annotation-shape-BPJif8Gh.cjs');
-const require_annotation_draw = require('../../chunks/annotation-draw-1ZNMAxaz.cjs');
-const require_overlay_state = require('../../chunks/overlay-state-D9j2wreQ.cjs');
+const require_core_capabilities = require('../../chunks/core-capabilities-DPdoMgAf.cjs');
+const require_core = require('../../chunks/core-DTjDVDW5.cjs');
+const require_overlay = require('../../chunks/overlay-DZYUPlOn.cjs');
+const require_annotation = require('../../chunks/annotation-BGYjUPuP.cjs');
+const require_transform = require('../../chunks/transform-BRbeAqOU.cjs');
+const require_history = require('../../chunks/history-Bhj7lTsr.cjs');
+const require_annotation_text = require('../../chunks/annotation-text-DHZJKSIO.cjs');
+const require_annotation_shape = require('../../chunks/annotation-shape-BrtgxmHX.cjs');
+const require_annotation_draw = require('../../chunks/annotation-draw-B3SocfQA.cjs');
+const require_overlay_state = require('../../chunks/overlay-state-C_Mxg3Y1.cjs');
 const require_preset_support = require('../../chunks/preset-support-BDSqE4Hg.cjs');
 
 //#region dist/esm/presets/annotation/index.js

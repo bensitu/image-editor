@@ -1,165 +1,77 @@
-/**
- * Type:
- *   Unit test
- *
- * Purpose:
- *   Verifies editor-owned layer ordering helpers keep base, overlay, and session
- *   object bands in the intended stack order.
- *
- * Scope:
- *   - normalizeLayerOrder repairs a full mixed object stack.
- *   - Single-object placement helpers insert base images, masks, annotations, and
- *     session objects into the correct layer band.
- *
- * Out of scope:
- *   - Fabric rendering behavior
- *   - state serialization
- *   - ImageEditor facade layer commands
- *
- * Environment:
- *   - Node.js ESM
- *   - mocked Fabric canvas stack operations
- *
- * Run:
- *   node --test tests/layer-order.test.mjs
- */
+/** Verifies the layer-placement helpers used by current raster, Mask, and session code. */
 
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 
-const {
-    normalizeLayerOrder,
-    placeAnnotationObject,
-    placeBaseImageObject,
-    placeMaskObject,
-    placeRasterVisualObject,
-    placeSessionObject,
-} = await import('../src/utils/internal-layer-placement.ts');
+const { placeMaskObject, placeRasterVisualObject, placeSessionObject } =
+    await import('../src/utils/internal-layer-placement.ts');
 
 class MockCanvas {
     constructor(objects = []) {
         this.objects = objects.slice();
-        this.moveCalls = 0;
     }
+
     getObjects() {
         return this.objects.slice();
     }
+
     add(object) {
         this.objects.push(object);
     }
+
     remove(object) {
         this.objects = this.objects.filter((candidate) => candidate !== object);
     }
+
     insertAt(index, object) {
         this.objects.splice(index, 0, object);
     }
+
     moveObjectTo(object, index) {
-        this.moveCalls += 1;
         this.remove(object);
         this.insertAt(index, object);
         return true;
     }
 }
 
-function base(name) {
-    return { name, editorObjectKind: 'baseImage' };
-}
-
-function mask(name) {
-    return { name, editorObjectKind: 'mask', maskId: 1, maskUid: name, maskName: name };
-}
-
-function annotation(name) {
-    return {
-        name,
-        editorObjectKind: 'annotation',
-        annotationId: 1,
-        annotationType: 'text',
-        annotationName: name,
-    };
-}
-
-function session(name) {
-    return { name, editorObjectKind: 'session', sessionObjectType: 'mosaicPreviewCircle' };
-}
-
-function rasterVisual(name) {
-    return { name, editorLayerRole: 'rasterVisual' };
-}
-
-function other(name) {
-    return { name };
-}
-
 function names(canvas) {
     return canvas.getObjects().map((object) => object.name);
 }
 
-test('normalizeLayerOrder repairs base, other, overlay, session groups', () => {
+test('placement keeps raster visuals above Base Images and Masks below session UI', () => {
     const canvas = new MockCanvas([
-        session('session1'),
-        mask('mask1'),
-        other('other1'),
-        rasterVisual('raster1'),
-        base('base1'),
-        annotation('annotation1'),
+        { name: 'base', editorObjectKind: 'baseImage' },
+        { name: 'host-object' },
+        {
+            name: 'existing-session',
+            editorObjectKind: 'session',
+            sessionObjectType: 'mosaicPreviewCircle',
+        },
     ]);
+    const raster = { name: 'raster' };
+    const mask = {
+        name: 'mask',
+        editorObjectKind: 'mask',
+        maskId: 1,
+        maskUid: 'mask-1',
+        maskName: 'mask1',
+    };
+    const session = {
+        name: 'new-session',
+        editorObjectKind: 'session',
+        sessionObjectType: 'cropRect',
+    };
 
-    normalizeLayerOrder(canvas);
+    placeRasterVisualObject(canvas, raster);
+    placeMaskObject(canvas, mask);
+    placeSessionObject(canvas, session);
 
     assert.deepEqual(names(canvas), [
-        'base1',
-        'raster1',
-        'other1',
-        'mask1',
-        'annotation1',
-        'session1',
-    ]);
-});
-
-test('normalizeLayerOrder preserves editable overlay relative order', () => {
-    const canvas = new MockCanvas([
-        session('session1'),
-        annotation('drawAnnotation'),
-        other('other1'),
-        mask('mask1'),
-        base('base1'),
-        annotation('textAnnotation'),
-    ]);
-
-    normalizeLayerOrder(canvas);
-
-    assert.deepEqual(names(canvas), [
-        'base1',
-        'other1',
-        'drawAnnotation',
-        'mask1',
-        'textAnnotation',
-        'session1',
-    ]);
-});
-test('single-object placement inserts new objects into the correct layer band', () => {
-    const canvas = new MockCanvas([base('base1'), other('other1'), session('session1')]);
-    const mask1 = mask('mask1');
-    const annotation1 = annotation('annotation1');
-    const session2 = session('session2');
-    const raster1 = rasterVisual('raster1');
-    const base2 = base('base2');
-
-    placeRasterVisualObject(canvas, raster1);
-    placeMaskObject(canvas, mask1);
-    placeAnnotationObject(canvas, annotation1);
-    placeSessionObject(canvas, session2);
-    placeBaseImageObject(canvas, base2);
-
-    assert.deepEqual(names(canvas), [
-        'base1',
-        'base2',
-        'raster1',
-        'other1',
-        'mask1',
-        'annotation1',
-        'session1',
-        'session2',
+        'base',
+        'raster',
+        'host-object',
+        'mask',
+        'existing-session',
+        'new-session',
     ]);
 });

@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_plugin_identifier = require('../chunks/plugin-identifier-XGwyoPRa.cjs');
-const require_core_capabilities = require('../chunks/core-capabilities-3eNZsGJV.cjs');
-const require_plugin_manager = require('../chunks/plugin-manager-mBARysVw.cjs');
+const require_plugin_identifier = require('../chunks/plugin-identifier-DhlVh5SQ.cjs');
+const require_core_capabilities = require('../chunks/core-capabilities-DPdoMgAf.cjs');
+const require_plugin_manager = require('../chunks/plugin-manager-BoNG0xY_.cjs');
 
 //#region dist/esm/testing/deferred-operation.js
 function createDeferredOperation() {
@@ -113,32 +113,21 @@ var AsyncPluginManager = class extends require_plugin_manager.PluginManager {
 		if (host.topLevelInstallActive) throw new require_plugin_identifier.PluginKernelStateError("start a concurrent plugin installation", this.state);
 		host.topLevelInstallActive = true;
 		try {
-			return (await this.performAsyncInstall(host, plugin, "strict", [])).api;
+			return (await this.performAsyncInstall(host, plugin)).api;
 		} finally {
 			host.topLevelInstallActive = false;
 		}
 	}
-	async performAsyncInstall(host, input, mode, parentStack) {
+	async performAsyncInstall(host, input) {
 		const plugin = host.normalizePluginDefinition(input);
 		const pluginId = plugin.ref.id;
-		if (parentStack.includes(pluginId)) throw new require_plugin_identifier.InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(" -> ")}.`, pluginId);
-		const existing = host.installed.get(pluginId);
-		if (existing) {
-			if (mode === "strict") throw new require_plugin_identifier.PluginAlreadyInstalledError(pluginId);
-			if (!require_plugin_manager.sameInstallationDefinition(existing.plugin, plugin)) throw new require_plugin_identifier.PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
-			return {
-				api: existing.api,
-				installedPlugin: existing.plugin
-			};
-		}
+		if (host.installed.get(pluginId)) throw new require_plugin_identifier.PluginAlreadyInstalledError(pluginId);
 		host.assertPluginDependenciesInstalled(plugin);
 		const { required, optional } = host.resolveCapabilities(plugin);
 		require_core_capabilities.acquirePluginDefinitionLease(plugin, this, pluginId);
 		const scope = new require_plugin_manager.RegistrationScope(pluginId, host.options);
-		const stack = [...parentStack, pluginId];
-		const installDependency = this.createDependencyInstaller(host, scope, stack);
 		try {
-			const contexts = host.createContexts(plugin.ref, scope, required, optional, installDependency);
+			const contexts = host.createContexts(plugin.ref, scope, required, optional);
 			const api = await plugin.setup(contexts.setup);
 			if (!(typeof api === "object" && api !== null || typeof api === "function")) throw new require_plugin_identifier.InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
 			scope.commit();
@@ -160,42 +149,6 @@ var AsyncPluginManager = class extends require_plugin_manager.PluginManager {
 			require_core_capabilities.releasePluginDefinitionLease(plugin, this);
 			throw new require_plugin_identifier.PluginSetupError(pluginId, error, cleanupErrors);
 		}
-	}
-	createDependencyInstaller(host, scope, stack) {
-		const installNow = async (dependency) => {
-			scope.assertOpen("ensure a composed plugin dependency");
-			const before = new Set(host.installationOrder);
-			const outcome = await this.performAsyncInstall(host, dependency, "ensure", stack);
-			const newlyInstalled = host.installationOrder.filter((id) => !before.has(id));
-			for (const installedPluginId of newlyInstalled) scope.addRollback(require_core_capabilities.createDisposable(() => this.rollbackAsyncInstalledPlugin(host, installedPluginId)));
-			return outcome.api;
-		};
-		let queue = Promise.resolve();
-		return (dependency) => {
-			const result = queue.then(() => installNow(dependency));
-			queue = result.then(() => void 0, () => void 0);
-			return result;
-		};
-	}
-	async rollbackAsyncInstalledPlugin(host, pluginId) {
-		const record = host.installed.get(pluginId);
-		if (!record) return;
-		host.installed.delete(pluginId);
-		const orderIndex = host.installationOrder.lastIndexOf(pluginId);
-		if (orderIndex >= 0) host.installationOrder.splice(orderIndex, 1);
-		const errors = [];
-		if (record.plugin.onDispose) try {
-			await record.plugin.onDispose(record.lifecycleContext);
-		} catch (error) {
-			errors.push(new require_plugin_identifier.PluginLifecycleError(pluginId, "dispose", error));
-		}
-		try {
-			await record.scope.dispose();
-		} catch (error) {
-			errors.push(error);
-		}
-		require_core_capabilities.releasePluginDefinitionLease(record.plugin, this);
-		if (errors.length > 0) throw new require_plugin_identifier.PluginAggregateError(`[ImageEditor] Rollback of composed plugin "${pluginId}" failed.`, errors, { pluginId });
 	}
 };
 

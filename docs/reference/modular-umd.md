@@ -29,11 +29,11 @@ Fabric must load first. Core must load before every Plugin, and Foundations must
 load before the Features that depend on them. Every Core and Plugin file on a
 page must come from the exact same `@bensitu/image-editor` package version.
 
-For example, keep both URLs on `3.0.0-rc.1`:
+Replace `VERSION` with one exact published 3.x version in every URL:
 
 ```text
-@bensitu/image-editor@3.0.0-rc.1/dist/umd/image-editor.core.umd.min.js
-@bensitu/image-editor@3.0.0-rc.1/dist/umd/plugins/image-editor.plugin.mask.umd.min.js
+@bensitu/image-editor@VERSION/dist/umd/image-editor.core.umd.min.js
+@bensitu/image-editor@VERSION/dist/umd/plugins/image-editor.plugin.mask.umd.min.js
 ```
 
 Do not combine `@latest`, an unversioned URL, or a different release with

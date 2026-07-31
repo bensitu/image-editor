@@ -145,7 +145,7 @@ test('targeted rollback failure falls back to a trusted Core memento', async () 
         permissions: ['core:geometry-participant'],
         setup(context) {
             const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
-            context.addDisposable(
+            context.disposables.add(
                 geometry.registerParticipant({
                     id: failureRef.id,
                     order: 100,
@@ -197,7 +197,7 @@ test('failed transforms never reach the registered history provider', async () =
         setup(context) {
             const records = [];
             const state = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
-            context.addDisposable(
+            context.disposables.add(
                 state.registerHistoryProvider(historyRef.id, {
                     isAvailable: () => true,
                     commit: (record) => records.push(record),

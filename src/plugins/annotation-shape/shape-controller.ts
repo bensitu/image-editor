@@ -325,7 +325,7 @@ function isSerializedShape(value: unknown): value is SerializedShape {
             value.version !== 1 ||
             !isPlainRecord(serializedObject) ||
             !isSafeSerializedFabricObject(serializedObject, {
-                rootTypes: ['rect', 'line', 'path'],
+                rootTypes: ['rect', 'line', 'polyline', 'path'],
             })
         ) {
             return false;
@@ -338,7 +338,7 @@ function isSerializedShape(value: unknown): value is SerializedShape {
             bytes <= MAX_SHAPE_OBJECT_BYTES &&
             geometry.kind === value.shapeKind &&
             ((geometry.kind === 'rect' && type === 'rect') ||
-                (geometry.kind === 'line' && type === 'line') ||
+                (geometry.kind === 'line' && (type === 'line' || type === 'polyline')) ||
                 (geometry.kind === 'arrow' && type === 'path'))
         );
     } catch {
@@ -369,7 +369,8 @@ export class ShapeAnnotationController {
                 const shape = object as ShapeObject;
                 return (
                     (shape.editorShapeKind === 'rect' && object instanceof this.host.fabric.Rect) ||
-                    (shape.editorShapeKind === 'line' && object instanceof this.host.fabric.Line) ||
+                    (shape.editorShapeKind === 'line' &&
+                        object.isType('Line', 'line', 'Polyline', 'polyline')) ||
                     (shape.editorShapeKind === 'arrow' && object instanceof this.host.fabric.Path)
                 );
             },
@@ -710,8 +711,11 @@ export class ShapeAnnotationController {
                 originY: 'top',
             });
         } else if (geometry.kind === 'line') {
-            object = new this.host.fabric.Line(
-                [geometry.start.x, geometry.start.y, geometry.end.x, geometry.end.y],
+            object = new this.host.fabric.Polyline(
+                [
+                    { x: geometry.start.x, y: geometry.start.y },
+                    { x: geometry.end.x, y: geometry.end.y },
+                ],
                 common,
             );
         } else {

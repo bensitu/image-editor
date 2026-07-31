@@ -3,7 +3,7 @@
     "compilerOptions": {
         /* ── Language ────────────────────────────────────────────────────── */
         "target": "ES2019",
-        "lib": ["ES2019", "DOM", "DOM.Iterable"],
+        "lib": ["ES2019", "DOM"],
         "useDefineForClassFields": true,
         /* ── Modules ─────────────────────────────────────────────────────── */
         "module": "ESNext",

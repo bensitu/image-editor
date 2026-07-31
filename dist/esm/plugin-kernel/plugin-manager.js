@@ -1,7 +1,7 @@
 import { CapabilityRegistry } from './capability-registry.js';
 import { CommittedEventBus, } from './committed-event-bus.js';
 import { isPromiseLike } from './disposable.js';
-import { InvalidPluginDefinitionError, PluginAggregateError, PluginAlreadyInstalledError, PluginBatchInstallError, PluginCapabilityError, PluginDefinitionConflictError, PluginDependencyCycleError, PluginDependencyError, PluginKernelDisposedError, PluginKernelStateError, PluginLifecycleError, PluginNotInstalledError, PluginPermissionError, PluginSetupError, PluginVersionMismatchError, } from './errors.js';
+import { InvalidPluginDefinitionError, PluginAggregateError, PluginAlreadyInstalledError, PluginBatchInstallError, PluginCapabilityError, PluginDefinitionConflictError, PluginDependencyCycleError, PluginDependencyError, PluginKernelDisposedError, PluginKernelStateError, PluginLifecycleError, PluginNotInstalledError, PluginPermissionError, PluginSetupError, } from './errors.js';
 import { acquirePluginDefinitionLease, isCanonicalPluginDefinition, markCanonicalPluginDefinition, releasePluginDefinitionLease, } from './plugin-definition-lease.js';
 import { OperationRegistry, } from './operation-registry.js';
 import { getOfficialPluginPackageHint } from './official-plugin-package-hints.js';
@@ -71,7 +71,7 @@ function sameArray(left, right, equal) {
     return (left.length === right.length &&
         left.every((leftValue, index) => equal(leftValue, right[index])));
 }
-export function sameInstallationDefinition(left, right) {
+function sameInstallationDefinition(left, right) {
     return (left.ref === right.ref &&
         left.manifest.id === right.manifest.id &&
         left.manifest.version === right.manifest.version &&
@@ -183,7 +183,7 @@ export class PluginManager {
         }
         this.topLevelInstallActive = true;
         try {
-            const outcome = this.performInstallSync(plugin, 'strict', []);
+            const outcome = this.performInstallSync(plugin);
             return Object.freeze({
                 api: outcome.api,
                 installedPlugin: outcome.installedPlugin,
@@ -594,25 +594,15 @@ export class PluginManager {
             throw this.createDependencyError(plugin.ref.id, dependency, [...this.installed.keys()]);
         }
     }
-    performInstallSync(input, mode, parentStack) {
+    performInstallSync(input) {
         const plugin = this.normalizePluginDefinition(input);
         if (plugin.setupMode !== 'sync') {
             throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`, plugin.ref.id);
         }
         const pluginId = plugin.ref.id;
-        if (parentStack.includes(pluginId)) {
-            throw new InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`, pluginId);
-        }
         const existing = this.installed.get(pluginId);
-        if (existing) {
-            if (mode === 'strict')
-                throw new PluginAlreadyInstalledError(pluginId);
-            const compatible = sameInstallationDefinition(existing.plugin, plugin);
-            if (!compatible) {
-                throw new PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
-            }
-            return { api: existing.api, installedPlugin: existing.plugin };
-        }
+        if (existing)
+            throw new PluginAlreadyInstalledError(pluginId);
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
         acquirePluginDefinitionLease(plugin, this, pluginId);
@@ -676,7 +666,7 @@ export class PluginManager {
             return;
         throw new PluginPermissionError(plugin.ref.id, permission, capabilityId);
     }
-    createContexts(plugin, scope, required, optional, dependencyInstaller) {
+    createContexts(plugin, scope, required, optional) {
         const pluginId = plugin.id;
         const state = this.stateStore.createScoped(pluginId, (disposable) => scope.add(disposable), (disposable) => scope.addFinalizer(disposable), () => scope.active);
         const capabilities = Object.freeze({
@@ -777,9 +767,6 @@ export class PluginManager {
                 return scope.add(this.eventBus.on(eventName, listener));
             },
         });
-        const ensurePlugin = dependencyInstaller !== null && dependencyInstaller !== void 0 ? dependencyInstaller : (() => {
-            throw new PluginKernelStateError('install a composed dependency from synchronous Plugin setup', this.hostState);
-        });
         const disposables = Object.freeze({
             get active() {
                 return scope.active;
@@ -798,12 +785,6 @@ export class PluginManager {
             tools: setupTools,
             events: setupEvents,
             disposables,
-            addDisposable: (disposable) => {
-                scope.assertOpen();
-                return scope.add(disposable);
-            },
-            ensure: (dependency) => ensurePlugin(dependency),
-            ensurePlugin,
         });
         return { setup, lifecycle };
     }

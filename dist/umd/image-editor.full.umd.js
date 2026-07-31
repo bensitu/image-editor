@@ -220,11 +220,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.valueKind = valueKind;
 		}
 	};
-	var PluginVersionMismatchError = class extends PluginError {
-		constructor(pluginId, installedVersion, requestedVersion, installedApiVersion, requestedApiVersion) {
-			super("PLUGIN_VERSION_MISMATCH", `[ImageEditor] Plugin "${pluginId}" cannot be reused: installed implementation/API versions are "${installedVersion}"/"${installedApiVersion}", requested versions are "${requestedVersion}"/"${requestedApiVersion}".`, { pluginId });
-		}
-	};
 	var OperationRegistrationError = class extends PluginError {
 		constructor(message, pluginId) {
 			super("OPERATION_REGISTRATION_ERROR", `[ImageEditor] ${message}`, createPluginErrorOptions(pluginId));
@@ -563,7 +558,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugin-kernel/plugin-manifest.js
 	const CORE_API_VERSION = "3.0.0";
-	const CORE_API_RANGE = `^${CORE_API_VERSION}`;
 	const MAX_VERSION_LENGTH = 64;
 	const MAX_PLUGIN_DEPENDENCIES = 64;
 	const MAX_CAPABILITY_REQUIREMENTS = 64;
@@ -2231,7 +2225,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (this.topLevelInstallActive) throw new PluginKernelStateError("start a concurrent plugin installation", this.hostState);
 			this.topLevelInstallActive = true;
 			try {
-				const outcome = this.performInstallSync(plugin, "strict", []);
+				const outcome = this.performInstallSync(plugin);
 				return Object.freeze({
 					api: outcome.api,
 					installedPlugin: outcome.installedPlugin
@@ -2568,20 +2562,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				throw this.createDependencyError(plugin.ref.id, dependency, [...this.installed.keys()]);
 			}
 		}
-		performInstallSync(input, mode, parentStack) {
+		performInstallSync(input) {
 			const plugin = this.normalizePluginDefinition(input);
 			if (plugin.setupMode !== "sync") throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`, plugin.ref.id);
 			const pluginId = plugin.ref.id;
-			if (parentStack.includes(pluginId)) throw new InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(" -> ")}.`, pluginId);
-			const existing = this.installed.get(pluginId);
-			if (existing) {
-				if (mode === "strict") throw new PluginAlreadyInstalledError(pluginId);
-				if (!sameInstallationDefinition(existing.plugin, plugin)) throw new PluginVersionMismatchError(pluginId, existing.plugin.manifest.version, plugin.manifest.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
-				return {
-					api: existing.api,
-					installedPlugin: existing.plugin
-				};
-			}
+			if (this.installed.get(pluginId)) throw new PluginAlreadyInstalledError(pluginId);
 			this.assertPluginDependenciesInstalled(plugin);
 			const { required, optional } = this.resolveCapabilities(plugin);
 			acquirePluginDefinitionLease(plugin, this, pluginId);
@@ -2641,7 +2626,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!permission || ((_a = plugin.manifest.permissions) === null || _a === void 0 ? void 0 : _a.includes(permission))) return;
 			throw new PluginPermissionError(plugin.ref.id, permission, capabilityId);
 		}
-		createContexts(plugin, scope, required, optional, dependencyInstaller) {
+		createContexts(plugin, scope, required, optional) {
 			const pluginId = plugin.id;
 			const state = this.stateStore.createScoped(pluginId, (disposable) => scope.add(disposable), (disposable) => scope.addFinalizer(disposable), () => scope.active);
 			const capabilities = Object.freeze({
@@ -2730,9 +2715,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return scope.add(this.eventBus.on(eventName, listener));
 				}
 			});
-			const ensurePlugin = dependencyInstaller !== null && dependencyInstaller !== void 0 ? dependencyInstaller : (() => {
-				throw new PluginKernelStateError("install a composed dependency from synchronous Plugin setup", this.hostState);
-			});
 			const disposables = Object.freeze({
 				get active() {
 					return scope.active;
@@ -2751,13 +2733,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					operations: setupOperations,
 					tools: setupTools,
 					events: setupEvents,
-					disposables,
-					addDisposable: (disposable) => {
-						scope.assertOpen();
-						return scope.add(disposable);
-					},
-					ensure: (dependency) => ensurePlugin(dependency),
-					ensurePlugin
+					disposables
 				}),
 				lifecycle
 			};
@@ -7653,12 +7629,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return normalizedAngleMagnitude(flipYCandidate) < normalizedAngleMagnitude(flipXCandidate) ? flipYCandidate : flipXCandidate;
 	}
 	function applyDeltaToObject(object, fullDelta, context) {
-		var _a, _b, _c;
+		var _a;
 		if (!isFiniteTransformMatrix(fullDelta) || isApproximatelyIdentityTransform(fullDelta)) return;
 		const { fabricUtil } = context;
 		object.setCoords();
-		const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : "left";
-		const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : "top";
 		const previousTransform = {
 			angle: object.angle,
 			scaleX: object.scaleX,
@@ -7674,12 +7648,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		let restoreCenter = originalCenter;
 		let committed = false;
 		try {
-			object.set({
-				originX: "center",
-				originY: "center"
-			});
-			object.setPositionByOrigin(originalCenter, "center", "center");
-			object.setCoords();
 			const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, object.calcTransformMatrix());
 			if (!isFiniteTransformMatrix(nextMatrix)) return;
 			const decomposed = fabricUtil.qrDecompose(nextMatrix);
@@ -7692,7 +7660,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				scaleX: decomposed.scaleX,
 				scaleY: decomposed.scaleY,
 				skewX: decomposed.skewX,
-				skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0
+				skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0
 			});
 			if (typeof decomposed.flipX === "boolean" || typeof decomposed.flipY === "boolean") object.set({
 				...typeof decomposed.flipX === "boolean" ? { flipX: decomposed.flipX } : {},
@@ -7702,10 +7670,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			committed = true;
 		} finally {
 			if (!committed) object.set(previousTransform);
-			object.set({
-				originX: previousOriginX,
-				originY: previousOriginY
-			});
 			object.setPositionByOrigin(restoreCenter, "center", "center");
 			object.setCoords();
 		}
@@ -9646,7 +9610,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return angleMagnitude(flipY) < angleMagnitude(flipX) ? flipY : flipX;
 	}
 	function applyAnnotationGeometry(object, mutation, fabricModule, preserveReadable) {
-		var _a, _b, _c;
+		var _a;
 		if (mutation.kind !== "transform") return;
 		const delta = mutation.affineDelta;
 		if (!delta || !isFiniteMatrix(delta)) return;
@@ -9656,20 +9620,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			Point: fabricModule.Point
 		};
 		object.setCoords();
-		const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : "left";
-		const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : "top";
 		const originalCenter = object.getCenterPoint();
 		const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = delta;
 		const targetCenter = new fabric.Point(a * originalCenter.x + c * originalCenter.y + e, b * originalCenter.x + d * originalCenter.y + f);
 		const orientationDelta = preserveReadable ? stripReflection(delta, fabric) : delta;
 		let restoreCenter = originalCenter;
 		try {
-			object.set({
-				originX: "center",
-				originY: "center"
-			});
-			object.setPositionByOrigin(originalCenter, "center", "center");
-			object.setCoords();
 			const nextMatrix = fabric.multiplyTransformMatrices(orientationDelta, object.calcTransformMatrix());
 			if (!isFiniteMatrix(nextMatrix)) return;
 			const decomposed = fabric.qrDecompose(nextMatrix);
@@ -9682,7 +9638,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				scaleX: decomposed.scaleX,
 				scaleY: decomposed.scaleY,
 				skewX: decomposed.skewX,
-				skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0
+				skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0
 			});
 			if (typeof decomposed.flipX === "boolean" || typeof decomposed.flipY === "boolean") object.set({
 				...typeof decomposed.flipX === "boolean" ? { flipX: decomposed.flipX } : {},
@@ -9690,10 +9646,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			restoreCenter = targetCenter;
 		} finally {
-			object.set({
-				originX: previousOriginX,
-				originY: previousOriginY
-			});
 			object.setPositionByOrigin(restoreCenter, "center", "center");
 			object.setCoords();
 		}
@@ -10682,10 +10634,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#region dist/esm/fabric/fabric-animation.js
 	const ANIMATION_SETTLE_GRACE_MS = 1e3;
 	const ANIMATION_ABORT_QUIESCENCE_MS = 50;
-	function animateProps(object, props, options, guard) {
+	function animateProps(object, props, options, control) {
 		return new Promise((resolve, reject) => {
 			const propCount = Object.keys(props).length;
-			if (propCount === 0 || guard.isDisposed()) {
+			if (propCount === 0 || control.isDisposed()) {
 				resolve();
 				return;
 			}
@@ -10754,7 +10706,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			};
 			const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
 			timeoutId = setTimeout(abortAndQuiesce, duration + ANIMATION_SETTLE_GRACE_MS);
-			unregisterAborter = guard.registerAnimationAborter(abortAndQuiesce);
+			unregisterAborter = control.registerAnimationAborter(abortAndQuiesce);
 			try {
 				aborters = collectAnimationAborters(object.animate(props, {
 					duration,
@@ -10764,7 +10716,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							scheduleQuiescenceSettlement();
 							return;
 						}
-						if (guard.isDisposed()) return;
+						if (control.isDisposed()) return;
 						(_a = options.onChange) === null || _a === void 0 || _a.call(options);
 					},
 					onComplete: () => {
@@ -11163,7 +11115,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 		}
 		captureRollback(image) {
-			var _a, _b;
 			return Object.freeze({
 				transform: this.getState(),
 				image: Object.freeze({
@@ -11174,8 +11125,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					angle: Number(image.angle) || 0,
 					flipX: image.flipX === true,
 					flipY: image.flipY === true,
-					originX: (_a = image.originX) !== null && _a !== void 0 ? _a : "left",
-					originY: (_b = image.originY) !== null && _b !== void 0 ? _b : "top"
+					originX: "left",
+					originY: "top"
 				})
 			});
 		}
@@ -11814,6 +11765,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		]),
 		path: /* @__PURE__ */ new Set(["path"]),
 		polygon: /* @__PURE__ */ new Set(["points"]),
+		polyline: /* @__PURE__ */ new Set(["points"]),
 		textbox: /* @__PURE__ */ new Set([
 			"charSpacing",
 			"direction",
@@ -12645,10 +12597,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return isPlainRecord$4(value) && typeof value.x === "number" && Number.isFinite(value.x) && typeof value.y === "number" && Number.isFinite(value.y);
 	}
 	function maskStateKind(object) {
-		var _a;
-		const kind = String((_a = object.type) !== null && _a !== void 0 ? _a : "").toLowerCase();
-		if (kind === "rect" || kind === "circle" || kind === "ellipse" || kind === "polygon") return kind;
-		throw new CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
+		if (object.isType("Rect", "rect")) return "rect";
+		if (object.isType("Circle", "circle")) return "circle";
+		if (object.isType("Ellipse", "ellipse")) return "ellipse";
+		if (object.isType("Polygon", "polygon")) return "polygon";
+		const constructorName = object.constructor.name || "unknown";
+		throw new CoreRuntimeError(`[ImageEditor] Mask kind "${constructorName}" cannot be persisted.`);
 	}
 	function normalizedPolygonPoints(object) {
 		const candidate = Reflect.get(object, "points");
@@ -13584,8 +13538,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			skewY: source.skewY,
 			flipX: source.flipX,
 			flipY: source.flipY,
-			originX: source.originX,
-			originY: source.originY,
+			originX: "left",
+			originY: "top",
 			opacity: source.opacity,
 			visible: source.visible,
 			selectable: options.transient ? false : source.selectable,
@@ -15688,8 +15642,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		target.set({
 			left: source.left,
 			top: source.top,
-			originX: source.originX,
-			originY: source.originY,
+			originX: "left",
+			originY: "top",
 			scaleX: source.scaleX,
 			scaleY: source.scaleY,
 			angle: source.angle,
@@ -17401,12 +17355,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (value.version !== 1 || !isPlainRecord$2(serializedObject) || !isSafeSerializedFabricObject(serializedObject, { rootTypes: [
 				"rect",
 				"line",
+				"polyline",
 				"path"
 			] })) return false;
 			const geometry = normalizeShapeGeometry(value.geometry);
 			const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
 			const type = typeof serializedObject.type === "string" ? serializedObject.type.toLowerCase() : "";
-			return bytes <= MAX_SHAPE_OBJECT_BYTES && geometry.kind === value.shapeKind && (geometry.kind === "rect" && type === "rect" || geometry.kind === "line" && type === "line" || geometry.kind === "arrow" && type === "path");
+			return bytes <= MAX_SHAPE_OBJECT_BYTES && geometry.kind === value.shapeKind && (geometry.kind === "rect" && type === "rect" || geometry.kind === "line" && (type === "line" || type === "polyline") || geometry.kind === "arrow" && type === "path");
 		} catch {
 			return false;
 		}
@@ -17463,7 +17418,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				ownerPluginId: SHAPE_PLUGIN_ID,
 				classify: (object) => {
 					const shape = object;
-					return shape.editorShapeKind === "rect" && object instanceof this.host.fabric.Rect || shape.editorShapeKind === "line" && object instanceof this.host.fabric.Line || shape.editorShapeKind === "arrow" && object instanceof this.host.fabric.Path;
+					return shape.editorShapeKind === "rect" && object instanceof this.host.fabric.Rect || shape.editorShapeKind === "line" && object.isType("Line", "line", "Polyline", "polyline") || shape.editorShapeKind === "arrow" && object instanceof this.host.fabric.Path;
 				},
 				codec: {
 					type: "annotation:shape-object",
@@ -17718,12 +17673,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				originX: "left",
 				originY: "top"
 			});
-			else if (geometry.kind === "line") object = new this.host.fabric.Line([
-				geometry.start.x,
-				geometry.start.y,
-				geometry.end.x,
-				geometry.end.y
-			], common);
+			else if (geometry.kind === "line") object = new this.host.fabric.Polyline([{
+				x: geometry.start.x,
+				y: geometry.start.y
+			}, {
+				x: geometry.end.x,
+				y: geometry.end.y
+			}], common);
 			else object = new this.host.fabric.Path(buildArrowPath(geometry, resolved.arrowHeadLength), common);
 			object.editorShapeKind = geometry.kind;
 			object.editorShapeGeometry = geometry;

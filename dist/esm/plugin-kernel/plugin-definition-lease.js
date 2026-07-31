@@ -10,7 +10,7 @@ export function resolvePluginDefinitionIdentity(definition) {
     }
     return current;
 }
-export function aliasPluginDefinitionIdentity(snapshot, source) {
+function aliasPluginDefinitionIdentity(snapshot, source) {
     definitionAliases.set(snapshot, resolvePluginDefinitionIdentity(source));
     return snapshot;
 }

@@ -8,7 +8,8 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { FabricModule, MaskFactoryOptions, MaskObject } from '../core/public-types.js';
+import type { FabricModule } from '../core-runtime/public-types.js';
+import type { MaskFactoryOptions, MaskObject } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
 import { markSessionObject, placeSessionObject } from '../utils/internal-layer-placement.js';
@@ -16,9 +17,7 @@ import { markSessionObject, placeSessionObject } from '../utils/internal-layer-p
 /**
  * State the label helpers read from the editor runtime.
  *
- * The module does NOT own any of these slots — it only reads them so
- * ownership of the canvas, Fabric module, and resolved options stays on the
- * runtime.
+ * The module does not own these values; the Mask controller supplies its active runtime state.
  */
 export interface MaskLabelManagerContext {
     /** Injected Fabric.js module used to construct the label text. */
@@ -30,8 +29,8 @@ export interface MaskLabelManagerContext {
 }
 
 /**
- * Marker flag mixed into label text objects so the state serializer can
- * filter them out of history snapshots.
+ * Marker flag mixed into label text objects for controller cleanup and defensive identification.
+ * The session-object marker is the authoritative signal that excludes labels from Overlay state.
  *
  * Local helper alias to keep the casts at the use sites readable.
  */
@@ -42,8 +41,7 @@ type LabelText = FabricNS.FabricText & { maskLabel?: boolean };
  *
  * No-op when the canvas is unset or the mask has no `labelObject`. Each
  * removal step is wrapped in `try/catch` so a stale Fabric reference does
- * not break callers that iterate every mask (e.g. {@link hideAllMaskLabels}
- * or `removeAllMasks`).
+ * not break callers that iterate every mask during cleanup.
  *
  * Steps:
  *
@@ -51,7 +49,7 @@ type LabelText = FabricNS.FabricText & { maskLabel?: boolean };
  * 2. Delete `mask.labelObject` so subsequent {@link showLabelForMask} calls
  *    rebuild it instead of reusing a stale reference.
  *
- * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param context - Active Mask label context.
  * @param mask - The mask whose label overlay should be removed.
  */
 export function removeLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void {
@@ -86,12 +84,11 @@ export function removeLabelForMask(context: MaskLabelManagerContext, mask: MaskO
  *    the stable creation index rather than the live list position. Build
  *    a Fabric text using `options.label.textOptions` with `originX: 'left'`
  *    and `originY: 'top'` re-asserted explicitly.
- * 4. Tag the resulting object with `maskLabel = true` so the state
- *    serializer filters it out of history snapshots.
+ * 4. Mark the label as a session object and add a local cleanup flag.
  * 5. Attach the label to the mask, add it to the canvas, bring it to the
  *    front, and run an initial {@link syncMaskLabel} to position it.
  *
- * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param context - Active Mask label context.
  * @param mask - The mask the label overlay is being created for.
  */
 function createLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void {
@@ -142,8 +139,7 @@ function createLabelForMask(context: MaskLabelManagerContext, mask: MaskObject):
         labelTextObject = new fabricModule.FabricText(labelText, textOptions);
     }
 
-    // Mark as session-only so the state serializer excludes it from history
-    // snapshots.
+    // Session objects are excluded from Overlay persistence and History snapshots.
     markSessionObject(labelTextObject, 'maskLabel');
     (labelTextObject as LabelText).maskLabel = true;
 
@@ -169,10 +165,9 @@ function createLabelForMask(context: MaskLabelManagerContext, mask: MaskObject):
  *   center of the rotated bounding box. This keeps the offset visually
  *   consistent regardless of mask rotation.
  * - The label inherits the mask's `angle` so it rotates with the mask.
- * - `originX: 'left'` and `originY: 'top'` are re-asserted on every sync
- *   to.
+ * - `originX: 'left'` and `originY: 'top'` are re-asserted on every sync.
  *
- * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param context - Active Mask label context.
  * @param mask - The mask whose label should be repositioned.
  */
 export function syncMaskLabel(context: MaskLabelManagerContext, mask: MaskObject): void {
@@ -208,10 +203,10 @@ export function syncMaskLabel(context: MaskLabelManagerContext, mask: MaskObject
  *
  * No-op when `options.maskLabelOnSelect` is `false`. Creates a fresh label
  * via {@link createLabelForMask} when the mask has none, otherwise toggles
- * `visible` to `true` and re-syncs the position. Used by the orchestrator's
- * selection handler when a single mask becomes the active object.
+ * `visible` to `true` and re-syncs the position. The Mask controller calls this when one mask is
+ * selected and after Geometry synchronization.
  *
- * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param context - Active Mask label context.
  * @param mask - The mask whose label should be shown.
  */
 export function showLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void {
@@ -229,9 +224,8 @@ export function showLabelForMask(context: MaskLabelManagerContext, mask: MaskObj
  * Remove every label overlay currently on the canvas and detach the
  * `labelObject` reference from every mask.
  *
- * Called by the orchestrator before serialization (`saveState`) and
- * after `loadFromJSON`-driven restores so that label objects — which
- * Fabric DOES serialize unless filtered — never leak into history.
+ * The Mask controller calls this while clearing state, replacing the active image, or disposing.
+ * Overlay persistence independently excludes the same objects through their session marker.
  *
  * Steps:
  *
@@ -242,7 +236,7 @@ export function showLabelForMask(context: MaskLabelManagerContext, mask: MaskObj
  *    {@link showLabelForMask} rebuilds the label rather than reusing a
  *    detached reference.
  *
- * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param context - Active Mask label context.
  */
 export function hideAllMaskLabels(context: MaskLabelManagerContext): void {
     const { canvas } = context;

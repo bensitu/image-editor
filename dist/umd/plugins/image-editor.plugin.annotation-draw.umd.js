@@ -114,6 +114,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		]),
 		path: /* @__PURE__ */ new Set(["path"]),
 		polygon: /* @__PURE__ */ new Set(["points"]),
+		polyline: /* @__PURE__ */ new Set(["points"]),
 		textbox: /* @__PURE__ */ new Set([
 			"charSpacing",
 			"direction",

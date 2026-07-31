@@ -12,14 +12,14 @@ function mutationLifecycle(permissions = []) {
         importModule: () => Object.freeze({ ready: true }),
         createDefinition: () => Object.freeze({ manifest: Object.freeze({ permissions }) }),
         setup: () => {
-            Object.defineProperty(fabric.Object.prototype, probeProperty, {
+            Object.defineProperty(fabric.FabricObject.prototype, probeProperty, {
                 configurable: true,
                 value: true,
             });
             return Object.freeze({ ready: true });
         },
         dispose: () => {
-            delete fabric.Object.prototype[probeProperty];
+            delete fabric.FabricObject.prototype[probeProperty];
         },
     };
 }
@@ -51,7 +51,7 @@ test('undeclared Fabric prototype mutation fails with phase evidence', async () 
         result.details.phases.map((entry) => entry.phase),
         ['setup', 'dispose'],
     );
-    assert.equal(Object.hasOwn(fabric.Object.prototype, probeProperty), false);
+    assert.equal(Object.hasOwn(fabric.FabricObject.prototype, probeProperty), false);
 });
 
 test('declared Fabric mutation is reported with downgraded isolation', async () => {
@@ -62,5 +62,5 @@ test('declared Fabric mutation is reported with downgraded isolation', async () 
     assert.equal(result.status, 'PASS_WITH_DOWNGRADED_ISOLATION');
     assert.equal(result.details.isolation, 'DOWNGRADED');
     assert.equal(result.details.declarationPresent, true);
-    assert.equal(Object.hasOwn(fabric.Object.prototype, probeProperty), false);
+    assert.equal(Object.hasOwn(fabric.FabricObject.prototype, probeProperty), false);
 });

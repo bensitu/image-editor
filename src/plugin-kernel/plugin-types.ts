@@ -143,12 +143,6 @@ export interface PluginSetupContext<TEvents extends object = PluginEventMap> {
     readonly tools: PluginToolSetupAccess;
     readonly events: PluginCommittedEventSetupAccess<TEvents>;
     readonly disposables: DisposableScope;
-    /** @internal Use `disposables.add()` from public Plugin code. */
-    addDisposable(disposable: Disposable): Disposable;
-    /** @internal Plugin dependencies are resolved from the manifest or a Plugin Plan. */
-    ensure<TApi>(plugin: EditorPlugin<TApi, TEvents>): Promise<TApi>;
-    /** @internal Used by composePlugins while preserving tuple inference. */
-    ensurePlugin(plugin: PluginDefinitionInput<TEvents>): Promise<unknown>;
 }
 
 export interface EditorPluginDefinition<TEvents extends object = PluginEventMap> {

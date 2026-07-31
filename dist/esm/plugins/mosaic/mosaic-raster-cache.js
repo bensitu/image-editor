@@ -6,8 +6,8 @@ export function copyMosaicImagePresentation(source, target, transient) {
     target.set({
         left: source.left,
         top: source.top,
-        originX: source.originX,
-        originY: source.originY,
+        originX: 'left',
+        originY: 'top',
         scaleX: source.scaleX,
         scaleY: source.scaleY,
         angle: source.angle,

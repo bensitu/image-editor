@@ -6,8 +6,8 @@ methods live on the typed APIs returned when Plugins are installed. The package
 root and `/core` resolve to the same `ImageEditorCore` class; the root does not
 export Features, Presets, DOM Controls, or migration code.
 
-This reference describes the current `3.0.0-rc.1` candidate API. It is a breaking major
-release and is not a stable published release.
+This reference describes the current 3.x public API. Version 3 is a breaking major
+release relative to the 2.x facade.
 
 ## Formal package entries
 

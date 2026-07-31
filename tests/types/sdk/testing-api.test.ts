@@ -76,13 +76,13 @@ const report = runPluginConformance(plugin, {
 });
 
 expectTypeOf(installed).toEqualTypeOf<Promise<ExampleApi>>();
-expectTypeOf(plan).toMatchTypeOf<PluginPlan<{ readonly example: ExampleApi }>>();
+expectTypeOf(plan).toExtend<PluginPlan<{ readonly example: ExampleApi }>>();
 expectTypeOf(provider.implementation.read()).toEqualTypeOf<string>();
 expectTypeOf(inspectedKinds).toEqualTypeOf<
     readonly PersistentKindContract[] | Promise<readonly PersistentKindContract[]>
 >();
 expectTypeOf(report).toEqualTypeOf<Promise<PluginConformanceReport>>();
-expectTypeOf(plugin.setup).returns.toMatchTypeOf<ExampleApi>();
+expectTypeOf(plugin.setup).returns.toExtend<ExampleApi>();
 
 // @ts-expect-error A reference with a different API contract is not assignable.
 const wrongReference: PluginRef<UnrelatedApi> = exampleRef;

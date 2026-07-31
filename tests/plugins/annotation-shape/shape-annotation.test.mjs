@@ -67,7 +67,7 @@ test('direct creation supports rect, line, and arrow with stable semantic geomet
         arrowHeadLength: 14,
     });
     assert.ok(shapeObject(editor, rectId) instanceof fabric.Rect);
-    assert.ok(shapeObject(editor, lineId) instanceof fabric.Line);
+    assert.ok(shapeObject(editor, lineId) instanceof fabric.Polyline);
     assert.ok(shapeObject(editor, arrowId) instanceof fabric.Path);
     assert.deepEqual(shapeObject(editor, rectId).editorShapeGeometry, {
         kind: 'rect',

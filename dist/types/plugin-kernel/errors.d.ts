@@ -174,9 +174,6 @@ export declare class InvalidCapabilityVersionError extends CapabilityVersionErro
     readonly valueKind: 'version' | 'range';
     constructor(capabilityId: string, value: string, valueKind: 'version' | 'range');
 }
-export declare class PluginVersionMismatchError extends PluginError {
-    constructor(pluginId: string, installedVersion: string, requestedVersion: string, installedApiVersion: string, requestedApiVersion: string);
-}
 export declare class OperationRegistrationError extends PluginError {
     constructor(message: string, pluginId?: string);
 }

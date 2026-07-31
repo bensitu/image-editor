@@ -4231,7 +4231,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "dbb071ddba359ac5ef1b0cdd8cf86a9348fa8691f14e23cbeb0d33273c23c133",
+        "graphSha256": "f5834e5e1ea1ed92dfdf384fc6821aa9dc8398c5f8ea7ceec22bc62263cb4d7a",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4315,7 +4315,7 @@
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
-                "sha256": "7f6061328d30339d20514393b236cdc5bc8e0116d116c68b61ff328084445cd7"
+                "sha256": "4d8db94b42b50db3419b23dd95a3c184930ec89e39a21a33a2c8adff7fb32aca"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-definition.d.ts",
@@ -4366,20 +4366,16 @@
                 "sha256": "0ee2d8a6719770cdaa4b4af78805234ec097b978b1f1a812b6ead11c873144cd"
             },
             {
-                "file": "dist/types/plugin-kernel/compose-plugins.d.ts",
-                "sha256": "0758c2f54afef14180daf8361417120283d94953d4898b937c84dbc71e10270e"
-            },
-            {
                 "file": "dist/types/plugin-kernel/disposable.d.ts",
-                "sha256": "50fea638cfb2f930828d5b087365df05c9898a9050e5b92460a9e9eae359d6fc"
+                "sha256": "a60e861e75bf0abc09e9f636e78a8779227f994f7a8c9145d7c4f5373b1ae232"
             },
             {
                 "file": "dist/types/plugin-kernel/errors.d.ts",
-                "sha256": "358f8ba0649db8e28c8f3efe29cbb4a1e20f112ccc43ab9df0853915ef8fd2e0"
+                "sha256": "c67a497f1a799f54bfb61a25f9df598fcf75357aa89bdf52a6d829a55fbd035d"
             },
             {
                 "file": "dist/types/plugin-kernel/index.d.ts",
-                "sha256": "93fbe9716466bc2da026842545074b25ec75f5b4d5cb3d36e7981771510379cf"
+                "sha256": "de30dcf3f54b3d5df06e1522561a2dbf9be2fd12e5c59973d7ac5cf224731f6c"
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
@@ -4391,11 +4387,11 @@
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manager.d.ts",
-                "sha256": "f630685c33bcd3112efb0825d11a6ff1d2e5f66af8f3001382bd245135805a23"
+                "sha256": "5fd0eced6dddbafee913d79652fde1f859067a3854614a5d1ada6e5ed5007718"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manifest.d.ts",
-                "sha256": "fba46122a1753a21a3a344a6bfdd51a5230f82e42b83c32afe1fab1501e2f0d5"
+                "sha256": "077696f86d660dd6d94bb4a613de68ddb0d6fcd6947e5ef3727e5a209b98f148"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-plan.d.ts",

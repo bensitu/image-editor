@@ -27,7 +27,6 @@ import {
     PluginNotInstalledError,
     PluginPermissionError,
     PluginSetupError,
-    PluginVersionMismatchError,
     ToolRegistrationError,
     ToolTransitionError,
 } from '../../src/plugin-kernel/errors.js';
@@ -79,7 +78,6 @@ test('Plugin Kernel errors retain stable public names and enumerable diagnostics
         new PluginSetupError('example-test:plugin', new Error('example')),
         new InvalidPluginDefinitionError('example'),
         new InvalidCapabilityVersionError('example:test', 'invalid', 'version'),
-        new PluginVersionMismatchError('example-test:plugin', '1.0.0', '2.0.0', '1.0.0', '2.0.0'),
         new OperationRegistrationError('example'),
         new OperationConflictError('example'),
         new ToolRegistrationError('example'),

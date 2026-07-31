@@ -378,6 +378,7 @@ function getImageExportRegion(
 }
 
 function captureTransform(object: FabricNS.FabricObject): PreparedOverlay['transform'] {
+    // Third-party geometry policies can change origins, so rollback preserves the exact Fabric state.
     return Object.freeze({
         left: Number(object.left) || 0,
         top: Number(object.top) || 0,

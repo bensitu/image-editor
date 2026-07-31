@@ -25,13 +25,6 @@ export {
     type PluginEventMap,
 } from './committed-event-bus.js';
 export {
-    composePlugins,
-    type ComposePluginsOptions,
-    type PluginApiOf,
-    type PluginApiTuple,
-} from './compose-plugins.js';
-export {
-    createCompositeDisposable,
     createDisposable,
     createNoopDisposable,
     disposeInReverse,
@@ -66,7 +59,6 @@ export {
     PluginNotInstalledError,
     PluginPermissionError,
     PluginSetupError,
-    PluginVersionMismatchError,
     ToolRegistrationError,
     ToolTransitionError,
     type PluginCapabilityFailureReason,

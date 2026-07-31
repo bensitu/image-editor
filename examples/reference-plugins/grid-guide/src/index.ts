@@ -37,7 +37,7 @@ export interface GridGuidePluginOptions {
     readonly configuration?: Partial<GridGuideConfiguration>;
 }
 
-type MarkedLine = FabricNS.Line & {
+type MarkedLine = FabricNS.Polyline & {
     referenceGridGuideKind?: 'grid' | 'guide';
     referenceGridGuideId?: string;
 };
@@ -73,7 +73,7 @@ function validateConfiguration(value: GridGuideConfiguration): GridGuideConfigur
     return Object.freeze({ ...value });
 }
 
-function mark(line: FabricNS.Line, kind: 'grid' | 'guide', id: string): MarkedLine {
+function mark(line: FabricNS.Polyline, kind: 'grid' | 'guide', id: string): MarkedLine {
     const marked = line as MarkedLine;
     marked.referenceGridGuideKind = kind;
     marked.referenceGridGuideId = id;
@@ -141,13 +141,19 @@ export function createGridGuidePlugin(
             ): MarkedLine => {
                 const id = `${kind}-${++objectCounter}`;
                 return mark(
-                    new fabric.Line(points, {
-                        stroke: color,
-                        strokeWidth: configuration.strokeWidth,
-                        selectable: kind === 'guide',
-                        evented: kind === 'guide',
-                        excludeFromExport: true,
-                    }),
+                    new fabric.Polyline(
+                        [
+                            { x: points[0], y: points[1] },
+                            { x: points[2], y: points[3] },
+                        ],
+                        {
+                            stroke: color,
+                            strokeWidth: configuration.strokeWidth,
+                            selectable: kind === 'guide',
+                            evented: kind === 'guide',
+                            excludeFromExport: true,
+                        },
+                    ),
                     kind,
                     id,
                 );

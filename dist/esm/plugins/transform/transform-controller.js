@@ -367,7 +367,6 @@ export class TransformPluginController {
         }
     }
     captureRollback(image) {
-        var _a, _b;
         return Object.freeze({
             transform: this.getState(),
             image: Object.freeze({
@@ -378,8 +377,8 @@ export class TransformPluginController {
                 angle: Number(image.angle) || 0,
                 flipX: image.flipX === true,
                 flipY: image.flipY === true,
-                originX: (_a = image.originX) !== null && _a !== void 0 ? _a : 'left',
-                originY: (_b = image.originY) !== null && _b !== void 0 ? _b : 'top',
+                originX: 'left',
+                originY: 'top',
             }),
         });
     }

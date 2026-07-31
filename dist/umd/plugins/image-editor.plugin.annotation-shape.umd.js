@@ -114,6 +114,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		]),
 		path: /* @__PURE__ */ new Set(["path"]),
 		polygon: /* @__PURE__ */ new Set(["points"]),
+		polyline: /* @__PURE__ */ new Set(["points"]),
 		textbox: /* @__PURE__ */ new Set([
 			"charSpacing",
 			"direction",
@@ -382,12 +383,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (value.version !== 1 || !isPlainRecord(serializedObject) || !isSafeSerializedFabricObject(serializedObject, { rootTypes: [
 				"rect",
 				"line",
+				"polyline",
 				"path"
 			] })) return false;
 			const geometry = normalizeShapeGeometry(value.geometry);
 			const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
 			const type = typeof serializedObject.type === "string" ? serializedObject.type.toLowerCase() : "";
-			return bytes <= MAX_SHAPE_OBJECT_BYTES && geometry.kind === value.shapeKind && (geometry.kind === "rect" && type === "rect" || geometry.kind === "line" && type === "line" || geometry.kind === "arrow" && type === "path");
+			return bytes <= MAX_SHAPE_OBJECT_BYTES && geometry.kind === value.shapeKind && (geometry.kind === "rect" && type === "rect" || geometry.kind === "line" && (type === "line" || type === "polyline") || geometry.kind === "arrow" && type === "path");
 		} catch {
 			return false;
 		}
@@ -444,7 +446,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				ownerPluginId: SHAPE_PLUGIN_ID,
 				classify: (object) => {
 					const shape = object;
-					return shape.editorShapeKind === "rect" && object instanceof this.host.fabric.Rect || shape.editorShapeKind === "line" && object instanceof this.host.fabric.Line || shape.editorShapeKind === "arrow" && object instanceof this.host.fabric.Path;
+					return shape.editorShapeKind === "rect" && object instanceof this.host.fabric.Rect || shape.editorShapeKind === "line" && object.isType("Line", "line", "Polyline", "polyline") || shape.editorShapeKind === "arrow" && object instanceof this.host.fabric.Path;
 				},
 				codec: {
 					type: "annotation:shape-object",
@@ -699,12 +701,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				originX: "left",
 				originY: "top"
 			});
-			else if (geometry.kind === "line") object = new this.host.fabric.Line([
-				geometry.start.x,
-				geometry.start.y,
-				geometry.end.x,
-				geometry.end.y
-			], common);
+			else if (geometry.kind === "line") object = new this.host.fabric.Polyline([{
+				x: geometry.start.x,
+				y: geometry.start.y
+			}, {
+				x: geometry.end.x,
+				y: geometry.end.y
+			}], common);
 			else object = new this.host.fabric.Path(buildArrowPath(geometry, resolved.arrowHeadLength), common);
 			object.editorShapeKind = geometry.kind;
 			object.editorShapeGeometry = geometry;

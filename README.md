@@ -7,12 +7,8 @@
 A TypeScript-first Core Framework and public Plugin SDK built on
 [Fabric.js](https://fabricjs.com/) v7. The current major release separates canvas
 lifecycle from typed Feature Plugins for transforms, history, redaction,
-annotations, persistence, and optional DOM controls.
-
-> **Release candidate status:** this branch prepares `3.0.0-rc.1`, a breaking
-> major release. The candidate is not a stable release and has not been
-> published. Applications on the maintained 2.x line should remain on that line
-> until they complete the [migration guide](docs/guides/migration-from-v2.md).
+annotations, persistence, and optional DOM controls. Applications moving from
+2.x should follow the [migration guide](docs/guides/migration-from-v2.md).
 
 Fabric `>=7.4.0 <8` is a peer dependency and is never bundled. Core composition
 is DOM-independent and safe to import in SSR/headless code; canvas initialization
@@ -311,9 +307,11 @@ Do not load Full UMD together with Core or Plugin UMD files on one page. Fabric
 remains a separate script in both modes. The Full Preset does not install DOM
 Controls unless requested.
 
+Replace `VERSION` in the CDN examples with one exact published 3.x version.
+
 ```html
 <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@3.0.0-rc.1/dist/umd/image-editor.full.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/image-editor.full.umd.min.js"></script>
 <script>
     (async () => {
         const kit = ImageEditorFull.createFullPreset(fabric, {
@@ -332,8 +330,8 @@ order. This example downloads Core and Transform only:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@3.0.0-rc.1/dist/umd/image-editor.core.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@3.0.0-rc.1/dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/image-editor.core.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
 <script>
     const editor = new ImageEditor.ImageEditorCore(fabric);
     const plugins = editor.install(

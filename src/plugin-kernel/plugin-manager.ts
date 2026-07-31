@@ -27,7 +27,6 @@ import {
     PluginNotInstalledError,
     PluginPermissionError,
     PluginSetupError,
-    PluginVersionMismatchError,
 } from './errors.js';
 import {
     acquirePluginDefinitionLease,
@@ -238,7 +237,6 @@ export interface AsyncPluginInstallationHost<TEvents extends object> {
         scope: RegistrationScope,
         required: ReadonlyMap<string, ResolvedCapability>,
         optional: ReadonlyMap<string, ResolvedCapability>,
-        dependencyInstaller: (dependency: PluginDefinitionInput<TEvents>) => Promise<unknown>,
     ): {
         readonly setup: PluginSetupContext<TEvents>;
         readonly lifecycle: PluginLifecycleContext<TEvents>;
@@ -261,8 +259,8 @@ function sameArray<TValue>(
     );
 }
 
-/** @internal Compares canonical definitions for ensure and duplicate handling. */
-export function sameInstallationDefinition<TEvents extends object>(
+/** Compares canonical definitions when resolving installed and batched duplicates. */
+function sameInstallationDefinition<TEvents extends object>(
     left: NormalizedPluginDefinition<TEvents>,
     right: NormalizedPluginDefinition<TEvents>,
 ): boolean {
@@ -361,7 +359,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
         this.topLevelInstallActive = true;
         try {
-            const outcome = this.performInstallSync(plugin, 'strict', []);
+            const outcome = this.performInstallSync(plugin);
             return Object.freeze({
                 api: outcome.api as TApi,
                 installedPlugin: outcome.installedPlugin,
@@ -861,12 +859,8 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
     }
 
-    declare private performInstall: never;
-
     private performInstallSync<TApi>(
         input: SynchronousEditorPlugin<TApi, TEvents>,
-        mode: 'strict' | 'ensure',
-        parentStack: readonly string[],
     ): InstallOutcome<TEvents> {
         const plugin = this.normalizePluginDefinition(input);
         if (plugin.setupMode !== 'sync') {
@@ -876,27 +870,8 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             );
         }
         const pluginId = plugin.ref.id;
-        if (parentStack.includes(pluginId)) {
-            throw new InvalidPluginDefinitionError(
-                `Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`,
-                pluginId,
-            );
-        }
         const existing = this.installed.get(pluginId);
-        if (existing) {
-            if (mode === 'strict') throw new PluginAlreadyInstalledError(pluginId);
-            const compatible = sameInstallationDefinition(existing.plugin, plugin);
-            if (!compatible) {
-                throw new PluginVersionMismatchError(
-                    pluginId,
-                    existing.plugin.manifest.version,
-                    plugin.manifest.version,
-                    existing.plugin.ref.apiVersion,
-                    plugin.ref.apiVersion,
-                );
-            }
-            return { api: existing.api, installedPlugin: existing.plugin };
-        }
+        if (existing) throw new PluginAlreadyInstalledError(pluginId);
         this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
         acquirePluginDefinitionLease(plugin, this, pluginId);
@@ -992,7 +967,6 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         scope: RegistrationScope,
         required: ReadonlyMap<string, ResolvedCapability>,
         optional: ReadonlyMap<string, ResolvedCapability>,
-        dependencyInstaller?: (dependency: PluginDefinitionInput<TEvents>) => Promise<unknown>,
     ): {
         readonly setup: PluginSetupContext<TEvents>;
         readonly lifecycle: PluginLifecycleContext<TEvents>;
@@ -1132,14 +1106,6 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             },
         });
 
-        const ensurePlugin =
-            dependencyInstaller ??
-            (() => {
-                throw new PluginKernelStateError(
-                    'install a composed dependency from synchronous Plugin setup',
-                    this.hostState,
-                );
-            });
         const disposables: DisposableScope = Object.freeze({
             get active(): boolean {
                 return scope.active;
@@ -1158,18 +1124,9 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             tools: setupTools,
             events: setupEvents,
             disposables,
-            addDisposable: (disposable: Disposable): Disposable => {
-                scope.assertOpen();
-                return scope.add(disposable);
-            },
-            ensure: <TApi>(dependency: EditorPlugin<TApi, TEvents>): Promise<TApi> =>
-                ensurePlugin(dependency) as Promise<TApi>,
-            ensurePlugin,
         });
         return { setup, lifecycle };
     }
-
-    declare private rollbackInstalledPlugin: never;
 
     private normalizePluginDefinition(
         plugin: PluginDefinitionInput<TEvents>,

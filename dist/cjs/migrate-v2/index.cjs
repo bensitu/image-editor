@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_plugin_identifier = require('../chunks/plugin-identifier-XGwyoPRa.cjs');
+const require_plugin_identifier = require('../chunks/plugin-identifier-DhlVh5SQ.cjs');
 
 //#region dist/esm/migrate-v2/index.js
 const SOURCE_SCHEMA = "image-editor.canvas@2";

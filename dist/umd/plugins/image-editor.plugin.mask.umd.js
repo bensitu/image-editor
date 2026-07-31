@@ -114,6 +114,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		]),
 		path: /* @__PURE__ */ new Set(["path"]),
 		polygon: /* @__PURE__ */ new Set(["points"]),
+		polyline: /* @__PURE__ */ new Set(["points"]),
 		textbox: /* @__PURE__ */ new Set([
 			"charSpacing",
 			"direction",
@@ -1011,10 +1012,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return isPlainRecord(value) && typeof value.x === "number" && Number.isFinite(value.x) && typeof value.y === "number" && Number.isFinite(value.y);
 	}
 	function maskStateKind(object) {
-		var _a;
-		const kind = String((_a = object.type) !== null && _a !== void 0 ? _a : "").toLowerCase();
-		if (kind === "rect" || kind === "circle" || kind === "ellipse" || kind === "polygon") return kind;
-		throw new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
+		if (object.isType("Rect", "rect")) return "rect";
+		if (object.isType("Circle", "circle")) return "circle";
+		if (object.isType("Ellipse", "ellipse")) return "ellipse";
+		if (object.isType("Polygon", "polygon")) return "polygon";
+		const constructorName = object.constructor.name || "unknown";
+		throw new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] Mask kind "${constructorName}" cannot be persisted.`);
 	}
 	function normalizedPolygonPoints(object) {
 		const candidate = Reflect.get(object, "points");

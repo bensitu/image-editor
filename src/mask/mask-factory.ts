@@ -10,14 +10,13 @@
 import type * as FabricNS from 'fabric';
 import type {
     DefaultMaskConfig,
-    FabricModule,
     MaskConfig,
     MaskFactoryOptions,
     MaskObject,
     MaskShapeKind,
     ResolvedMaskConfig,
-    ResolvedOptions,
 } from '../core/public-types.js';
+import type { FabricModule } from '../core-runtime/public-types.js';
 import { markMaskObject } from '../core/editor-object-kind.js';
 import { placeMaskObject } from '../utils/internal-layer-placement.js';
 import { reportWarning } from '../core/callback-reporter.js';
@@ -44,8 +43,10 @@ export interface CreateMaskContext {
     /** The live Fabric canvas the mask is added to. */
     canvas: FabricNS.Canvas;
     /** Resolved options required by Mask creation and its public callbacks. */
-    options: MaskFactoryOptions &
-        Partial<Pick<ResolvedOptions, 'maxExportDimension' | 'maxExportPixels'>>;
+    options: MaskFactoryOptions & {
+        readonly maxExportDimension?: number;
+        readonly maxExportPixels?: number;
+    };
     /** Last mask reference, used for the auto-place-to-right behavior. */
     getLastMask(): MaskObject | null;
     setLastMask(mask: MaskObject | null): void;
@@ -680,7 +681,7 @@ function finalizeMaskAttachment(
  * 6. Post-create order: add to Canvas → activate when selectable → render →
  *    `config.onCreate(mask, canvas)`.
  *
- * @param context - Orchestration context — see {@link CreateMaskContext}.
+ * @param context - Mask creation context; see {@link CreateMaskContext}.
  * @param config - User-supplied mask configuration.
  * @returns The created mask, or `null` when input resolution or a custom generator fails.
  */

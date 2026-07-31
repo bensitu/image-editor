@@ -438,22 +438,6 @@ export class InvalidCapabilityVersionError extends CapabilityVersionError {
     }
 }
 
-export class PluginVersionMismatchError extends PluginError {
-    constructor(
-        pluginId: string,
-        installedVersion: string,
-        requestedVersion: string,
-        installedApiVersion: string,
-        requestedApiVersion: string,
-    ) {
-        super(
-            'PLUGIN_VERSION_MISMATCH',
-            `[ImageEditor] Plugin "${pluginId}" cannot be reused: installed implementation/API versions are "${installedVersion}"/"${installedApiVersion}", requested versions are "${requestedVersion}"/"${requestedApiVersion}".`,
-            { pluginId },
-        );
-    }
-}
-
 export class OperationRegistrationError extends PluginError {
     constructor(message: string, pluginId?: string) {
         super(

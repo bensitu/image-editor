@@ -96,12 +96,16 @@ function isFiniteOverlayStatePoint(value) {
         Number.isFinite(value.y));
 }
 function maskStateKind(object) {
-    var _a;
-    const kind = String((_a = object.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
-    if (kind === 'rect' || kind === 'circle' || kind === 'ellipse' || kind === 'polygon') {
-        return kind;
-    }
-    throw new CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
+    if (object.isType('Rect', 'rect'))
+        return 'rect';
+    if (object.isType('Circle', 'circle'))
+        return 'circle';
+    if (object.isType('Ellipse', 'ellipse'))
+        return 'ellipse';
+    if (object.isType('Polygon', 'polygon'))
+        return 'polygon';
+    const constructorName = object.constructor.name || 'unknown';
+    throw new CoreRuntimeError(`[ImageEditor] Mask kind "${constructorName}" cannot be persisted.`);
 }
 function normalizedPolygonPoints(object) {
     const candidate = Reflect.get(object, 'points');

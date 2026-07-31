@@ -4,7 +4,7 @@
 > the 2.x facade. Do not copy them into a 3.x application; use the paired
 > “After” examples and current [options reference](../reference/options.md).
 
-The 3.0 candidate is a breaking major release. The former monolithic
+Version 3 is a breaking major release. The former monolithic
 `ImageEditor` facade is replaced by `ImageEditorCore`, public Feature Plugins,
 and typed Presets. Existing applications can migrate incrementally, but must not
 expect old source code or Snapshots to load automatically.

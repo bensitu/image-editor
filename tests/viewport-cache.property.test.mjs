@@ -56,7 +56,7 @@ const visibleContainerArb = fc.record({
     clientHeight: visibleDimArb,
 });
 
-// A fallback size — the caller (image-loader) normally passes
+// A fallback size — Core image layout normally passes
 // `(options.canvasWidth, options.canvasHeight)`. The test only requires
 // that fallback values be distinguishable from visible measurements,
 // so any positive integer pair is fine.

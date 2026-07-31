@@ -453,7 +453,7 @@ test('transform failure rolls Mask geometry and index back without replacing obj
                     permissions: ['core:geometry-participant'],
                     setup(context) {
                         const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
-                        context.addDisposable(
+                        context.disposables.add(
                             geometry.registerParticipant({
                                 id: failureRef.id,
                                 order: 200,

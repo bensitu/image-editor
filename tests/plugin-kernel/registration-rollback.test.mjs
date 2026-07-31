@@ -100,14 +100,14 @@ test('setup rollback preserves the primary error and aggregates cleanup failures
         ref,
         version: '1.0.0',
         setup(context) {
-            context.addDisposable(createDisposable(() => cleanupOrder.push('first')));
-            context.addDisposable(
+            context.disposables.add(createDisposable(() => cleanupOrder.push('first')));
+            context.disposables.add(
                 createDisposable(() => {
                     cleanupOrder.push('second');
                     throw cleanupFailure;
                 }),
             );
-            context.addDisposable(createDisposable(() => cleanupOrder.push('third')));
+            context.disposables.add(createDisposable(() => cleanupOrder.push('third')));
             throw primary;
         },
     };

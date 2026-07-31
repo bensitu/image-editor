@@ -65,7 +65,7 @@ function captureProbePlugin() {
         requires: [{ token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' }],
         setup(context) {
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
-            context.addDisposable(
+            context.disposables.add(
                 state.registerSlice({
                     id: ref.id,
                     version: 1,
@@ -116,7 +116,7 @@ function controlledStatePlugin() {
                 conflictDomains: ['document', 'state'],
                 reentrancy: 'queue',
             });
-            context.addDisposable(
+            context.disposables.add(
                 state.registerSlice({
                     id: ref.id,
                     version: 1,
