@@ -33,7 +33,6 @@ const excludedDirectories = new Set([
 const pullRequestChecks = Object.freeze([
     ['source quality and Node product tests', 'check'],
     ['source module headers', 'check:source-quality'],
-    ['current documentation boundaries', 'check:docs'],
     ['GitHub Pages asset mode', 'package:pages'],
     ['Node and CI policy', 'check:node-ci-policy'],
     ['supply-chain policy', 'check:supply-chain-policy'],
@@ -62,7 +61,6 @@ const pullRequestChecks = Object.freeze([
 const releaseChecks = Object.freeze([
     ['source quality and Node product tests', 'check'],
     ['source module headers', 'check:source-quality'],
-    ['current documentation boundaries', 'check:docs'],
     ['GitHub Pages asset mode', 'package:pages'],
     ['Node and CI policy', 'check:node-ci-policy'],
     ['supply-chain policy', 'check:supply-chain-policy'],

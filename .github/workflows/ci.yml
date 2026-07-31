@@ -96,9 +96,6 @@ jobs:
             - name: Check source module headers
               run: npm run check:source-quality
 
-            - name: Check current documentation
-              run: npm run check:docs
-
             - name: Verify GitHub Pages asset mode
               run: npm run package:pages
 

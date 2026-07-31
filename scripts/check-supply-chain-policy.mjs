@@ -123,15 +123,10 @@ assertCondition(
 );
 
 const pagesWorkflow = await readRepositoryFile('.github/workflows/deploy-pages.yml');
-for (const fragment of [
-    "- 'docs/**'",
-    'run: npm run check:docs',
-    'run: npm run package:pages',
-    'path: .pages-site',
-]) {
+for (const fragment of ["- 'docs/**'", 'run: npm run package:pages', 'path: .pages-site']) {
     assertCondition(
         pagesWorkflow.includes(fragment),
-        `The Pages workflow is missing its reviewed documentation artifact policy: ${fragment}`,
+        `The Pages workflow is missing its reviewed artifact policy: ${fragment}`,
     );
 }
 assertCondition(

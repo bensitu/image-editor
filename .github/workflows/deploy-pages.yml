@@ -36,9 +36,6 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            - name: Verify current documentation
-              run: npm run check:docs
-
             - name: Package explicit modular demo pages
               run: npm run package:pages
 

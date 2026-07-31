@@ -808,6 +808,43 @@ test('annotation demo preserves v2 Text and Shape mode interaction semantics', a
         )
         .toBe(1);
     await page.locator('#exitTextModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+
+    await page.locator('#textColorInput').evaluate((input) => {
+        const control = input as HTMLInputElement;
+        control.value = '#157f3b';
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.locator('#textFontSizeInput').fill('36');
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    editorOverlayId?: string;
+                                    fill?: unknown;
+                                    fontSize?: number;
+                                    text?: string;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                const text = objects?.find(
+                    (object) =>
+                        object.editorOverlayId &&
+                        !object.editorAnnotationPreviewOwner &&
+                        typeof object.text === 'string',
+                );
+                return text ? { fill: text.fill, fontSize: text.fontSize } : null;
+            }),
+        )
+        .toEqual({ fill: '#157f3b', fontSize: 36 });
+    await expect(page.locator('#statusTool')).toHaveText('None');
 
     await page.locator('#enterShapeModeButton').click();
     await expect(page.locator('#statusTool')).toHaveText('shape');
@@ -924,6 +961,45 @@ test('annotation demo preserves v2 Text and Shape mode interaction semantics', a
     await expect(page.locator('#statusAnnotations')).toHaveText('3');
     await expect(page.locator('#statusTool')).toHaveText('shape');
     await page.locator('#exitShapeModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+
+    await page.evaluate(() => {
+        const values = {
+            shapeStrokeInput: '#c026d3',
+            shapeStrokeWidthInput: '7',
+        } as const;
+        for (const [id, value] of Object.entries(values)) {
+            const input = document.getElementById(id) as HTMLInputElement | null;
+            if (!input) throw new Error(`Shape control "${id}" is missing.`);
+            input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    editorShapeKind?: string;
+                                    stroke?: unknown;
+                                    strokeWidth?: number;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                const arrow = objects?.find(
+                    (object) =>
+                        object.editorShapeKind === 'arrow' && !object.editorAnnotationPreviewOwner,
+                );
+                return arrow ? { stroke: arrow.stroke, strokeWidth: arrow.strokeWidth } : null;
+            }),
+        )
+        .toEqual({ stroke: '#c026d3', strokeWidth: 7 });
     await expect(page.locator('#statusTool')).toHaveText('None');
 });
 

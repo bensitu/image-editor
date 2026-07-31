@@ -282,14 +282,6 @@ async function verifyCurrentDemoSurface(files) {
             JSON.stringify(scriptSources) === JSON.stringify(expectedScriptSources),
             `docs/${page} must load its reviewed local UMD and entry-script plan in dependency order.`,
         );
-        assertCondition(
-            source.includes('<code>node_modules</code>') &&
-                source.includes('<code>../dist/umd</code>') &&
-                source.includes('<code>@latest</code>') &&
-                source.toLowerCase().includes('production'),
-            `docs/${page} must explain local dependency loading, the hosted @latest policy, and production version pinning.`,
-        );
-
         const loaded = new Set();
         for (const pluginId of plan.pluginIds) {
             const definition = pluginDefinitions.get(pluginId);

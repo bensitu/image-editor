@@ -661,7 +661,7 @@
             ? kit?.masks?.getAll().find((candidate) => candidate.maskUid === primaryId) || null
             : null;
         const annotation = primaryId ? kit?.annotations?.get(primaryId) || null : null;
-        return { selection, primaryId, classification, mask, annotation };
+        return { selection, primaryId, object, classification, mask, annotation };
     }
 
     function updateDemoUi() {
@@ -1171,6 +1171,8 @@
     function syncTextConfigFromControls(event) {
         const kit = getKit();
         if (!kit?.editor.isImageLoaded()) return;
+        const activeToolMode = getActiveToolMode();
+        if (activeToolMode !== null && activeToolMode !== 'text') return;
         const configuration = readTextConfiguration();
         const controlId = event?.currentTarget?.id;
         const activePatch =
@@ -1185,10 +1187,14 @@
                           fill: configuration.fill,
                           fontSize: configuration.fontSize,
                       };
+        const selected = activeToolMode === null ? getPrimarySelection() : null;
+        const selectedTextId =
+            selected?.annotation?.kind === 'annotation:text' ? selected.primaryId : null;
         queuePointerOperation(async () => {
             await kit.text.configure(configuration);
             const session = kit.text.getEditingSession();
             if (session) await kit.text.update(session.annotationId, activePatch);
+            else if (selectedTextId) await kit.text.update(selectedTextId, activePatch);
             updateDemoUi();
         });
     }
@@ -1285,13 +1291,34 @@
         };
     }
 
-    function syncShapeConfigFromControls() {
+    function syncShapeConfigFromControls(event) {
         const kit = getKit();
         if (!kit?.editor.isImageLoaded()) return;
         const activeToolMode = getActiveToolMode();
         if (activeToolMode !== null && activeToolMode !== 'shape') return;
         const kind = readShapeKind();
         const style = readShapeStyleConfig();
+        const controlId = event?.currentTarget?.id;
+        const selected = activeToolMode === null ? getPrimarySelection() : null;
+        const selectedShapeId =
+            selected?.annotation?.kind === 'annotation:shape' ? selected.primaryId : null;
+        const selectedShapeKind = selected?.object?.editorShapeKind;
+        const selectedPatch =
+            controlId === 'shapeStrokeInput'
+                ? { stroke: style.stroke }
+                : controlId === 'shapeStrokeWidthInput'
+                  ? { strokeWidth: style.strokeWidth }
+                  : controlId === 'shapeFillInput'
+                    ? {
+                          fill:
+                              selectedShapeKind === 'rect'
+                                  ? hexToRgba(
+                                        getOptionalElement('shapeFillInput')?.value || '#f59e0b',
+                                        0.16,
+                                    )
+                                  : 'rgba(0,0,0,0)',
+                      }
+                    : null;
         queuePointerOperation(async () => {
             const session = kit.shape.getSession();
             if (session && session.kind !== kind) {
@@ -1302,6 +1329,9 @@
                 await kit.shape.enter({ kind });
             } else {
                 await kit.shape.configure(style);
+            }
+            if (!session && selectedShapeId && selectedPatch) {
+                await kit.shape.update(selectedShapeId, selectedPatch);
             }
             updateDemoUi();
         });
