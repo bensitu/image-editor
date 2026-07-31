@@ -30,7 +30,10 @@
             <section class="hero">
                 <div>
                     <h1>Mask &amp; Mosaic Demo</h1>
-                    <p>Redact document regions with editable masks and local mosaic pixelation.</p>
+                    <p>
+                        Compose the Overlay Foundation with only Mask and Mosaic to demonstrate
+                        editable overlays and destructive pixel redaction.
+                    </p>
                 </div>
                 <div class="hero-actions">
                     <button id="loadSampleButton" class="button primary" type="button">
@@ -255,27 +258,37 @@
                     <section class="panel-section">
                         <h2>Public APIs Used</h2>
                         <p class="note">
-                            This page installs only the Overlay Foundation, Mask, and Mosaic.
+                            This page installs only the Overlay Foundation and the Mask and Mosaic
+                            Feature Plugins. See
+                            <a href="js/mask-mosaic-demo.js">mask-mosaic-demo.js</a>. The hosted
+                            page uses <code>@latest</code>; pin one exact package version in
+                            production.
                         </p>
                         <div class="api-list">
-                            <code>new ImageEditorCore()</code>
-                            <code>composePlugins()</code>
-                            <code>overlayFoundationPlugin()</code>
-                            <code>maskPlugin()</code>
-                            <code>mosaicPlugin()</code>
-                            <code>modules.masks.create()</code>
-                            <code>modules.masks.removeSelected()</code>
-                            <code>modules.masks.flatten()</code>
-                            <code>modules.mosaic.enter()</code>
-                            <code>modules.mosaic.configure()</code>
-                            <code>modules.mosaic.commit()</code>
-                            <code>modules.editor.exportImageBase64()</code>
+                            <code>new ImageEditor.ImageEditorCore()</code>
+                            <code>ImageEditor.composePlugins()</code>
+                            <code>ImageEditorPlugins.Overlay.overlayFoundationPlugin()</code>
+                            <code>ImageEditorPlugins.Mask.maskPlugin()</code>
+                            <code>ImageEditorPlugins.Mosaic.mosaicPlugin()</code>
+                            <code>plugins.masks.create()</code>
+                            <code>plugins.masks.removeSelected()</code>
+                            <code>plugins.masks.flatten()</code>
+                            <code>plugins.mosaic.enter()</code>
+                            <code>plugins.mosaic.configure()</code>
+                            <code>plugins.mosaic.commit()</code>
+                            <code>editor.exportImageBase64()</code>
                         </div>
                     </section>
                 </aside>
             </section>
         </main>
 
-        <script src="js/demo-loader.js" data-demo-plugins="overlay mask mosaic"></script>
+        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.core.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.mask.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.mosaic.umd.min.js"></script>
+        <script src="js/mask-mosaic-demo.js"></script>
+        <script src="js/demo-pages.js"></script>
     </body>
 </html>

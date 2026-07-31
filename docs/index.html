@@ -32,9 +32,9 @@
                     <p class="eyebrow">Interactive demo suite</p>
                     <h1>@bensitu/image-editor</h1>
                     <p>
-                        A framework-free image editing toolkit for product workflows that need
-                        filters, crop, masks, mosaic redaction, annotations, history, and export
-                        from one Fabric.js v7 integration.
+                        A modular, framework-free image editing toolkit for product workflows.
+                        Compose only the Foundations and Feature Plugins needed for filters, crop,
+                        masks, mosaic redaction, annotations, history, and export on Fabric.js v7.
                     </p>
                     <div class="landing-actions hero-actions" aria-label="Featured demo links">
                         <a class="button primary" href="./mask-mosaic.html"
@@ -138,20 +138,24 @@
             </section>
 
             <p class="landing-note">
-                These pages are static docs assets. Locally they use the repository build output for
-                Core and selected Plugin UMD files; on GitHub Pages they load the published npm
-                <code>@latest</code> modular UMD files from jsDelivr. Each page declares and
-                installs only the plugins required by its workflow.
+                Every current demo uses explicit script tags for Fabric, Core, and only its selected
+                modular UMD files. The hosted demos intentionally track npm <code>@latest</code>;
+                production pages should pin the same exact package version in every Core and Plugin
+                URL. See this page's <a href="./js/landing-studio.js">composition source</a>.
             </p>
             <p class="legacy-note">
                 Need the previous all-in-one demo? <a href="./legacy-v1.html">Open legacy v1</a>.
             </p>
         </main>
 
-        <script
-            src="js/demo-loader.js"
-            data-demo-entry="js/landing-studio.js"
-            data-demo-plugins="overlay annotation filters mask annotation-text annotation-shape"
-        ></script>
+        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.core.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.filters.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.mask.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-text.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-shape.umd.min.js"></script>
+        <script src="js/landing-studio.js"></script>
     </body>
 </html>

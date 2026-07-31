@@ -3,7 +3,7 @@
 
     const pageName = document.body.dataset.demoPage || 'basic';
     const isIntegratedEditorPage = pageName === 'integrated-editor';
-    const demoRuntime = window.__imageEditorDemoRuntime;
+    const demoPage = window.ImageEditorDemoPage;
     const annotationKinds = ['annotation:text', 'annotation:shape', 'annotation:draw'];
     const maskShapeBase = {
         color: 'rgba(15, 23, 42, 0.82)',
@@ -95,6 +95,27 @@
         const element = getOptionalElement(id);
         if (!element) throw new Error(`Missing demo element #${id}.`);
         return element;
+    }
+
+    function createCanvas(width, height) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Canvas 2D context is unavailable.');
+        return { canvas, context };
+    }
+
+    function drawPanel(context, x, y, width, height, color, options = {}) {
+        context.save();
+        context.fillStyle = color;
+        context.strokeStyle = options.stroke || '#cbd5e1';
+        context.lineWidth = options.lineWidth || 2;
+        context.beginPath();
+        context.roundRect(x, y, width, height, options.radius || 14);
+        context.fill();
+        context.stroke();
+        context.restore();
     }
 
     function fromPrivacySample(value) {
@@ -278,50 +299,6 @@
         };
     }
 
-    function createPluginPlan(options) {
-        const plugins = demoRuntime?.plugins;
-        if (!plugins) throw new Error('ImageEditor v3 Plugin modules are unavailable.');
-
-        if (pageName === 'basic') {
-            return {
-                transform: plugins.Transform.transformPlugin(options.transform),
-                history: plugins.History.historyPlugin(options.history),
-                filters: plugins.Filters.filtersPlugin(options.filters),
-                crop: plugins.Crop.cropPlugin(options.crop),
-            };
-        }
-        if (pageName === 'annotation') {
-            return {
-                history: plugins.History.historyPlugin(options.history),
-                overlays: plugins.Overlay.overlayFoundationPlugin(),
-                annotations: plugins.Annotation.annotationFoundationPlugin(options.annotations),
-                text: plugins.AnnotationText.textAnnotationPlugin(options.text),
-                shape: plugins.AnnotationShape.shapeAnnotationPlugin(options.shape),
-                draw: plugins.AnnotationDraw.drawAnnotationPlugin(options.draw),
-            };
-        }
-        if (pageName === 'mask-mosaic') {
-            return {
-                overlays: plugins.Overlay.overlayFoundationPlugin(),
-                masks: plugins.Mask.maskPlugin(options.masks),
-                mosaic: plugins.Mosaic.mosaicPlugin(options.mosaic),
-            };
-        }
-        if (pageName === 'integrated-editor') {
-            return {
-                transform: plugins.Transform.transformPlugin(options.transform),
-                history: plugins.History.historyPlugin(options.history),
-                overlays: plugins.Overlay.overlayFoundationPlugin(),
-                masks: plugins.Mask.maskPlugin(options.masks),
-                annotations: plugins.Annotation.annotationFoundationPlugin(options.annotations),
-                text: plugins.AnnotationText.textAnnotationPlugin(options.text),
-                shape: plugins.AnnotationShape.shapeAnnotationPlugin(options.shape),
-                draw: plugins.AnnotationDraw.drawAnnotationPlugin(options.draw),
-            };
-        }
-        throw new Error(`Unsupported demo page "${pageName}".`);
-    }
-
     function registerPluginObservers(kit) {
         const refresh = () => queueMicrotask(updateDemoUi);
         trackCleanup(kit.history?.onChange(refresh));
@@ -492,13 +469,13 @@
     }
 
     async function initEditor(bindingOptions = readBindingOptionsFromControls()) {
-        if (!demoRuntime?.createEditor) {
-            throw new Error('ImageEditor v3 modular runtime could not be loaded.');
+        if (demoPage?.id !== pageName || typeof demoPage.createEditor !== 'function') {
+            throw new Error(`The modular composition for demo page "${pageName}" is unavailable.`);
         }
         demoState.bindingOptions = { ...bindingOptions };
         syncBindingControls(demoState.bindingOptions);
         const options = createEditorOptions(bindingOptions);
-        const kit = demoRuntime.createEditor(options.core, createPluginPlan(options));
+        const kit = demoPage.createEditor(options);
         demoState.kit = kit;
         try {
             await kit.editor.init({
@@ -1736,7 +1713,7 @@
     }
 
     function createSampleDataUrl(kind) {
-        const { canvas, context } = demoRuntime.createCanvas(960, 620);
+        const { canvas, context } = createCanvas(960, 620);
         if (kind === 'annotation') drawAnnotationSample(context);
         else if (kind === 'mask-mosaic') drawPrivacySample(context);
         else if (kind === 'integrated-editor') drawIntegratedSample(context);
@@ -1746,7 +1723,7 @@
 
     function drawBasicSample(context) {
         fillBackground(context, '#eef4ff');
-        demoRuntime.drawPanel(context, 64, 54, 832, 512, '#ffffff');
+        drawPanel(context, 64, 54, 832, 512, '#ffffff');
         context.fillStyle = '#dbeafe';
         context.fillRect(96, 96, 768, 250);
         context.fillStyle = '#2563eb';
@@ -1768,7 +1745,7 @@
 
     function drawAnnotationSample(context) {
         fillBackground(context, '#f8fafc');
-        demoRuntime.drawPanel(context, 72, 62, 816, 496, '#ffffff');
+        drawPanel(context, 72, 62, 816, 496, '#ffffff');
         context.fillStyle = '#0f172a';
         context.font = '700 30px Arial';
         context.fillText('Quarterly Review Screenshot', 112, 128);
@@ -1779,8 +1756,8 @@
             112,
             164,
         );
-        demoRuntime.drawPanel(context, 112, 204, 330, 246, '#eff6ff');
-        demoRuntime.drawPanel(context, 480, 204, 296, 246, '#f0fdfa');
+        drawPanel(context, 112, 204, 330, 246, '#eff6ff');
+        drawPanel(context, 480, 204, 296, 246, '#f0fdfa');
         context.fillStyle = '#2563eb';
         context.fillRect(140, 350, 54, 64);
         context.fillRect(214, 306, 54, 108);
@@ -1800,15 +1777,15 @@
 
     function drawPrivacySample(context) {
         fillBackground(context, '#edf2f7');
-        demoRuntime.drawPanel(context, 74, 58, 812, 502, '#ffffff');
+        drawPanel(context, 74, 58, 812, 502, '#ffffff');
         context.fillStyle = '#0f172a';
         context.font = '700 32px Arial';
         context.fillText('Sample Identity Document', 114, 126);
         context.fillStyle = '#64748b';
         context.font = '18px Arial';
         context.fillText('All information is synthetic and safe for redaction demos.', 114, 162);
-        demoRuntime.drawPanel(context, 114, 204, 520, 270, '#f8fafc');
-        demoRuntime.drawPanel(context, 674, 204, 144, 188, '#dbeafe');
+        drawPanel(context, 114, 204, 520, 270, '#f8fafc');
+        drawPanel(context, 674, 204, 144, 188, '#dbeafe');
         context.fillStyle = '#1d4ed8';
         context.beginPath();
         context.arc(746, 270, 42, 0, Math.PI * 2);
@@ -1830,7 +1807,7 @@
 
     function drawIntegratedSample(context) {
         fillBackground(context, '#eef4ff');
-        demoRuntime.drawPanel(context, 58, 48, 844, 524, '#ffffff');
+        drawPanel(context, 58, 48, 844, 524, '#ffffff');
 
         context.fillStyle = '#0f172a';
         context.font = '700 30px Arial';
@@ -1858,15 +1835,15 @@
             context.stroke();
         }
 
-        demoRuntime.drawPanel(context, 126, 224, 238, 102, '#dbeafe', {
+        drawPanel(context, 126, 224, 238, 102, '#dbeafe', {
             stroke: '#2563eb',
             radius: 10,
         });
-        demoRuntime.drawPanel(context, 422, 206, 266, 112, '#fffbeb', {
+        drawPanel(context, 422, 206, 266, 112, '#fffbeb', {
             stroke: '#f59e0b',
             radius: 10,
         });
-        demoRuntime.drawPanel(context, 606, 354, 204, 112, '#ccfbf1', {
+        drawPanel(context, 606, 354, 204, 112, '#ccfbf1', {
             stroke: '#0f766e',
             radius: 10,
         });

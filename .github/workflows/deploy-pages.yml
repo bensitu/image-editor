@@ -5,7 +5,7 @@ on:
         branches: [main]
         paths:
             - 'docs/**'
-            - 'dist/**'
+            - 'scripts/package-pages-site.mjs'
             - '.github/workflows/deploy-pages.yml'
     workflow_dispatch:
 
@@ -36,10 +36,10 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            - name: Verify committed distribution freshness
-              run: npm run check:committed-dist
+            - name: Verify current documentation
+              run: npm run check:docs
 
-            - name: Package same-commit demo assets
+            - name: Package explicit modular demo pages
               run: npm run package:pages
 
             - name: Resolve Pages artifact name

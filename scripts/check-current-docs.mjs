@@ -29,10 +29,20 @@ const modularDemoCsp =
     "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; " +
     "img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; " +
     "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
+const modularDemoFabricUrl = 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js';
+const modularDemoImageEditorBase =
+    'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd';
+const modularDemoPages = new Set([
+    'docs/index.html',
+    'docs/basic.html',
+    'docs/annotation.html',
+    'docs/mask-mosaic.html',
+    'docs/integrated-editor.html',
+]);
+const mutableLatestImageEditorPattern = /@bensitu\/image-editor@latest\b/u;
 const forbiddenCurrentPatterns = Object.freeze([
     [/\bnew\s+ImageEditor\s*\(/u, 'the removed monolithic constructor'],
     [/\bImageEditorOptions\b/u, 'the removed flat options type'],
-    [/@bensitu\/image-editor@latest\b/u, 'a mutable latest Image Editor package reference'],
     [
         /\b(?:bindMasksToImageTransform|bindAnnotationsToImageTransform|textAnnotationFlipBehavior)\b/u,
         'a removed flat transform-binding option',
@@ -52,16 +62,35 @@ function assertCondition(condition, message) {
 }
 
 async function trackedFiles() {
-    const { stdout } = await execFileAsync('git', ['ls-files', '-z'], {
-        cwd: repositoryRoot,
-        encoding: 'utf8',
-        maxBuffer: 16 * 1024 * 1024,
-        windowsHide: true,
-    });
-    return stdout
-        .split('\0')
-        .filter(Boolean)
-        .map((file) => file.replaceAll('\\', '/'));
+    const { stdout } = await execFileAsync(
+        'git',
+        ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+        {
+            cwd: repositoryRoot,
+            encoding: 'utf8',
+            maxBuffer: 16 * 1024 * 1024,
+            windowsHide: true,
+        },
+    );
+    const candidates = [
+        ...new Set(
+            stdout
+                .split('\0')
+                .filter(Boolean)
+                .map((file) => file.replaceAll('\\', '/')),
+        ),
+    ];
+    const existing = await Promise.all(
+        candidates.map(async (file) => {
+            try {
+                await access(path.join(repositoryRoot, file));
+                return file;
+            } catch {
+                return null;
+            }
+        }),
+    );
+    return existing.filter(Boolean);
 }
 
 function isCurrentDocumentation(file) {
@@ -78,6 +107,10 @@ async function verifyCurrentLanguage(files) {
     const currentFiles = files.filter(isCurrentDocumentation);
     for (const file of currentFiles) {
         const source = await readFile(path.join(repositoryRoot, file), 'utf8');
+        assertCondition(
+            modularDemoPages.has(file) || !mutableLatestImageEditorPattern.test(source),
+            `${file} uses a mutable latest Image Editor package reference outside a hosted demo.`,
+        );
         for (const [pattern, description] of forbiddenCurrentPatterns) {
             assertCondition(!pattern.test(source), `${file} uses ${description}.`);
         }
@@ -118,37 +151,70 @@ async function verifyMarkdownLinks(files) {
 }
 
 async function verifyCurrentDemoSurface(files) {
-    const loader = await readFile(path.join(repositoryRoot, 'docs/js/demo-loader.js'), 'utf8');
     const demoPlans = new Map([
         [
             'index.html',
-            ['overlay', 'annotation', 'filters', 'mask', 'annotation-text', 'annotation-shape'],
+            {
+                pluginIds: [
+                    'overlay',
+                    'annotation',
+                    'filters',
+                    'mask',
+                    'annotation-text',
+                    'annotation-shape',
+                ],
+                entryFile: 'docs/js/landing-studio.js',
+                entryScripts: ['js/landing-studio.js'],
+            },
         ],
-        ['basic.html', ['overlay', 'transform', 'history', 'filters', 'crop']],
+        [
+            'basic.html',
+            {
+                pluginIds: ['overlay', 'transform', 'history', 'filters', 'crop'],
+                dependencyOnlyPluginIds: ['overlay'],
+                entryFile: 'docs/js/basic-demo.js',
+                entryScripts: ['js/basic-demo.js', 'js/demo-pages.js'],
+            },
+        ],
         [
             'annotation.html',
-            [
-                'overlay',
-                'annotation',
-                'history',
-                'annotation-text',
-                'annotation-shape',
-                'annotation-draw',
-            ],
+            {
+                pluginIds: [
+                    'overlay',
+                    'annotation',
+                    'history',
+                    'annotation-text',
+                    'annotation-shape',
+                    'annotation-draw',
+                ],
+                entryFile: 'docs/js/annotation-demo.js',
+                entryScripts: ['js/annotation-demo.js', 'js/demo-pages.js'],
+            },
         ],
-        ['mask-mosaic.html', ['overlay', 'mask', 'mosaic']],
+        [
+            'mask-mosaic.html',
+            {
+                pluginIds: ['overlay', 'mask', 'mosaic'],
+                entryFile: 'docs/js/mask-mosaic-demo.js',
+                entryScripts: ['js/mask-mosaic-demo.js', 'js/demo-pages.js'],
+            },
+        ],
         [
             'integrated-editor.html',
-            [
-                'overlay',
-                'annotation',
-                'transform',
-                'history',
-                'mask',
-                'annotation-text',
-                'annotation-shape',
-                'annotation-draw',
-            ],
+            {
+                pluginIds: [
+                    'overlay',
+                    'annotation',
+                    'transform',
+                    'history',
+                    'mask',
+                    'annotation-text',
+                    'annotation-shape',
+                    'annotation-draw',
+                ],
+                entryFile: 'docs/js/integrated-editor-demo.js',
+                entryScripts: ['js/integrated-editor-demo.js', 'js/demo-pages.js'],
+            },
         ],
     ]);
     const pluginDefinitions = new Map(
@@ -160,20 +226,27 @@ async function verifyCurrentDemoSurface(files) {
     const discoveredPages = [];
     for (const file of files.filter((candidate) => /^docs\/[^/]+\.html$/u.test(candidate))) {
         const source = await readFile(path.join(repositoryRoot, file), 'utf8');
-        if (source.includes('js/demo-loader.js')) discoveredPages.push(path.posix.basename(file));
+        if (source.includes(`${modularDemoImageEditorBase}/image-editor.core.umd.min.js`)) {
+            discoveredPages.push(path.posix.basename(file));
+        }
     }
     assertCondition(
         discoveredPages.sort().join('\n') === [...demoPlans.keys()].sort().join('\n'),
-        'Every HTML page using the modular demo loader must have a reviewed Plugin plan and CSP.',
+        'Every HTML page using the modular UMD CDN must have a reviewed Plugin plan and CSP.',
+    );
+    assertCondition(
+        !files.includes('docs/js/demo-loader.js'),
+        'Current demos must use explicit script tags instead of the retired dynamic demo loader.',
     );
 
-    for (const [page, expectedPluginIds] of demoPlans) {
+    for (const [page, plan] of demoPlans) {
         const source = await readFile(path.join(repositoryRoot, 'docs', page), 'utf8');
         assertCondition(
             source.includes('data-demo-page=') &&
-                source.includes('js/demo-loader.js') &&
-                source.includes('data-demo-plugins='),
-            `docs/${page} is not wired to the current shared demo runtime.`,
+                !source.includes('demo-loader.js') &&
+                !source.includes('ImageEditorFull') &&
+                !source.includes('image-editor.full'),
+            `docs/${page} is not wired to an explicit modular UMD composition.`,
         );
         const cspMatches = [
             ...source.matchAll(
@@ -184,17 +257,29 @@ async function verifyCurrentDemoSurface(files) {
             cspMatches.length === 1 && cspMatches[0]?.[1] === modularDemoCsp,
             `docs/${page} must declare the reviewed modular demo Content Security Policy.`,
         );
-        const pluginAttribute = source.match(/\bdata-demo-plugins="([^"]+)"/u);
-        const pluginIds = pluginAttribute?.[1]?.trim().split(/\s+/u) ?? [];
+        const scriptSources = [
+            ...source.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>\s*<\/script>/gu),
+        ].map((match) => match[1]);
+        const expectedScriptSources = [
+            modularDemoFabricUrl,
+            `${modularDemoImageEditorBase}/image-editor.core.umd.min.js`,
+            ...plan.pluginIds.map(
+                (pluginId) =>
+                    `${modularDemoImageEditorBase}/plugins/image-editor.plugin.${pluginId}.umd.min.js`,
+            ),
+            ...plan.entryScripts,
+        ];
         assertCondition(
-            pluginIds.join(' ') === expectedPluginIds.join(' '),
-            `docs/${page} must declare the reviewed modular Plugin plan: ${expectedPluginIds.join(
-                ', ',
-            )}.`,
+            JSON.stringify(scriptSources) === JSON.stringify(expectedScriptSources),
+            `docs/${page} must load its reviewed direct CDN and entry-script plan in dependency order.`,
+        );
+        assertCondition(
+            source.includes('<code>@latest</code>') && source.includes('production'),
+            `docs/${page} must explain the hosted @latest policy and production version pinning.`,
         );
 
         const loaded = new Set();
-        for (const pluginId of pluginIds) {
+        for (const pluginId of plan.pluginIds) {
             const definition = pluginDefinitions.get(pluginId);
             assertCondition(
                 definition !== undefined,
@@ -209,33 +294,38 @@ async function verifyCurrentDemoSurface(files) {
             );
             loaded.add(pluginId);
         }
+
+        const entry = await readFile(path.join(repositoryRoot, plan.entryFile), 'utf8');
+        assertCondition(
+            entry.includes('ImageEditorCore') &&
+                entry.includes('composePlugins') &&
+                !entry.includes('ImageEditorFull') &&
+                !entry.includes('createFullPreset'),
+            `${plan.entryFile} must visibly construct Core and compose only modular Plugin globals.`,
+        );
+        const dependencyOnlyPluginIds = new Set(plan.dependencyOnlyPluginIds ?? []);
+        for (const pluginId of plan.pluginIds.filter(
+            (candidate) => !dependencyOnlyPluginIds.has(candidate),
+        )) {
+            const guardExport = pluginDefinitions.get(pluginId)?.guardExport;
+            assertCondition(
+                guardExport && entry.includes(`${guardExport}(`),
+                `${plan.entryFile} does not visibly install ${pluginId}.`,
+            );
+        }
     }
-    assertCondition(
-        loader.includes('image-editor.core.umd.min.js') &&
-            loader.includes('image-editor.plugin.${pluginId}.umd.min.js') &&
-            loader.includes("'../dist/umd'") &&
-            loader.includes("'./vendor/image-editor/umd'") &&
-            loader.includes('same-origin, same-commit UMD assets') &&
-            loader.includes('ImageEditorPlugins') &&
-            loader.includes('ImageEditorCore') &&
-            loader.includes('composePlugins') &&
-            !loader.includes('@bensitu/image-editor@latest') &&
-            !loader.includes('ImageEditorFull') &&
-            !loader.includes('image-editor.full'),
-        'The demo loader must use same-version assets and verify only the v3 modular UMD composition surface.',
+
+    const sharedDemoBehavior = await readFile(
+        path.join(repositoryRoot, 'docs/js/demo-pages.js'),
+        'utf8',
     );
-    const demos = await readFile(path.join(repositoryRoot, 'docs/js/demo-pages.js'), 'utf8');
-    const landing = await readFile(path.join(repositoryRoot, 'docs/js/landing-studio.js'), 'utf8');
     assertCondition(
-        demos.includes('createPluginPlan') &&
-            demos.includes('overlayFoundationPlugin') &&
-            demos.includes('plugins.Transform.transformPlugin') &&
-            landing.includes('plugins.Filters.filtersPlugin') &&
-            !demos.includes('ImageEditorFull') &&
-            !landing.includes('ImageEditorFull') &&
-            !demos.includes('createFullPreset') &&
-            !landing.includes('createFullPreset'),
-        'Current demo pages must install factories from their selected modular Plugin globals.',
+        sharedDemoBehavior.includes('window.ImageEditorDemoPage') &&
+            !sharedDemoBehavior.includes('createPluginPlan') &&
+            !sharedDemoBehavior.includes('ImageEditorPlugins') &&
+            !sharedDemoBehavior.includes('ImageEditorFull') &&
+            !sharedDemoBehavior.includes('createFullPreset'),
+        'Shared demo behavior must not hide page-specific UMD Plugin composition.',
     );
 
     const legacyPage = await readFile(path.join(repositoryRoot, 'docs/legacy-v1.html'), 'utf8');

@@ -1,8 +1,13 @@
 /**
- * Verifies that each current documentation demo loads only its declared modular UMD plan.
+ * Verifies that each current documentation demo loads and installs its focused modular UMD plan.
+ *
+ * CDN requests are fulfilled with the repository build so the browser test remains deterministic.
  *
  * @module
  */
+
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { expect, test } from '@playwright/test';
 
@@ -13,10 +18,13 @@ interface DemoBrowser extends Window {
     };
     readonly ImageEditorFull?: unknown;
     readonly ImageEditorPlugins?: Readonly<Record<string, unknown>>;
-    readonly __imageEditorDemoRuntime?: {
-        readonly pluginIds?: readonly string[];
-    };
 }
+
+const repositoryRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
+const fabricCdnUrl = 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js';
+const imageEditorCdnBase = 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd';
+const imageEditorCdnRequest =
+    /^https:\/\/cdn\.jsdelivr\.net\/npm\/@bensitu\/image-editor@latest\/dist\/umd\/.+\.js$/u;
 
 const demoPlans = [
     {
@@ -90,6 +98,27 @@ const demoPlans = [
     },
 ] as const;
 
+test.beforeEach(async ({ page }) => {
+    await page.route(fabricCdnUrl, async (route) => {
+        await route.fulfill({
+            path: resolve(repositoryRoot, 'node_modules/fabric/dist/index.min.js'),
+            contentType: 'text/javascript; charset=utf-8',
+        });
+    });
+    await page.route(imageEditorCdnRequest, async (route) => {
+        const pathname = new URL(route.request().url()).pathname;
+        const relativePath = pathname.split('/dist/umd/')[1];
+        if (!relativePath || relativePath.split('/').includes('..')) {
+            await route.abort('blockedbyclient');
+            return;
+        }
+        await route.fulfill({
+            path: resolve(repositoryRoot, 'dist/umd', ...relativePath.split('/')),
+            contentType: 'text/javascript; charset=utf-8',
+        });
+    });
+});
+
 for (const plan of demoPlans) {
     test(`${plan.name} demo uses its focused modular UMD plan`, async ({ page }) => {
         const pageErrors: string[] = [];
@@ -99,14 +128,12 @@ for (const plan of demoPlans) {
         expect(response?.ok()).toBe(true);
         await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
 
-        const result = await page.evaluate(() => {
+        const result = await page.evaluate((cdnBase) => {
             const browser = window as unknown as DemoBrowser;
             const imageEditorScripts = Array.from(document.scripts)
                 .map((script) => script.src)
-                .filter((src) => src.includes('/dist/umd/'))
-                .map((src) => new URL(src).pathname);
+                .filter((src) => src.startsWith(`${cdnBase}/`));
             return {
-                pluginIds: browser.__imageEditorDemoRuntime?.pluginIds ?? [],
                 pluginGlobals: Object.keys(browser.ImageEditorPlugins ?? {}).sort(),
                 coreAvailable:
                     typeof browser.ImageEditor?.ImageEditorCore === 'function' &&
@@ -115,17 +142,17 @@ for (const plan of demoPlans) {
                 hasDemoError: document.body.dataset.demoError === 'true',
                 imageEditorScripts,
             };
-        });
+        }, imageEditorCdnBase);
 
-        expect(result.pluginIds).toEqual(plan.pluginIds);
         expect(result.pluginGlobals).toEqual(plan.globals);
         expect(result.coreAvailable).toBe(true);
         expect(result.fullAbsent).toBe(true);
         expect(result.hasDemoError).toBe(false);
         expect(result.imageEditorScripts).toEqual([
-            '/dist/umd/image-editor.core.umd.min.js',
+            `${imageEditorCdnBase}/image-editor.core.umd.min.js`,
             ...plan.pluginIds.map(
-                (pluginId) => `/dist/umd/plugins/image-editor.plugin.${pluginId}.umd.min.js`,
+                (pluginId) =>
+                    `${imageEditorCdnBase}/plugins/image-editor.plugin.${pluginId}.umd.min.js`,
             ),
         ]);
         expect(pageErrors).toEqual([]);

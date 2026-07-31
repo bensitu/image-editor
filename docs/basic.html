@@ -31,8 +31,8 @@
                 <div>
                     <h1>Basic Editor Demo</h1>
                     <p>
-                        A focused upload, transform, crop, and export workflow for common image
-                        editing tasks.
+                        A focused Core composition with Transform, History, Filters, and Crop for
+                        common upload, editing, and export workflows.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -339,38 +339,48 @@
                     <section class="panel-section">
                         <h2>Public APIs Used</h2>
                         <p class="note">
-                            This page installs only Transform, History, Filters, and Crop.
+                            This page installs only Transform, History, Filters, and Crop. Crop's
+                            UMD imports the shared Overlay contract, so the Overlay Foundation
+                            script is loaded first but is not installed as a runtime module here.
+                            See
+                            <a href="js/basic-demo.js">basic-demo.js</a>. The hosted page uses
+                            <code>@latest</code>; pin one exact package version in production.
                         </p>
                         <div class="api-list">
-                            <code>new ImageEditorCore()</code>
-                            <code>composePlugins()</code>
-                            <code>transformPlugin()</code>
-                            <code>historyPlugin()</code>
-                            <code>filtersPlugin()</code>
-                            <code>cropPlugin()</code>
-                            <code>modules.editor.loadImage()</code>
-                            <code>modules.editor.setLayoutMode()</code>
-                            <code>modules.transform.scale()</code>
-                            <code>modules.transform.rotate()</code>
-                            <code>modules.transform.flipHorizontal()</code>
-                            <code>modules.transform.flipVertical()</code>
-                            <code>modules.transform.resetImageTransform()</code>
-                            <code>modules.filters.preview()</code>
-                            <code>modules.filters.commit()</code>
-                            <code>modules.filters.clear()</code>
-                            <code>modules.crop.enter()</code>
-                            <code>modules.crop.apply()</code>
-                            <code>modules.editor.exportImageBase64()</code>
-                            <code>modules.editor.exportImageFile()</code>
+                            <code>new ImageEditor.ImageEditorCore()</code>
+                            <code>ImageEditor.composePlugins()</code>
+                            <code>ImageEditorPlugins.Transform.transformPlugin()</code>
+                            <code>ImageEditorPlugins.History.historyPlugin()</code>
+                            <code>ImageEditorPlugins.Filters.filtersPlugin()</code>
+                            <code>ImageEditorPlugins.Crop.cropPlugin()</code>
+                            <code>editor.loadImage()</code>
+                            <code>editor.setLayoutMode()</code>
+                            <code>plugins.transform.scale()</code>
+                            <code>plugins.transform.rotate()</code>
+                            <code>plugins.transform.flipHorizontal()</code>
+                            <code>plugins.transform.flipVertical()</code>
+                            <code>plugins.transform.resetImageTransform()</code>
+                            <code>plugins.filters.preview()</code>
+                            <code>plugins.filters.commit()</code>
+                            <code>plugins.filters.clear()</code>
+                            <code>plugins.crop.enter()</code>
+                            <code>plugins.crop.apply()</code>
+                            <code>editor.exportImageBase64()</code>
+                            <code>editor.exportImageFile()</code>
                         </div>
                     </section>
                 </aside>
             </section>
         </main>
 
-        <script
-            src="js/demo-loader.js"
-            data-demo-plugins="overlay transform history filters crop"
-        ></script>
+        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.core.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.history.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.filters.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.crop.umd.min.js"></script>
+        <script src="js/basic-demo.js"></script>
+        <script src="js/demo-pages.js"></script>
     </body>
 </html>

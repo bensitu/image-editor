@@ -123,12 +123,22 @@ assertCondition(
 );
 
 const pagesWorkflow = await readRepositoryFile('.github/workflows/deploy-pages.yml');
-for (const fragment of ["- 'dist/**'", 'run: npm run package:pages', 'path: .pages-site']) {
+for (const fragment of [
+    "- 'docs/**'",
+    'run: npm run check:docs',
+    'run: npm run package:pages',
+    'path: .pages-site',
+]) {
     assertCondition(
         pagesWorkflow.includes(fragment),
-        `The Pages workflow is missing its same-commit artifact policy: ${fragment}`,
+        `The Pages workflow is missing its reviewed documentation artifact policy: ${fragment}`,
     );
 }
+assertCondition(
+    !pagesWorkflow.includes("- 'dist/**'") &&
+        !pagesWorkflow.includes('run: npm run check:committed-dist'),
+    'The CDN-backed Pages workflow must not depend on unused committed distribution assets.',
+);
 
 const packageManifestPaths = ['package.json', 'packages/image-editor-codemod/package.json'];
 const [packageManifest, codemodPackageManifest] = await Promise.all(

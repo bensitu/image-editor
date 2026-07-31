@@ -1,13 +1,21 @@
 (function () {
     'use strict';
 
-    const demoRuntime = window.__imageEditorDemoRuntime;
     const studioWidth = 1120;
     const studioHeight = 320;
     let landingKit = null;
 
+    function createCanvas(width, height) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Canvas 2D context is unavailable.');
+        return { canvas, context };
+    }
+
     function createStudioDataUrl() {
-        const { canvas, context } = demoRuntime.createCanvas(studioWidth, studioHeight);
+        const { canvas, context } = createCanvas(studioWidth, studioHeight);
 
         const baseGradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
         baseGradient.addColorStop(0, '#f8fafc');
@@ -385,17 +393,25 @@
     async function initLandingStudio() {
         const canvas = document.getElementById('landingStudioCanvas');
         const container = document.getElementById('landingStudioContainer');
-        const plugins = demoRuntime?.plugins;
-        if (!demoRuntime?.createEditor || !plugins || !canvas || !container) return;
+        if (!canvas || !container) return;
 
-        const kit = demoRuntime.createEditor(
-            {
-                backgroundColor: 'transparent',
-                canvasWidth: studioWidth,
-                canvasHeight: studioHeight,
-                defaultLayoutMode: 'fit',
-            },
-            {
+        const { ImageEditorCore, composePlugins } = window.ImageEditor || {};
+        const plugins = window.ImageEditorPlugins;
+        if (typeof ImageEditorCore !== 'function' || typeof composePlugins !== 'function') {
+            throw new Error('Image Editor Core UMD is unavailable.');
+        }
+        if (!window.fabric || !plugins) {
+            throw new Error('Fabric or the selected Image Editor Plugin UMDs are unavailable.');
+        }
+
+        const editor = new ImageEditorCore(window.fabric, {
+            backgroundColor: 'transparent',
+            canvasWidth: studioWidth,
+            canvasHeight: studioHeight,
+            defaultLayoutMode: 'fit',
+        });
+        const installedPlugins = editor.install(
+            composePlugins({
                 filters: plugins.Filters.filtersPlugin(),
                 overlays: plugins.Overlay.overlayFoundationPlugin(),
                 masks: plugins.Mask.maskPlugin({
@@ -416,10 +432,10 @@
                     namePrefix: 'studio-note',
                 }),
                 shape: plugins.AnnotationShape.shapeAnnotationPlugin(),
-            },
+            }),
         );
+        const kit = Object.freeze({ editor, ...installedPlugins });
         landingKit = kit;
-        const { editor } = kit;
 
         try {
             await editor.init({

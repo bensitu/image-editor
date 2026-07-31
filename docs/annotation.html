@@ -31,8 +31,8 @@
                 <div>
                     <h1>Annotation Demo</h1>
                     <p>
-                        Mark up screenshots, documents, QA notes, and review material with text
-                        annotations, shapes, and freehand drawing.
+                        Compose the Overlay and Annotation Foundations with focused Text, Shape,
+                        Draw, and History Plugins for screenshot and document review.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -390,39 +390,47 @@
                     <section class="panel-section">
                         <h2>Public APIs Used</h2>
                         <p class="note">
-                            This page installs only History and the Overlay/Annotation feature
-                            plugins.
+                            This page installs History, the shared Overlay and Annotation
+                            Foundations, and the Text, Shape, and Draw Feature Plugins. See
+                            <a href="js/annotation-demo.js">annotation-demo.js</a>. The hosted page
+                            uses <code>@latest</code>; pin one exact package version in production.
                         </p>
                         <div class="api-list">
-                            <code>new ImageEditorCore()</code>
-                            <code>composePlugins()</code>
-                            <code>overlayFoundationPlugin()</code>
-                            <code>annotationFoundationPlugin()</code>
-                            <code>textAnnotationPlugin()</code>
-                            <code>shapeAnnotationPlugin()</code>
-                            <code>drawAnnotationPlugin()</code>
-                            <code>historyPlugin()</code>
-                            <code>modules.text.create()</code>
-                            <code>modules.text.beginEditing()</code>
-                            <code>modules.shape.create()</code>
-                            <code>modules.shape.enter()</code>
-                            <code>modules.draw.enter()</code>
-                            <code>modules.draw.setSubMode()</code>
-                            <code>modules.draw.configureEraser()</code>
-                            <code>modules.annotations.update()</code>
-                            <code>modules.annotations.remove()</code>
-                            <code>modules.overlays.bringForward()</code>
-                            <code>modules.annotations.flatten()</code>
-                            <code>modules.editor.exportImageBase64()</code>
+                            <code>new ImageEditor.ImageEditorCore()</code>
+                            <code>ImageEditor.composePlugins()</code>
+                            <code>ImageEditorPlugins.Overlay.overlayFoundationPlugin()</code>
+                            <code>ImageEditorPlugins.Annotation.annotationFoundationPlugin()</code>
+                            <code>ImageEditorPlugins.AnnotationText.textAnnotationPlugin()</code>
+                            <code>ImageEditorPlugins.AnnotationShape.shapeAnnotationPlugin()</code>
+                            <code>ImageEditorPlugins.AnnotationDraw.drawAnnotationPlugin()</code>
+                            <code>ImageEditorPlugins.History.historyPlugin()</code>
+                            <code>plugins.text.create()</code>
+                            <code>plugins.text.beginEditing()</code>
+                            <code>plugins.shape.create()</code>
+                            <code>plugins.shape.enter()</code>
+                            <code>plugins.draw.enter()</code>
+                            <code>plugins.draw.setSubMode()</code>
+                            <code>plugins.draw.configureEraser()</code>
+                            <code>plugins.annotations.update()</code>
+                            <code>plugins.annotations.remove()</code>
+                            <code>plugins.overlays.bringForward()</code>
+                            <code>plugins.annotations.flatten()</code>
+                            <code>editor.exportImageBase64()</code>
                         </div>
                     </section>
                 </aside>
             </section>
         </main>
 
-        <script
-            src="js/demo-loader.js"
-            data-demo-plugins="overlay annotation history annotation-text annotation-shape annotation-draw"
-        ></script>
+        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.core.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.history.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-text.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-shape.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-draw.umd.min.js"></script>
+        <script src="js/annotation-demo.js"></script>
+        <script src="js/demo-pages.js"></script>
     </body>
 </html>
