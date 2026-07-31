@@ -20,6 +20,7 @@ import {
     FABRIC_RUNTIME_CAPABILITY,
     definePlugin,
     definePluginRef,
+    observePromise,
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
@@ -116,6 +117,29 @@ export function textAnnotationPlugin(
                         operationId === 'core:commit-load-image' ||
                         operationId === 'core:load-state' ||
                         operationId === 'core:export',
+                }),
+            );
+            context.disposables.add(
+                annotations.subscribe((status) => {
+                    const session = controller?.getEditingSession();
+                    if (
+                        !session ||
+                        status.annotations.some(
+                            (annotation) => annotation.id === session.annotationId,
+                        )
+                    ) {
+                        return;
+                    }
+                    if (context.tools.getActiveToolId() === TEXT_TOOL_ID) {
+                        observePromise(context.tools.exit('operation'), (error) => {
+                            diagnostics.reportWarning(
+                                error,
+                                'Text Annotation tool cleanup after target removal failed.',
+                            );
+                        });
+                    } else {
+                        controller?.cancelEditing();
+                    }
                 }),
             );
             const requireController = (): TextAnnotationController => {

@@ -1,6 +1,6 @@
 import { OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS, PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS, } from '../../utils/internal-operation-conflict-domains.js';
 import { ANNOTATION_AUTHORING_CAPABILITY, ANNOTATION_CAPABILITY, annotationFoundationRef, } from '../../foundations/annotation/index.js';
-import { BASE_IMAGE_INFO_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { BASE_IMAGE_INFO_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, definePlugin, definePluginRef, observePromise, } from '../../sdk/index.js';
 import { TextAnnotationController, resolveTextConfiguration } from './text-controller.js';
 const TEXT_TOOL_ID = 'annotation:text';
 export const textAnnotationPluginRef = definePluginRef('annotation:text', '1.0.0');
@@ -70,6 +70,21 @@ export function textAnnotationPlugin(options = {}) {
                     operationId === 'core:commit-load-image' ||
                     operationId === 'core:load-state' ||
                     operationId === 'core:export',
+            }));
+            context.disposables.add(annotations.subscribe((status) => {
+                const session = controller === null || controller === void 0 ? void 0 : controller.getEditingSession();
+                if (!session ||
+                    status.annotations.some((annotation) => annotation.id === session.annotationId)) {
+                    return;
+                }
+                if (context.tools.getActiveToolId() === TEXT_TOOL_ID) {
+                    observePromise(context.tools.exit('operation'), (error) => {
+                        diagnostics.reportWarning(error, 'Text Annotation tool cleanup after target removal failed.');
+                    });
+                }
+                else {
+                    controller === null || controller === void 0 ? void 0 : controller.cancelEditing();
+                }
             }));
             const requireController = () => {
                 if (!controller)

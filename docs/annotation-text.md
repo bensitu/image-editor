@@ -42,8 +42,14 @@ await text.update(id, {
 });
 ```
 
-Creation and changed updates are atomic document mutations. `configure()` changes future defaults
-and transform behavior but is not saved in Snapshot or History.
+Creation and changed updates are atomic document mutations. While the same Text ID has an active
+editing session, feature-only `update()` patches (`text`, `fill`, `fontSize`, and the other Text
+style fields) update the transient preview immediately. The committed Text, Snapshot, and History
+remain unchanged until `commitEditing()` creates one mutation. Shared Annotation fields such as
+name, metadata, hidden, and locked still require the editing session to finish first.
+
+`configure()` changes future defaults and transform behavior but is not saved in Snapshot or
+History.
 
 ## Editing lifecycle
 
@@ -53,6 +59,12 @@ committed Annotation, Snapshot, export, and History remain unchanged until `comm
 
 ```ts
 await text.beginEditing(id);
+
+await text.update(id, {
+    text: 'Updated while editing',
+    fill: '#2563eb',
+    fontSize: 32,
+});
 
 // A UI may observe immutable status without receiving a live Fabric object.
 const session = text.getEditingSession();

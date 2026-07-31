@@ -565,6 +565,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.requireSession("update Shape preview");
 			const geometry = normalizeShapeGeometry(geometryInput);
 			if (geometry.kind !== session.options.kind) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Shape preview kind does not match the session.");
+			this.replaceSessionPreview(session, geometry);
+		}
+		replaceSessionPreview(session, geometry) {
 			const preview = this.createObject(geometry, session.options);
 			const previewId = `annotation-shape:preview:${++this.previewSequence}`;
 			this.authoring.replacePreview(session.previewId ? [session.previewId] : [], {
@@ -631,6 +634,24 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		configure(patch) {
 			this.assertActive("configure Shape");
 			this.configuration = resolveShapeConfiguration(patch, this.configuration);
+			const session = this.session;
+			if (!session) return;
+			const sessionPatch = {
+				...patch.stroke !== void 0 ? { stroke: this.configuration.stroke } : {},
+				...patch.strokeWidth !== void 0 ? { strokeWidth: this.configuration.strokeWidth } : {},
+				...patch.fill !== void 0 ? { fill: this.configuration.fill } : {},
+				...patch.opacity !== void 0 ? { opacity: this.configuration.opacity } : {},
+				...patch.strokeDashArray !== void 0 ? { strokeDashArray: this.configuration.strokeDashArray } : {},
+				...patch.arrowHeadLength !== void 0 ? { arrowHeadLength: this.configuration.arrowHeadLength } : {},
+				...patch.selectable !== void 0 ? { selectable: this.configuration.selectable } : {},
+				...patch.evented !== void 0 ? { evented: this.configuration.evented } : {}
+			};
+			if (Object.keys(sessionPatch).length === 0) return;
+			session.options = Object.freeze({
+				...session.options,
+				...sessionPatch
+			});
+			if (session.geometry) this.replaceSessionPreview(session, session.geometry);
 		}
 		getConfiguration() {
 			this.assertActive("read Shape configuration");

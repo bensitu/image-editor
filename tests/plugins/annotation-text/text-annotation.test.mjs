@@ -107,6 +107,77 @@ test('editing preview is transient and commit or cancel uses exact History bound
     await dispose(editor);
 });
 
+test('editing feature updates stay live and transient until one commit', async () => {
+    const { editor, history, text } = await createEditor();
+    await load(editor);
+    const id = await text.create({
+        text: 'Before',
+        fill: '#111111',
+        fontSize: 24,
+        name: 'Live edit',
+    });
+    history.clear();
+    const snapshot = editor.saveState();
+    const statuses = [];
+    const subscription = text.subscribe((status) => statuses.push(status));
+
+    await text.beginEditing(id);
+    const source = textObject(editor, id);
+    const preview = editor
+        .getCanvas()
+        .getObjects()
+        .find((object) => object.editorAnnotationPreviewOwner === 'annotation:text');
+    await text.update(id, { text: 'Live value', fill: '#0066ff', fontSize: 48 });
+
+    assert.equal(preview.text, 'Live value');
+    assert.equal(preview.fill, '#0066ff');
+    assert.equal(preview.fontSize, 48);
+    assert.equal(preview.hiddenTextarea?.value, 'Live value');
+    assert.equal(preview.selectionStart, preview.graphemeSplit('Live value').length);
+    assert.equal(preview.selectionEnd, preview.graphemeSplit('Live value').length);
+    assert.equal(source.text, 'Before');
+    assert.equal(editor.saveState(), snapshot);
+    assert.equal(history.length, 0);
+    assert.equal(text.getEditingSession().text, 'Live value');
+    assert.equal(statuses.at(-1).editing.text, 'Live value');
+    await assert.rejects(text.update(id, { name: 'Deferred rename' }), /shared Annotation fields/i);
+
+    await text.commitEditing();
+    assert.equal(textObject(editor, id).text, 'Live value');
+    assert.equal(textObject(editor, id).fill, '#0066ff');
+    assert.equal(textObject(editor, id).fontSize, 48);
+    assert.equal(history.length, 1);
+    subscription.dispose();
+    await dispose(editor);
+});
+
+test('removing an active Text target closes its transient editing lifecycle', async () => {
+    const { annotations, editor, text } = await createEditor();
+    await load(editor);
+    const firstId = await text.create({ text: 'Remove selected' });
+    await text.beginEditing(firstId);
+    assert.ok(text.getEditingSession());
+
+    await annotations.remove(firstId);
+    assert.equal(text.getEditingSession(), null);
+    assert.equal(
+        editor
+            .getCanvas()
+            .getObjects()
+            .filter((object) => object.editorAnnotationPreviewOwner === 'annotation:text').length,
+        0,
+    );
+    await text.commitEditing();
+
+    const secondId = await text.create({ text: 'Remove all' });
+    await text.beginEditing(secondId);
+    await annotations.removeAll();
+    assert.equal(text.getEditingSession(), null);
+    assert.equal(annotations.list({ includeHidden: true, includeLocked: true }).length, 0);
+    await text.cancelEditing();
+    await dispose(editor);
+});
+
 test('locked Text cannot edit and unlock restores approved interaction', async () => {
     const { annotations, editor, text } = await createEditor();
     await load(editor);

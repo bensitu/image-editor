@@ -16987,6 +16987,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				opacity: session.preview.opacity
 			});
 			this.closeSession();
+			if (!this.annotations.get(session.annotationId)) return;
 			await this.authoring.updateFeature({
 				id: session.annotationId,
 				kind: TEXT_ANNOTATION_KIND,
@@ -17000,10 +17001,28 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.closeSession();
 		}
 		update(id, patch) {
-			var _a;
+			var _a, _b, _c;
 			this.assertActive("update Text");
 			if (!isPlainRecord$3(patch)) return Promise.reject(new AnnotationValidationError("Text update must be an object."));
-			if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.annotationId) === id) return Promise.reject(new AnnotationValidationError("Commit or cancel Text editing before updating it."));
+			if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.annotationId) === id) {
+				const shared = sharedUpdate$1(patch);
+				if (Object.keys(shared).length > 0) return Promise.reject(new AnnotationValidationError("Commit or cancel Text editing before updating shared Annotation fields."));
+				const featurePatch = featureUpdate(patch);
+				if (Object.keys(featurePatch).length === 0) return Promise.resolve();
+				const preview = this.session.preview;
+				preview.set(featurePatch);
+				(_b = preview.initDimensions) === null || _b === void 0 || _b.call(preview);
+				if (featurePatch.text !== void 0 && preview.hiddenTextarea) {
+					preview.hiddenTextarea.value = featurePatch.text;
+					const cursor = preview.graphemeSplit(featurePatch.text).length;
+					preview.setSelectionStart(cursor);
+					preview.setSelectionEnd(cursor);
+				}
+				preview.setCoords();
+				(_c = preview.canvas) === null || _c === void 0 || _c.requestRenderAll();
+				this.emitStatus();
+				return Promise.resolve();
+			}
 			return this.authoring.updateFeature({
 				id,
 				kind: TEXT_ANNOTATION_KIND,
@@ -17158,6 +17177,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					enter: () => void 0,
 					exit: () => controller === null || controller === void 0 ? void 0 : controller.cancelEditing(),
 					canRunOperation: (operationId) => operationId.startsWith("annotation-text:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+				}));
+				context.disposables.add(annotations.subscribe((status) => {
+					const session = controller === null || controller === void 0 ? void 0 : controller.getEditingSession();
+					if (!session || status.annotations.some((annotation) => annotation.id === session.annotationId)) return;
+					if (context.tools.getActiveToolId() === TEXT_TOOL_ID) observePromise(context.tools.exit("operation"), (error) => {
+						diagnostics.reportWarning(error, "Text Annotation tool cleanup after target removal failed.");
+					});
+					else controller === null || controller === void 0 || controller.cancelEditing();
 				}));
 				const requireController = () => {
 					if (!controller) throw new Error("Text Annotation Plugin is not installed.");
@@ -17557,6 +17584,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.requireSession("update Shape preview");
 			const geometry = normalizeShapeGeometry(geometryInput);
 			if (geometry.kind !== session.options.kind) throw new AnnotationValidationError("Shape preview kind does not match the session.");
+			this.replaceSessionPreview(session, geometry);
+		}
+		replaceSessionPreview(session, geometry) {
 			const preview = this.createObject(geometry, session.options);
 			const previewId = `annotation-shape:preview:${++this.previewSequence}`;
 			this.authoring.replacePreview(session.previewId ? [session.previewId] : [], {
@@ -17623,6 +17653,24 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		configure(patch) {
 			this.assertActive("configure Shape");
 			this.configuration = resolveShapeConfiguration(patch, this.configuration);
+			const session = this.session;
+			if (!session) return;
+			const sessionPatch = {
+				...patch.stroke !== void 0 ? { stroke: this.configuration.stroke } : {},
+				...patch.strokeWidth !== void 0 ? { strokeWidth: this.configuration.strokeWidth } : {},
+				...patch.fill !== void 0 ? { fill: this.configuration.fill } : {},
+				...patch.opacity !== void 0 ? { opacity: this.configuration.opacity } : {},
+				...patch.strokeDashArray !== void 0 ? { strokeDashArray: this.configuration.strokeDashArray } : {},
+				...patch.arrowHeadLength !== void 0 ? { arrowHeadLength: this.configuration.arrowHeadLength } : {},
+				...patch.selectable !== void 0 ? { selectable: this.configuration.selectable } : {},
+				...patch.evented !== void 0 ? { evented: this.configuration.evented } : {}
+			};
+			if (Object.keys(sessionPatch).length === 0) return;
+			session.options = Object.freeze({
+				...session.options,
+				...sessionPatch
+			});
+			if (session.geometry) this.replaceSessionPreview(session, session.geometry);
 		}
 		getConfiguration() {
 			this.assertActive("read Shape configuration");

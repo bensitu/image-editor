@@ -425,6 +425,7 @@ var TextAnnotationController = class {
 			opacity: session.preview.opacity
 		});
 		this.closeSession();
+		if (!this.annotations.get(session.annotationId)) return;
 		await this.authoring.updateFeature({
 			id: session.annotationId,
 			kind: TEXT_ANNOTATION_KIND,
@@ -438,10 +439,28 @@ var TextAnnotationController = class {
 		this.closeSession();
 	}
 	update(id, patch) {
-		var _a;
+		var _a, _b, _c;
 		this.assertActive("update Text");
 		if (!isPlainRecord(patch)) return Promise.reject(new require_annotation.AnnotationValidationError("Text update must be an object."));
-		if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.annotationId) === id) return Promise.reject(new require_annotation.AnnotationValidationError("Commit or cancel Text editing before updating it."));
+		if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.annotationId) === id) {
+			const shared = sharedUpdate(patch);
+			if (Object.keys(shared).length > 0) return Promise.reject(new require_annotation.AnnotationValidationError("Commit or cancel Text editing before updating shared Annotation fields."));
+			const featurePatch = featureUpdate(patch);
+			if (Object.keys(featurePatch).length === 0) return Promise.resolve();
+			const preview = this.session.preview;
+			preview.set(featurePatch);
+			(_b = preview.initDimensions) === null || _b === void 0 || _b.call(preview);
+			if (featurePatch.text !== void 0 && preview.hiddenTextarea) {
+				preview.hiddenTextarea.value = featurePatch.text;
+				const cursor = preview.graphemeSplit(featurePatch.text).length;
+				preview.setSelectionStart(cursor);
+				preview.setSelectionEnd(cursor);
+			}
+			preview.setCoords();
+			(_c = preview.canvas) === null || _c === void 0 || _c.requestRenderAll();
+			this.emitStatus();
+			return Promise.resolve();
+		}
 		return this.authoring.updateFeature({
 			id,
 			kind: TEXT_ANNOTATION_KIND,
@@ -597,6 +616,14 @@ function textAnnotationPlugin(options = {}) {
 				exit: () => controller === null || controller === void 0 ? void 0 : controller.cancelEditing(),
 				canRunOperation: (operationId) => operationId.startsWith("annotation-text:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
 			}));
+			context.disposables.add(annotations.subscribe((status) => {
+				const session = controller === null || controller === void 0 ? void 0 : controller.getEditingSession();
+				if (!session || status.annotations.some((annotation) => annotation.id === session.annotationId)) return;
+				if (context.tools.getActiveToolId() === TEXT_TOOL_ID) require_core_capabilities.observePromise(context.tools.exit("operation"), (error) => {
+					diagnostics.reportWarning(error, "Text Annotation tool cleanup after target removal failed.");
+				});
+				else controller === null || controller === void 0 || controller.cancelEditing();
+			}));
 			const requireController = () => {
 				if (!controller) throw new Error("Text Annotation Plugin is not installed.");
 				return controller;
@@ -654,4 +681,4 @@ Object.defineProperty(exports, 'textAnnotationPluginRef', {
     return textAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-text-BIxZK_Kb.cjs.map
+//# sourceMappingURL=annotation-text-DlLMVmus.cjs.map

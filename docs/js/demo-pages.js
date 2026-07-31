@@ -76,6 +76,7 @@
         isBusy: false,
         lastOperation: null,
         filterPreviewSequence: 0,
+        textMode: false,
         pointer: {
             active: false,
             start: null,
@@ -315,7 +316,7 @@
         if (!kit) return null;
         if (kit.crop?.isActive) return 'crop';
         if (kit.mosaic?.isActive) return 'mosaic';
-        if (kit.text?.getEditingSession()) return 'text';
+        if (demoState.textMode || kit.text?.getEditingSession()) return 'text';
         if (kit.shape?.getSession()) return 'shape';
         if (kit.draw?.getSession()) return 'draw';
         return null;
@@ -355,6 +356,27 @@
         };
     }
 
+    function isScenePointOnBaseImage(scenePoint) {
+        const image = getBaseImage();
+        const fabricApi = window.fabric;
+        if (!image || !fabricApi?.util?.invertTransform || !fabricApi?.util?.transformPoint) {
+            return false;
+        }
+        const inverse = fabricApi.util.invertTransform(image.calcTransformMatrix());
+        const local = fabricApi.util.transformPoint(
+            new fabricApi.Point(scenePoint.x, scenePoint.y),
+            inverse,
+        );
+        const halfWidth = (Number(image.width) || 0) / 2;
+        const halfHeight = (Number(image.height) || 0) / 2;
+        return (
+            local.x >= -halfWidth &&
+            local.x <= halfWidth &&
+            local.y >= -halfHeight &&
+            local.y <= halfHeight
+        );
+    }
+
     function shapeGeometryFromPoints(kind, start, end) {
         if (kind === 'rect') {
             return {
@@ -375,6 +397,12 @@
         };
     }
 
+    function isMeaningfulShapeDrag(kind, start, end) {
+        const width = Math.abs(end.x - start.x);
+        const height = Math.abs(end.y - start.y);
+        return kind === 'rect' ? width >= 2 && height >= 2 : Math.hypot(width, height) >= 2;
+    }
+
     function queuePointerOperation(operation) {
         const run = async () => operation();
         demoState.pointer.queue = demoState.pointer.queue.then(run, run).catch((error) => {
@@ -384,14 +412,54 @@
         });
     }
 
-    function setCanvasToolInteraction(active) {
+    function setCanvasToolInteraction(mode) {
         const canvas = getEditor()?.getCanvas();
         if (!canvas) return;
-        canvas.selection = false;
-        canvas.skipTargetFind = active;
-        canvas.defaultCursor = active ? 'crosshair' : 'default';
-        if (active) canvas.discardActiveObject();
+        const isTextMode = mode === 'text';
+        const isDrawingMode = mode !== null && !isTextMode;
+        canvas.selection = isTextMode;
+        canvas.skipTargetFind = isDrawingMode;
+        canvas.defaultCursor = isTextMode ? 'text' : isDrawingMode ? 'crosshair' : 'default';
+        if (isDrawingMode) canvas.discardActiveObject();
         canvas.requestRenderAll();
+    }
+
+    function syncTextControlsFromObject(object) {
+        const textInput = getOptionalElement('textValueInput');
+        const colorInput = getOptionalElement('textColorInput');
+        const sizeInput = getOptionalElement('textFontSizeInput');
+        if (textInput && typeof object?.text === 'string') textInput.value = object.text;
+        if (colorInput && /^#[\da-f]{6}$/iu.test(String(object?.fill || ''))) {
+            colorInput.value = String(object.fill);
+        }
+        if (sizeInput && Number.isFinite(object?.fontSize)) {
+            sizeInput.value = String(object.fontSize);
+        }
+    }
+
+    async function handleTextModePointer(kit, target, point) {
+        const activeSession = kit.text.getEditingSession();
+        if (activeSession && target?.editorAnnotationPreviewOwner === 'annotation:text') {
+            return;
+        }
+        const targetId =
+            typeof target?.editorOverlayId === 'string' ? target.editorOverlayId : null;
+        const targetAnnotation = targetId ? kit.annotations.get(targetId) : null;
+        if (targetAnnotation?.kind === 'annotation:text') {
+            if (activeSession?.annotationId === targetId) return;
+            if (activeSession) await kit.text.commitEditing();
+            syncTextControlsFromObject(target);
+            await kit.text.beginEditing(targetId);
+            recordOperation('annotation-text:begin-editing');
+            updateDemoUi();
+            return;
+        }
+        if (!isScenePointOnBaseImage(point)) return;
+        if (activeSession) await kit.text.commitEditing();
+        const id = await kit.text.create(readTextCreateOptions(point));
+        await kit.text.beginEditing(id);
+        recordOperation('annotation-text:begin-editing');
+        updateDemoUi();
     }
 
     function registerCanvasPointerBridge(kit) {
@@ -400,12 +468,23 @@
 
         const onPointerDown = (event) => {
             const mode = getActiveToolMode();
-            if (mode !== 'shape' && mode !== 'draw' && mode !== 'mosaic') return;
+            if (mode !== 'text' && mode !== 'shape' && mode !== 'draw' && mode !== 'mosaic') {
+                return;
+            }
             const point = getScenePoint(canvas, event);
             if (!point) return;
+            if (mode === 'text') {
+                queuePointerOperation(() =>
+                    handleTextModePointer(kit, event?.target || null, point),
+                );
+                return;
+            }
             demoState.pointer.active = true;
             demoState.pointer.start = point;
-            if (mode === 'draw') {
+            if (mode === 'shape') {
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+            } else if (mode === 'draw') {
                 queuePointerOperation(() => kit.draw.beginStroke(point));
             } else if (mode === 'mosaic') {
                 const imagePoint = toImagePixelPoint(point);
@@ -416,8 +495,17 @@
             if (!demoState.pointer.active) return;
             const point = getScenePoint(canvas, event);
             const mode = getActiveToolMode();
-            if (!point || (mode !== 'draw' && mode !== 'mosaic')) return;
-            if (mode === 'draw') {
+            if (!point || (mode !== 'shape' && mode !== 'draw' && mode !== 'mosaic')) return;
+            if (mode === 'shape' && demoState.pointer.start) {
+                const start = { ...demoState.pointer.start };
+                queuePointerOperation(() => {
+                    const session = kit.shape.getSession();
+                    if (!session) return undefined;
+                    return kit.shape.updatePreview(
+                        shapeGeometryFromPoints(session.kind, start, point),
+                    );
+                });
+            } else if (mode === 'draw') {
                 queuePointerOperation(() => kit.draw.appendStroke(point));
             } else {
                 const imagePoint = toImagePixelPoint(point);
@@ -430,16 +518,21 @@
             const mode = getActiveToolMode();
             const point = getScenePoint(canvas, event) || demoState.pointer.start;
             if (mode === 'shape' && demoState.pointer.start && point) {
-                const geometry = shapeGeometryFromPoints(
-                    kit.shape.getSession()?.kind || 'rect',
-                    demoState.pointer.start,
-                    point,
-                );
+                const start = { ...demoState.pointer.start };
                 queuePointerOperation(async () => {
-                    await kit.shape.updatePreview(geometry);
+                    const session = kit.shape.getSession();
+                    if (!session) return;
+                    const kind = session.kind;
+                    if (!isMeaningfulShapeDrag(kind, start, point)) {
+                        await kit.shape.cancel();
+                        await kit.shape.enter({ kind: readShapeKind() });
+                        updateDemoUi();
+                        return;
+                    }
+                    await kit.shape.updatePreview(shapeGeometryFromPoints(kind, start, point));
                     await kit.shape.commit();
                     recordOperation('annotation-shape:commit');
-                    setCanvasToolInteraction(false);
+                    await kit.shape.enter({ kind: readShapeKind() });
                     updateDemoUi();
                 });
             } else if (mode === 'draw') {
@@ -497,6 +590,7 @@
         const kit = getKit();
         demoState.kit = null;
         releaseCleanups();
+        demoState.textMode = false;
         demoState.pointer.active = false;
         demoState.pointer.start = null;
         demoState.pointer.queue = Promise.resolve();
@@ -586,6 +680,8 @@
         const canLoad = !!editor && !busy && activeToolMode === null;
         const canUseIdleImage = !!editor && hasImage && !busy && activeToolMode === null;
         const canUseImageFilters = canUseIdleImage;
+        const canUseTextConfig =
+            !!editor && hasImage && (activeToolMode === null || activeToolMode === 'text');
         const canUseShapeConfig =
             !!editor && hasImage && (activeToolMode === null || activeToolMode === 'shape');
         const canUseDrawSubMode = !!editor && hasImage && activeToolMode === 'draw';
@@ -647,6 +743,9 @@
         );
         setDisabled('createMaskButton', !canUseIdleImage);
         setDisabled('createTextAnnotationButton', !canUseIdleImage);
+        setDisabled('textValueInput', !canUseTextConfig);
+        setDisabled('textColorInput', !canUseTextConfig);
+        setDisabled('textFontSizeInput', !canUseTextConfig);
         setImageFilterControlsDisabled(!canUseImageFilters);
         setDisabled('createShapeAnnotationButton', !canUseIdleImage);
         setDisabled('enterShapeModeButton', !canUseIdleImage);
@@ -1045,42 +1144,82 @@
         );
     }
 
-    function readTextCreateOptions() {
+    function readTextConfiguration() {
         const textInput = getOptionalElement('textValueInput');
         const colorInput = getOptionalElement('textColorInput');
         const sizeInput = getOptionalElement('textFontSizeInput');
         const fontSize = Number(sizeInput?.value || 32);
-        const position = pointInImage(0.14, 0.16);
         return {
-            text: textInput?.value || 'Review note',
+            defaultText: textInput ? textInput.value : 'Review note',
             fill: colorInput?.value || '#b45309',
             fontSize: Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 32,
+        };
+    }
+
+    function readTextCreateOptions(position = pointInImage(0.14, 0.16)) {
+        const configuration = readTextConfiguration();
+        return {
+            text: configuration.defaultText,
+            fill: configuration.fill,
+            fontSize: configuration.fontSize,
             left: position.x,
             top: position.y,
             width: 280,
         };
     }
 
+    function syncTextConfigFromControls(event) {
+        const kit = getKit();
+        if (!kit?.editor.isImageLoaded()) return;
+        const configuration = readTextConfiguration();
+        const controlId = event?.currentTarget?.id;
+        const activePatch =
+            controlId === 'textValueInput'
+                ? { text: configuration.defaultText }
+                : controlId === 'textColorInput'
+                  ? { fill: configuration.fill }
+                  : controlId === 'textFontSizeInput'
+                    ? { fontSize: configuration.fontSize }
+                    : {
+                          text: configuration.defaultText,
+                          fill: configuration.fill,
+                          fontSize: configuration.fontSize,
+                      };
+        queuePointerOperation(async () => {
+            await kit.text.configure(configuration);
+            const session = kit.text.getEditingSession();
+            if (session) await kit.text.update(session.annotationId, activePatch);
+            updateDemoUi();
+        });
+    }
+
     function enterTextMode() {
         const kit = getKit();
         if (!kit?.editor.isImageLoaded() || isDemoBusy()) return;
         void runDemoAction(
-            'annotation-text:begin-editing',
+            'annotation-text:enter-mode',
             async () => {
-                const id = await kit.text.create(readTextCreateOptions());
-                await kit.text.beginEditing(id);
+                await kit.text.configure(readTextConfiguration());
+                demoState.textMode = true;
+                setCanvasToolInteraction('text');
             },
-            'Text editing active.',
+            'Text mode active. Click the image to add Text or click existing Text to edit it.',
         );
     }
 
     function exitTextMode() {
         const kit = getKit();
-        if (!kit?.text.getEditingSession() || isDemoBusy()) return;
+        if (!kit || !demoState.textMode || isDemoBusy()) return;
         void runDemoAction(
-            'annotation-text:commit-editing',
-            () => kit.text.commitEditing(),
-            'Text editing committed.',
+            'annotation-text:exit-mode',
+            async () => {
+                await demoState.pointer.queue;
+                if (kit.text.getEditingSession()) await kit.text.commitEditing();
+                else await kit.text.cancelEditing();
+                demoState.textMode = false;
+                setCanvasToolInteraction(null);
+            },
+            'Text mode exited.',
         );
     }
 
@@ -1151,9 +1290,21 @@
         if (!kit?.editor.isImageLoaded()) return;
         const activeToolMode = getActiveToolMode();
         if (activeToolMode !== null && activeToolMode !== 'shape') return;
-        void kit.shape
-            .configure(readShapeStyleConfig())
-            .catch((error) => showMessage(error, 'error'));
+        const kind = readShapeKind();
+        const style = readShapeStyleConfig();
+        queuePointerOperation(async () => {
+            const session = kit.shape.getSession();
+            if (session && session.kind !== kind) {
+                demoState.pointer.active = false;
+                demoState.pointer.start = null;
+                await kit.shape.cancel();
+                await kit.shape.configure(style);
+                await kit.shape.enter({ kind });
+            } else {
+                await kit.shape.configure(style);
+            }
+            updateDemoUi();
+        });
     }
 
     function createShapeAnnotation() {
@@ -1172,8 +1323,9 @@
         void runDemoAction(
             'annotation-shape:enter',
             async () => {
-                await kit.shape.enter({ kind: readShapeKind(), ...readShapeStyleConfig() });
-                setCanvasToolInteraction(true);
+                await kit.shape.configure(readShapeStyleConfig());
+                await kit.shape.enter({ kind: readShapeKind() });
+                setCanvasToolInteraction('shape');
             },
             'Shape mode active. Drag on the canvas to create a shape.',
         );
@@ -1185,8 +1337,9 @@
         void runDemoAction(
             'annotation-shape:cancel',
             async () => {
-                await kit.shape.cancel();
-                setCanvasToolInteraction(false);
+                await demoState.pointer.queue;
+                if (kit.shape.getSession()) await kit.shape.cancel();
+                setCanvasToolInteraction(null);
             },
             'Shape mode exited.',
         );
@@ -1206,7 +1359,7 @@
                     radius: Math.max(1, readNumberControl('eraserBrushSizeInput', 18)),
                 });
                 await kit.draw.enter({ subMode: 'brush' });
-                setCanvasToolInteraction(true);
+                setCanvasToolInteraction('draw');
             },
             'Draw mode active. Drag on the canvas to draw.',
         );
@@ -1219,7 +1372,7 @@
             'annotation-draw:exit',
             async () => {
                 await kit.draw.exit();
-                setCanvasToolInteraction(false);
+                setCanvasToolInteraction(null);
             },
             'Draw mode exited.',
         );
@@ -1514,7 +1667,7 @@
             async () => {
                 await kit.mosaic.configure(readMosaicConfiguration());
                 await kit.mosaic.enter();
-                setCanvasToolInteraction(true);
+                setCanvasToolInteraction('mosaic');
             },
             'Mosaic mode active. Drag on the canvas, then exit to commit.',
         );
@@ -1530,7 +1683,7 @@
                 const session = kit.mosaic.getSession();
                 if (session?.strokeCount) await kit.mosaic.commit();
                 else await kit.mosaic.cancel();
-                setCanvasToolInteraction(false);
+                setCanvasToolInteraction(null);
             },
             'Mosaic mode exited.',
         );
@@ -1558,6 +1711,10 @@
         void runDemoAction(
             'annotation:remove',
             async () => {
+                const editing = kit.text?.getEditingSession();
+                if (editing && ids.includes(editing.annotationId)) {
+                    await kit.text.cancelEditing();
+                }
                 for (const id of ids) await kit.annotations.remove(id);
             },
             'Annotation removed.',
@@ -1569,7 +1726,10 @@
         if (!kit || isDemoBusy()) return;
         void runDemoAction(
             'annotation:remove-all',
-            () => kit.annotations.removeAll(),
+            async () => {
+                if (kit.text?.getEditingSession()) await kit.text.cancelEditing();
+                await kit.annotations.removeAll();
+            },
             'All annotations removed.',
         );
     }
@@ -1594,10 +1754,16 @@
         if (!kit || !selected.primaryId || isDemoBusy()) return;
         void runDemoAction(
             'overlay:delete-selected',
-            () =>
-                selected.mask
-                    ? kit.masks.remove(selected.primaryId)
-                    : kit.annotations.remove(selected.primaryId),
+            async () => {
+                if (selected.mask) {
+                    await kit.masks.remove(selected.primaryId);
+                    return;
+                }
+                if (kit.text?.getEditingSession()?.annotationId === selected.primaryId) {
+                    await kit.text.cancelEditing();
+                }
+                await kit.annotations.remove(selected.primaryId);
+            },
             'Selected overlay removed.',
         );
     }
@@ -1617,7 +1783,10 @@
         if (!kit || isDemoBusy()) return;
         void runDemoAction(
             'annotation:flatten',
-            () => kit.annotations.flatten(),
+            async () => {
+                if (kit.text?.getEditingSession()) await kit.text.cancelEditing();
+                await kit.annotations.flatten();
+            },
             'Annotations baked into the image.',
         );
     }
@@ -1688,6 +1857,9 @@
         });
         ['imageGrayscaleInput', 'imageSepiaInput', 'imageVintageInput'].forEach((id) => {
             getOptionalElement(id)?.addEventListener('change', previewImageFilters);
+        });
+        ['textValueInput', 'textColorInput', 'textFontSizeInput'].forEach((id) => {
+            getOptionalElement(id)?.addEventListener('input', syncTextConfigFromControls);
         });
         ['shapeKindSelect', 'shapeStrokeInput', 'shapeStrokeWidthInput', 'shapeFillInput'].forEach(
             (id) => {

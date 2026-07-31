@@ -61,6 +61,19 @@ History, and committed events. `commit()` requires valid, non-degenerate preview
 creates one document mutation. `cancel()` creates no record. Tool switching, image replacement,
 and disposal clean the preview.
 
+`configure()` updates both future defaults and an active session. If a preview already exists, a
+style patch such as `stroke`, `strokeWidth`, or `fill` replaces that preview immediately while
+preserving its geometry. Shape kind belongs to `enter()` rather than configuration; cancel and
+enter a new session to switch between `rect`, `line`, and `arrow`.
+
+```ts
+await shape.configure({ stroke: '#2563eb', strokeWidth: 6 });
+```
+
+`commit()` closes the low-level transient session. A persistent UI mode can immediately call
+`enter()` again after each commit, as the documentation demos do, so users can draw consecutive
+Shapes until they explicitly exit Shape mode.
+
 ## Transform, export, and limits
 
 `bindToImageTransform` is false by default. When enabled, Shape objects follow base-image scale,

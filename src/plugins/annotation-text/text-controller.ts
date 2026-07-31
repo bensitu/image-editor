@@ -52,6 +52,7 @@ type TextObject = FabricNS.Textbox & {
     editable?: boolean;
     enterEditing?: () => void;
     exitEditing?: () => void;
+    initDimensions?: () => void;
     isEditing?: boolean;
 };
 
@@ -626,6 +627,7 @@ export class TextAnnotationController implements Disposable {
             opacity: session.preview.opacity,
         });
         this.closeSession();
+        if (!this.annotations.get(session.annotationId)) return;
         await this.authoring.updateFeature({
             id: session.annotationId,
             kind: TEXT_ANNOTATION_KIND,
@@ -646,9 +648,29 @@ export class TextAnnotationController implements Disposable {
             return Promise.reject(new AnnotationValidationError('Text update must be an object.'));
         }
         if (this.session?.annotationId === id) {
-            return Promise.reject(
-                new AnnotationValidationError('Commit or cancel Text editing before updating it.'),
-            );
+            const shared = sharedUpdate(patch);
+            if (Object.keys(shared).length > 0) {
+                return Promise.reject(
+                    new AnnotationValidationError(
+                        'Commit or cancel Text editing before updating shared Annotation fields.',
+                    ),
+                );
+            }
+            const featurePatch = featureUpdate(patch);
+            if (Object.keys(featurePatch).length === 0) return Promise.resolve();
+            const preview = this.session.preview;
+            preview.set(featurePatch as Partial<FabricNS.TextboxProps>);
+            preview.initDimensions?.();
+            if (featurePatch.text !== undefined && preview.hiddenTextarea) {
+                preview.hiddenTextarea.value = featurePatch.text;
+                const cursor = preview.graphemeSplit(featurePatch.text).length;
+                preview.setSelectionStart(cursor);
+                preview.setSelectionEnd(cursor);
+            }
+            preview.setCoords();
+            preview.canvas?.requestRenderAll();
+            this.emitStatus();
+            return Promise.resolve();
         }
         return this.authoring.updateFeature({
             id,

@@ -64,7 +64,7 @@ interface SerializedShape {
 }
 
 interface ShapeRuntimeSession {
-    readonly options: ShapeSessionOptions;
+    options: ShapeSessionOptions;
     geometry: ShapeGeometryInput | null;
     previewId: string | null;
 }
@@ -535,6 +535,13 @@ export class ShapeAnnotationController {
         if (geometry.kind !== session.options.kind) {
             throw new AnnotationValidationError('Shape preview kind does not match the session.');
         }
+        this.replaceSessionPreview(session, geometry);
+    }
+
+    private replaceSessionPreview(
+        session: ShapeRuntimeSession,
+        geometry: ShapeGeometryInput,
+    ): void {
         const preview = this.createObject(geometry, session.options);
         const previewId = `annotation-shape:preview:${++this.previewSequence}`;
         this.authoring.replacePreview(session.previewId ? [session.previewId] : [], {
@@ -619,6 +626,29 @@ export class ShapeAnnotationController {
     configure(patch: Partial<ShapeAnnotationConfiguration>): void {
         this.assertActive('configure Shape');
         this.configuration = resolveShapeConfiguration(patch, this.configuration);
+        const session = this.session;
+        if (!session) return;
+        const sessionPatch: Partial<ShapeSessionOptions> = {
+            ...(patch.stroke !== undefined ? { stroke: this.configuration.stroke } : {}),
+            ...(patch.strokeWidth !== undefined
+                ? { strokeWidth: this.configuration.strokeWidth }
+                : {}),
+            ...(patch.fill !== undefined ? { fill: this.configuration.fill } : {}),
+            ...(patch.opacity !== undefined ? { opacity: this.configuration.opacity } : {}),
+            ...(patch.strokeDashArray !== undefined
+                ? { strokeDashArray: this.configuration.strokeDashArray }
+                : {}),
+            ...(patch.arrowHeadLength !== undefined
+                ? { arrowHeadLength: this.configuration.arrowHeadLength }
+                : {}),
+            ...(patch.selectable !== undefined
+                ? { selectable: this.configuration.selectable }
+                : {}),
+            ...(patch.evented !== undefined ? { evented: this.configuration.evented } : {}),
+        };
+        if (Object.keys(sessionPatch).length === 0) return;
+        session.options = Object.freeze({ ...session.options, ...sessionPatch });
+        if (session.geometry) this.replaceSessionPreview(session, session.geometry);
     }
 
     getConfiguration(): Readonly<ShapeAnnotationConfiguration> {

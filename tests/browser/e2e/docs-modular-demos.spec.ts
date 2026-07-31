@@ -262,7 +262,13 @@ test('basic demo shows Fabric controls for the active Crop preview', async ({ pa
     await page.locator('#enterCropModeButton').click();
     await expect(page.locator('#statusTool')).toHaveText('crop');
     await expect(page.locator('#applyCropButton')).toBeEnabled();
-    await page.locator('#canvasContainer').scrollIntoViewIfNeeded();
+    await page.evaluate(() => {
+        const upperCanvas = document.querySelector<HTMLCanvasElement>(
+            '#canvasContainer .upper-canvas',
+        );
+        if (!upperCanvas) throw new Error('Crop canvas is unavailable.');
+        window.scrollBy({ top: upperCanvas.getBoundingClientRect().top - 160 });
+    });
     const probe = await page.evaluate(() => {
         const browser = window as unknown as {
             __cropControlProbe?: {
@@ -531,4 +537,426 @@ test('mask and mosaic demo updates its dashed brush and preserves the preview th
         finalBaseWasReady: true,
         remainingSessionObjects: 0,
     });
+});
+
+test('annotation demo preserves v2 Text and Shape mode interaction semantics', async ({ page }) => {
+    await page.goto('/docs/annotation.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await page.evaluate(() => {
+        interface AnnotationProbeObject {
+            editorAnnotationPreviewOwner?: string;
+            editorOverlayId?: string;
+            editorShapeKind?: string;
+            fill?: unknown;
+            fontSize?: number;
+            getCenterPoint?: () => { x: number; y: number };
+            stroke?: unknown;
+            strokeWidth?: number;
+            text?: string;
+            visible?: boolean;
+        }
+        interface AnnotationProbeCanvas {
+            getHeight(): number;
+            getObjects(): AnnotationProbeObject[];
+            getWidth(): number;
+        }
+        const browser = window as unknown as {
+            fabric?: {
+                Canvas?: {
+                    prototype?: {
+                        add?: (...objects: AnnotationProbeObject[]) => unknown;
+                    };
+                };
+            };
+            __annotationModeProbe?: { canvas?: AnnotationProbeCanvas };
+        };
+        const prototype = browser.fabric?.Canvas?.prototype;
+        const originalAdd = prototype?.add;
+        if (!prototype || typeof originalAdd !== 'function') {
+            throw new Error('Fabric Canvas mutation methods are unavailable.');
+        }
+        const probe: { canvas?: AnnotationProbeCanvas } = {};
+        browser.__annotationModeProbe = probe;
+        prototype.add = function (
+            this: AnnotationProbeCanvas,
+            ...objects: AnnotationProbeObject[]
+        ) {
+            probe.canvas = this;
+            return Reflect.apply(originalAdd, this, objects);
+        };
+    });
+    await page.locator('#loadSampleButton').click();
+    await expect(page.locator('#statusAnnotations')).toHaveText('0');
+    await expect(page.locator('#enterTextModeButton')).toBeEnabled();
+    await expect(page.locator('#canvasContainer')).toBeVisible();
+    await page.locator('#canvasContainer').scrollIntoViewIfNeeded();
+    const bounds = await page.locator('#canvasContainer .upper-canvas').boundingBox();
+    if (!bounds) throw new Error('Annotation canvas bounds are unavailable.');
+
+    await page.locator('#enterTextModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('text');
+    await expect(page.locator('#statusAnnotations')).toHaveText('0');
+    const textPoint = {
+        x: bounds.x + bounds.width * 0.42,
+        y: bounds.y + bounds.height * 0.36,
+    };
+    await page.mouse.click(textPoint.x, textPoint.y);
+    await expect(page.locator('#statusAnnotations')).toHaveText('1');
+    await expect
+        .poll(() =>
+            page.evaluate(
+                () =>
+                    (
+                        window as unknown as {
+                            __annotationModeProbe?: {
+                                canvas?: {
+                                    getObjects(): Array<{
+                                        editorAnnotationPreviewOwner?: string;
+                                    }>;
+                                };
+                            };
+                        }
+                    ).__annotationModeProbe?.canvas
+                        ?.getObjects()
+                        .filter(
+                            (object) => object.editorAnnotationPreviewOwner === 'annotation:text',
+                        ).length ?? 0,
+            ),
+        )
+        .toBe(1);
+
+    await page.locator('#textValueInput').fill('Live review');
+    await page.locator('#textColorInput').evaluate((input) => {
+        const control = input as HTMLInputElement;
+        control.value = '#0066ff';
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.locator('#textFontSizeInput').fill('48');
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    fill?: unknown;
+                                    fontSize?: number;
+                                    text?: string;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                const preview = objects?.find(
+                    (object) => object.editorAnnotationPreviewOwner === 'annotation:text',
+                );
+                return preview
+                    ? { fill: preview.fill, fontSize: preview.fontSize, text: preview.text }
+                    : null;
+            }),
+        )
+        .toEqual({ fill: '#0066ff', fontSize: 48, text: 'Live review' });
+
+    await page.evaluate(() => {
+        const objects = (
+            window as unknown as {
+                __annotationModeProbe?: {
+                    canvas?: {
+                        getObjects(): Array<{
+                            editorAnnotationPreviewOwner?: string;
+                            hiddenTextarea?: HTMLTextAreaElement | null;
+                        }>;
+                    };
+                };
+            }
+        ).__annotationModeProbe?.canvas?.getObjects();
+        const preview = objects?.find(
+            (object) => object.editorAnnotationPreviewOwner === 'annotation:text',
+        );
+        if (!preview?.hiddenTextarea) throw new Error('Text editing input is unavailable.');
+        preview.hiddenTextarea.value = 'Canvas edit';
+        preview.hiddenTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    text?: string;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                return objects?.find(
+                    (object) => object.editorAnnotationPreviewOwner === 'annotation:text',
+                )?.text;
+            }),
+        )
+        .toBe('Canvas edit');
+    await page.locator('#textColorInput').evaluate((input) => {
+        const control = input as HTMLInputElement;
+        control.value = '#aa00cc';
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    fill?: unknown;
+                                    text?: string;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                const preview = objects?.find(
+                    (object) => object.editorAnnotationPreviewOwner === 'annotation:text',
+                );
+                return preview ? { fill: preview.fill, text: preview.text } : null;
+            }),
+        )
+        .toEqual({ fill: '#aa00cc', text: 'Canvas edit' });
+
+    await page.locator('#exitTextModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+    const committedText = await page.evaluate(() => {
+        const probe = (
+            window as unknown as {
+                __annotationModeProbe?: {
+                    canvas?: {
+                        getHeight(): number;
+                        getObjects(): Array<{
+                            editorAnnotationPreviewOwner?: string;
+                            editorOverlayId?: string;
+                            fill?: unknown;
+                            fontSize?: number;
+                            getCenterPoint?: () => { x: number; y: number };
+                            text?: string;
+                            visible?: boolean;
+                        }>;
+                        getWidth(): number;
+                    };
+                };
+            }
+        ).__annotationModeProbe;
+        const object = probe?.canvas
+            ?.getObjects()
+            .find(
+                (candidate) => candidate.editorOverlayId && !candidate.editorAnnotationPreviewOwner,
+            );
+        const center = object?.getCenterPoint?.();
+        if (!probe?.canvas || !object || !center) throw new Error('Committed Text is unavailable.');
+        return {
+            canvasHeight: probe.canvas.getHeight(),
+            canvasWidth: probe.canvas.getWidth(),
+            center,
+            fill: object.fill,
+            fontSize: object.fontSize,
+            text: object.text,
+            visible: object.visible,
+        };
+    });
+    expect(committedText).toMatchObject({
+        fill: '#aa00cc',
+        fontSize: 48,
+        text: 'Canvas edit',
+        visible: true,
+    });
+
+    await page.locator('#enterTextModeButton').click();
+    const existingTextBounds = await page.locator('#canvasContainer .upper-canvas').boundingBox();
+    if (!existingTextBounds) throw new Error('Text canvas bounds are unavailable.');
+    await page.mouse.click(
+        existingTextBounds.x +
+            (committedText.center.x / committedText.canvasWidth) * existingTextBounds.width,
+        existingTextBounds.y +
+            (committedText.center.y / committedText.canvasHeight) * existingTextBounds.height,
+    );
+    await expect(page.locator('#statusAnnotations')).toHaveText('1');
+    await expect
+        .poll(() =>
+            page.evaluate(
+                () =>
+                    (
+                        window as unknown as {
+                            __annotationModeProbe?: {
+                                canvas?: {
+                                    getObjects(): Array<{
+                                        editorAnnotationPreviewOwner?: string;
+                                    }>;
+                                };
+                            };
+                        }
+                    ).__annotationModeProbe?.canvas
+                        ?.getObjects()
+                        .filter(
+                            (object) => object.editorAnnotationPreviewOwner === 'annotation:text',
+                        ).length ?? 0,
+            ),
+        )
+        .toBe(1);
+    await page.locator('#exitTextModeButton').click();
+
+    await page.locator('#enterShapeModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('shape');
+    await page.locator('#canvasContainer').scrollIntoViewIfNeeded();
+    const shapeBounds = await page.locator('#canvasContainer .upper-canvas').boundingBox();
+    if (!shapeBounds) throw new Error('Shape canvas bounds are unavailable.');
+    const shapeStart = {
+        x: shapeBounds.x + shapeBounds.width * 0.3,
+        y: shapeBounds.y + shapeBounds.height * 0.55,
+    };
+    const shapeEnd = {
+        x: shapeBounds.x + shapeBounds.width * 0.58,
+        y: shapeBounds.y + shapeBounds.height * 0.72,
+    };
+    await page.mouse.move(shapeStart.x, shapeStart.y);
+    await page.mouse.down();
+    await page.mouse.move(shapeEnd.x, shapeEnd.y, { steps: 4 });
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    editorShapeKind?: string;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                return objects?.find(
+                    (object) => object.editorAnnotationPreviewOwner === 'annotation:shape',
+                )?.editorShapeKind;
+            }),
+        )
+        .toBe('rect');
+
+    await page.evaluate(() => {
+        const values = {
+            shapeFillInput: '#0066ff',
+            shapeStrokeInput: '#008844',
+            shapeStrokeWidthInput: '11',
+        } as const;
+        for (const [id, value] of Object.entries(values)) {
+            const input = document.getElementById(id) as HTMLInputElement | null;
+            if (!input) throw new Error(`Shape control "${id}" is missing.`);
+            input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    fill?: unknown;
+                                    stroke?: unknown;
+                                    strokeWidth?: number;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                const preview = objects?.find(
+                    (object) => object.editorAnnotationPreviewOwner === 'annotation:shape',
+                );
+                return preview
+                    ? {
+                          fill: preview.fill,
+                          stroke: preview.stroke,
+                          strokeWidth: preview.strokeWidth,
+                      }
+                    : null;
+            }),
+        )
+        .toEqual({ fill: 'rgba(0,102,255,0.16)', stroke: '#008844', strokeWidth: 11 });
+    await page.mouse.up();
+    await expect(page.locator('#statusAnnotations')).toHaveText('2');
+    await expect(page.locator('#statusTool')).toHaveText('shape');
+
+    await page.locator('#shapeKindSelect').selectOption('arrow');
+    await expect(page.locator('#statusTool')).toHaveText('shape');
+    await page.mouse.move(shapeStart.x + 40, shapeStart.y - 80);
+    await page.mouse.down();
+    await page.mouse.move(shapeEnd.x + 40, shapeEnd.y - 100, { steps: 4 });
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const objects = (
+                    window as unknown as {
+                        __annotationModeProbe?: {
+                            canvas?: {
+                                getObjects(): Array<{
+                                    editorAnnotationPreviewOwner?: string;
+                                    editorShapeKind?: string;
+                                }>;
+                            };
+                        };
+                    }
+                ).__annotationModeProbe?.canvas?.getObjects();
+                return objects?.find(
+                    (object) => object.editorAnnotationPreviewOwner === 'annotation:shape',
+                )?.editorShapeKind;
+            }),
+        )
+        .toBe('arrow');
+    await page.mouse.up();
+    await expect(page.locator('#statusAnnotations')).toHaveText('3');
+    await expect(page.locator('#statusTool')).toHaveText('shape');
+    await page.locator('#exitShapeModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+});
+
+test('annotation demo safely removes Text while its editing session is active', async ({
+    page,
+}) => {
+    await page.goto('/docs/annotation.html');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-ready')).toBe('true');
+    await page.locator('#loadSampleButton').click();
+
+    const addTextInMode = async () => {
+        await page.locator('#canvasContainer').scrollIntoViewIfNeeded();
+        const bounds = await page.locator('#canvasContainer .upper-canvas').boundingBox();
+        if (!bounds) throw new Error('Annotation canvas bounds are unavailable.');
+        await page.mouse.click(bounds.x + bounds.width * 0.48, bounds.y + bounds.height * 0.48);
+        await expect(page.locator('#statusAnnotations')).toHaveText('1');
+    };
+
+    await page.locator('#enterTextModeButton').click();
+    await addTextInMode();
+    await expect(page.locator('#removeSelectedAnnotationButton')).toBeEnabled();
+    await page.locator('#removeSelectedAnnotationButton').click();
+    await expect(page.locator('#statusAnnotations')).toHaveText('0');
+    await page.locator('#exitTextModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+    await expect(page.locator('#demoMessage')).toHaveAttribute('data-tone', 'success');
+
+    await page.locator('#enterTextModeButton').click();
+    await addTextInMode();
+    await expect(page.locator('#removeAllAnnotationsButton')).toBeEnabled();
+    await page.locator('#removeAllAnnotationsButton').click();
+    await expect(page.locator('#statusAnnotations')).toHaveText('0');
+    await page.locator('#exitTextModeButton').click();
+    await expect(page.locator('#statusTool')).toHaveText('None');
+    await expect(page.locator('#demoMessage')).toHaveAttribute('data-tone', 'success');
 });

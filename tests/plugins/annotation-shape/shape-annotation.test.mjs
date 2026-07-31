@@ -120,6 +120,54 @@ test('Shape preview is latest-wins and transient through cancel and commit', asy
     await dispose(editor);
 });
 
+test('active Shape configuration replaces the preview and becomes the committed style', async () => {
+    const { editor, history, shapes } = await createEditor();
+    await load(editor);
+    const snapshot = editor.saveState();
+    await shapes.enter({
+        kind: 'rect',
+        stroke: '#ff0000',
+        strokeWidth: 2,
+        fill: 'rgba(255,0,0,0.1)',
+    });
+    await shapes.updatePreview({ kind: 'rect', left: 16, top: 18, width: 50, height: 32 });
+    const firstPreview = editor
+        .getCanvas()
+        .getObjects()
+        .find((object) => object.editorAnnotationPreviewOwner === 'annotation:shape');
+
+    await shapes.configure({
+        stroke: '#0066ff',
+        strokeWidth: 9,
+        fill: 'rgba(0,102,255,0.2)',
+    });
+    const updatedPreview = editor
+        .getCanvas()
+        .getObjects()
+        .find((object) => object.editorAnnotationPreviewOwner === 'annotation:shape');
+    assert.notEqual(updatedPreview, firstPreview);
+    assert.equal(editor.getCanvas().getObjects().includes(firstPreview), false);
+    assert.equal(updatedPreview.stroke, '#0066ff');
+    assert.equal(updatedPreview.strokeWidth, 9);
+    assert.equal(updatedPreview.fill, 'rgba(0,102,255,0.2)');
+    assert.deepEqual(shapes.getSession().geometry, {
+        kind: 'rect',
+        left: 16,
+        top: 18,
+        width: 50,
+        height: 32,
+    });
+    assert.equal(editor.saveState(), snapshot);
+    assert.equal(history.length, 0);
+
+    const id = await shapes.commit();
+    assert.equal(shapeObject(editor, id).stroke, '#0066ff');
+    assert.equal(shapeObject(editor, id).strokeWidth, 9);
+    assert.equal(shapeObject(editor, id).fill, 'rgba(0,102,255,0.2)');
+    assert.equal(history.length, 1);
+    await dispose(editor);
+});
+
 test('degenerate and non-finite geometry is rejected without state mutation', async () => {
     const { annotations, editor, history, shapes } = await createEditor();
     await load(editor);
