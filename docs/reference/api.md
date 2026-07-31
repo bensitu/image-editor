@@ -6,7 +6,7 @@ methods live on the typed APIs returned when Plugins are installed. The package
 root and `/core` resolve to the same `ImageEditorCore` class; the root does not
 export Features, Presets, DOM Controls, or migration code.
 
-This reference describes the `3.0.0-rc.1` candidate API. It is a breaking major
+This reference describes the current `3.0.0-rc.1` candidate API. It is a breaking major
 release and is not a stable published release.
 
 ## Formal package entries
@@ -106,7 +106,7 @@ belong in `context.disposables`. Operations coordinate conflict domains and
 reentrancy. Tools coordinate exclusive sessions. Committed events run only after
 a successful transaction.
 
-See the [Plugin Author Guide](./plugin-author-guide.md) for lifecycle, State
+See the [Plugin Author Guide](../guides/plugin-authoring.md) for lifecycle, State
 Slices, Overlays, History, geometry/raster authority, errors, and packaging.
 
 ## Capabilities
@@ -178,7 +178,7 @@ is enabled. Configuration sets animation duration and scale/rotation steps.
 `redo`, `clear`, `canUndo`, `canRedo`, `getState`, and `onChange`. Recording is
 enabled by default and bounded by `maxSize`. Disabled recording remains
 installed; re-enabling captures a non-undoable current baseline. See
-[History](./history.md).
+[History](../plugins/history.md).
 
 ### Overlay Foundation
 
@@ -186,7 +186,7 @@ The Foundation owns persistent/transient classification, IDs, selection,
 mutation, flattening, geometry/interaction policies, Codecs, and export
 renderers. Its runtime API lists immutable classifications but intentionally
 uses live Fabric objects inside privileged Plugin contracts. Persistent kinds
-must have a versioned Codec. See [Overlay transform binding](./overlay-transform-binding.md).
+must have a versioned Codec. See [Overlay transform binding](../plugins/overlay-transform-binding.md).
 
 ### Mask
 
@@ -201,46 +201,46 @@ rotation, list order, transform binding, and naming.
 `FiltersPluginApi` exposes `preview`, `commit`, `cancelPreview`, `clear`, `bake`,
 `configure`, `getConfiguration`, `getState`, and `subscribe`. Preview is
 transient; commit updates a validated State Slice; bake atomically replaces the
-Base Image. Supported definitions and ranges are in [Filters](./filters.md).
+Base Image. Supported definitions and ranges are in [Filters](../plugins/filters.md).
 
 ### Crop
 
 `CropPluginApi` exposes `enter`, `updateRect`, `setAspectRatio`, `apply`,
 `cancel`, `getSession`, and `subscribe`. Rectangles use natural image pixels.
 Preview is transient; apply is a rollback-safe raster/geometry commit. Overlay
-preserve/drop/clip policy and visible-filter bake are explicit. See [Crop](./crop.md).
+preserve/drop/clip policy and visible-filter bake are explicit. See [Crop](../plugins/crop.md).
 
 ### Mosaic
 
 `MosaicPluginApi` exposes `enter`, stroke methods, `commit`, `cancel`,
 configuration, session status, and subscription. Points use natural image
 pixels. Point count and raster output are bounded. Preview is transient and
-commit is rollback-safe. See [Mosaic](./mosaic.md).
+commit is rollback-safe. See [Mosaic](../plugins/mosaic.md).
 
 ### Annotation Foundation
 
 The Foundation depends on Overlay and owns annotation descriptors, selection,
 metadata, hide/lock, ordering, remove, flatten, and subscriptions. Concrete Text,
 Shape, and Draw Plugins register Feature definitions and Codecs. See
-[Annotations](./annotations.md).
+[Annotations](../plugins/annotations.md).
 
 ### Text
 
 `TextAnnotationPluginApi` creates/updates text and owns begin/commit/cancel edit
 sessions, configuration, status, and subscriptions. Font fallback and transform
-reflection behavior are explicit. See [Text](./annotation-text.md).
+reflection behavior are explicit. See [Text](../plugins/annotation-text.md).
 
 ### Shape
 
 `ShapeAnnotationPluginApi` creates and updates rectangles, lines, and arrows, or
 runs a transient preview session with `enter`, `updatePreview`, `commit`, and
-`cancel`. See [Shape](./annotation-shape.md).
+`cancel`. See [Shape](../plugins/annotation-shape.md).
 
 ### Draw and Eraser
 
 `DrawAnnotationPluginApi` owns brush/eraser sessions, point limits,
 configuration, and status. The current Eraser removes whole intersected Draw
-objects; it does not split paths. See [Draw/Eraser](./annotation-draw.md).
+objects; it does not split paths. See [Draw/Eraser](../plugins/annotation-draw.md).
 
 ### Overlay State
 
@@ -248,7 +248,7 @@ objects; it does not split paths. See [Draw/Eraser](./annotation-draw.md).
 `importState`. Wire version 1 uses schema `image-editor.overlay-state` and
 image-normalized coordinates. Import validates resource limits and Codecs before
 an atomic replace/append transaction. It is portable overlay data, not a full
-editor Snapshot. See [Overlay State](./overlay-state.md).
+editor Snapshot. See [Overlay State](../plugins/overlay-state.md).
 
 ### DOM Controls
 
@@ -256,7 +256,7 @@ DOM Controls is an optional adapter. Sections bind exact `PluginRef`/resolver
 pairs to selectors or elements; the Plugin owns listeners, guarded keyboard
 commands, status renderers, and async error routing. It adds no Feature logic and
 is absent from all Presets unless `domControls` is explicitly supplied. See
-[DOM Controls](./dom-controls.md).
+[DOM Controls](../plugins/dom-controls.md).
 
 ## Presets
 
@@ -281,7 +281,7 @@ Strict conversion is the default. Unsupported persisted state rejects; lossy
 conversion requires `unsupportedFieldPolicy: 'warn-and-skip'` and emits each
 warning. Input size/depth/object limits and dangerous-key checks run before
 conversion, output is revalidated by Core, and failure leaves the editor
-unchanged. See [Migration from 2.x](./migration-from-v2.md).
+unchanged. See [Migration from 2.x](../guides/migration-from-v2.md).
 
 ## Errors and recovery
 

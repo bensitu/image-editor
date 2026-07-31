@@ -1,6 +1,6 @@
 # Crop Plugin
 
-The Crop Plugin provides a DOM-independent crop session for `ImageEditorCore`. Install it before
+The Crop Plugin provides DOM-independent crop sessions for `ImageEditorCore`. Install it before
 `editor.init()` through its dedicated package entry. The Plugin is not exported from the package
 root.
 

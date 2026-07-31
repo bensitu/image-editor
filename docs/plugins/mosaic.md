@@ -1,6 +1,6 @@
 # Mosaic Plugin
 
-The Mosaic Plugin provides DOM-independent, pixelated brush sessions for `ImageEditorCore`. Install
+The Mosaic Plugin provides DOM-independent pixelation brush sessions for `ImageEditorCore`. Install
 it before `editor.init()` from its dedicated package entry. The Plugin is not exported from the
 package root.
 

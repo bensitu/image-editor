@@ -1,6 +1,6 @@
 # Naming Rules
 
-Naming conventions for the TypeScript codebase.  
+Project-wide naming conventions for the TypeScript codebase.  
 Names should describe the current responsibility and domain meaning. Treat the codebase as a new product implementation.
 
 ## 1. Core principles
@@ -258,10 +258,10 @@ plugin-api.test-d.ts
 ```
 
 New Node runtime tests use `.test.ts`; Playwright browser tests use `.spec.ts`.
-A `.test.mjs` suffix is reserved for the shrinking allowlist of fixtures that
-still require dedicated test-double types or explicit invalid-input casts, and
-for package-consumer proofs that intentionally execute compiled JavaScript. Test
-files should mirror the module or contract they verify.
+Existing `.test.mjs` files remain appropriate when a fixture still requires
+JavaScript-only test doubles or deliberately executes compiled JavaScript as a
+package consumer. File format is not itself a validation target. Test files
+should mirror the module or contract they verify.
 
 ## 12. External boundaries
 

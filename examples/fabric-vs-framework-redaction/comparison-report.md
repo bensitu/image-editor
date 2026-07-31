@@ -12,7 +12,7 @@ framework adapter intentionally includes the complete Redaction Preset, includin
 Filters, Crop, Mosaic, Overlay State, and their coordination code, while the pure
 Fabric adapter contains only the narrow behavior required by the scenario. The
 example documents that ownership tradeoff; it is not a pinned performance, line
-count, or bundle-size Gate.
+count, or bundle-size threshold.
 
 ## Ownership comparison
 

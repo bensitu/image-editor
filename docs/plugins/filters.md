@@ -1,6 +1,6 @@
 # Filters Plugin
 
-The Filters Plugin provides validated, non-destructive image filters for `ImageEditorCore`.
+The Filters Plugin provides validated, non-destructive image filtering for `ImageEditorCore`.
 Install it before `editor.init()` through its dedicated package entry:
 
 ```ts

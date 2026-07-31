@@ -1,6 +1,6 @@
 # Shape Annotation Plugin
 
-The Shape Annotation Plugin supports `rect`, `line`, and `arrow`. Install Overlay, Annotation
+The Shape Annotation Plugin supports `rect`, `line`, and `arrow`. Install Overlay, the Annotation
 Foundation, and Shape in that order before `editor.init()`.
 
 ```ts

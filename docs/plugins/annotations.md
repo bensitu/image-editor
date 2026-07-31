@@ -1,6 +1,6 @@
 # Annotation Foundation
 
-The Annotation Foundation is the shared authority for Text, Shape, and Draw Annotations. It owns
+The Annotation Foundation is the shared authority for the Text, Shape, and Draw Plugins. It owns
 their public descriptors, metadata, visibility, locking, selection, layer operations, state
 integration, and flattening. It does not create a concrete Annotation by itself.
 

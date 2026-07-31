@@ -1,7 +1,7 @@
 # Draw Annotation Plugin
 
-The Draw Annotation Plugin provides curved freehand paths and a Draw-only Eraser sub-mode. Install
-Overlay, Annotation Foundation, and Draw in that order before `editor.init()`.
+The Draw Annotation Plugin provides curved freehand paths and a Draw-only Eraser mode. Install
+Overlay, the Annotation Foundation, and Draw in that order before `editor.init()`.
 
 ```ts
 import { annotationFoundationPlugin } from '@bensitu/image-editor/plugins/annotation';

@@ -177,7 +177,7 @@ async function buildSnapshot() {
         );
     }
 
-    const apiDocumentationPath = path.join(repositoryRoot, 'docs', 'api.md');
+    const apiDocumentationPath = path.join(repositoryRoot, 'docs', 'reference', 'api.md');
     const apiDocumentation = await readFile(apiDocumentationPath, 'utf8');
     const undocumentedFormalEntries = expectedEntries.filter((entry) => {
         const specifier = entry === '.' ? packageJson.name : `${packageJson.name}${entry.slice(1)}`;
@@ -185,7 +185,7 @@ async function buildSnapshot() {
     });
     if (undocumentedFormalEntries.length > 0) {
         throw new Error(
-            `Formal entries missing from docs/api.md: ${undocumentedFormalEntries.join(', ')}.`,
+            `Formal entries missing from docs/reference/api.md: ${undocumentedFormalEntries.join(', ')}.`,
         );
     }
 
@@ -334,7 +334,7 @@ async function buildSnapshot() {
         package: packageJson.name,
         formalEntries: Object.freeze(formalEntries),
         documentation: Object.freeze({
-            path: 'docs/api.md',
+            path: 'docs/reference/api.md',
             formalEntryCount: expectedEntries.length,
             undocumentedFormalEntries: Object.freeze(undocumentedFormalEntries),
         }),

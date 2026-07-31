@@ -1,6 +1,6 @@
 # Modular UMD Loading
 
-Modular UMD is the on-demand script-tag distribution for applications that do
+`Modular UMD` is the on-demand script-tag distribution for applications that do
 not use a JavaScript bundler. It exposes one shared Core runtime and one file for
 each official Foundation or Feature Plugin. Plugins remain explicit definitions:
 loading a script does not install it or mutate an editor instance.
@@ -47,7 +47,7 @@ not add new `package.json` export subpaths.
 ## Loading order
 
 The authoritative descriptors live in
-[`config/bundle/modular-umd.mjs`](../config/bundle/modular-umd.mjs). The
+[`config/bundle/modular-umd.mjs`](../../config/bundle/modular-umd.mjs). The
 documentation check derives the following block from that registry so a
 dependency change cannot silently drift from this table.
 
@@ -180,4 +180,4 @@ factory with `annotation-shape`/`shapeAnnotationPlugin` or
   legacy host integrations that still require UMD.
 
 The enforced gzip-9 baselines and per-module ceilings are recorded in
-[`config/bundle/modular-umd-budget.json`](../config/bundle/modular-umd-budget.json).
+[`config/bundle/modular-umd-budget.json`](../../config/bundle/modular-umd-budget.json).

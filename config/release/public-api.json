@@ -4226,7 +4226,7 @@
         }
     },
     "documentation": {
-        "path": "docs/api.md",
+        "path": "docs/reference/api.md",
         "formalEntryCount": 22,
         "undocumentedFormalEntries": []
     },

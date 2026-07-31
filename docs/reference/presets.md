@@ -1,6 +1,6 @@
 # Typed Presets
 
-Presets are typed Plugin compositions. Each factory creates one
+Presets are public typed Plugin compositions. Each factory creates one
 `ImageEditorCore`, installs its PluginPlan before initialization, and returns
 the editor plus the original typed Plugin APIs. Presets do not forward Feature
 methods and do not call `editor.init()`.

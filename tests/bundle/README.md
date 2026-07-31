@@ -2,7 +2,8 @@
 
 These fixtures measure consumer imports with Rolldown. They do not measure files in `dist` directly.
 
-- `full-root` imports the current `ImageEditor` facade from the package root.
+- `full-root` imports the package-root `ImageEditor` name, which is an alias of
+  `ImageEditorCore` and does not provide Feature method forwarding.
 - `public-api` retains every package-root export so accidental barrel expansion is visible.
 - `plugin-kernel` resolves an internal-only test alias directly to the emitted kernel entry. It is not an npm subpath export.
 - `core-only` imports the `ImageEditorCore` entry and must not reach any business Feature.

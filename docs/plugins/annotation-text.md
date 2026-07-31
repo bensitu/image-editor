@@ -1,7 +1,7 @@
 # Text Annotation Plugin
 
 The Text Annotation Plugin creates editable Fabric-backed text while exposing only IDs,
-configuration, and immutable session status. Install Overlay, Annotation Foundation, and Text in
+configuration, and immutable session status. Install Overlay, the Annotation Foundation, and Text in
 that order before `editor.init()`.
 
 ```ts

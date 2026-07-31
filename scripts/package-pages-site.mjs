@@ -27,8 +27,10 @@ const hostedImageEditorUmdBase =
 
 await rm(siteRoot, { force: true, recursive: true });
 await cp(path.join(repositoryRoot, 'docs'), siteRoot, { recursive: true });
-// Internal documentation may exist in local ignored files and must never enter a Pages artifact.
-await rm(path.join(siteRoot, 'internal'), { force: true, recursive: true });
+// Ignored internal archives may exist locally and must never enter a Pages artifact.
+for (const privateDirectory of ['internal', 'refactor']) {
+    await rm(path.join(siteRoot, privateDirectory), { force: true, recursive: true });
+}
 
 for (const page of demoPages) {
     await access(path.join(siteRoot, page));

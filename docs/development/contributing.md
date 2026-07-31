@@ -1,4 +1,4 @@
-# Contributing and Local Checks
+# Development and Contributing
 
 This project is a TypeScript-first package that builds ESM, CommonJS, UMD, and
 declaration outputs from the same source tree.
@@ -11,7 +11,7 @@ Run `nvm use` to select the repository's recommended version from `.nvmrc`.
 ## Build
 
 ```bash
-npm install
+npm ci
 npm run build
 ```
 

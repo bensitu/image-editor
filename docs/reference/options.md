@@ -1,6 +1,6 @@
 # Options Reference
 
-ImageEditor 3 separates Core configuration from Feature Plugin configuration.
+Image Editor 3 separates Core configuration from Feature Plugin configuration.
 Pass only `ImageEditorCoreOptions` to `ImageEditorCore`; when using a Preset,
 place those options under `core` and configure each Feature in its own
 namespace.
@@ -136,18 +136,18 @@ compositions.
 ## Feature references
 
 - [Transform and Core API](./api.md)
-- [History](./history.md)
-- [Masks and transform binding](./overlay-transform-binding.md)
-- [Filters](./filters.md)
-- [Crop](./crop.md)
-- [Mosaic](./mosaic.md)
-- [Annotations](./annotations.md)
-- [Text](./annotation-text.md)
-- [Shape](./annotation-shape.md)
-- [Draw and Eraser](./annotation-draw.md)
-- [Overlay State](./overlay-state.md)
-- [DOM Controls](./dom-controls.md)
+- [History](../plugins/history.md)
+- [Masks and transform binding](../plugins/overlay-transform-binding.md)
+- [Filters](../plugins/filters.md)
+- [Crop](../plugins/crop.md)
+- [Mosaic](../plugins/mosaic.md)
+- [Annotations](../plugins/annotations.md)
+- [Text](../plugins/annotation-text.md)
+- [Shape](../plugins/annotation-shape.md)
+- [Draw and Eraser](../plugins/annotation-draw.md)
+- [Overlay State](../plugins/overlay-state.md)
+- [DOM Controls](../plugins/dom-controls.md)
 
 All public import paths above correspond to `package.json#exports`. For older
 flat constructor options and facade methods, use the
-[2.x migration guide](./migration-from-v2.md).
+[2.x migration guide](../guides/migration-from-v2.md).

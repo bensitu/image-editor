@@ -16,4 +16,4 @@ npm run check:examples
 ```
 
 See [comparison-report.md](comparison-report.md) for the ownership trade-offs.
-The example does not pin comparative metrics as a release Gate.
+The example does not turn comparative metrics into a fixed release threshold.

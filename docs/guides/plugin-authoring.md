@@ -144,7 +144,7 @@ A Tool registration owns `enter`, `exit`, and its operation allow-list. A sessio
 keeps previews and pointer state transient; cancel and Tool exit must remove
 every preview and handler without committing History or Snapshot state.
 
-The [Blur Region reference Plugin](../examples/reference-plugins/blur-region)
+The [Blur Region reference Plugin](../../examples/reference-plugins/blur-region)
 demonstrates a Tool, transient Overlay region, scoped raster transaction,
 failure injection, rollback, and one compound History commit.
 
@@ -166,7 +166,7 @@ commit to an installed History provider. A Plugin must not push an independent
 history stack. Failed validation, mutation, synchronization, or commit must
 restore the previous state and emit no committed event.
 
-The [Metadata reference Plugin](../examples/reference-plugins/metadata) shows a
+The [Metadata reference Plugin](../../examples/reference-plugins/metadata) shows a
 validated Slice, explicit slice migration, committed events, and configuration
 limits.
 
@@ -180,9 +180,9 @@ missing Codecs fail safely; never silently drop a persistent object.
 
 Transient kinds use `addTransient()` and are excluded from Snapshot, History,
 Overlay State, and normal export. The
-[Grid/Guide reference Plugin](../examples/reference-plugins/grid-guide)
+[Grid/Guide reference Plugin](../../examples/reference-plugins/grid-guide)
 demonstrates transient objects and multi-instance cleanup. The
-[Watermark reference Plugin](../examples/reference-plugins/watermark)
+[Watermark reference Plugin](../../examples/reference-plugins/watermark)
 demonstrates a persistent kind, Codec, geometry participant, export renderer,
 and configurable API.
 
@@ -236,7 +236,7 @@ replace it with a warning.
 
 The public testing entry provides deterministic hosts and contract assertions.
 Start with the complete, compiling test setup in the
-[Plugin package template](../examples/plugin-template), then add
+[Plugin package template](../../examples/plugin-template), then add
 `runPluginConformance()` adapters for every responsibility your Plugin claims.
 Run the template proof with:
 
@@ -253,7 +253,7 @@ behavior, and Conformance from the tarball. Inspect the bundle module graph:
 Core and Fabric must remain external, private package paths must be zero, and
 source maps must not contain local absolute paths or secrets.
 
-Use the [Plugin package template](../examples/plugin-template) as the smallest
-compiling starting point. The four [reference packages](../examples/reference-plugins)
+Use the [Plugin package template](../../examples/plugin-template) as the smallest
+compiling starting point. The four [reference packages](../../examples/reference-plugins)
 provide independently packable proofs for persistent Overlay, canvas-free
 state, transient rendering, and raster mutation responsibilities.

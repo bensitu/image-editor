@@ -1,6 +1,6 @@
 # Comment Rules
 
-Comment conventions for the TypeScript codebase.  
+Project-wide comment conventions for the TypeScript codebase.  
 Comments should explain current intent, constraints, invariants, edge cases, and non-obvious decisions.
 
 Do not use comments to narrate repository history, version transitions, or implementation phases.

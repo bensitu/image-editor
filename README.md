@@ -12,7 +12,7 @@ annotations, persistence, and optional DOM controls.
 > **Release candidate status:** this branch prepares `3.0.0-rc.1`, a breaking
 > major release. The candidate is not a stable release and has not been
 > published. Applications on the maintained 2.x line should remain on that line
-> until they complete the [migration guide](docs/migration-from-v2.md).
+> until they complete the [migration guide](docs/guides/migration-from-v2.md).
 
 Fabric `>=7.4.0 <8` is a peer dependency and is never bundled. Core composition
 is DOM-independent and safe to import in SSR/headless code; canvas initialization
@@ -36,6 +36,7 @@ Click the screenshot to open the [live demo](https://bensitu.github.io/image-edi
 - [Requirements](#requirements)
 - [Module Formats](#module-formats)
 - [Runtime Guarantees](#runtime-guarantees)
+- [Migration and Maintenance](#migration-and-maintenance)
 - [Development](#development)
 - [License](#license)
 
@@ -97,8 +98,8 @@ await preset.editor.disposeAsync();
 
 Preset factories install Plugins but do not initialize the editor. Their result
 keeps lifecycle operations on `editor` and exposes each Feature through its own
-typed Plugin API. See [Presets](docs/presets.md) for the four compositions and
-[DOM Controls](docs/dom-controls.md) when an imperative DOM binding layer is
+typed Plugin API. See [Presets](docs/reference/presets.md) for the four compositions and
+[DOM Controls](docs/plugins/dom-controls.md) when an imperative DOM binding layer is
 useful.
 
 ## Core + Plugins
@@ -137,9 +138,9 @@ manifests declare engine/API versions, dependencies, Capabilities, and privilege
 permissions. Setup is transactional and every owned registration belongs in the
 Plugin disposable scope.
 
-Start with the [Plugin Author Guide](docs/plugin-author-guide.md), then inspect
+Start with the [Plugin Author Guide](docs/guides/plugin-authoring.md), then inspect
 the independently packable [reference Plugins](examples/reference-plugins) and
-run the public [Conformance Kit](docs/api.md#testing-and-conformance).
+run the public [Conformance Kit](docs/reference/api.md#testing-and-conformance).
 
 ## Features
 
@@ -200,27 +201,23 @@ run the public [Conformance Kit](docs/api.md#testing-and-conformance).
 
 ## Documentation
 
-- [API reference](docs/api.md)
-- [Options reference](docs/options.md)
-- [Modular UMD loading](docs/modular-umd.md)
-- [Overlay transform binding](docs/overlay-transform-binding.md)
-- [Overlay-state persistence](docs/overlay-state.md)
-- [DOM Controls](docs/dom-controls.md)
-- [Typed Presets](docs/presets.md)
-- [History recording control](docs/history.md)
-- [Filters Plugin](docs/filters.md)
-- [Crop Plugin](docs/crop.md)
-- [Mosaic Plugin](docs/mosaic.md)
-- [Annotation Foundation](docs/annotations.md)
-- [Text Annotation Plugin](docs/annotation-text.md)
-- [Shape Annotation Plugin](docs/annotation-shape.md)
-- [Draw Annotation and Eraser](docs/annotation-draw.md)
-- [Plugin Author Guide](docs/plugin-author-guide.md)
-- [Migration from 2.x](docs/migration-from-v2.md)
-- [2.x maintenance policy](docs/v2-maintenance-policy.md)
-- [3.0.0-rc.1 release notes](docs/release-notes/3.0.0-rc.1.md)
-- [Contributing and local checks](docs/contributing.md)
-- [Changelog](CHANGELOG.md)
+- Reference: [API](docs/reference/api.md), [options](docs/reference/options.md),
+  [typed Presets](docs/reference/presets.md), and
+  [Modular UMD loading](docs/reference/modular-umd.md).
+- Plugins: [History](docs/plugins/history.md), [Filters](docs/plugins/filters.md),
+  [Crop](docs/plugins/crop.md), [Mosaic](docs/plugins/mosaic.md),
+  [Annotation Foundation](docs/plugins/annotations.md),
+  [Text](docs/plugins/annotation-text.md), [Shape](docs/plugins/annotation-shape.md),
+  [Draw/Eraser](docs/plugins/annotation-draw.md),
+  [Overlay State](docs/plugins/overlay-state.md),
+  [transform binding](docs/plugins/overlay-transform-binding.md), and
+  [DOM Controls](docs/plugins/dom-controls.md).
+- Guides: [Plugin authoring](docs/guides/plugin-authoring.md) and
+  [migration from 2.x](docs/guides/migration-from-v2.md).
+- Development: [contributing and local checks](docs/development/contributing.md),
+  [comment rules](docs/development/comment-rules.md), and
+  [naming rules](docs/development/naming-rules.md).
+- Release history: [Changelog](CHANGELOG.md).
 
 ## Framework Integration
 
@@ -349,7 +346,7 @@ order. This example downloads Core and Transform only:
 </script>
 ```
 
-See [Modular UMD loading](docs/modular-umd.md) for every module, dependency
+See [Modular UMD loading](docs/reference/modular-umd.md) for every module, dependency
 order, Mask and Annotation examples, version rules, and size tradeoffs.
 
 CommonJS `require()` returns a namespace object for the requested public entry.
@@ -383,12 +380,12 @@ separate release process and no automatic merges from `develop`.
 ## Development
 
 ```bash
-npm install
+npm ci
 npm run build
 npm test
 ```
 
-See [Contributing and local checks](docs/contributing.md) for browser tests,
+See [Development and contributing](docs/development/contributing.md) for browser tests,
 visual tests, release checks, and CI-equivalent commands.
 
 ## License

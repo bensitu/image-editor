@@ -1,4 +1,4 @@
-# Overlay State
+# Overlay State Plugin
 
 `@bensitu/image-editor/plugins/overlay-state` persists editable overlays as
 renderer-independent JSON. Keep the original image separately, export the

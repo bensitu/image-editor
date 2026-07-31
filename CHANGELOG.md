@@ -22,11 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add modular Core and per-Plugin UMD artifacts for script-tag consumers.
 - Add shared-runtime boundary checks, per-module gzip budgets, deterministic artifact governance, and browser composition coverage for Modular UMD.
 - Add public Vanilla, React, Vue, and Next examples, a Plugin package template, and an executable pure-Fabric versus Framework redaction comparison.
-- Add permanent candidate-readiness, deterministic-build, performance, memory, hostile-input, audit, and package-content checks for local release review.
+- Add durable source, architecture, package-consumer, browser, security, bundle-isolation, and release-artifact validation profiles.
 
 ### Changed
 
-- Migrate 45 directly compatible Node product, unit, property, release, and Codemod tests from `.test.mjs` to checked `.test.ts`; freeze the remaining runtime-negative JavaScript fixtures in an exact shrinking allowlist and retain explicit JavaScript consumer proofs for independent example packages.
+- Migrate directly compatible Node product, unit, property, release, and Codemod tests to checked `.test.ts` files while retaining JavaScript only for compiled-consumer proofs and test doubles that still require it.
 - Replace the monolithic root facade with a Core-only public root. Feature methods are available through installed Plugin APIs or typed Preset results.
 - Require applications to pass the Fabric module explicitly and split flat configuration by Core or Feature ownership.
 - Accept the current `image-editor.state@3` Snapshot schema in Core; recognizable older schemas require an explicitly imported migration handler.
@@ -55,6 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 - None. Removed facade methods and private controller paths have no runtime compatibility aliases; use the migration guide and Codemod report instead.
+
+### Known limitations
+
+- Draw Eraser removes whole intersected Draw objects; it does not split or partially erase paths.
+- The isolated 2.x migration entry supports the documented frozen Snapshot inventory, not arbitrary application-private fields or transient runtime objects.
+- Plugin permissions provide an auditable authority boundary, not a sandbox for untrusted JavaScript.
+- Full UMD intentionally includes every official Feature; use ESM or Modular UMD composition when transfer size and selected Features matter.
+- Public imports and types are SSR-safe, but Canvas initialization, browser image decoding, and browser export remain client-side operations.
 
 ## [2.9.0] - 2026-07-11
 

@@ -1,4 +1,4 @@
-# History recording control
+# History Plugin
 
 The History Plugin provides bounded undo and redo for committed editor transactions. Install it,
 like every Plugin, before calling `editor.init()`. The Plugin cannot be attached after editor

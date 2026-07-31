@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Universal instructions for AI coding agents. Merge with project-specific commands and conventions as needed.
+Project instructions for AI coding agents working in this repository.
 
 ## Core principles
 
@@ -11,13 +11,13 @@ Universal instructions for AI coding agents. Merge with project-specific command
 
 ## Project commands
 
-Replace these examples with the commands used by this repository.
-
-- Install dependencies: `npm install`
+- Install dependencies from the lockfile: `npm ci`
 - Run local development/watch mode: `npm run dev`
 - Run tests: `npm test`
-- Run type checks: `npm run build:types`
+- Run type checks: `npm run typecheck`
 - Build: `npm run build`
+- Run the pull-request validation profile: `npm run check:pr`
+- Build and open the local documentation demos: `npm run demo:local`
 
 ## Before coding
 

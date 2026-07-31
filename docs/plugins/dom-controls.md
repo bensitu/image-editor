@@ -1,6 +1,6 @@
 # DOM Controls Plugin
 
-`@bensitu/image-editor/plugins/dom-controls` is an optional adapter between DOM
+The `@bensitu/image-editor/plugins/dom-controls` entry is an optional adapter between DOM
 elements and public Plugin APIs. Core, Feature Plugins, Overlay State, Presets,
 and framework examples do not require it.
 

@@ -4,7 +4,7 @@ Transform binding is an opt-in Plugin policy that keeps editable overlays
 aligned with the same source-image content while the base image is scaled,
 rotated, flipped, or reset.
 
-Use the [Integrated Editor demo](integrated-editor.html) to exercise masks,
+Use the [Integrated Editor demo](../integrated-editor.html) to exercise masks,
 annotations, zoom, arbitrary-angle rotation, flips, and reset together.
 
 ```ts

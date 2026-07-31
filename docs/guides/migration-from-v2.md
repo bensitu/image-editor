@@ -2,15 +2,16 @@
 
 > **Migration source only:** “Before” examples on this page intentionally use
 > the 2.x facade. Do not copy them into a 3.x application; use the paired
-> “After” examples and current [options reference](./options.md).
+> “After” examples and current [options reference](../reference/options.md).
 
 The 3.0 candidate is a breaking major release. The former monolithic
 `ImageEditor` facade is replaced by `ImageEditorCore`, public Feature Plugins,
 and typed Presets. Existing applications can migrate incrementally, but must not
 expect old source code or Snapshots to load automatically.
 
-The maintained 2.9 baseline is the published `legacy/v2` branch. See the
-[2.x maintenance policy](./v2-maintenance-policy.md).
+The maintained 2.9 baseline is the published `legacy/v2` branch. It receives
+security and critical-correctness fixes only; the Plugin architecture and new
+Features are developed on the current major line.
 
 ## Choose a composition
 
@@ -244,8 +245,8 @@ React, Vue, and client-only SSR integrations should retain the complete Preset
 result or individual Plugin API refs in component state/refs. Create one
 composition in the client lifecycle, await `init()`, and call
 `disposeAsync()` during cleanup. Do not mount DOM Controls merely to bridge
-framework events. See [React](./frameworks/react.md), [Vue](./frameworks/vue.md),
-and [SSR](./frameworks/ssr.md).
+framework events. See [React](../frameworks/react.md), [Vue](../frameworks/vue.md),
+and [SSR](../frameworks/ssr.md).
 
 ## Bundle and UMD migration
 
@@ -274,8 +275,20 @@ Fabric remains an external global. `ImageEditorFull` exposes the current Full
 composition and official factories, not a compatibility facade. DOM Controls is
 absent unless passed explicitly. Applications that need only selected Features
 may instead use the separate Modular UMD mode, but must not combine it with Full
-UMD. See [Modular UMD loading](./modular-umd.md) for the Core/Plugin globals and
+UMD. See [Modular UMD loading](../reference/modular-umd.md) for the Core/Plugin globals and
 dependency order.
+
+## 2.x maintenance line
+
+Maintenance releases for `legacy/v2` use an independent review, verification,
+version, and release process. Changes are not merged automatically between
+`legacy/v2` and the current major. A fix that applies to both lines must be
+reviewed against and implemented for each line's contracts.
+
+Maintenance availability does not make 2.x source integrations or Snapshots
+valid inputs for the current Core. Applications should migrate with the public
+Core and Plugin APIs, the isolated Snapshot conversion entry, and the Codemod
+unresolved-report workflow described above.
 
 ## Unsupported APIs
 
