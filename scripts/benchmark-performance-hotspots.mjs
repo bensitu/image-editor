@@ -1,7 +1,7 @@
 /**
- * Benchmarks the conditional performance candidates recorded by AUD-011.
+ * Benchmarks selected performance-sensitive runtime paths.
  *
- * This script is diagnostic-only and is intentionally excluded from CI gates.
+ * This script is diagnostic-only and is intentionally excluded from automated validation.
  *
  * @module
  */
@@ -81,7 +81,7 @@ function makeAsciiPayload(byteLength) {
 function readInternalMethod(target, methodName) {
     const method = Reflect.get(target, methodName);
     if (typeof method !== 'function') {
-        throw new Error(`Expected internal method "${methodName}" for the audit benchmark.`);
+        throw new Error(`Expected internal method "${methodName}" for the performance benchmark.`);
     }
     return method.bind(target);
 }
@@ -120,7 +120,7 @@ function populateMasks(canvas, size) {
 async function benchmarkMasks() {
     const results = [];
     for (const size of MASK_SIZES) {
-        process.stderr.write(`AUD-011 Mask traversal: ${size} masks\n`);
+        process.stderr.write(`Mask traversal: ${size} masks\n`);
         const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
         let callbackCount = 0;
         const editor = new ImageEditorCore(fabric, {
@@ -300,7 +300,7 @@ async function benchmarkSnapshotState() {
     for (const sliceCount of SNAPSHOT_SLICE_COUNTS) {
         for (const totalPayloadBytes of SNAPSHOT_PAYLOAD_BYTES) {
             process.stderr.write(
-                `AUD-011 Snapshot state: ${sliceCount} slices, ${totalPayloadBytes} bytes\n`,
+                `Snapshot state: ${sliceCount} slices, ${totalPayloadBytes} bytes\n`,
             );
             const fixture = createSnapshotFixture(sliceCount, totalPayloadBytes);
             const iterations = totalPayloadBytes >= MiB ? 8 : 12;
@@ -408,7 +408,7 @@ async function benchmarkHistoryEstimator() {
     ];
     const results = [];
     for (const scenario of scenarios) {
-        process.stderr.write(`AUD-011 History estimator: ${scenario.name}\n`);
+        process.stderr.write(`History estimator: ${scenario.name}\n`);
         const estimatedBytes = estimateRetainedBytes(scenario.input);
         results.push({
             candidate: 'history-retained-byte-estimation',
@@ -489,7 +489,7 @@ function createGeometryFixture(participantCount) {
 async function benchmarkGeometrySorting() {
     const results = [];
     for (const participantCount of GEOMETRY_PARTICIPANT_COUNTS) {
-        process.stderr.write(`AUD-011 Geometry sorting: ${participantCount} participants\n`);
+        process.stderr.write(`Geometry sorting: ${participantCount} participants\n`);
         const fixture = createGeometryFixture(participantCount);
         results.push({
             candidate: 'geometry-participant-sorting',
@@ -506,7 +506,7 @@ async function benchmarkGeometrySorting() {
 
     for (const registrationCount of REGISTRATION_COUNTS) {
         process.stderr.write(
-            `AUD-011 Geometry registration invalidation: ${registrationCount} registrations\n`,
+            `Geometry registration invalidation: ${registrationCount} registrations\n`,
         );
         const fixture = createGeometryFixture(0);
         let sequence = 0;
@@ -538,7 +538,7 @@ async function benchmarkGeometrySorting() {
 const startedAt = new Date().toISOString();
 const result = {
     schemaVersion: 1,
-    auditFinding: 'AUD-011',
+    suite: 'performance-hotspots',
     environment: {
         startedAt,
         platform: process.platform,

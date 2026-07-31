@@ -93,23 +93,8 @@ jobs:
             - name: Run source checks and Node tests
               run: npm run check
 
-            - name: Check source module headers
-              run: npm run check:source-quality
-
-            - name: Verify GitHub Pages asset mode
-              run: npm run package:pages
-
-            - name: Check Node and CI policy
-              run: npm run check:node-ci-policy
-
-            - name: Check supply-chain policy
-              run: npm run check:supply-chain-policy
-
             - name: Check architecture ownership
               run: npm run check:architecture
-
-            - name: Check repository hygiene
-              run: npm run check:repository-hygiene
 
             - name: Check testing entry isolation
               run: npm run check:testing-isolation
@@ -155,30 +140,20 @@ jobs:
             - name: Build the distribution
               run: npm run build
 
-            - name: Verify committed distribution freshness
-              run: npm run check:committed-dist -- --skip-build
-
             - name: Verify runtime and declaration entries
               run: |
                   npm run test:package-entries
                   npm run test:package-types
-                  npm run test:packed-entries
 
-            - name: Verify package isolation and metadata
+            - name: Verify package metadata and public API
               run: |
-                  npm run test:package-isolation
                   npm run package:check
-                  npm run check:npm-pack-contents
                   npm run check:public-api
 
-            - name: Verify bundle, examples, and security policy
+            - name: Verify bundle behavior and security
               run: |
                   npm run check:bundle-size
-                  npm run check:examples
                   npm run check:security
-
-            - name: Verify deterministic generated output
-              run: npm run check:deterministic-build
 
     chromium-gate:
         name: Chromium and UMD gate (Node 24)

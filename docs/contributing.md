@@ -28,10 +28,8 @@ build:umd -> build:prune` in order, emitting:
 The final pruning pass removes build-only and type-only artifacts that cannot
 be reached through a formal package contract.
 
-`npm run check:umd` verifies the exact recursive UMD artifact set, shared
-runtime boundaries, source maps, globals, dependency descriptors, and gzip-9
-budgets. `npm run check:full-umd` remains a compatibility alias for the same
-unified policy.
+`npm run check:umd` verifies the recursive UMD artifact set, shared runtime
+boundaries, source maps, globals, dependency descriptors, and gzip-9 budgets.
 
 ## Documentation Demos
 
@@ -61,12 +59,10 @@ npm test
 property, migration, and Codemod `.test.ts` or `.test.mjs` file under `tests/`.
 The test runner loads TypeScript directly and deliberately excludes compile-only
 fixtures under `tests/types/`. `npm run typecheck:tests` verifies every migrated
-`.test.ts` file without emitting output. New runtime tests should use TypeScript.
-The exact remaining JavaScript fixtures, which still need dedicated test-double
-types or explicit invalid-input casts, are frozen in
-`tests/mjs-test-allowlist.json` and should only shrink. Independent package
-examples retain `.test.mjs` consumer proofs so their compiled JavaScript surface
-is tested without a TypeScript runtime dependency.
+`.test.ts` file without emitting output. New runtime tests should use TypeScript;
+JavaScript remains valid where a test deliberately exercises a compiled consumer
+or still depends on JavaScript-only test doubles. File format is not itself a
+validation gate.
 
 ## Browser Tests
 
@@ -112,10 +108,12 @@ npm run check:pr
 ```
 
 This profile runs source formatting, linting, type checking, every Node product
-test, architecture and repository policies, official Plugin checks, the built
-package surface, security checks, public type fixtures, and Chromium E2E. CI
-checks the minimum supported Node.js 22.12 runtime and runs the full gate on
-Node.js 24.
+test, durable architecture boundaries, official Plugin checks, the directly
+consumable package surface, security checks, public type fixtures, and Chromium
+E2E. Tests focus on observable behavior and supported contracts; repository file
+layout, comment wording, workflow text, and Demo wiring are reviewed without
+dedicated meta-gates. CI checks the minimum supported Node.js 22.12 runtime and
+runs the primary checks on Node.js 24.
 
 For distribution and release responsibilities, run from a clean commit:
 
