@@ -22,7 +22,7 @@
  *   - fast-check generated cases where applicable
  *
  * Run:
- *   node --test tests/layout-precedence.property.test.mjs
+ *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/layout-precedence.property.test.ts
  */
 
 import { register } from 'node:module';

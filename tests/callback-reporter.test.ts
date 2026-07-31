@@ -24,7 +24,7 @@
  *   - Fabric/canvas behavior is mocked where needed
  *
  * Run:
- *   node --test tests/callback-reporter.test.mjs
+ *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/callback-reporter.test.ts
  *
  * Notes:
  *   - Prefer behavior-level assertions over implementation-detail checks.
@@ -43,9 +43,13 @@ import { reportWarning, reportError } from '../src/core/callback-reporter.ts';
  * Restores the originals on both success and failure so a failing
  * assertion cannot leak the monkey patches into later tests.
  */
-function withConsoleSpies(body) {
-    const warnCalls = [];
-    const errorCalls = [];
+type ConsoleCall = unknown[];
+
+function withConsoleSpies<TResult>(
+    body: (calls: { warnCalls: ConsoleCall[]; errorCalls: ConsoleCall[] }) => TResult,
+) {
+    const warnCalls: ConsoleCall[] = [];
+    const errorCalls: ConsoleCall[] = [];
     const originalWarn = console.warn;
     const originalError = console.error;
     console.warn = (...args) => {
@@ -66,7 +70,7 @@ function withConsoleSpies(body) {
 // ─── reportWarning ────────────────────────────────────────────────────────
 
 test('reportWarning: forwards (error, message) in the public argument order', () => {
-    const calls = [];
+    const calls: [unknown, string][] = [];
     const options = {
         onWarning: (err, msg) => {
             calls.push([err, msg]);
@@ -94,7 +98,8 @@ test('reportWarning: forwards non-Error error values unchanged', () => {
     const cases = ['string error', 42, null, undefined, { code: 'E_FAKE' }, false];
 
     for (const value of cases) {
-        const calls = [];
+        const valueLabel = JSON.stringify(value) ?? typeof value;
+        const calls: [unknown, string][] = [];
         const options = {
             onWarning: (err, msg) => {
                 calls.push([err, msg]);
@@ -105,11 +110,11 @@ test('reportWarning: forwards non-Error error values unchanged', () => {
             reportWarning(options, value, 'msg');
         });
 
-        assert.equal(calls.length, 1, `callback must fire for value=${String(value)}`);
+        assert.equal(calls.length, 1, `callback must fire for value=${valueLabel}`);
         assert.equal(
             calls[0][0],
             value,
-            `error arg must be forwarded unchanged for value=${String(value)}`,
+            `error arg must be forwarded unchanged for value=${valueLabel}`,
         );
         assert.equal(calls[0][1], 'msg');
     }
@@ -129,7 +134,7 @@ test('reportWarning: missing or non-function onWarning is a no-op', () => {
         const { warnCalls, errorCalls } = withConsoleSpies(() => {
             // Must not throw despite the wonky shape.
             assert.doesNotThrow(
-                () => reportWarning(options, new Error('e'), 'm'),
+                () => reportWarning(options as never, new Error('e'), 'm'),
                 `reportWarning must be a no-op for options=${JSON.stringify(options)}`,
             );
         });
@@ -170,8 +175,9 @@ test('reportWarning: catches callback exceptions and logs to console.warn', () =
     );
     // Diagnostic line should name the helper and include the thrown value
     // so the misbehaving callback is easy to locate from the logs.
-    assert.equal(typeof warnCalls[0][0], 'string');
-    assert.match(warnCalls[0][0], /onWarning/);
+    const warningMessage = warnCalls[0]?.[0];
+    assert.equal(typeof warningMessage, 'string');
+    assert.match(warningMessage as string, /onWarning/);
     assert.equal(
         warnCalls[0][1],
         callbackError,
@@ -183,7 +189,7 @@ test('reportWarning: catches callback exceptions and logs to console.warn', () =
 // ─── reportError ──────────────────────────────────────────────────────────
 
 test('reportError: forwards (error, message) in the public argument order', () => {
-    const calls = [];
+    const calls: [unknown, string][] = [];
     const options = {
         onError: (err, msg) => {
             calls.push([err, msg]);
@@ -216,7 +222,7 @@ test('reportError: missing or non-function onError is a no-op', () => {
     for (const options of cases) {
         const { warnCalls, errorCalls } = withConsoleSpies(() => {
             assert.doesNotThrow(
-                () => reportError(options, new Error('e'), 'm'),
+                () => reportError(options as never, new Error('e'), 'm'),
                 `reportError must be a no-op for options=${JSON.stringify(options)}`,
             );
         });
@@ -255,8 +261,9 @@ test('reportError: catches callback exceptions and logs to console.error', () =>
         1,
         'console.error must be called exactly once on callback exception',
     );
-    assert.equal(typeof errorCalls[0][0], 'string');
-    assert.match(errorCalls[0][0], /onError/);
+    const errorMessage = errorCalls[0]?.[0];
+    assert.equal(typeof errorMessage, 'string');
+    assert.match(errorMessage as string, /onError/);
     assert.equal(
         errorCalls[0][1],
         callbackError,

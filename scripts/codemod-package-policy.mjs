@@ -17,6 +17,11 @@ function assertCondition(condition, message) {
     if (!condition) throw new Error(message);
 }
 
+/**
+ * @param {any} rootManifest
+ * @param {any} codemodManifest
+ * @param {readonly string[] | null} packedFiles
+ */
 export function assertCodemodPackagePolicy(rootManifest, codemodManifest, packedFiles = null) {
     assertCondition(
         codemodManifest.name === CODEMOD_PACKAGE_NAME,

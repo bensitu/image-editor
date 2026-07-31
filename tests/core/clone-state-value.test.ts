@@ -9,7 +9,7 @@ test('state cloning rejects dangerous keys even when structuredClone is availabl
         const value = JSON.parse(`{"nested":{"${key}":{"polluted":true}}}`);
         assert.throws(() => cloneStateValue(value), StateCloneError, key);
     }
-    assert.equal(Object.prototype.polluted, undefined);
+    assert.equal((Object.prototype as { polluted?: unknown }).polluted, undefined);
 });
 
 test('state cloning rejects accessors without invoking them', () => {

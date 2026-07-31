@@ -41,7 +41,7 @@ test('release tag policy keeps prereleases away from latest', () => {
 test('dual-package publish skips verified artifacts and publishes only missing versions', async () => {
     const releaseArtifacts = artifacts();
     const registry = new Map([[releaseArtifacts[0].name, metadataFor(releaseArtifacts[0])]]);
-    const publishCalls = [];
+    const publishCalls: string[] = [];
 
     const statuses = await publishReleaseArtifacts(releaseArtifacts, {
         inspect: async (artifact) => registry.get(artifact.name) ?? null,

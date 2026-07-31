@@ -17,7 +17,7 @@ function makeImageData(width, height) {
         data[index * 4 + 2] = (index * 17) % 255;
         data[index * 4 + 3] = 255;
     }
-    return { width, height, data };
+    return { width, height, data } as ImageData;
 }
 
 test('circular Mosaic dirty rectangles clamp edges in natural pixels', () => {
@@ -94,10 +94,12 @@ test('Mosaic interpolation bounds gaps and pixelation changes only a circular re
 });
 
 test('preview writes only the supplied dirty region instead of the full image', () => {
-    const calls = [];
+    const calls: unknown[][] = [];
     const context = {
-        putImageData: (...args) => calls.push(args),
-    };
+        putImageData: (...args: unknown[]) => {
+            calls.push(args);
+        },
+    } as unknown as CanvasRenderingContext2D;
     const imageData = makeImageData(100, 80);
     writeMosaicDirtyRegion(context, imageData, {
         leftPx: 12,

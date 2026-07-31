@@ -18,7 +18,7 @@ import { createAnnotationPreset } from '../../src/presets/annotation/index.js';
 import { createFullPreset } from '../../src/presets/full/index.js';
 import { createMinimalPreset } from '../../src/presets/minimal/index.js';
 import { createRedactionPreset } from '../../src/presets/redaction/index.js';
-import { definePlugin } from '../../src/sdk/index.js';
+import { definePlugin, type PluginRef } from '../../src/sdk/index.js';
 import { fabric, resetEditorDom } from '../helpers/fabric-environment.mjs';
 
 async function dispose(result) {
@@ -26,7 +26,16 @@ async function dispose(result) {
     if (globalThis.document) document.body.innerHTML = '';
 }
 
-function checkingDomPlugin(bindings, hooks = {}) {
+interface DomBinding {
+    readonly ref: PluginRef<unknown>;
+}
+
+interface DomPluginHooks {
+    readonly onSetup?: () => void;
+    readonly onDispose?: (bindings: object) => void;
+}
+
+function checkingDomPlugin(bindings: object, hooks: DomPluginHooks = {}) {
     return definePlugin({
         ref: domControlsPluginRef,
         manifest: {
@@ -35,8 +44,8 @@ function checkingDomPlugin(bindings, hooks = {}) {
             apiVersion: domControlsPluginRef.apiVersion,
             engine: '^3.0.0',
             requiresPlugins: Object.freeze(
-                Object.values(bindings)
-                    .filter(Boolean)
+                (Object.values(bindings) as (DomBinding | null | undefined)[])
+                    .filter((binding): binding is DomBinding => binding != null)
                     .map((binding) => binding.ref),
             ),
         },
@@ -109,7 +118,7 @@ test('Annotation installs each Foundation once and excludes raster editing featu
 test('Full returns every official Plugin API and initializes without duplicate Foundations', async () => {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
     const preset = createFullPreset(fabric, { transform: { animationDuration: 0 } });
-    const expected = [
+    const expected: readonly (readonly [PluginRef<unknown>, unknown])[] = [
         [transformPluginRef, preset.transform],
         [historyPluginRef, preset.history],
         [overlayFoundationRef, preset.overlays],
@@ -175,7 +184,11 @@ test('a failing optional DOM setup rolls back the complete Plugin Plan', () => {
                     });
                 },
             }),
-        (error) => error.cause?.cause?.message === 'expected preset setup failure',
+        (error) =>
+            error instanceof Error &&
+            error.cause instanceof Error &&
+            error.cause.cause instanceof Error &&
+            error.cause.cause.message === 'expected preset setup failure',
     );
     assert.throws(() => capturedBindings.transform.resolve(), /not installed/);
 });

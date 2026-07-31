@@ -14,7 +14,13 @@ const {
     definePluginRef,
 } = sdk;
 
-function createSurfacePlugin(overrides = {}) {
+interface SurfacePluginOverrides {
+    readonly ref?: sdk.PluginRef<unknown>;
+    readonly manifest?: Partial<sdk.PluginManifest>;
+    readonly setup?: sdk.SynchronousEditorPlugin<unknown>['setup'];
+}
+
+function createSurfacePlugin(overrides: SurfacePluginOverrides = {}) {
     const ref = overrides.ref ?? definePluginRef('example:surface-plugin', '1.0.0');
     return definePlugin({
         ref,
@@ -111,7 +117,7 @@ test('public SDK requires the synchronous Plugin installation contract', () => {
                     engine: '^3.0.0',
                 },
                 setup: () => Object.freeze({ ready: true }),
-            }),
+            } as unknown as sdk.SynchronousEditorPlugin<Readonly<{ ready: true }>>),
         /setupMode "sync"/,
     );
 });
@@ -163,7 +169,7 @@ test('manifest validation rejects identity, API, engine, and permission failures
                 },
             };
 
-            await assert.rejects(manager.install(plugin), scenario.error);
+            await assert.rejects(manager.install(plugin as never), scenario.error);
             assert.equal(setupCalls, 0);
             await manager.dispose();
         });

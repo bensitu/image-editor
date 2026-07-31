@@ -124,6 +124,21 @@ export default tseslint.config(
         },
     },
     {
+        files: ['tests/**/*.test.ts'],
+        ignores: ['tests/types/**'],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: ['./tests/tsconfig.runtime.json'],
+                tsconfigRootDir,
+            },
+        },
+        rules: {
+            '@typescript-eslint/no-floating-promises': 'off',
+            '@typescript-eslint/no-unsafe-return': 'off',
+        },
+    },
+    {
         files: ['**/*.{js,mjs,cjs}'],
         extends: [tseslint.configs.disableTypeChecked],
     },

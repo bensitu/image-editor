@@ -20,7 +20,7 @@ test('testing entry publishes isolated host and control helpers', () => {
 });
 
 test('deferred operations settle once and expose deterministic state', async () => {
-    const deferred = createDeferredOperation();
+    const deferred = createDeferredOperation<string>();
     assert.equal(deferred.settled, false);
     deferred.resolve('ready');
     deferred.reject(new Error('ignored'));
@@ -42,12 +42,12 @@ test('controlled decoder resolves, rejects, and aborts queued requests', async (
     const abortController = new AbortController();
     const aborted = decoder.decode('aborted', abortController.signal);
     abortController.abort();
-    await assert.rejects(aborted, (error) => error?.name === 'AbortError');
+    await assert.rejects(aborted, (error) => error instanceof Error && error.name === 'AbortError');
     assert.deepEqual(decoder.pendingInputs, []);
 });
 
 test('Fabric test harness detects namespace mutation', () => {
-    const fabricModule = { Rect: class Rect {} };
+    const fabricModule: Record<string, unknown> = { Rect: class Rect {} };
     const harness = createPluginTestFabric(fabricModule);
     assert.equal(harness.module, fabricModule);
     harness.assertUnchanged();

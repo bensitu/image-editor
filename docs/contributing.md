@@ -40,7 +40,15 @@ npm test
 ```
 
 `npm test` builds the Codemod package and runs every Node-based product, unit,
-property, migration, and Codemod test under `tests/`.
+property, migration, and Codemod `.test.ts` or `.test.mjs` file under `tests/`.
+The test runner loads TypeScript directly and deliberately excludes compile-only
+fixtures under `tests/types/`. `npm run typecheck:tests` verifies every migrated
+`.test.ts` file without emitting output. New runtime tests should use TypeScript.
+The exact remaining JavaScript fixtures, which still need dedicated test-double
+types or explicit invalid-input casts, are frozen in
+`tests/mjs-test-allowlist.json` and should only shrink. Independent package
+examples retain `.test.mjs` consumer proofs so their compiled JavaScript surface
+is tested without a TypeScript runtime dependency.
 
 ## Browser Tests
 

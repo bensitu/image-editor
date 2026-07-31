@@ -23,7 +23,7 @@
  *   - fast-check generated cases where applicable
  *
  * Run:
- *   node --test tests/fit-sizing.property.test.mjs
+ *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/fit-sizing.property.test.ts
  */
 
 import { register } from 'node:module';

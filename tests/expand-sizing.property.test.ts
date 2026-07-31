@@ -23,7 +23,7 @@
  *   - Fabric/canvas behavior is mocked where needed
  *
  * Run:
- *   node --test tests/expand-sizing.property.test.mjs
+ *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/expand-sizing.property.test.ts
  *
  * Notes:
  *   - Prefer behavior-level assertions over implementation-detail checks.

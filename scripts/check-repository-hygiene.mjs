@@ -95,9 +95,61 @@ for (const required of allowedPackageFiles) {
     assertCondition(packageFiles.includes(required), `package.json files is missing ${required}.`);
 }
 
-const tests = tracked.filter((file) => /(?:^|\/)tests\/.*\.test\.mjs$/u.test(`/${file}`));
-const prohibitedTests = tests.filter((file) =>
-    /(?:^|\/)(?:demo-page|implementation[-_ ]report|release[-_ ]gate|stage[-_ ]?\d+.*)\.test\.mjs$/iu.test(
+const typescriptNodeTests = tracked.filter(
+    (file) =>
+        file.startsWith('tests/') && !file.startsWith('tests/types/') && file.endsWith('.test.ts'),
+);
+const javascriptNodeTests = tracked.filter(
+    (file) =>
+        file.startsWith('tests/') && !file.startsWith('tests/types/') && file.endsWith('.test.mjs'),
+);
+const testFormatPolicyPath = 'tests/mjs-test-allowlist.json';
+assertCondition(trackedSet.has(testFormatPolicyPath), `${testFormatPolicyPath} must be tracked.`);
+const testFormatPolicy = JSON.parse(
+    await readFile(path.join(repositoryRoot, testFormatPolicyPath), 'utf8'),
+);
+assertCondition(testFormatPolicy.schemaVersion === 1, 'Unsupported test-format policy schema.');
+assertCondition(
+    Array.isArray(testFormatPolicy.runtimeJavaScriptExceptions),
+    'Test-format policy must declare runtimeJavaScriptExceptions.',
+);
+const configuredJavaScriptExceptions = testFormatPolicy.runtimeJavaScriptExceptions;
+assertCondition(
+    configuredJavaScriptExceptions.every(
+        (file) =>
+            typeof file === 'string' && file.startsWith('tests/') && file.endsWith('.test.mjs'),
+    ),
+    'Runtime JavaScript test exceptions must be repository-relative .test.mjs paths.',
+);
+assertCondition(
+    new Set(configuredJavaScriptExceptions).size === configuredJavaScriptExceptions.length,
+    'Runtime JavaScript test exceptions must be unique.',
+);
+assertCondition(
+    JSON.stringify(configuredJavaScriptExceptions) ===
+        JSON.stringify([...configuredJavaScriptExceptions].sort()),
+    'Runtime JavaScript test exceptions must stay sorted.',
+);
+assertCondition(
+    JSON.stringify(javascriptNodeTests) === JSON.stringify(configuredJavaScriptExceptions),
+    `Runtime JavaScript tests and their allowlist differ. Found: ${javascriptNodeTests.join(', ')}. Configured: ${configuredJavaScriptExceptions.join(', ')}.`,
+);
+const allowedJavaScriptConsumerTests = new Set([
+    'examples/plugin-template/tests/package.test.mjs',
+    'examples/reference-plugins/blur-region/tests/package.test.mjs',
+    'examples/reference-plugins/grid-guide/tests/package.test.mjs',
+    'examples/reference-plugins/metadata/tests/package.test.mjs',
+    'examples/reference-plugins/watermark/tests/package.test.mjs',
+]);
+for (const consumerTest of allowedJavaScriptConsumerTests) {
+    assertCondition(
+        trackedSet.has(consumerTest),
+        `JavaScript package-consumer proof is missing: ${consumerTest}.`,
+    );
+}
+const nodeTests = [...typescriptNodeTests, ...javascriptNodeTests].sort();
+const prohibitedTests = nodeTests.filter((file) =>
+    /(?:^|\/)(?:demo-page|implementation[-_ ]report|release[-_ ]gate|stage[-_ ]?\d+.*)\.test\.(?:mjs|ts)$/iu.test(
         file,
     ),
 );
@@ -128,5 +180,5 @@ assertCondition(
 );
 
 console.log(
-    `Repository hygiene passed (${tracked.length} tracked files, ${tests.length} product tests).`,
+    `Repository hygiene passed (${tracked.length} tracked files, ${typescriptNodeTests.length} TypeScript Node tests, ${javascriptNodeTests.length} controlled JavaScript Node tests, ${allowedJavaScriptConsumerTests.size} JavaScript package-consumer proofs).`,
 );

@@ -83,11 +83,16 @@ test('data URL inspection rejects unsupported headers and malformed base64', () 
 });
 
 test('data URL inspection retains case-insensitive PNG, JPEG, and WebP dimensions', () => {
-    for (const [mimeType, payload, dimensions] of [
+    const cases: readonly (readonly [
+        string,
+        string,
+        Readonly<{ width: number; height: number }>,
+    ])[] = [
         ['PNG', pngHeader(321, 123), { width: 321, height: 123 }],
         ['JPEG', jpegHeader(640, 360), { width: 640, height: 360 }],
         ['WEBP', webpHeader(777, 555), { width: 777, height: 555 }],
-    ]) {
+    ];
+    for (const [mimeType, payload, dimensions] of cases) {
         assert.deepEqual(
             inspectEncodedImageDataUrl(`DATA:IMAGE/${mimeType};BASE64,${payload}`)?.dimensions,
             dimensions,

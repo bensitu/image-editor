@@ -88,7 +88,7 @@ test('SemVer inputs enforce a bounded parser budget', () => {
 });
 
 test('SemVer comparison remains aligned with npm across deterministic range families', () => {
-    const versions = [];
+    const versions: string[] = [];
     for (let major = 0; major <= 3; major += 1) {
         for (let minor = 0; minor <= 3; minor += 1) {
             for (let patch = 0; patch <= 3; patch += 1) {
@@ -97,7 +97,7 @@ test('SemVer comparison remains aligned with npm across deterministic range fami
             }
         }
     }
-    const generatedRanges = [];
+    const generatedRanges: string[] = [];
     for (let major = 0; major <= 3; major += 1) {
         for (let minor = 0; minor <= 2; minor += 1) {
             const base = `${major}.${minor}.0`;

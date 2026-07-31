@@ -23,7 +23,7 @@
  *   - fast-check generated cases where applicable
  *
  * Run:
- *   node --test tests/cover-sizing.property.test.mjs
+ *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/cover-sizing.property.test.ts
  */
 
 import { register } from 'node:module';
@@ -132,7 +132,12 @@ function referenceCover(input) {
     };
 }
 
-function referenceScrollableCanvasSize(contentWidth, contentHeight, viewport, scrollbar = {}) {
+function referenceScrollableCanvasSize(
+    contentWidth,
+    contentHeight,
+    viewport,
+    scrollbar: { width?: number; height?: number } = {},
+) {
     const viewportW = Math.max(1, viewport.width || 1);
     const viewportH = Math.max(1, viewport.height || 1);
     const scrollbarW = Math.max(0, Number(scrollbar.width) || 0);

@@ -252,12 +252,16 @@ Supported test naming patterns:
 
 ```text
 plugin-manifest.test.ts
-plugin-installation.test.mjs
+plugin-installation.test.ts
 plugin-conformance.spec.ts
 plugin-api.test-d.ts
 ```
 
-Test files should mirror the module or contract they verify.
+New Node runtime tests use `.test.ts`; Playwright browser tests use `.spec.ts`.
+A `.test.mjs` suffix is reserved for the shrinking allowlist of fixtures that
+still require dedicated test-double types or explicit invalid-input casts, and
+for package-consumer proofs that intentionally execute compiled JavaScript. Test
+files should mirror the module or contract they verify.
 
 ## 12. External boundaries
 

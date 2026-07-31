@@ -1,4 +1,4 @@
-// ESM hook that lets property tests run against `.ts` source directly
+// ESM hook that lets Node tests and benchmarks run against `.ts` directly
 // without invoking the build pipeline. It handles two cases:
 //   - `import { X } from '../foo.js'` resolves to `../foo.ts` when the
 //     source file exists and the built `.js` sibling does not.

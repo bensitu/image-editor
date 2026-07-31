@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import { containsCredential, findCredentialKinds } from '../../scripts/credential-policy.mjs';
 
-const credentialCases = Object.freeze([
+type CredentialKind = ReturnType<typeof findCredentialKinds>[number];
+
+const credentialCases: readonly (readonly [CredentialKind, string])[] = Object.freeze([
     ['private-key', ['-----BEGIN ', 'OPENSSH PRIVATE KEY-----'].join('')],
     ['github-token', `ghp_${'A'.repeat(36)}`],
     ['github-token', `github_pat_${'B'.repeat(70)}`],

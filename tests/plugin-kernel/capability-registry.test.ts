@@ -9,6 +9,7 @@ import {
     InvalidCapabilityVersionError,
     InvalidPluginDefinitionError,
     PluginCapabilityError,
+    type PluginKernelWarning,
     createCapabilityToken,
     definePluginRef,
 } from '../../src/plugin-kernel/index.js';
@@ -97,7 +98,7 @@ test('required capability resolution distinguishes missing, incompatible, and co
 });
 
 test('optional capability policy is silent when missing and warns when incompatible', () => {
-    const warnings = [];
+    const warnings: PluginKernelWarning[] = [];
     const registry = new CapabilityRegistry({ warningSink: (warning) => warnings.push(warning) });
     const token = createCapabilityToken('example-test:optional', '1.1.0');
 
@@ -107,9 +108,10 @@ test('optional capability policy is silent when missing and warns when incompati
     registry.provide(token, { enabled: true }, 'provider:optional');
     assert.equal(registry.optional({ token, range: '^2.0.0' }, 'consumer:default'), null);
     assert.equal(warnings.length, 1);
-    assert.equal(warnings[0].code, 'OPTIONAL_CAPABILITY_INCOMPATIBLE');
-    assert.equal(warnings[0].pluginId, 'consumer:default');
-    assert.deepEqual(warnings[0].details, {
+    const warning: PluginKernelWarning = (warnings as PluginKernelWarning[])[0]!;
+    assert.equal(warning.code, 'OPTIONAL_CAPABILITY_INCOMPATIBLE');
+    assert.equal(warning.pluginId, 'consumer:default');
+    assert.deepEqual(warning.details, {
         capabilityId: token.id,
         requestedRange: '^2.0.0',
         installedVersion: '1.1.0',

@@ -71,7 +71,11 @@ test('serialized Fabric validation rejects string Path parser payloads and cycle
         ),
         false,
     );
-    const cyclic = { type: 'Rect', width: 10, height: 10 };
+    const cyclic: { type: string; width: number; height: number; nested?: unknown } = {
+        type: 'Rect',
+        width: 10,
+        height: 10,
+    };
     cyclic.nested = cyclic;
     assert.equal(isSafeSerializedFabricObject(cyclic, { rootTypes: ['rect'] }), false);
 });

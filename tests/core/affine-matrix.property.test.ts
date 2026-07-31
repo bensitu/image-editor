@@ -10,6 +10,7 @@ import {
     multiplyAffine,
     sanitizeAffineMatrix,
     transformRectBounds,
+    type AffineMatrix,
 } from '../../src/core-runtime/geometry/index.js';
 
 test('deterministic generated affine cases preserve multiply/invert identity', () => {
@@ -19,7 +20,7 @@ test('deterministic generated affine cases preserve multiply/invert identity', (
         const scaleY = 0.3 + (index % 17) / 8;
         const cosine = Math.cos(angle);
         const sine = Math.sin(angle);
-        const matrix = [
+        const matrix: AffineMatrix = [
             cosine * scaleX,
             sine * scaleX,
             -sine * scaleY,
@@ -33,15 +34,15 @@ test('deterministic generated affine cases preserve multiply/invert identity', (
 });
 
 test('double reflection produces identity and reflection detection is determinant-based', () => {
-    const flipX = [-1, 0, 0, 1, 0, 0];
+    const flipX: AffineMatrix = [-1, 0, 0, 1, 0, 0];
     assert.equal(hasAffineReflection(flipX), true);
     assert.deepEqual(multiplyAffine(flipX, flipX), IDENTITY_AFFINE_MATRIX);
     assert.equal(hasAffineReflection(multiplyAffine(flipX, flipX)), false);
 });
 
 test('delta is computed once from before to after and transformed bounds are finite', () => {
-    const before = [1, 0, 0, 1, 10, 20];
-    const after = [0, 2, -2, 0, 30, 40];
+    const before: AffineMatrix = [1, 0, 0, 1, 10, 20];
+    const after: AffineMatrix = [0, 2, -2, 0, 30, 40];
     const delta = computeAffineDelta(before, after);
     assert.equal(approximatelyEqualAffine(multiplyAffine(delta, before), after, 1e-9), true);
     assert.deepEqual(transformRectBounds(delta, { left: 0, top: 0, width: 10, height: 20 }), {

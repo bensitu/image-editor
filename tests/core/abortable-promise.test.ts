@@ -7,7 +7,7 @@ test('settleAbortable rejects promptly and disposes a late result', async () => 
     const controller = new AbortController();
     const reason = new Error('cancelled');
     let resolveTask;
-    let disposedValue = null;
+    let disposedValue: unknown = null;
     const task = new Promise((resolve) => {
         resolveTask = resolve;
     });

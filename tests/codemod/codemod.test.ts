@@ -13,6 +13,12 @@ const cliPath = fileURLToPath(
     new URL('../../packages/image-editor-codemod/dist/cli.js', import.meta.url),
 );
 
+interface CliResult {
+    readonly code: number | null;
+    readonly stdout: string;
+    readonly stderr: string;
+}
+
 async function fixture(name) {
     return readFile(new URL(name, fixtureRoot), 'utf8');
 }
@@ -26,8 +32,8 @@ async function withTemporaryDirectory(run) {
     }
 }
 
-function runCli(args, cwd) {
-    return new Promise((resolve, reject) => {
+function runCli(args, cwd): Promise<CliResult> {
+    return new Promise<CliResult>((resolve, reject) => {
         const child = spawn(process.execPath, [cliPath, ...args], {
             cwd,
             windowsHide: true,
@@ -208,8 +214,10 @@ test('runner supports multi-file dry-run, diff, write, and stable reports', asyn
             mode: 'diff',
         });
         assert.equal(diff.filesChanged, 1);
-        assert.match(diff.files[0].diff, /^--- a\/src\/common\.input\.ts/m);
-        assert.match(diff.files[0].diff, /createFullPreset/);
+        const firstDiff = diff.files[0]?.diff;
+        assert.ok(firstDiff);
+        assert.match(firstDiff, /^--- a\/src\/common\.input\.ts/m);
+        assert.match(firstDiff, /createFullPreset/);
         assert.equal(await readFile(commonPath, 'utf8'), commonBefore);
 
         const write = await runCodemod(['src/common.input.ts', 'src/core.input.js'], {

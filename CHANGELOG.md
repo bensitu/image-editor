@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Migrate 45 directly compatible Node product, unit, property, release, and Codemod tests from `.test.mjs` to checked `.test.ts`; freeze the remaining runtime-negative JavaScript fixtures in an exact shrinking allowlist and retain explicit JavaScript consumer proofs for independent example packages.
 - Replace the monolithic root facade with a Core-only public root. Feature methods are available through installed Plugin APIs or typed Preset results.
 - Require applications to pass the Fabric module explicitly and split flat configuration by Core or Feature ownership.
 - Accept the current `image-editor.state@3` Snapshot schema in Core; recognizable older schemas require an explicitly imported migration handler.
