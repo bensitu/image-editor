@@ -521,8 +521,10 @@
                             This page installs Transform, History, Mask, the Overlay and Annotation
                             Foundations, and the Text, Shape, and Draw Feature Plugins. See
                             <a href="js/integrated-editor-demo.js">integrated-editor-demo.js</a>.
-                            The hosted page uses <code>@latest</code>; pin one exact package version
-                            in production.
+                            Repository source loads Fabric from <code>node_modules</code> and Image
+                            Editor from <code>../dist/umd</code>; the GitHub Pages package uses
+                            versioned CDN URLs and npm <code>@latest</code>. Pin one exact package
+                            version in production.
                         </p>
                         <div class="api-list">
                             <code>new ImageEditor.ImageEditorCore()</code>
@@ -553,16 +555,17 @@
             </section>
         </main>
 
-        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.core.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.history.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.mask.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-text.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-shape.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.annotation-draw.umd.min.js"></script>
+        <!-- package:pages rewrites local Fabric and Image Editor sources to jsDelivr. -->
+        <script src="../node_modules/fabric/dist/index.min.js"></script>
+        <script src="../dist/umd/image-editor.core.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.annotation.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.history.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.mask.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.annotation-text.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.annotation-shape.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.annotation-draw.umd.min.js"></script>
         <script src="js/integrated-editor-demo.js"></script>
         <script src="js/demo-pages.js"></script>
     </body>

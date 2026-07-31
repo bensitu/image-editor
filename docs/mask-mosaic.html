@@ -260,8 +260,10 @@
                         <p class="note">
                             This page installs only the Overlay Foundation and the Mask and Mosaic
                             Feature Plugins. See
-                            <a href="js/mask-mosaic-demo.js">mask-mosaic-demo.js</a>. The hosted
-                            page uses <code>@latest</code>; pin one exact package version in
+                            <a href="js/mask-mosaic-demo.js">mask-mosaic-demo.js</a>. Repository
+                            source loads Fabric from <code>node_modules</code> and Image Editor from
+                            <code>../dist/umd</code>; the GitHub Pages package uses versioned CDN
+                            URLs and npm <code>@latest</code>. Pin one exact package version in
                             production.
                         </p>
                         <div class="api-list">
@@ -283,11 +285,12 @@
             </section>
         </main>
 
-        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.core.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.mask.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.mosaic.umd.min.js"></script>
+        <!-- package:pages rewrites local Fabric and Image Editor sources to jsDelivr. -->
+        <script src="../node_modules/fabric/dist/index.min.js"></script>
+        <script src="../dist/umd/image-editor.core.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.mask.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.mosaic.umd.min.js"></script>
         <script src="js/mask-mosaic-demo.js"></script>
         <script src="js/demo-pages.js"></script>
     </body>

@@ -269,6 +269,7 @@
         "prepublishOnly": "npm run check:release",
         "build:bundle-fixtures": "npm run build --workspace @bensitu/reference-blur-region --workspace @bensitu/reference-watermark",
         "package:pages": "node scripts/package-pages-site.mjs",
+        "demo:local": "npm run build && vite --host 127.0.0.1 --open /docs/",
         "dev": "tsc --watch",
         "format": "prettier . --write",
         "format:check": "prettier . --check",

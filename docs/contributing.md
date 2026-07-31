@@ -33,6 +33,24 @@ runtime boundaries, source maps, globals, dependency descriptors, and gzip-9
 budgets. `npm run check:full-umd` remains a compatibility alias for the same
 unified policy.
 
+## Documentation Demos
+
+```bash
+npm run demo:local
+```
+
+This command builds the current checkout and serves the repository root, so
+the current Demo pages load Fabric from `node_modules` and Image Editor Core and
+Plugins directly from `dist/umd`. Keep the explicit script tags in each page:
+`npm run package:pages` copies the documentation into `.pages-site` and rewrites
+those local sources to the versioned jsDelivr URLs used by GitHub Pages.
+Production integrations should still pin one exact package version for Core
+and every Plugin.
+
+Use this Vite command instead of a live-reload server that injects inline
+scripts. The reviewed Content Security Policy intentionally blocks inline
+execution in both local and hosted Demo pages.
+
 ## Node Tests
 
 ```bash

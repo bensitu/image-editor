@@ -99,6 +99,9 @@ jobs:
             - name: Check current documentation
               run: npm run check:docs
 
+            - name: Verify GitHub Pages asset mode
+              run: npm run package:pages
+
             - name: Check Node and CI policy
               run: npm run check:node-ci-policy
 

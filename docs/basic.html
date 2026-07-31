@@ -343,8 +343,11 @@
                             UMD imports the shared Overlay contract, so the Overlay Foundation
                             script is loaded first but is not installed as a runtime module here.
                             See
-                            <a href="js/basic-demo.js">basic-demo.js</a>. The hosted page uses
-                            <code>@latest</code>; pin one exact package version in production.
+                            <a href="js/basic-demo.js">basic-demo.js</a>. Repository source loads
+                            Fabric from <code>node_modules</code> and Image Editor from
+                            <code>../dist/umd</code>; the GitHub Pages package uses versioned CDN
+                            URLs and npm <code>@latest</code>. Pin one exact package version in
+                            production.
                         </p>
                         <div class="api-list">
                             <code>new ImageEditor.ImageEditorCore()</code>
@@ -373,13 +376,14 @@
             </section>
         </main>
 
-        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.core.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.history.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.filters.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/plugins/image-editor.plugin.crop.umd.min.js"></script>
+        <!-- package:pages rewrites local Fabric and Image Editor sources to jsDelivr. -->
+        <script src="../node_modules/fabric/dist/index.min.js"></script>
+        <script src="../dist/umd/image-editor.core.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.transform.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.history.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.filters.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.crop.umd.min.js"></script>
         <script src="js/basic-demo.js"></script>
         <script src="js/demo-pages.js"></script>
     </body>

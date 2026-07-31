@@ -29,8 +29,10 @@ const modularDemoCsp =
     "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; " +
     "img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; " +
     "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
-const modularDemoFabricUrl = 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js';
-const modularDemoImageEditorBase =
+const modularDemoLocalFabricUrl = '../node_modules/fabric/dist/index.min.js';
+const modularDemoHostedFabricUrl = 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js';
+const modularDemoLocalImageEditorBase = '../dist/umd';
+const modularDemoHostedImageEditorBase =
     'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd';
 const modularDemoPages = new Set([
     'docs/index.html',
@@ -40,6 +42,7 @@ const modularDemoPages = new Set([
     'docs/integrated-editor.html',
 ]);
 const mutableLatestImageEditorPattern = /@bensitu\/image-editor@latest\b/u;
+const inlineScriptPattern = /<script\b(?![^>]*\bsrc=)[^>]*>/iu;
 const forbiddenCurrentPatterns = Object.freeze([
     [/\bnew\s+ImageEditor\s*\(/u, 'the removed monolithic constructor'],
     [/\bImageEditorOptions\b/u, 'the removed flat options type'],
@@ -226,13 +229,13 @@ async function verifyCurrentDemoSurface(files) {
     const discoveredPages = [];
     for (const file of files.filter((candidate) => /^docs\/[^/]+\.html$/u.test(candidate))) {
         const source = await readFile(path.join(repositoryRoot, file), 'utf8');
-        if (source.includes(`${modularDemoImageEditorBase}/image-editor.core.umd.min.js`)) {
+        if (source.includes(`${modularDemoLocalImageEditorBase}/image-editor.core.umd.min.js`)) {
             discoveredPages.push(path.posix.basename(file));
         }
     }
     assertCondition(
         discoveredPages.sort().join('\n') === [...demoPlans.keys()].sort().join('\n'),
-        'Every HTML page using the modular UMD CDN must have a reviewed Plugin plan and CSP.',
+        'Every HTML page using the local modular UMD build must have a reviewed Plugin plan and CSP.',
     );
     assertCondition(
         !files.includes('docs/js/demo-loader.js'),
@@ -245,8 +248,14 @@ async function verifyCurrentDemoSurface(files) {
             source.includes('data-demo-page=') &&
                 !source.includes('demo-loader.js') &&
                 !source.includes('ImageEditorFull') &&
-                !source.includes('image-editor.full'),
+                !source.includes('image-editor.full') &&
+                !source.includes(modularDemoHostedFabricUrl) &&
+                !source.includes(`${modularDemoHostedImageEditorBase}/`),
             `docs/${page} is not wired to an explicit modular UMD composition.`,
+        );
+        assertCondition(
+            !inlineScriptPattern.test(source),
+            `docs/${page} must not contain inline scripts under the reviewed Content Security Policy.`,
         );
         const cspMatches = [
             ...source.matchAll(
@@ -261,21 +270,24 @@ async function verifyCurrentDemoSurface(files) {
             ...source.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>\s*<\/script>/gu),
         ].map((match) => match[1]);
         const expectedScriptSources = [
-            modularDemoFabricUrl,
-            `${modularDemoImageEditorBase}/image-editor.core.umd.min.js`,
+            modularDemoLocalFabricUrl,
+            `${modularDemoLocalImageEditorBase}/image-editor.core.umd.min.js`,
             ...plan.pluginIds.map(
                 (pluginId) =>
-                    `${modularDemoImageEditorBase}/plugins/image-editor.plugin.${pluginId}.umd.min.js`,
+                    `${modularDemoLocalImageEditorBase}/plugins/image-editor.plugin.${pluginId}.umd.min.js`,
             ),
             ...plan.entryScripts,
         ];
         assertCondition(
             JSON.stringify(scriptSources) === JSON.stringify(expectedScriptSources),
-            `docs/${page} must load its reviewed direct CDN and entry-script plan in dependency order.`,
+            `docs/${page} must load its reviewed local UMD and entry-script plan in dependency order.`,
         );
         assertCondition(
-            source.includes('<code>@latest</code>') && source.includes('production'),
-            `docs/${page} must explain the hosted @latest policy and production version pinning.`,
+            source.includes('<code>node_modules</code>') &&
+                source.includes('<code>../dist/umd</code>') &&
+                source.includes('<code>@latest</code>') &&
+                source.toLowerCase().includes('production'),
+            `docs/${page} must explain local dependency loading, the hosted @latest policy, and production version pinning.`,
         );
 
         const loaded = new Set();
