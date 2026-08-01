@@ -255,6 +255,45 @@ function visit(node, callback) {
     callback(node);
     node.forEachChild((child) => visit(child, callback));
 }
+const NEWLY_ASYNC_VOID_METHODS = new Set(['init', 'removeSelectedMask', 'removeAllMasks']);
+function containingFunction(node) {
+    let current = node.parent;
+    while (current) {
+        if (ts.isFunctionLike(current))
+            return current;
+        current = current.parent;
+    }
+    return null;
+}
+function canInsertAwait(call, fileName) {
+    if (ts.isAwaitExpression(call.parent))
+        return true;
+    const owner = containingFunction(call);
+    if (owner) {
+        return Boolean(ts.canHaveModifiers(owner) &&
+            ts.getModifiers(owner)?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword));
+    }
+    const extension = path.extname(fileName).toLowerCase();
+    return extension !== '.cjs' && extension !== '.cts';
+}
+function needsInsertedAwait(call) {
+    return !ts.isAwaitExpression(call.parent);
+}
+function exportOptionsAreSafe(call) {
+    const options = call.arguments[0];
+    if (!options || options.kind === ts.SyntaxKind.UndefinedKeyword)
+        return true;
+    if (!ts.isObjectLiteralExpression(options))
+        return false;
+    const safeKeys = new Set(['area', 'format', 'quality', 'multiplier', 'fileName', 'contributors']);
+    return options.properties.every((property) => {
+        if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
+            return false;
+        }
+        const name = propertyName(property.name);
+        return Boolean(name && safeKeys.has(name));
+    });
+}
 function callsForCandidate(sourceFile, fileName, declaration, variable, unresolved) {
     const calls = [];
     let blocked = false;
@@ -288,6 +327,27 @@ function callsForCandidate(sourceFile, fileName, declaration, variable, unresolv
                 blocked = true;
                 return;
             }
+            if (method === 'saveState') {
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'SAVE_STATE_SEMANTICS_CHANGED', 'The former saveState() created a History checkpoint, while Core saveState() serializes a Snapshot. Select an explicit History or Snapshot workflow manually.'));
+                blocked = true;
+                return;
+            }
+            if (method === 'createMask') {
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'MASK_CREATE_SEMANTICS_CHANGED', 'Mask creation is now asynchronous and rejects on failure instead of returning an object or null; migrate its control flow manually.'));
+                blocked = true;
+                return;
+            }
+            if (method === 'removeAllMasks' && node.parent.arguments.length > 0) {
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'MASK_REMOVE_ALL_OPTIONS_CHANGED', 'The former removeAllMasks() options do not have an equivalent Mask Plugin argument.'));
+                blocked = true;
+                return;
+            }
+            if ((method === 'exportImageBase64' || method === 'exportImageFile') &&
+                !exportOptionsAreSafe(node.parent)) {
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'EXPORT_OPTIONS_SEMANTICS_CHANGED', 'Legacy export option names and Mask/Annotation merge switches require explicit modular export contributor options.'));
+                blocked = true;
+                return;
+            }
             if (method === 'init') {
                 const elements = node.parent.arguments[0];
                 if (!elements || !ts.isObjectLiteralExpression(elements)) {
@@ -307,9 +367,20 @@ function callsForCandidate(sourceFile, fileName, declaration, variable, unresolv
                     return;
                 }
             }
+            const newlyAsync = NEWLY_ASYNC_VOID_METHODS.has(method);
+            if (newlyAsync && !canInsertAwait(node.parent, fileName)) {
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'ASYNC_CONTEXT_REQUIRED', `Editor method "${method}" is asynchronous in the modular API, but this context cannot safely accept an inserted await.`));
+                blocked = true;
+                return;
+            }
             if (FEATURE_METHODS.has(method))
                 requiresFullPreset = true;
-            calls.push(Object.freeze({ property: node, call: node.parent, method }));
+            calls.push(Object.freeze({
+                property: node,
+                call: node.parent,
+                method,
+                awaitRequired: newlyAsync && needsInsertedAwait(node.parent),
+            }));
             return;
         }
         if (!ts.isIdentifier(node) || node.text !== variable || node === declaration.name)
@@ -518,7 +589,14 @@ function buildTransformEdits(sourceFile, candidates) {
                 edits.push(Object.freeze({
                     start: call.property.getStart(sourceFile),
                     end: call.property.end,
-                    text: replacement,
+                    text: `${call.awaitRequired ? 'await ' : ''}${replacement}`,
+                }));
+            }
+            else if (call.awaitRequired) {
+                edits.push(Object.freeze({
+                    start: call.call.getStart(sourceFile),
+                    end: call.call.getStart(sourceFile),
+                    text: 'await ',
                 }));
             }
         }

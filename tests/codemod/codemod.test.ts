@@ -102,9 +102,9 @@ test('transforms multiple aliased candidates while preserving mixed import bindi
         "import { type FabricModule } from '@bensitu/image-editor';",
         '',
         'const first = new ImageEditorCore(fabric);',
-        "first.init({ canvas: 'first' });",
+        "await first.init({ canvas: 'first' });",
         'const second = new ImageEditorCore(fabric, { canvasWidth: 320 });',
-        "second.init({ canvas: 'second' });",
+        "await second.init({ canvas: 'second' });",
         'declare const fabricModule: FabricModule;',
         'void fabricModule;',
         '',
@@ -144,7 +144,7 @@ test('preserves BOM and CRLF while inserting imports', () => {
         "\uFEFFimport { ImageEditorCore } from '@bensitu/image-editor/core';\r\n" +
         '\r\n' +
         'const editor = new ImageEditorCore(fabric);\r\n' +
-        "editor.init({ canvas: 'canvas' });\r\n";
+        "await editor.init({ canvas: 'canvas' });\r\n";
 
     const result = transformSource(source, 'bom-crlf.ts');
     assert.equal(result.code, expected);
@@ -160,11 +160,62 @@ test('supports every documented JavaScript and TypeScript source extension', () 
         "editor.init({ canvas: 'canvas' });",
         '',
     ].join('\n');
-    for (const extension of ['js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts']) {
+    for (const extension of ['js', 'jsx', 'ts', 'tsx', 'mjs', 'mts']) {
         const result = transformSource(source, `source.${extension}`);
         assert.equal(result.changed, true, extension);
         assert.match(result.code, /new ImageEditorCore\(fabric\)/, extension);
+        assert.match(result.code, /await editor\.init/, extension);
         assert.deepEqual(result.unresolved, [], extension);
+    }
+    for (const extension of ['cjs', 'cts']) {
+        const result = transformSource(source, `source.${extension}`);
+        assert.equal(result.changed, false, extension);
+        assert.equal(result.code, source, extension);
+        assert.ok(
+            result.unresolved.some((value) => value.code === 'ASYNC_CONTEXT_REQUIRED'),
+            extension,
+        );
+    }
+});
+
+test('blocks rewrites when asynchronous control flow or method meaning cannot be preserved', () => {
+    const cases = [
+        [
+            [
+                "import { ImageEditor } from '@bensitu/image-editor';",
+                'const editor = new ImageEditor(fabric);',
+                "function mount() { editor.init({ canvas: 'canvas' }); }",
+                '',
+            ].join('\n'),
+            'ASYNC_CONTEXT_REQUIRED',
+        ],
+        [
+            [
+                "import { ImageEditor } from '@bensitu/image-editor';",
+                'const editor = new ImageEditor(fabric);',
+                "editor.init({ canvas: 'canvas' });",
+                'editor.saveState();',
+                '',
+            ].join('\n'),
+            'SAVE_STATE_SEMANTICS_CHANGED',
+        ],
+        [
+            [
+                "import { ImageEditor } from '@bensitu/image-editor';",
+                'const editor = new ImageEditor(fabric);',
+                "editor.init({ canvas: 'canvas' });",
+                'const mask = editor.createMask();',
+                'void mask;',
+                '',
+            ].join('\n'),
+            'MASK_CREATE_SEMANTICS_CHANGED',
+        ],
+    ];
+    for (const [source, code] of cases) {
+        const result = transformSource(source, 'semantic-review.ts');
+        assert.equal(result.changed, false);
+        assert.equal(result.code, source);
+        assert.ok(result.unresolved.some((value) => value.code === code));
     }
 });
 

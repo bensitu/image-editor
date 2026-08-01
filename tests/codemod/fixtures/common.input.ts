@@ -10,9 +10,9 @@ const editor = new ImageEditor(fabric, {
 editor.init({ canvas: 'canvas', canvasContainer: 'container' });
 await editor.loadImage(source);
 await editor.scaleImage(1.2);
-editor.createMask();
+editor.removeSelectedMask();
 await editor.undo();
-const state = editor.saveState();
+const state = editor.getImageInfo();
 await editor.loadFromState(snapshot);
 const png = await editor.exportImageBase64({ format: 'png' });
 await editor.disposeAsync();
