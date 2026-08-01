@@ -3355,6 +3355,12 @@
                     ]
                 },
                 {
+                    "name": "AnnotationControlStyle",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "AnnotationCreateRequest",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -3421,9 +3427,27 @@
                     ]
                 },
                 {
+                    "name": "AnnotationHoverStyle",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "AnnotationId",
                     "kinds": [
                         "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "AnnotationLabelConfig",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "AnnotationLockIndicatorConfig",
+                    "kinds": [
+                        "InterfaceDeclaration"
                     ]
                 },
                 {
@@ -3464,6 +3488,12 @@
                 },
                 {
                     "name": "AnnotationQuery",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "AnnotationRemoveAllOptions",
                     "kinds": [
                         "InterfaceDeclaration"
                     ]
@@ -4401,7 +4431,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "233ebb2e4ca36621e0fcf91558a946f4ddb7579ea29028edb45d31d8f41ee2ff",
+        "graphSha256": "ab01f4ad598afd3fe136a97b9ea668de5cabf644e25ad16e674125b35f12b8fa",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4425,7 +4455,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "3d0cebd98273f353c52eb37d5acfded7fb2da39b3212d231339d1df1a17db4cc"
+                "sha256": "e09231dd4ca6fb0f6bb286bfea3dc94fd32e59f327a283f6c3934dafa1fb9d14"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
@@ -4485,11 +4515,11 @@
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
-                "sha256": "7547d3fe2804a2d459e3ef6338b72e8f39ef1670bcf37aae8f5277bf23c96f29"
+                "sha256": "f8c83586439c1ef3e02d7c58397c9044762c4135a02941037c92341bce22184c"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-definition.d.ts",
-                "sha256": "190befa368590556f2e8373c0067023f6dbc32b65c049388a5508cc3b8d369f5"
+                "sha256": "87ee907ff83ba559d0c8c6f91fce4d6b8765f1881b766e30ad51bc89f055bf56"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-errors.d.ts",
@@ -4497,7 +4527,7 @@
             },
             {
                 "file": "dist/types/foundations/annotation/index.d.ts",
-                "sha256": "4e991851c321c9d757d3b432973a41582f36d73226a43b42e5dc956501316702"
+                "sha256": "e71c8c220d43721d57df2495e6fa5d3904dbbbc5d4170714feb84081accecb9d"
             },
             {
                 "file": "dist/types/foundations/overlay/index.d.ts",
@@ -4513,7 +4543,7 @@
             },
             {
                 "file": "dist/types/foundations/overlay/overlay-types.d.ts",
-                "sha256": "8411c941fe51ae9f8da5cda3424fe696ac7e707ee56874945ae5d093e7d20810"
+                "sha256": "04ce27c3abf37c3dde1bed255f3ef2f31f2ed5c683a46804a0de1c85a502fe06"
             },
             {
                 "file": "dist/types/index.d.ts",
@@ -4685,7 +4715,7 @@
             },
             {
                 "file": "dist/types/plugins/mask/mask-controller.d.ts",
-                "sha256": "0f6b16671ea9a7d523711a5ad1d61d6e8aacb4e22bd4b19e7334a3ad6810e46d"
+                "sha256": "687f48d55ec91bf97e55dffdad3506c244cedc417898afaa17fefc7ac894601c"
             },
             {
                 "file": "dist/types/plugins/mosaic/index.d.ts",

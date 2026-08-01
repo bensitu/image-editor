@@ -483,6 +483,12 @@ export class ImageEditorCore {
             writable: true,
             value: new Set()
         });
+        Object.defineProperty(this, "responsiveSubscriptions", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Set()
+        });
         Object.defineProperty(this, "lastRuntimeStatus", {
             enumerable: true,
             configurable: true,
@@ -1093,6 +1099,7 @@ export class ImageEditorCore {
         }
         let active = true;
         let frame = null;
+        let scheduled = false;
         const resize = () => {
             if (!active || this.isDisposingOrDisposed())
                 return;
@@ -1104,33 +1111,42 @@ export class ImageEditorCore {
             }
         };
         const observer = new ResizeObserverConstructor(() => {
-            if (frame !== null)
+            if (scheduled)
                 return;
+            scheduled = true;
             if (ownerWindow === null || ownerWindow === void 0 ? void 0 : ownerWindow.requestAnimationFrame) {
                 frame = ownerWindow.requestAnimationFrame(() => {
                     frame = null;
+                    scheduled = false;
                     resize();
                 });
             }
             else {
-                queueMicrotask(resize);
+                queueMicrotask(() => {
+                    scheduled = false;
+                    resize();
+                });
             }
         });
         observer.observe(container);
         if (options.resizeImmediately !== false)
             resize();
-        return Object.freeze({
+        const subscription = Object.freeze({
             dispose: () => {
                 if (!active)
                     return;
                 active = false;
+                this.responsiveSubscriptions.delete(subscription);
                 observer.disconnect();
                 if (frame !== null && (ownerWindow === null || ownerWindow === void 0 ? void 0 : ownerWindow.cancelAnimationFrame)) {
                     ownerWindow.cancelAnimationFrame(frame);
                 }
                 frame = null;
+                scheduled = false;
             },
         });
+        this.responsiveSubscriptions.add(subscription);
+        return subscription;
     }
     async relayout(options = {}) {
         var _a;
@@ -1245,6 +1261,7 @@ export class ImageEditorCore {
         this.emitRuntimeStatus();
         const errors = [];
         for (const cleanup of [
+            () => this.disposeResponsiveSubscriptions(),
             () => this.plugins.disposeSync(),
             () => this.geometry.disposeSync(),
             () => this.documentMutations.disposeSync(),
@@ -1312,6 +1329,7 @@ export class ImageEditorCore {
     async performEmergencyReset() {
         const failures = [];
         const abortReason = new DOMException('Core emergency reset aborted active work.', 'AbortError');
+        await this.runEmergencyStep(failures, 'Responsive subscription cleanup failed during emergency reset.', () => this.disposeResponsiveSubscriptions());
         await Promise.all([
             this.runEmergencyStep(failures, 'Operation abort failed during emergency reset.', () => this.plugins.abortOperationsForHost(abortReason)),
             this.runEmergencyStep(failures, 'Document mutation abort failed during emergency reset.', () => this.documentMutations.abortActive(abortReason)),
@@ -1370,6 +1388,10 @@ export class ImageEditorCore {
             return;
         this.emitRuntimeStatus();
         const cleanupSteps = [
+            [
+                'Responsive subscription cleanup failed after emergency reset.',
+                () => this.disposeResponsiveSubscriptions(),
+            ],
             ['Plugin cleanup failed after emergency reset.', () => this.plugins.dispose()],
             ['Geometry cleanup failed after emergency reset.', () => this.geometry.dispose()],
             [
@@ -2036,6 +2058,7 @@ export class ImageEditorCore {
     async performDisposeAsync() {
         const errors = [];
         for (const cleanup of [
+            () => this.disposeResponsiveSubscriptions(),
             () => this.geometry.dispose(),
             () => this.documentMutations.dispose(),
             () => this.plugins.dispose(),
@@ -2079,6 +2102,11 @@ export class ImageEditorCore {
         if (errors.length > 0) {
             throw new CoreRuntimeError(`[ImageEditor] ${label} completed with ${errors.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) });
         }
+    }
+    disposeResponsiveSubscriptions() {
+        for (const subscription of [...this.responsiveSubscriptions])
+            subscription.dispose();
+        this.responsiveSubscriptions.clear();
     }
     observeDetachedDisposal(disposal) {
         void disposal.catch((error) => {

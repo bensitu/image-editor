@@ -187,7 +187,19 @@ test('responsive Core methods resize the viewport and explicitly recompute image
         { width: editor.getCanvas().getWidth(), height: editor.getCanvas().getHeight() },
         { width: 299, height: 149 },
     );
+    let disconnected = false;
+    const ownerWindow = container.ownerDocument.defaultView;
+    const originalResizeObserver = ownerWindow.ResizeObserver;
+    ownerWindow.ResizeObserver = class {
+        observe() {}
+        disconnect() {
+            disconnected = true;
+        }
+    };
+    editor.observeContainer({ resizeImmediately: false });
     await editor.disposeAsync();
+    assert.equal(disconnected, true);
+    ownerWindow.ResizeObserver = originalResizeObserver;
 });
 
 test('Core uses a transparent Canvas and applies configured export defaults', async () => {

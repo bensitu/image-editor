@@ -1556,6 +1556,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "reject"
 				}));
+				context.disposables.add(context.events.on("state:loaded", () => controller === null || controller === void 0 ? void 0 : controller.synchronizeRuntimePresentation()));
 				controller = new AnnotationController(Object.freeze({
 					...diagnostics,
 					...fabric,

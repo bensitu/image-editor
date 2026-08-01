@@ -91,6 +91,11 @@ export function annotationFoundationPlugin(
                     }),
                 );
             }
+            context.disposables.add(
+                context.events.on('state:loaded', () =>
+                    controller?.synchronizeRuntimePresentation(),
+                ),
+            );
             controller = new AnnotationController(
                 Object.freeze({ ...diagnostics, ...fabric, ...canvas, ...render }),
                 Object.freeze({ ...overlay, ...registration }),

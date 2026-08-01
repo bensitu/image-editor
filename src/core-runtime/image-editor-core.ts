@@ -503,6 +503,7 @@ export class ImageEditorCore {
     private emergencyResetPromise: Promise<void> | null = null;
     private readonly diagnostics: CoreDiagnostic[] = [];
     private readonly statusListeners = new Set<CoreStatusListener>();
+    private readonly responsiveSubscriptions = new Set<CoreSubscription>();
     private lastRuntimeStatus: CoreRuntimeStatus | null = null;
     private relayoutSequence = 0;
 
@@ -1231,6 +1232,7 @@ export class ImageEditorCore {
         }
         let active = true;
         let frame: number | null = null;
+        let scheduled = false;
         const resize = (): void => {
             if (!active || this.isDisposingOrDisposed()) return;
             try {
@@ -1240,29 +1242,38 @@ export class ImageEditorCore {
             }
         };
         const observer = new ResizeObserverConstructor(() => {
-            if (frame !== null) return;
+            if (scheduled) return;
+            scheduled = true;
             if (ownerWindow?.requestAnimationFrame) {
                 frame = ownerWindow.requestAnimationFrame(() => {
                     frame = null;
+                    scheduled = false;
                     resize();
                 });
             } else {
-                queueMicrotask(resize);
+                queueMicrotask(() => {
+                    scheduled = false;
+                    resize();
+                });
             }
         });
         observer.observe(container);
         if (options.resizeImmediately !== false) resize();
-        return Object.freeze({
+        const subscription: CoreSubscription = Object.freeze({
             dispose: () => {
                 if (!active) return;
                 active = false;
+                this.responsiveSubscriptions.delete(subscription);
                 observer.disconnect();
                 if (frame !== null && ownerWindow?.cancelAnimationFrame) {
                     ownerWindow.cancelAnimationFrame(frame);
                 }
                 frame = null;
+                scheduled = false;
             },
         });
+        this.responsiveSubscriptions.add(subscription);
+        return subscription;
     }
 
     async relayout(options: ResponsiveLayoutOptions = {}): Promise<void> {
@@ -1391,6 +1402,7 @@ export class ImageEditorCore {
         this.emitRuntimeStatus();
         const errors: unknown[] = [];
         for (const cleanup of [
+            () => this.disposeResponsiveSubscriptions(),
             () => this.plugins.disposeSync(),
             () => this.geometry.disposeSync(),
             () => this.documentMutations.disposeSync(),
@@ -1457,6 +1469,11 @@ export class ImageEditorCore {
         const abortReason = new DOMException(
             'Core emergency reset aborted active work.',
             'AbortError',
+        );
+        await this.runEmergencyStep(
+            failures,
+            'Responsive subscription cleanup failed during emergency reset.',
+            () => this.disposeResponsiveSubscriptions(),
         );
 
         await Promise.all([
@@ -1561,6 +1578,10 @@ export class ImageEditorCore {
         if (!this.lifecycle.beginDisposal()) return;
         this.emitRuntimeStatus();
         const cleanupSteps: ReadonlyArray<readonly [string, () => void | Promise<void>]> = [
+            [
+                'Responsive subscription cleanup failed after emergency reset.',
+                () => this.disposeResponsiveSubscriptions(),
+            ],
             ['Plugin cleanup failed after emergency reset.', () => this.plugins.dispose()],
             ['Geometry cleanup failed after emergency reset.', () => this.geometry.dispose()],
             [
@@ -2317,6 +2338,7 @@ export class ImageEditorCore {
     private async performDisposeAsync(): Promise<void> {
         const errors: unknown[] = [];
         for (const cleanup of [
+            () => this.disposeResponsiveSubscriptions(),
             () => this.geometry.dispose(),
             () => this.documentMutations.dispose(),
             () => this.plugins.dispose(),
@@ -2361,6 +2383,11 @@ export class ImageEditorCore {
                 { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors) },
             );
         }
+    }
+
+    private disposeResponsiveSubscriptions(): void {
+        for (const subscription of [...this.responsiveSubscriptions]) subscription.dispose();
+        this.responsiveSubscriptions.clear();
     }
 
     private observeDetachedDisposal(disposal: Promise<void>): void {

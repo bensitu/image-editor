@@ -1,7 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-BF4aP6ki.cjs');
+const require_overlay = require('./overlay-Cu0ag11p.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-CP6C0Dc2.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 
@@ -1488,6 +1488,7 @@ function annotationFoundationPlugin(options = {}) {
 				conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			}));
+			context.disposables.add(context.events.on("state:loaded", () => controller === null || controller === void 0 ? void 0 : controller.synchronizeRuntimePresentation()));
 			controller = new AnnotationController(Object.freeze({
 				...diagnostics,
 				...fabric,
@@ -1560,4 +1561,4 @@ Object.defineProperty(exports, 'annotationFoundationRef', {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-ooT0A0yE.cjs.map
+//# sourceMappingURL=annotation-D58zZfXa.cjs.map

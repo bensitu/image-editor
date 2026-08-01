@@ -50,6 +50,7 @@ export declare class ImageEditorCore {
     private emergencyResetPromise;
     private readonly diagnostics;
     private readonly statusListeners;
+    private readonly responsiveSubscriptions;
     private lastRuntimeStatus;
     private relayoutSequence;
     constructor(fabric: FabricModule, options?: ImageEditorCoreOptions);
@@ -143,5 +144,6 @@ export declare class ImageEditorCore {
     private clearRuntimeReferences;
     private performDisposeAsync;
     private completeDisposal;
+    private disposeResponsiveSubscriptions;
     private observeDetachedDisposal;
 }

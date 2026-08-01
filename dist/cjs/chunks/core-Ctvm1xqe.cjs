@@ -3907,6 +3907,12 @@ var ImageEditorCore = class {
 			writable: true,
 			value: /* @__PURE__ */ new Set()
 		});
+		Object.defineProperty(this, "responsiveSubscriptions", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: /* @__PURE__ */ new Set()
+		});
 		Object.defineProperty(this, "lastRuntimeStatus", {
 			enumerable: true,
 			configurable: true,
@@ -4428,6 +4434,7 @@ var ImageEditorCore = class {
 		if (typeof ResizeObserverConstructor !== "function") throw new CoreRuntimeError("[ImageEditor] ResizeObserver is unavailable.");
 		let active = true;
 		let frame = null;
+		let scheduled = false;
 		const resize = () => {
 			if (!active || this.isDisposingOrDisposed()) return;
 			try {
@@ -4437,22 +4444,31 @@ var ImageEditorCore = class {
 			}
 		};
 		const observer = new ResizeObserverConstructor(() => {
-			if (frame !== null) return;
+			if (scheduled) return;
+			scheduled = true;
 			if (ownerWindow === null || ownerWindow === void 0 ? void 0 : ownerWindow.requestAnimationFrame) frame = ownerWindow.requestAnimationFrame(() => {
 				frame = null;
+				scheduled = false;
 				resize();
 			});
-			else queueMicrotask(resize);
+			else queueMicrotask(() => {
+				scheduled = false;
+				resize();
+			});
 		});
 		observer.observe(container);
 		if (options.resizeImmediately !== false) resize();
-		return Object.freeze({ dispose: () => {
+		const subscription = Object.freeze({ dispose: () => {
 			if (!active) return;
 			active = false;
+			this.responsiveSubscriptions.delete(subscription);
 			observer.disconnect();
 			if (frame !== null && (ownerWindow === null || ownerWindow === void 0 ? void 0 : ownerWindow.cancelAnimationFrame)) ownerWindow.cancelAnimationFrame(frame);
 			frame = null;
+			scheduled = false;
 		} });
+		this.responsiveSubscriptions.add(subscription);
+		return subscription;
 	}
 	async relayout(options = {}) {
 		var _a;
@@ -4556,6 +4572,7 @@ var ImageEditorCore = class {
 		this.emitRuntimeStatus();
 		const errors = [];
 		for (const cleanup of [
+			() => this.disposeResponsiveSubscriptions(),
 			() => this.plugins.disposeSync(),
 			() => this.geometry.disposeSync(),
 			() => this.documentMutations.disposeSync(),
@@ -4612,6 +4629,7 @@ var ImageEditorCore = class {
 	async performEmergencyReset() {
 		const failures = [];
 		const abortReason = new DOMException("Core emergency reset aborted active work.", "AbortError");
+		await this.runEmergencyStep(failures, "Responsive subscription cleanup failed during emergency reset.", () => this.disposeResponsiveSubscriptions());
 		await Promise.all([
 			this.runEmergencyStep(failures, "Operation abort failed during emergency reset.", () => this.plugins.abortOperationsForHost(abortReason)),
 			this.runEmergencyStep(failures, "Document mutation abort failed during emergency reset.", () => this.documentMutations.abortActive(abortReason)),
@@ -4665,6 +4683,7 @@ var ImageEditorCore = class {
 		if (!this.lifecycle.beginDisposal()) return;
 		this.emitRuntimeStatus();
 		const cleanupSteps = [
+			["Responsive subscription cleanup failed after emergency reset.", () => this.disposeResponsiveSubscriptions()],
 			["Plugin cleanup failed after emergency reset.", () => this.plugins.dispose()],
 			["Geometry cleanup failed after emergency reset.", () => this.geometry.dispose()],
 			["Document mutation cleanup failed after emergency reset.", () => this.documentMutations.dispose()],
@@ -5254,6 +5273,7 @@ var ImageEditorCore = class {
 	async performDisposeAsync() {
 		const errors = [];
 		for (const cleanup of [
+			() => this.disposeResponsiveSubscriptions(),
 			() => this.geometry.dispose(),
 			() => this.documentMutations.dispose(),
 			() => this.plugins.dispose(),
@@ -5291,6 +5311,10 @@ var ImageEditorCore = class {
 			code: "CORE_DISPOSE_ERROR",
 			cause: Object.freeze(errors)
 		});
+	}
+	disposeResponsiveSubscriptions() {
+		for (const subscription of [...this.responsiveSubscriptions]) subscription.dispose();
+		this.responsiveSubscriptions.clear();
 	}
 	observeDetachedDisposal(disposal) {
 		disposal.catch((error) => {
@@ -5499,4 +5523,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-DeagNF96.cjs.map
+//# sourceMappingURL=core-Ctvm1xqe.cjs.map

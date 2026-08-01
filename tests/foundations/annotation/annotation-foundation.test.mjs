@@ -421,6 +421,18 @@ test('State round trip restores metadata, interaction, selection, and layer', as
             .map((entry) => entry.id),
         [secondId],
     );
+
+    await annotations.clearSelection();
+    const unselectedSnapshot = editor.saveState();
+    await annotations.removeAll({ force: true });
+    await editor.loadFromState(unselectedSnapshot);
+    assert.equal(
+        editor
+            .getCanvas()
+            .getObjects()
+            .some((object) => object.sessionObjectType === 'annotationLockIndicator'),
+        true,
+    );
     await dispose(editor);
 });
 

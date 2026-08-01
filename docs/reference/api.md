@@ -97,8 +97,8 @@ a browser or an explicitly supplied compatible Fabric DOM environment.
 
 `observeContainer()` changes viewport dimensions without silently rescaling document
 geometry. Use `relayout()` when a responsive breakpoint should also recompute image and
-overlay geometry. Both subscriptions and event listeners return idempotent disposable
-handles.
+overlay geometry. Subscriptions and event listeners return idempotent disposable handles;
+container observers also disconnect automatically when Core is disposed.
 
 `exportImageFile()` is the direct export primitive. Core deliberately does not own link
 creation, click simulation, or download permission policy; hosts can download the returned

@@ -106,7 +106,8 @@ malformed dimensions or pixel bombs acceptable.
 
 `exportDefaults` accepts the same fields as `CoreExportOptions`: `area`, `format`,
 `quality`, `multiplier`, `fileName`, and `contributors`. Per-call values override
-constructor defaults, while contributor objects are shallow-merged. Defaults are
+constructor defaults. The contributor map is shallow-merged by contributor ID, so a per-call
+value replaces that contributor's default option object. Defaults are
 `area: 'image'`, `format: 'png'`, `quality: 0.92`, `multiplier: 1`, and
 `fileName: 'edited_image'`.
 

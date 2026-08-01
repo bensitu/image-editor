@@ -47,6 +47,7 @@ export function annotationFoundationPlugin(options = {}) {
                     reentrancy: 'reject',
                 }));
             }
+            context.disposables.add(context.events.on('state:loaded', () => controller === null || controller === void 0 ? void 0 : controller.synchronizeRuntimePresentation()));
             controller = new AnnotationController(Object.freeze({ ...diagnostics, ...fabric, ...canvas, ...render }), Object.freeze({ ...overlay, ...registration }), options, state);
             context.capabilities.provide(ANNOTATION_CAPABILITY, controller, {
                 version: ANNOTATION_CAPABILITY.version,
