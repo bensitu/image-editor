@@ -6,9 +6,11 @@ import { settleAbortable } from '../../src/utils/abortable-promise.js';
 test('settleAbortable rejects promptly and disposes a late result', async () => {
     const controller = new AbortController();
     const reason = new Error('cancelled');
-    let resolveTask;
+    let resolveTask = (_value: string): void => {
+        throw new Error('Promise executor did not initialize its resolver.');
+    };
     let disposedValue: unknown = null;
-    const task = new Promise((resolve) => {
+    const task = new Promise<string>((resolve) => {
         resolveTask = resolve;
     });
     const operation = settleAbortable(task, controller.signal, (value) => {

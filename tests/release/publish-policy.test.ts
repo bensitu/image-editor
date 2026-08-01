@@ -6,7 +6,13 @@ import {
     validateReleaseTag,
 } from '../../scripts/publish-release-artifacts.mjs';
 
-function artifacts() {
+interface ReleaseArtifact {
+    readonly name: string;
+    readonly version: string;
+    readonly integrity: string;
+}
+
+function artifacts(): ReleaseArtifact[] {
     return [
         {
             name: '@bensitu/image-editor-codemod',
@@ -21,7 +27,7 @@ function artifacts() {
     ];
 }
 
-function metadataFor(artifact) {
+function metadataFor(artifact: ReleaseArtifact): ReleaseArtifact {
     return {
         name: artifact.name,
         version: artifact.version,
@@ -40,12 +46,14 @@ test('release tag policy keeps prereleases away from latest', () => {
 
 test('dual-package publish skips verified artifacts and publishes only missing versions', async () => {
     const releaseArtifacts = artifacts();
-    const registry = new Map([[releaseArtifacts[0].name, metadataFor(releaseArtifacts[0])]]);
+    const registry = new Map<string, ReleaseArtifact>([
+        [releaseArtifacts[0].name, metadataFor(releaseArtifacts[0])],
+    ]);
     const publishCalls: string[] = [];
 
     const statuses = await publishReleaseArtifacts(releaseArtifacts, {
-        inspect: async (artifact) => registry.get(artifact.name) ?? null,
-        publish: async (artifact) => {
+        inspect: async (artifact: ReleaseArtifact) => registry.get(artifact.name) ?? null,
+        publish: async (artifact: ReleaseArtifact) => {
             publishCalls.push(artifact.name);
             registry.set(artifact.name, metadataFor(artifact));
         },
@@ -60,15 +68,15 @@ test('dual-package publish skips verified artifacts and publishes only missing v
 
 test('dual-package publish is safe to rerun after a partial failure', async () => {
     const releaseArtifacts = artifacts();
-    const registry = new Map();
+    const registry = new Map<string, ReleaseArtifact>();
     let failMain = true;
-    const publish = async (artifact) => {
+    const publish = async (artifact: ReleaseArtifact) => {
         if (artifact.name === '@bensitu/image-editor' && failMain) {
             throw new Error('synthetic main package publish failure');
         }
         registry.set(artifact.name, metadataFor(artifact));
     };
-    const inspect = async (artifact) => registry.get(artifact.name) ?? null;
+    const inspect = async (artifact: ReleaseArtifact) => registry.get(artifact.name) ?? null;
 
     await assert.rejects(
         publishReleaseArtifacts(releaseArtifacts, { inspect, publish }),
@@ -91,7 +99,7 @@ test('an existing package with different integrity is a hard failure', async () 
 
     await assert.rejects(
         publishReleaseArtifacts(releaseArtifacts, {
-            inspect: async (artifact) =>
+            inspect: async (artifact: ReleaseArtifact) =>
                 artifact === releaseArtifacts[0]
                     ? { ...metadataFor(artifact), integrity: 'sha512-different' }
                     : null,

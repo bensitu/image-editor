@@ -3,13 +3,13 @@ import test from 'node:test';
 
 import { inspectEncodedImageDataUrl } from '../../src/core-runtime/state/image-data-url.js';
 
-function writeAscii(bytes, offset, value) {
+function writeAscii(bytes: Buffer, offset: number, value: string): void {
     for (let index = 0; index < value.length; index += 1) {
         bytes[offset + index] = value.charCodeAt(index);
     }
 }
 
-function pngHeader(width, height) {
+function pngHeader(width: number, height: number): string {
     const bytes = Buffer.alloc(24);
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes);
     writeAscii(bytes, 12, 'IHDR');
@@ -18,7 +18,7 @@ function pngHeader(width, height) {
     return bytes.toString('base64');
 }
 
-function jpegHeader(width, height) {
+function jpegHeader(width: number, height: number): string {
     const bytes = Buffer.alloc(21);
     bytes.set([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08]);
     bytes.writeUInt16BE(height, 7);
@@ -26,7 +26,7 @@ function jpegHeader(width, height) {
     return bytes.toString('base64');
 }
 
-function webpHeader(width, height) {
+function webpHeader(width: number, height: number): string {
     const bytes = Buffer.alloc(30);
     writeAscii(bytes, 0, 'RIFF');
     writeAscii(bytes, 8, 'WEBP');

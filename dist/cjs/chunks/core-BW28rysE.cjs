@@ -3653,7 +3653,7 @@ var ImageEditorCore = class {
 			height: initialHeight,
 			backgroundColor: this.options.backgroundColor,
 			selection: this.options.groupSelection,
-			preserveObjectStacking: true
+			preserveObjectStacking: false
 		});
 	}
 	async loadImage(source, options = {}) {
@@ -4800,4 +4800,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-DTjDVDW5.cjs.map
+//# sourceMappingURL=core-BW28rysE.cjs.map

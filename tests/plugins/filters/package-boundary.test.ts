@@ -23,7 +23,7 @@ const constructorNames = [
     'Convolute',
 ];
 
-async function collectTypeScriptFiles(directory) {
+async function collectTypeScriptFiles(directory: string): Promise<string[]> {
     const entries = await readdir(directory, { withFileTypes: true });
     const files = await Promise.all(
         entries.map(async (entry) => {

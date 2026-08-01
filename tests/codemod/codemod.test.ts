@@ -19,11 +19,11 @@ interface CliResult {
     readonly stderr: string;
 }
 
-async function fixture(name) {
+async function fixture(name: string): Promise<string> {
     return readFile(new URL(name, fixtureRoot), 'utf8');
 }
 
-async function withTemporaryDirectory(run) {
+async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
     const directory = await mkdtemp(path.join(tmpdir(), 'image-editor-codemod-test-'));
     try {
         return await run(directory);
@@ -32,7 +32,7 @@ async function withTemporaryDirectory(run) {
     }
 }
 
-function runCli(args, cwd): Promise<CliResult> {
+function runCli(args: readonly string[], cwd: string): Promise<CliResult> {
     return new Promise<CliResult>((resolve, reject) => {
         const child = spawn(process.execPath, [cliPath, ...args], {
             cwd,

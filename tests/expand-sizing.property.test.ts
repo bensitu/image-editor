@@ -30,10 +30,6 @@
  *   - Keep this file focused on expand layout sizing math only.
  */
 
-import { register } from 'node:module';
-
-register('./helpers/ts-resolve-hook.mjs', import.meta.url);
-
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';

@@ -26,10 +26,6 @@
  *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/fit-sizing.property.test.ts
  */
 
-import { register } from 'node:module';
-
-register('./helpers/ts-resolve-hook.mjs', import.meta.url);
-
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
@@ -38,6 +34,20 @@ const { computeFitLayout } = await import('../src/image/layout-manager.ts');
 
 const dimArb = fc.integer({ min: 1, max: 2000 });
 const containerDimArb = fc.integer({ min: 0, max: 2000 });
+
+interface FitInput {
+    readonly imageWidth: number;
+    readonly imageHeight: number;
+    readonly optsCanvasWidth: number;
+    readonly optsCanvasHeight: number;
+    readonly container: Readonly<{ width: number; height: number }>;
+}
+
+interface ExpectedFit {
+    readonly canvasWidth: number;
+    readonly canvasHeight: number;
+    readonly imageScale: number;
+}
 
 const inputsArb = fc.record({
     imageWidth: dimArb,
@@ -70,7 +80,7 @@ const smallImageArb = fc
         },
     }));
 
-function expectedFit(input) {
+function expectedFit(input: FitInput): ExpectedFit {
     const canvasWidth = Math.max(1, (input.container.width || input.optsCanvasWidth) - 1);
     const canvasHeight = Math.max(1, (input.container.height || input.optsCanvasHeight) - 1);
     const imageScale = Math.min(

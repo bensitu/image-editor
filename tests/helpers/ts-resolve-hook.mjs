@@ -16,8 +16,7 @@
 //     is forwarded so genuine "not found" errors keep their original
 //     message.
 
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
@@ -49,10 +48,10 @@ export function resolve(specifier, context, nextResolve) {
     return nextResolve(specifier, context);
 }
 
-export async function load(url, context, nextLoad) {
+export function load(url, context, nextLoad) {
     if (url.startsWith('file:') && url.endsWith('.ts')) {
         const fileName = fileURLToPath(url);
-        const source = await readFile(fileName, 'utf8');
+        const source = readFileSync(fileName, 'utf8');
         const output = ts.transpileModule(source, {
             compilerOptions,
             fileName,

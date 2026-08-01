@@ -26,10 +26,6 @@
  *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/cover-sizing.property.test.ts
  */
 
-import { register } from 'node:module';
-
-register('./helpers/ts-resolve-hook.mjs', import.meta.url);
-
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
@@ -38,6 +34,39 @@ const { computeCoverLayout, computeScrollableCanvasSize } =
     await import('../src/image/layout-manager.ts');
 
 const OVERFLOW_EPSILON = 0.5;
+
+interface Dimensions {
+    readonly width: number;
+    readonly height: number;
+}
+
+interface ScrollbarDimensions {
+    readonly width?: number;
+    readonly height?: number;
+}
+
+interface CoverInput {
+    readonly imageWidth: number;
+    readonly imageHeight: number;
+    readonly optsCanvasWidth: number;
+    readonly optsCanvasHeight: number;
+    readonly container: Dimensions;
+    readonly scrollbar: Required<ScrollbarDimensions>;
+}
+
+interface ReferenceCoverResult {
+    readonly imageScale: number;
+    readonly contentW: number;
+    readonly contentH: number;
+    readonly canvasSize: Dimensions;
+    readonly viewport: Dimensions;
+    readonly scrollbar: Required<ScrollbarDimensions>;
+}
+
+interface ScrollbarState {
+    readonly hasHorizontal: boolean;
+    readonly hasVertical: boolean;
+}
 
 // Bounded positive integers mirror the dimensions a real browser viewport can
 // carry in ordinary usage. Container axes may be zero; the layout function then
@@ -86,7 +115,7 @@ const smallImageArb = fc
         scrollbar: r.scrollbar,
     }));
 
-function referenceCover(input) {
+function referenceCover(input: CoverInput): ReferenceCoverResult {
     const viewportW = input.container.width || input.optsCanvasWidth;
     const viewportH = input.container.height || input.optsCanvasHeight;
     let hasHorizontal = false;
@@ -133,11 +162,11 @@ function referenceCover(input) {
 }
 
 function referenceScrollableCanvasSize(
-    contentWidth,
-    contentHeight,
-    viewport,
-    scrollbar: { width?: number; height?: number } = {},
-) {
+    contentWidth: number,
+    contentHeight: number,
+    viewport: Dimensions,
+    scrollbar: ScrollbarDimensions = {},
+): Dimensions {
     const viewportW = Math.max(1, viewport.width || 1);
     const viewportH = Math.max(1, viewport.height || 1);
     const scrollbarW = Math.max(0, Number(scrollbar.width) || 0);
@@ -165,7 +194,11 @@ function referenceScrollableCanvasSize(
     };
 }
 
-function finalScrollbarState(canvasSize, viewport, scrollbar) {
+function finalScrollbarState(
+    canvasSize: Dimensions,
+    viewport: Dimensions,
+    scrollbar: Required<ScrollbarDimensions>,
+): ScrollbarState {
     let hasHorizontal = false;
     let hasVertical = false;
 
@@ -183,7 +216,7 @@ function finalScrollbarState(canvasSize, viewport, scrollbar) {
     return { hasHorizontal, hasVertical };
 }
 
-function fillsSettledViewportAxis(contentSize, effectiveViewportSize) {
+function fillsSettledViewportAxis(contentSize: number, effectiveViewportSize: number): boolean {
     // Cover sizing uses OVERFLOW_EPSILON when deciding whether an axis
     // actually needs a scrollbar. A dimension up to that tolerance over
     // the final safe viewport axis is still considered settled, so the

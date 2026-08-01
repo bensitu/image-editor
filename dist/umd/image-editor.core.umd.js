@@ -6613,7 +6613,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				height: initialHeight,
 				backgroundColor: this.options.backgroundColor,
 				selection: this.options.groupSelection,
-				preserveObjectStacking: true
+				preserveObjectStacking: false
 			});
 		}
 		async loadImage(source, options = {}) {

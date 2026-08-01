@@ -9,7 +9,7 @@ import {
 } from '../../../src/plugins/mosaic/mosaic-brush.js';
 import { writeMosaicDirtyRegion } from '../../../src/plugins/mosaic/mosaic-raster-cache.js';
 
-function makeImageData(width, height) {
+function makeImageData(width: number, height: number): ImageData {
     const data = new Uint8ClampedArray(width * height * 4);
     for (let index = 0; index < width * height; index += 1) {
         data[index * 4] = index;

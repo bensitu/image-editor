@@ -174,6 +174,10 @@ export function syncMaskLabel(context: MaskLabelManagerContext, mask: MaskObject
     const { canvas, options } = context;
     if (!canvas || !options.maskLabelOnSelect || !mask.labelObject) return;
 
+    // Fabric fires object:moving before its transform loop refreshes aCoords.
+    // Refresh the mask geometry here so the label follows the live object during
+    // the gesture instead of waiting for object:modified or deselection.
+    mask.setCoords();
     const coords = mask.getCoords?.();
     if (!coords?.length) return;
 

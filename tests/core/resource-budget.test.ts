@@ -5,7 +5,7 @@ import { ImageEditorCore } from '../../src/core/index.js';
 import { transformPlugin } from '../../src/plugins/transform/index.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../helpers/fabric-environment.mjs';
 
-function pngHeaderDataUrl(width, height) {
+function pngHeaderDataUrl(width: number, height: number): string {
     const bytes = Buffer.alloc(24);
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes, 0);
     Buffer.from('IHDR').copy(bytes, 12);
@@ -83,7 +83,7 @@ test('a decoded image rejected by the dimension budget is disposed without docum
         return originalDispose();
     };
     class ControlledFabricImage extends fabric.FabricImage {
-        static fromURL(source, options) {
+        static fromURL(source: string, options?: unknown) {
             return source === oversizedSource
                 ? Promise.resolve(oversizedImage)
                 : fabric.FabricImage.fromURL(source, options);

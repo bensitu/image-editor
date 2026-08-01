@@ -15,13 +15,17 @@ import { mosaicPluginRef } from '../../src/plugins/mosaic/index.js';
 import { overlayStatePluginRef } from '../../src/plugins/overlay-state/index.js';
 import { transformPluginRef } from '../../src/plugins/transform/index.js';
 import { createAnnotationPreset } from '../../src/presets/annotation/index.js';
-import { createFullPreset } from '../../src/presets/full/index.js';
+import { createFullPreset, type FullPresetDomBindings } from '../../src/presets/full/index.js';
 import { createMinimalPreset } from '../../src/presets/minimal/index.js';
 import { createRedactionPreset } from '../../src/presets/redaction/index.js';
 import { definePlugin, type PluginRef } from '../../src/sdk/index.js';
 import { fabric, resetEditorDom } from '../helpers/fabric-environment.mjs';
 
-async function dispose(result) {
+interface DisposablePreset {
+    readonly editor: { disposeAsync(): Promise<void> };
+}
+
+async function dispose(result: DisposablePreset): Promise<void> {
     await result.editor.disposeAsync();
     if (globalThis.document) document.body.innerHTML = '';
 }
@@ -162,7 +166,7 @@ test('optional DOM setup sees all dependencies and disposes before them', async 
 });
 
 test('a failing optional DOM setup rolls back the complete Plugin Plan', () => {
-    let capturedBindings;
+    let capturedBindings: FullPresetDomBindings | undefined;
     assert.throws(
         () =>
             createFullPreset(fabric, {
@@ -190,7 +194,9 @@ test('a failing optional DOM setup rolls back the complete Plugin Plan', () => {
             error.cause.cause instanceof Error &&
             error.cause.cause.message === 'expected preset setup failure',
     );
-    assert.throws(() => capturedBindings.transform.resolve(), /not installed/);
+    const bindings = capturedBindings;
+    assert.ok(bindings);
+    assert.throws(() => bindings.transform.resolve(), /not installed/);
 });
 
 test('Preset instances never share Core or Plugin API state', async () => {

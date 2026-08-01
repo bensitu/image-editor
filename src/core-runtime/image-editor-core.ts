@@ -659,7 +659,10 @@ export class ImageEditorCore {
             height: initialHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
-            preserveObjectStacking: true,
+            // Fabric temporarily presents the active object above overlapping
+            // siblings while retaining their persistent layer order. This keeps
+            // list-driven Mask and Annotation selection authoritative on canvas.
+            preserveObjectStacking: false,
         });
     }
 

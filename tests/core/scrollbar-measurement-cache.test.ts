@@ -5,12 +5,16 @@ import { JSDOM } from 'jsdom';
 
 import { measureScrollbarSize } from '../../src/image/layout-manager.js';
 
-function createInstrumentedDocument(dimensions) {
+type InstrumentedDimensions = Readonly<
+    Partial<Record<'offsetWidth' | 'clientWidth' | 'offsetHeight' | 'clientHeight', number>>
+>;
+
+function createInstrumentedDocument(dimensions: InstrumentedDimensions) {
     const dom = new JSDOM('<!doctype html><html><body></body></html>');
     const { document } = dom.window;
     const createElement = document.createElement.bind(document);
     let probeCount = 0;
-    document.createElement = (tagName, options) => {
+    document.createElement = ((tagName: string, options?: ElementCreationOptions) => {
         const element = createElement(tagName, options);
         if (String(tagName).toLowerCase() !== 'div') return element;
         probeCount += 1;
@@ -21,7 +25,7 @@ function createInstrumentedDocument(dimensions) {
             });
         }
         return element;
-    };
+    }) as typeof document.createElement;
     return { document, dom, probeCount: () => probeCount };
 }
 

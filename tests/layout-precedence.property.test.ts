@@ -25,10 +25,6 @@
  *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/layout-precedence.property.test.ts
  */
 
-import { register } from 'node:module';
-
-register('./helpers/ts-resolve-hook.mjs', import.meta.url);
-
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';

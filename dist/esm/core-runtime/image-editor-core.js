@@ -602,7 +602,7 @@ export class ImageEditorCore {
             height: initialHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
-            preserveObjectStacking: true,
+            preserveObjectStacking: false,
         });
     }
     async loadImage(source, options = {}) {

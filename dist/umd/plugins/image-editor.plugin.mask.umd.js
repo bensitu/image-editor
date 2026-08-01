@@ -891,6 +891,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		var _a, _b, _c;
 		const { canvas, options } = context;
 		if (!canvas || !options.maskLabelOnSelect || !mask.labelObject) return;
+		mask.setCoords();
 		const coords = (_a = mask.getCoords) === null || _a === void 0 ? void 0 : _a.call(mask);
 		if (!(coords === null || coords === void 0 ? void 0 : coords.length)) return;
 		const tl = coords[0];

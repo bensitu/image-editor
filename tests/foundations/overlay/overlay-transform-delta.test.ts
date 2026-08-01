@@ -33,7 +33,10 @@ test('transform delta restores every mutable transform field when Fabric mutatio
     };
     const originalSet = object.set;
     let failNextTransform = true;
-    object.set = function setWithSyntheticFailure(key, value) {
+    object.set = function setWithSyntheticFailure(
+        key: string | Record<string, unknown>,
+        value?: unknown,
+    ) {
         if (
             failNextTransform &&
             typeof key === 'object' &&

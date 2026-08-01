@@ -10,7 +10,7 @@
         "exactOptionalPropertyTypes": false,
         "lib": ["ES2022", "DOM"],
         "noEmit": true,
-        "noImplicitAny": false,
+        "noImplicitAny": true,
         "noImplicitOverride": false,
         "noImplicitReturns": false,
         "noUncheckedIndexedAccess": false,

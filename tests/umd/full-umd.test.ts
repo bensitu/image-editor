@@ -7,12 +7,17 @@ import { fabric, makeImageDataUrl, resetEditorDom } from '../helpers/fabric-envi
 
 const developmentPath = new URL('../../dist/umd/image-editor.full.umd.js', import.meta.url);
 const minifiedPath = new URL('../../dist/umd/image-editor.full.umd.min.js', import.meta.url);
+type FullUmdNamespace = typeof import('../../src/umd/full.js');
+const globalObject = globalThis as typeof globalThis & {
+    ImageEditorFull?: FullUmdNamespace;
+};
 
-async function loadNamespace() {
-    delete globalThis.ImageEditorFull;
+async function loadNamespace(): Promise<FullUmdNamespace> {
+    delete globalObject.ImageEditorFull;
     const source = await readFile(developmentPath, 'utf8');
     vm.runInThisContext(source, { filename: developmentPath.pathname });
-    return globalThis.ImageEditorFull;
+    assert.ok(globalObject.ImageEditorFull);
+    return globalObject.ImageEditorFull;
 }
 
 test('Full UMD exposes one modern global and every official Feature factory', async () => {
@@ -36,7 +41,7 @@ test('Full UMD exposes one modern global and every official Feature factory', as
         'drawAnnotationPlugin',
         'overlayStatePlugin',
         'domControlsPlugin',
-    ]) {
+    ] as const) {
         assert.equal(typeof namespace[name], 'function', `${name} must be public.`);
     }
     assert.equal('ImageEditor' in namespace, false);
@@ -59,7 +64,7 @@ test('Full UMD exposes one modern global and every official Feature factory', as
         'shape',
         'draw',
         'overlayState',
-    ]) {
+    ] as const) {
         assert.equal(typeof preset[name], 'object', `${name} API must be installed.`);
     }
     await preset.editor.disposeAsync();
@@ -78,7 +83,10 @@ test('Full UMD supports load, edit, history, export, rollback, and disposal', as
     await preset.editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
     await preset.editor.loadImage(makeImageDataUrl({ width: 120, height: 80 }));
 
-    assert.throws(() => preset.editor.setLayoutMode('stretch'), TypeError);
+    assert.throws(
+        () => Reflect.apply(preset.editor.setLayoutMode, preset.editor, ['stretch']),
+        TypeError,
+    );
     preset.editor.setLayoutMode('fit');
     await preset.transform.rotate(90);
     assert.equal(preset.transform.getState().rotationDegrees, 90);
@@ -101,7 +109,9 @@ test('Full UMD ships parseable minified output and attributable source maps', as
     const minified = await readFile(minifiedPath, 'utf8');
     assert.doesNotThrow(() => new vm.Script(minified));
     for (const artifactPath of [developmentPath, minifiedPath]) {
-        const sourceMap = JSON.parse(await readFile(new URL(`${artifactPath.href}.map`), 'utf8'));
+        const sourceMap = JSON.parse(
+            await readFile(new URL(`${artifactPath.href}.map`), 'utf8'),
+        ) as { readonly version: number; readonly sources: readonly string[] };
         assert.equal(sourceMap.version, 3);
         assert.ok(sourceMap.sources.length > 0);
         assert.equal(

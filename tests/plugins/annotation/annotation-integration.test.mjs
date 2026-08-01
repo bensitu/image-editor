@@ -135,6 +135,45 @@ test('mixed Mask and Annotation selection, Crop, export, and flatten share Overl
     await dispose(instance.editor);
 });
 
+test('list selection keeps an overlapping Annotation as the canvas interaction target', async () => {
+    const instance = await createEditor({ shape: true });
+    await load(instance.editor);
+    const geometry = { kind: 'rect', left: 40, top: 35, width: 64, height: 48 };
+    const lowerId = await instance.shape.create({ geometry });
+    const upperId = await instance.shape.create({ geometry });
+    const lower = instance.overlay.getByPersistentId(lowerId);
+    const upper = instance.overlay.getByPersistentId(upperId);
+    const canvas = instance.editor.getCanvas();
+    const layerOrder = canvas.getObjects().slice();
+
+    await instance.annotations.select([lowerId]);
+    Object.defineProperty(canvas.upperCanvasEl, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+            bottom: 260,
+            height: 260,
+            left: 0,
+            right: 360,
+            top: 0,
+            width: 360,
+        }),
+    });
+    const event = {
+        altKey: false,
+        clientX: 60,
+        clientY: 55,
+        target: canvas.upperCanvasEl,
+        type: 'mousedown',
+    };
+    canvas._resetTransformEventData();
+
+    assert.equal(canvas.getActiveObject(), lower);
+    assert.equal(canvas.findTarget(event).target, lower);
+    assert.deepEqual(canvas.getObjects(), layerOrder);
+    assert.ok(canvas.getObjects().indexOf(lower) < canvas.getObjects().indexOf(upper));
+    await dispose(instance.editor);
+});
+
 test('Mask and every Annotation object keep back-to-back transform History boundaries', async () => {
     const instance = await createEditor({
         draw: true,

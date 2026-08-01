@@ -318,6 +318,79 @@ test('create, remove, removeSelected, and removeAll maintain counter and list or
     await dispose(editor);
 });
 
+test('list selection keeps an overlapping Mask as the canvas interaction target', async () => {
+    const { editor, masks, overlay } = await createEditor({ label: false });
+    await load(editor);
+    const lower = await masks.create({ left: 40, top: 35, width: 64, height: 48 });
+    const upper = await masks.create({ left: 40, top: 35, width: 64, height: 48 });
+    const canvas = editor.getCanvas();
+    const layerOrder = canvas.getObjects().slice();
+
+    overlay.select([lower.maskUid]);
+    Object.defineProperty(canvas.upperCanvasEl, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+            bottom: 260,
+            height: 260,
+            left: 0,
+            right: 360,
+            top: 0,
+            width: 360,
+        }),
+    });
+    const event = {
+        altKey: false,
+        clientX: 60,
+        clientY: 55,
+        target: canvas.upperCanvasEl,
+        type: 'mousedown',
+    };
+    canvas._resetTransformEventData();
+
+    assert.equal(canvas.getActiveObject(), lower);
+    assert.equal(canvas.findTarget(event).target, lower);
+    assert.deepEqual(canvas.getObjects(), layerOrder);
+    assert.ok(canvas.getObjects().indexOf(lower) < canvas.getObjects().indexOf(upper));
+    await dispose(editor);
+});
+
+test('list-selected overlapping Mask keeps its label aligned during a live drag', async () => {
+    const { editor, masks, overlay } = await createEditor({ labelOffset: 5 });
+    await load(editor);
+    const lower = await masks.create({ left: 40, top: 35, width: 64, height: 48 });
+    await masks.create({ left: 40, top: 35, width: 64, height: 48 });
+    const canvas = editor.getCanvas();
+
+    overlay.select([lower.maskUid]);
+    assert.ok(lower.labelObject);
+    const label = lower.labelObject;
+    const before = { left: label.left, top: label.top };
+    const maskLayerOrder = canvas
+        .getObjects()
+        .filter((object) => object.editorObjectKind === 'mask');
+
+    canvas.fire('before:transform', {
+        target: lower,
+        transform: { action: 'drag' },
+    });
+    // Keep the target's aCoords stale to mirror Fabric's drag event order.
+    lower.set({ left: 160, top: 95 });
+    canvas.fire('object:moving', { target: lower });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.notDeepEqual({ left: label.left, top: label.top }, before);
+    assert.deepEqual(
+        canvas.getObjects().filter((object) => object.editorObjectKind === 'mask'),
+        maskLayerOrder,
+    );
+
+    lower.setCoords();
+    canvas.fire('object:modified', { target: lower });
+    await overlay.waitForIdle();
+    await dispose(editor);
+});
+
 test('Mask snapshot restores geometry, hidden/locked state, hover handlers, and counter', async () => {
     const { editor, masks, overlay } = await createEditor({ rotatable: true, label: false });
     await load(editor);
@@ -401,14 +474,19 @@ test('Mask labels are transient, track object movement, and never enter Snapshot
     assert.ok(mask.labelObject);
     const label = mask.labelObject;
     const before = { left: label.left, top: label.top };
-    mask.set({ left: 80, top: 65 });
-    mask.setCoords();
-    editor.getCanvas().fire('before:transform', {
+    const canvas = editor.getCanvas();
+    canvas.fire('before:transform', {
         target: mask,
         transform: { action: 'drag' },
     });
-    editor.getCanvas().fire('object:moving', { target: mask });
-    editor.getCanvas().fire('object:modified', { target: mask });
+    // Fabric emits object:moving before refreshing the target's aCoords.
+    mask.set({ left: 80, top: 65 });
+    canvas.fire('object:moving', { target: mask });
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.notDeepEqual({ left: label.left, top: label.top }, before);
+    mask.setCoords();
+    canvas.fire('object:modified', { target: mask });
     await overlay.waitForIdle();
     assert.notDeepEqual({ left: label.left, top: label.top }, before);
     const snapshot = editor.saveState();
