@@ -6,38 +6,38 @@ methods live on the typed APIs returned when Plugins are installed. The package
 root and `/core` resolve to the same `ImageEditorCore` class; the root does not
 export Features, Presets, DOM Controls, or migration code.
 
-This reference describes the current 3.x public API. Version 3 is a breaking major
-release relative to the 2.x facade.
+This reference describes the current modular public API. The Core and Feature
+contracts replace the legacy facade contract.
 
 ## Formal package entries
 
 Every main-package entry below provides ESM, CommonJS, ESM declarations,
 CommonJS declarations, and NodeNext resolution. Fabric stays external.
 
-| Import                                           | Responsibility                                   |
-| ------------------------------------------------ | ------------------------------------------------ |
-| `@bensitu/image-editor`                          | Core Framework root                              |
-| `@bensitu/image-editor/core`                     | Core Framework class and contracts               |
-| `@bensitu/image-editor/sdk`                      | Plugin authoring and Capability contracts        |
-| `@bensitu/image-editor/testing`                  | Test host and Conformance Kit                    |
-| `@bensitu/image-editor/plugins/transform`        | Base-image transforms                            |
-| `@bensitu/image-editor/plugins/history`          | Bounded History provider                         |
-| `@bensitu/image-editor/plugins/overlay`          | Shared Overlay Foundation                        |
-| `@bensitu/image-editor/plugins/mask`             | Editable redaction masks                         |
-| `@bensitu/image-editor/plugins/filters`          | Previewed and committed image filters            |
-| `@bensitu/image-editor/plugins/crop`             | Transactional crop sessions                      |
-| `@bensitu/image-editor/plugins/mosaic`           | Transactional pixelation sessions                |
-| `@bensitu/image-editor/plugins/annotation`       | Shared Annotation Foundation                     |
-| `@bensitu/image-editor/plugins/annotation-text`  | Text creation/editing                            |
-| `@bensitu/image-editor/plugins/annotation-shape` | Rect, line, and arrow annotations                |
-| `@bensitu/image-editor/plugins/annotation-draw`  | Freehand Draw and whole-object Eraser            |
-| `@bensitu/image-editor/plugins/overlay-state`    | Portable Overlay document wire format            |
-| `@bensitu/image-editor/plugins/dom-controls`     | Optional imperative DOM adapter                  |
-| `@bensitu/image-editor/presets/minimal`          | Transform with optional History                  |
-| `@bensitu/image-editor/presets/redaction`        | Redaction-focused composition                    |
-| `@bensitu/image-editor/presets/annotation`       | Annotation-focused composition                   |
-| `@bensitu/image-editor/presets/full`             | Every official Feature and both Foundations      |
-| `@bensitu/image-editor/migrate-v2`               | Isolated older-Snapshot detection and conversion |
+| Import                                           | Responsibility                                    |
+| ------------------------------------------------ | ------------------------------------------------- |
+| `@bensitu/image-editor`                          | Core Framework root                               |
+| `@bensitu/image-editor/core`                     | Core Framework class and contracts                |
+| `@bensitu/image-editor/sdk`                      | Plugin authoring and Capability contracts         |
+| `@bensitu/image-editor/testing`                  | Test host and Conformance Kit                     |
+| `@bensitu/image-editor/plugins/transform`        | Base-image transforms                             |
+| `@bensitu/image-editor/plugins/history`          | Bounded History provider                          |
+| `@bensitu/image-editor/plugins/overlay`          | Shared Overlay Foundation                         |
+| `@bensitu/image-editor/plugins/mask`             | Editable redaction masks                          |
+| `@bensitu/image-editor/plugins/filters`          | Previewed and committed image filters             |
+| `@bensitu/image-editor/plugins/crop`             | Transactional crop sessions                       |
+| `@bensitu/image-editor/plugins/mosaic`           | Transactional pixelation sessions                 |
+| `@bensitu/image-editor/plugins/annotation`       | Shared Annotation Foundation                      |
+| `@bensitu/image-editor/plugins/annotation-text`  | Text creation/editing                             |
+| `@bensitu/image-editor/plugins/annotation-shape` | Rect, line, and arrow annotations                 |
+| `@bensitu/image-editor/plugins/annotation-draw`  | Freehand Draw and whole-object Eraser             |
+| `@bensitu/image-editor/plugins/overlay-state`    | Portable Overlay document wire format             |
+| `@bensitu/image-editor/plugins/dom-controls`     | Optional imperative DOM adapter                   |
+| `@bensitu/image-editor/presets/minimal`          | Transform with optional History                   |
+| `@bensitu/image-editor/presets/redaction`        | Redaction-focused composition                     |
+| `@bensitu/image-editor/presets/annotation`       | Annotation-focused composition                    |
+| `@bensitu/image-editor/presets/full`             | Every official Feature and both Foundations       |
+| `@bensitu/image-editor/migrate-v2`               | Isolated legacy-Snapshot detection and conversion |
 
 Do not import source paths, `dist` files, controllers, coordinators, registries,
 or internal chunks. `@bensitu/image-editor-codemod` is a separate package, not a
@@ -63,24 +63,29 @@ Fabric canvas; all Plugins must be installed first.
 
 Main methods:
 
-| Method                                     | Contract                                                                         |
-| ------------------------------------------ | -------------------------------------------------------------------------------- |
-| `use(plugin)`                              | Atomically install one synchronous Plugin and infer its API                      |
-| `install(pluginOrPlan)`                    | Atomically install a tuple/plan and preserve result inference                    |
-| `getPlugin(ref)` / `requirePlugin(ref)`    | Resolve `TApi \| null` or require `TApi`                                         |
-| `init(elements)`                           | Initialize Canvas and Plugins, then await any configured initial image and hooks |
-| `loadImage(source, options?)`              | Transactionally load a PNG/JPEG/WebP data URL                                    |
-| `loadImageFile(file, options?)`            | Validate/decode a browser file, including EXIF orientation                       |
-| `saveState()`                              | Serialize the current schema `image-editor.state@3`                              |
-| `loadFromState(value, options?)`           | Validate then atomically restore; migrations are explicit                        |
-| `exportImageBase64(options?)`              | Render isolated PNG/JPEG/WebP output                                             |
-| `exportImageFile(options?)`                | Return the same isolated output as a browser `File`                              |
-| `getImageInfo()` / `isImageLoaded()`       | Read immutable committed image status                                            |
-| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand`; invalid JavaScript values throw `TypeError`  |
-| `getLifecycleState()` / `getDiagnostics()` | Read lifecycle and bounded diagnostics                                           |
-| `emergencyReset()` / `forceDispose()`      | Explicit recovery for a faulted runtime                                          |
-| `disposeAsync()`                           | Authoritative, awaitable release path; rejects with aggregated cleanup failures  |
-| `dispose()`                                | Deprecated best-effort starter; may return before asynchronous cleanup settles   |
+| Method                                       | Contract                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------- |
+| `use(plugin)`                                | Atomically install one synchronous Plugin and infer its API                      |
+| `install(pluginOrPlan)`                      | Atomically install a tuple/plan and preserve result inference                    |
+| `getPlugin(ref)` / `requirePlugin(ref)`      | Resolve `TApi \| null` or require `TApi`                                         |
+| `init(elements)`                             | Initialize Canvas and Plugins, then await any configured initial image and hooks |
+| `loadImage(source, options?)`                | Load a data URL with bounded downsampling, encoding, and EXIF normalization      |
+| `loadImageFile(file, options?)`              | Validate and load a browser file through the same preprocessing policy           |
+| `saveState()`                                | Serialize the current schema `image-editor.state@3`                              |
+| `loadFromState(value, options?)`             | Validate then atomically restore; migrations are explicit                        |
+| `exportImageBase64(options?)`                | Render isolated PNG/JPEG/WebP output                                             |
+| `exportImageFile(options?)`                  | Return the same isolated output as a browser `File`                              |
+| `getImageInfo()` / `isImageLoaded()`         | Read immutable committed image status                                            |
+| `setLayoutMode(mode)`                        | Select `fit`, `cover`, or `expand`; invalid JavaScript values throw `TypeError`  |
+| `resizeCanvas(width, height)`                | Explicitly resize the coordinated Fabric Canvas                                  |
+| `resizeToContainer()` / `observeContainer()` | Resize to the host container once or through a disposable observer               |
+| `relayout(options?)`                         | Recompute Base Image geometry and coordinate installed geometry participants     |
+| `getRuntimeStatus()` / `subscribeStatus()`   | Read or subscribe to lifecycle, busy, image, Tool, layout, and geometry status   |
+| `on(eventName, listener)`                    | Subscribe to typed committed Core events through a disposable handle             |
+| `getLifecycleState()` / `getDiagnostics()`   | Read lifecycle and bounded diagnostics                                           |
+| `emergencyReset()` / `forceDispose()`        | Explicit recovery for a faulted runtime                                          |
+| `disposeAsync()`                             | Authoritative, awaitable release path; rejects with aggregated cleanup failures  |
+| `dispose()`                                  | Deprecated best-effort starter; may return before asynchronous cleanup settles   |
 
 Core rejects operations in invalid lifecycle states. Failed image/State loads
 restore the prior document before their promises reject. Snapshot validation
@@ -89,6 +94,15 @@ pixel, dimension, Plugin-payload, metadata, URL, and dangerous-key limits.
 
 Core imports are SSR-safe. Canvas initialization, image decode, and export need
 a browser or an explicitly supplied compatible Fabric DOM environment.
+
+`observeContainer()` changes viewport dimensions without silently rescaling document
+geometry. Use `relayout()` when a responsive breakpoint should also recompute image and
+overlay geometry. Both subscriptions and event listeners return idempotent disposable
+handles.
+
+`exportImageFile()` is the direct export primitive. Core deliberately does not own link
+creation, click simulation, or download permission policy; hosts can download the returned
+`File` with their own DOM or platform adapter.
 
 ## SDK and installation
 

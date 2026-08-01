@@ -1,9 +1,9 @@
 const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
-const require_core = require('./core-BW28rysE.cjs');
+const require_core = require('./core-DeagNF96.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-BcmsFExs.cjs');
+const require_overlay = require('./overlay-DhpSM97c.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 
 //#region dist/esm/plugins/overlay-state/overlay-state-errors.js
@@ -129,7 +129,7 @@ function createOverlayStateContext(baseImagePort) {
 //#endregion
 //#region dist/esm/plugins/overlay-state/overlay-state-types.js
 const OVERLAY_STATE_SCHEMA = "image-editor.overlay-state";
-const OVERLAY_STATE_WIRE_VERSION = 1;
+const OVERLAY_STATE_WIRE_VERSION = 2;
 const OVERLAY_STATE_COORDINATE_SPACE = "image-normalized";
 
 //#endregion
@@ -486,7 +486,7 @@ function validateOverlayStateDocument(payload, limits) {
 	if (jsonBytes(document) > limits.maxPayloadBytes) addIssue(issues, "payload.tooLarge", "$", `Payload exceeds ${limits.maxPayloadBytes} bytes.`);
 	hasOnlyKeys(document, ROOT_KEYS, "$", issues);
 	if (document.schema !== "image-editor.overlay-state") addIssue(issues, "document.schemaUnsupported", "$.schema", "Schema is unsupported.");
-	if (document.version !== 1) addIssue(issues, "document.versionUnsupported", "$.version", "Wire version is unsupported.");
+	if (document.version !== 2) addIssue(issues, "document.versionUnsupported", "$.version", "Wire version is unsupported.");
 	if (document.coordinateSpace !== "image-normalized") addIssue(issues, "document.coordinateSpaceUnsupported", "$.coordinateSpace", "Coordinate space is unsupported.");
 	validateImage(document.image, limits, issues);
 	if (!Array.isArray(document.overlays)) addIssue(issues, "document.overlaysInvalid", "$.overlays", "Overlays must be an array.");
@@ -672,7 +672,7 @@ var OverlayStateController = class {
 		});
 		const rawDocument = {
 			schema: OVERLAY_STATE_SCHEMA,
-			version: 1,
+			version: 2,
 			coordinateSpace: OVERLAY_STATE_COORDINATE_SPACE,
 			image: {
 				naturalWidth: context.image.naturalWidth,
@@ -941,4 +941,4 @@ Object.defineProperty(exports, 'overlayStatePluginRef', {
     return overlayStatePluginRef;
   }
 });
-//# sourceMappingURL=overlay-state-CnzbNrMi.cjs.map
+//# sourceMappingURL=overlay-state-CnESqu2c.cjs.map

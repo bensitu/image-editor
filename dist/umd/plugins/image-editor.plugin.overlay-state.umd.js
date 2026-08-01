@@ -157,7 +157,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugins/overlay-state/overlay-state-types.js
 	const OVERLAY_STATE_SCHEMA = "image-editor.overlay-state";
-	const OVERLAY_STATE_WIRE_VERSION = 1;
+	const OVERLAY_STATE_WIRE_VERSION = 2;
 	const OVERLAY_STATE_COORDINATE_SPACE = "image-normalized";
 
 //#endregion
@@ -520,7 +520,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (jsonBytes(document) > limits.maxPayloadBytes) addIssue(issues, "payload.tooLarge", "$", `Payload exceeds ${limits.maxPayloadBytes} bytes.`);
 		hasOnlyKeys(document, ROOT_KEYS, "$", issues);
 		if (document.schema !== "image-editor.overlay-state") addIssue(issues, "document.schemaUnsupported", "$.schema", "Schema is unsupported.");
-		if (document.version !== 1) addIssue(issues, "document.versionUnsupported", "$.version", "Wire version is unsupported.");
+		if (document.version !== 2) addIssue(issues, "document.versionUnsupported", "$.version", "Wire version is unsupported.");
 		if (document.coordinateSpace !== "image-normalized") addIssue(issues, "document.coordinateSpaceUnsupported", "$.coordinateSpace", "Coordinate space is unsupported.");
 		validateImage(document.image, limits, issues);
 		if (!Array.isArray(document.overlays)) addIssue(issues, "document.overlaysInvalid", "$.overlays", "Overlays must be an array.");
@@ -706,7 +706,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			const rawDocument = {
 				schema: OVERLAY_STATE_SCHEMA,
-				version: 1,
+				version: 2,
 				coordinateSpace: OVERLAY_STATE_COORDINATE_SPACE,
 				image: {
 					naturalWidth: context.image.naturalWidth,

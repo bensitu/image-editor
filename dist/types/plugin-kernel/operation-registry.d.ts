@@ -36,6 +36,7 @@ export interface OperationRunOptions {
     readonly signal?: AbortSignal;
 }
 export declare class OperationRegistry implements Disposable {
+    private readonly activitySink?;
     private readonly operations;
     private readonly activeOperations;
     private readonly executingRequests;
@@ -43,6 +44,8 @@ export declare class OperationRegistry implements Disposable {
     private pendingRequests;
     private suspendedReason;
     private disposed;
+    private lastBusy;
+    constructor(activitySink?: (() => void) | undefined);
     register<TArgs>(definition: OperationDefinition<TArgs>, ownerPluginId: string): Disposable;
     begin(operationId: OperationId, ownerPluginId: string): OperationToken;
     run<TArgs, TResult>(operationId: OperationId, ownerPluginId: string, args: TArgs, task: (args: TArgs, context: OperationExecutionContext) => MaybePromise<TResult>, options?: OperationRunOptions): Promise<TResult>;
@@ -73,5 +76,6 @@ export declare class OperationRegistry implements Disposable {
     private conflictError;
     private isIdle;
     private resolveIdleWaiters;
+    private notifyActivityChange;
     private assertActive;
 }

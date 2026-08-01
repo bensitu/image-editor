@@ -113,7 +113,9 @@ function cloneJson(value: unknown, path: string, depth = 0): unknown {
         if (value.length > MAX_POINTS) {
             return fail('value.array', 'Array exceeds the migration limit.', path);
         }
-        return Object.freeze(value.map((entry, index) => cloneJson(entry, `${path}[${index}]`, depth + 1)));
+        return Object.freeze(
+            value.map((entry, index) => cloneJson(entry, `${path}[${index}]`, depth + 1)),
+        );
     }
     const candidate = record(value, path);
     const output: JsonRecord = Object.create(null) as JsonRecord;
@@ -179,7 +181,11 @@ function scalarFromXRatio(value: number, image: OverlayStateImageReference): num
     return (value * image.naturalWidth) / Math.min(image.naturalWidth, image.naturalHeight);
 }
 
-function dashArray(value: unknown, image: OverlayStateImageReference, path: string): readonly number[] | null {
+function dashArray(
+    value: unknown,
+    image: OverlayStateImageReference,
+    path: string,
+): readonly number[] | null {
     if (value === undefined || value === null) return null;
     if (!Array.isArray(value) || value.length > 16) {
         return fail('style.dash', 'Stroke dash data is invalid.', path);
@@ -274,10 +280,16 @@ function convertMask(
         width = rx * 2;
         height = ry * 2;
     } else if (shape === 'polygon' && geometry.type === 'polygon') {
-        if (!Array.isArray(geometry.points) || geometry.points.length < 3 || geometry.points.length > 4_096) {
+        if (
+            !Array.isArray(geometry.points) ||
+            geometry.points.length < 3 ||
+            geometry.points.length > 4_096
+        ) {
             return fail('mask.points', 'Polygon points are invalid.', `${path}.geometry.points`);
         }
-        const absolute = geometry.points.map((entry, index) => point(entry, `${path}.geometry.points[${index}]`));
+        const absolute = geometry.points.map((entry, index) =>
+            point(entry, `${path}.geometry.points[${index}]`),
+        );
         left = Math.min(...absolute.map((entry) => entry.x));
         top = Math.min(...absolute.map((entry) => entry.y));
         const right = Math.max(...absolute.map((entry) => entry.x));
@@ -285,7 +297,11 @@ function convertMask(
         width = right - left;
         height = bottom - top;
         if (!(width > 0) || !(height > 0)) {
-            return fail('mask.points', 'Polygon points must span a positive area.', `${path}.geometry.points`);
+            return fail(
+                'mask.points',
+                'Polygon points must span a positive area.',
+                `${path}.geometry.points`,
+            );
         }
         points = Object.freeze(
             absolute.map((entry) =>
@@ -297,7 +313,11 @@ function convertMask(
     }
     const stroke = style.stroke;
     if (stroke !== undefined && stroke !== null && typeof stroke !== 'string') {
-        return fail('style.stroke', 'Mask stroke must be a string or null.', `${path}.style.stroke`);
+        return fail(
+            'style.stroke',
+            'Mask stroke must be a string or null.',
+            `${path}.style.stroke`,
+        );
     }
     const numericId = /(?:^|[-:])(\d+)$/u.exec(id)?.[1];
     const maskId = numericId ? Number(numericId) : layer + 1;
@@ -316,10 +336,19 @@ function convertMask(
             fill: stringValue(style.fill, `${path}.style.fill`, '#000000'),
             opacity: numberValue(style.alpha, `${path}.style.alpha`, 1),
             stroke: stroke ?? null,
-            strokeWidth: scalarFromPixels(numberValue(style.strokeWidth, `${path}.style.strokeWidth`, 1), image),
-            strokeDashArray: dashArray(style.strokeDashArray, image, `${path}.style.strokeDashArray`),
-            cornerRadiusX: geometry.rx === undefined ? 0 : numberValue(geometry.rx, `${path}.geometry.rx`),
-            cornerRadiusY: geometry.ry === undefined ? 0 : numberValue(geometry.ry, `${path}.geometry.ry`),
+            strokeWidth: scalarFromPixels(
+                numberValue(style.strokeWidth, `${path}.style.strokeWidth`, 1),
+                image,
+            ),
+            strokeDashArray: dashArray(
+                style.strokeDashArray,
+                image,
+                `${path}.style.strokeDashArray`,
+            ),
+            cornerRadiusX:
+                geometry.rx === undefined ? 0 : numberValue(geometry.rx, `${path}.geometry.rx`),
+            cornerRadiusY:
+                geometry.ry === undefined ? 0 : numberValue(geometry.ry, `${path}.geometry.ry`),
             points,
             hasControls: booleanValue(style.hasControls, true),
             selectable: booleanValue(style.selectable, true),
@@ -393,7 +422,9 @@ function convertText(
                 backgroundColor:
                     typeof style.backgroundColor === 'string' ? style.backgroundColor : '',
                 textAlign:
-                    style.textAlign === 'center' || style.textAlign === 'right' || style.textAlign === 'justify'
+                    style.textAlign === 'center' ||
+                    style.textAlign === 'right' ||
+                    style.textAlign === 'justify'
                         ? style.textAlign
                         : 'left',
                 lineHeight,
@@ -453,11 +484,21 @@ function convertShape(
             Object.freeze({
                 version: 1,
                 stroke: stringValue(style.stroke, `${path}.style.stroke`, '#111111'),
-                strokeWidth: scalarFromPixels(numberValue(style.strokeWidth, `${path}.style.strokeWidth`, 3), image),
+                strokeWidth: scalarFromPixels(
+                    numberValue(style.strokeWidth, `${path}.style.strokeWidth`, 3),
+                    image,
+                ),
                 fill: typeof style.fill === 'string' ? style.fill : '',
                 opacity: numberValue(style.opacity, `${path}.style.opacity`, 1),
-                strokeDashArray: dashArray(style.strokeDashArray, image, `${path}.style.strokeDashArray`),
-                arrowHeadLength: scalarFromPixels(numberValue(geometry.arrowHeadLength, `${path}.geometry.arrowHeadLength`, 16), image),
+                strokeDashArray: dashArray(
+                    style.strokeDashArray,
+                    image,
+                    `${path}.style.strokeDashArray`,
+                ),
+                arrowHeadLength: scalarFromPixels(
+                    numberValue(geometry.arrowHeadLength, `${path}.geometry.arrowHeadLength`, 16),
+                    image,
+                ),
             }),
         ),
         metadata(source.metadata, `${path}.metadata`),
@@ -472,7 +513,11 @@ function convertDraw(
     id: string,
     reserved: Set<string>,
 ): readonly OverlayStateItem[] {
-    if (!Array.isArray(source.strokes) || source.strokes.length === 0 || source.strokes.length > MAX_OVERLAYS) {
+    if (
+        !Array.isArray(source.strokes) ||
+        source.strokes.length === 0 ||
+        source.strokes.length > MAX_OVERLAYS
+    ) {
         return fail('annotation.strokes', 'Draw strokes are invalid.', `${path}.strokes`);
     }
     return Object.freeze(
@@ -480,15 +525,24 @@ function convertDraw(
             const strokePath = `${path}.strokes[${strokeIndex}]`;
             const stroke = record(entry, strokePath);
             const brush = record(stroke.brush, `${strokePath}.brush`);
-            if (!Array.isArray(stroke.points) || stroke.points.length < 2 || stroke.points.length > MAX_POINTS) {
-                return fail('annotation.points', 'Draw points are invalid.', `${strokePath}.points`);
+            if (
+                !Array.isArray(stroke.points) ||
+                stroke.points.length < 2 ||
+                stroke.points.length > MAX_POINTS
+            ) {
+                return fail(
+                    'annotation.points',
+                    'Draw points are invalid.',
+                    `${strokePath}.points`,
+                );
             }
             const points = Object.freeze(
                 stroke.points.map((entryPoint, pointIndex) =>
                     point(entryPoint, `${strokePath}.points[${pointIndex}]`),
                 ),
             );
-            const partId = strokeIndex === 0 ? id : uniqueId(`${id}:stroke-${strokeIndex + 1}`, reserved);
+            const partId =
+                strokeIndex === 0 ? id : uniqueId(`${id}:stroke-${strokeIndex + 1}`, reserved);
             return item(
                 partId,
                 'annotation:draw',
@@ -502,7 +556,10 @@ function convertDraw(
                     Object.freeze({
                         version: 1,
                         color: stringValue(brush.color, `${strokePath}.brush.color`, '#111111'),
-                        width: scalarFromPixels(positive(brush.width, `${strokePath}.brush.width`, 1), image),
+                        width: scalarFromPixels(
+                            positive(brush.width, `${strokePath}.brush.width`, 1),
+                            image,
+                        ),
                         opacity: numberValue(brush.opacity, `${strokePath}.brush.opacity`, 1),
                         lineCap:
                             brush.lineCap === 'butt' || brush.lineCap === 'square'
@@ -525,7 +582,11 @@ function imageReference(value: unknown): OverlayStateImageReference {
     const naturalWidth = positive(source.naturalWidth, '$.image.naturalWidth');
     const naturalHeight = positive(source.naturalHeight, '$.image.naturalHeight');
     if (!Number.isSafeInteger(naturalWidth) || !Number.isSafeInteger(naturalHeight)) {
-        return fail('image.dimensions', 'Image dimensions must be positive safe integers.', '$.image');
+        return fail(
+            'image.dimensions',
+            'Image dimensions must be positive safe integers.',
+            '$.image',
+        );
     }
     const mimeType = source.mimeType;
     if (
@@ -587,7 +648,10 @@ export function migrateV1OverlayState(
         }
     }
     const image = imageReference(source.image);
-    if (record(source.image, '$.image').orientation !== undefined && record(source.image, '$.image').orientation !== 1) {
+    if (
+        record(source.image, '$.image').orientation !== undefined &&
+        record(source.image, '$.image').orientation !== 1
+    ) {
         return fail(
             'image.orientation',
             'Non-normalized v1 image orientation cannot be represented in Overlay State v2.',
@@ -615,7 +679,11 @@ export function migrateV1OverlayState(
             } else if (legacy.annotationType === 'draw') {
                 overlays.push(...convertDraw(legacy, path, image, overlays.length, id, reserved));
             } else {
-                return fail('annotation.type', 'Annotation type is unsupported.', `${path}.annotationType`);
+                return fail(
+                    'annotation.type',
+                    'Annotation type is unsupported.',
+                    `${path}.annotationType`,
+                );
             }
             continue;
         }

@@ -7,18 +7,28 @@
 export { ImageEditorCore, type LoadStateOptions } from '../core-runtime/image-editor-core.js';
 export type {
     CoreElementMap,
+    CoreEventListener,
     CoreEventMap,
     CoreExportOptions,
     CoreImageInfo,
+    CoreRuntimeStatus,
+    CoreStatusListener,
+    CoreStatusSubscriptionOptions,
+    CoreSubscription,
+    ContainerObservationOptions,
     EditorLifecycleState,
     ElementTarget,
     ExportArea,
     FabricModule,
     ImageEditorCoreOptions,
     ImageMimeType,
+    ImagePreprocessingOptions,
     LayoutMode,
     LoadImageOptions,
+    ResolvedCoreExportOptions,
+    ResolvedImagePreprocessingOptions,
     ResolvedImageEditorCoreOptions,
+    ResponsiveLayoutOptions,
 } from '../core-runtime/public-types.js';
 export {
     CoreRuntimeError,

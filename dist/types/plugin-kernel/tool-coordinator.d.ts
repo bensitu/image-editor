@@ -19,6 +19,7 @@ export interface ToolDefinition {
 }
 export interface ToolCoordinatorOptions {
     readonly errorSink?: PluginErrorSink;
+    readonly activitySink?: () => void;
 }
 export declare class ToolCoordinator implements Disposable {
     private readonly options;
@@ -39,5 +40,6 @@ export declare class ToolCoordinator implements Disposable {
     private runTransition;
     private disposeRegistration;
     private waitForTransition;
+    private notifyActivityChange;
     private assertActive;
 }

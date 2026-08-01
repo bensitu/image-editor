@@ -74,6 +74,8 @@ export interface PluginManagerOptions {
     readonly warningSink?: PluginWarningSink;
     readonly errorSink?: PluginErrorSink;
     readonly hostCapabilities?: readonly PluginHostCapabilityProvider[];
+    /** @internal Notifies the Core host when operation or Tool activity changes. */
+    readonly activitySink?: () => void;
 }
 
 export interface PluginHostCapabilityProvider {
@@ -305,7 +307,7 @@ function sameInstallationDefinition<TEvents extends object>(
 
 export class PluginManager<TEvents extends object = PluginEventMap> implements Disposable {
     private readonly capabilityRegistry: CapabilityRegistry;
-    private readonly operationRegistry = new OperationRegistry();
+    private readonly operationRegistry: OperationRegistry;
     private readonly toolCoordinator: ToolCoordinator;
     private readonly eventBus: CommittedEventBus<TEvents>;
     private readonly stateStore = new PluginStateStore();
@@ -316,9 +318,13 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
     private disposePromise: Promise<void> | null = null;
 
     constructor(private readonly options: PluginManagerOptions = {}) {
+        this.operationRegistry = new OperationRegistry(options.activitySink);
         this.capabilityRegistry = new CapabilityRegistry(options);
         this.toolCoordinator = new ToolCoordinator(
-            options.errorSink ? { errorSink: options.errorSink } : {},
+            Object.freeze({
+                ...(options.errorSink ? { errorSink: options.errorSink } : {}),
+                ...(options.activitySink ? { activitySink: options.activitySink } : {}),
+            }),
         );
         this.eventBus = new CommittedEventBus<TEvents>(options);
         for (const provider of options.hostCapabilities ?? []) {
@@ -515,6 +521,19 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
     /** @internal Used by Core services for committed observation. */
     emitCommitted<TKey extends keyof TEvents & string>(eventName: TKey, payload: TEvents[TKey]) {
         return this.eventBus.emitCommitted(eventName, payload);
+    }
+
+    /** @internal Registers a host listener without granting Plugin setup access. */
+    onCommittedForHost<TKey extends keyof TEvents & string>(
+        eventName: TKey,
+        listener: CommittedEventListener<TEvents[TKey]>,
+    ): Disposable {
+        return this.eventBus.on(eventName, listener);
+    }
+
+    /** @internal Reads active Tool state for the public Core status snapshot. */
+    getActiveToolIdForHost(): string | null {
+        return this.toolCoordinator.getActiveToolId();
     }
 
     async initialize(): Promise<void> {

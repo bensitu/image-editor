@@ -1,6 +1,6 @@
 # Options Reference
 
-Image Editor 3 separates Core configuration from Feature Plugin configuration.
+The modular architecture separates Core configuration from Feature Plugin configuration.
 Pass only `ImageEditorCoreOptions` to `ImageEditorCore`; when using a Preset,
 place those options under `core` and configure each Feature in its own
 namespace.
@@ -28,22 +28,24 @@ const kit = createRedactionPreset(fabric, {
 `ImageEditorCoreOptions` is exported by `@bensitu/image-editor/core` and by the
 package root.
 
-| Option               |      Default | Normalization and behavior                                                                                                                                                 |
-| -------------------- | -----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `canvasWidth`        |        `800` | Initial and hidden-container fallback width. A finite value greater than zero is accepted; otherwise the default is used.                                                  |
-| `canvasHeight`       |        `600` | Initial and hidden-container fallback height. A finite value greater than zero is accepted; otherwise the default is used.                                                 |
-| `backgroundColor`    |  `'#ffffff'` | Fabric canvas background. `null` or `undefined` uses the default; other strings are preserved.                                                                             |
-| `defaultLayoutMode`  |   `'expand'` | Initial image layout. Valid values are `'fit'`, `'cover'`, and `'expand'`; an invalid constructor value uses `'expand'`. Runtime `setLayoutMode()` rejects invalid values. |
-| `groupSelection`     |       `true` | Enables Fabric multi-object selection. `null` or `undefined` uses the default.                                                                                             |
-| `maxInputBytes`      | `33,554,432` | Maximum encoded file bytes or decoded Data URL bytes. Must be a positive safe integer.                                                                                     |
-| `maxInputPixels`     | `67,108,864` | Maximum decoded image pixels. Must be a positive safe integer.                                                                                                             |
-| `imageLoadTimeoutMs` |     `30,000` | Decode and Fabric image-creation timeout. Must be a positive safe integer.                                                                                                 |
-| `maxExportPixels`    | `67,108,864` | Maximum raster output pixels after the multiplier. Must be a positive safe integer.                                                                                        |
-| `maxExportDimension` |     `16,384` | Maximum width or height of an allocated output canvas. Must be a positive safe integer.                                                                                    |
-| `exportMultiplier`   |          `1` | Default export scale. A finite value greater than zero is accepted.                                                                                                        |
-| `initialImageBase64` |         `''` | Optional PNG, JPEG, or WebP Data URL loaded as part of `init()`.                                                                                                           |
-| `onError`            |        unset | Receives contained operation and lifecycle errors as `(error, message)`. A throwing callback is isolated.                                                                  |
-| `onWarning`          |        unset | Receives non-fatal diagnostics as `(error, message)`. A throwing callback is isolated.                                                                                     |
+| Option               |         Default | Normalization and behavior                                                                                                                                                 |
+| -------------------- | --------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canvasWidth`        |           `800` | Initial and hidden-container fallback width. A finite value greater than zero is accepted; otherwise the default is used.                                                  |
+| `canvasHeight`       |           `600` | Initial and hidden-container fallback height. A finite value greater than zero is accepted; otherwise the default is used.                                                 |
+| `backgroundColor`    | `'transparent'` | Fabric canvas background. `null` or `undefined` uses the default; other strings are preserved.                                                                             |
+| `defaultLayoutMode`  |      `'expand'` | Initial image layout. Valid values are `'fit'`, `'cover'`, and `'expand'`; an invalid constructor value uses `'expand'`. Runtime `setLayoutMode()` rejects invalid values. |
+| `imagePreprocessing` |       see below | Bounded downsampling, JPEG EXIF orientation normalization, and output encoding policy.                                                                                     |
+| `groupSelection`     |          `true` | Enables Fabric multi-object selection. `null` or `undefined` uses the default.                                                                                             |
+| `maxInputBytes`      |    `33,554,432` | Maximum encoded file bytes or decoded Data URL bytes. Must be a positive safe integer.                                                                                     |
+| `maxInputPixels`     |    `67,108,864` | Maximum decoded image pixels. Must be a positive safe integer.                                                                                                             |
+| `imageLoadTimeoutMs` |        `30,000` | Decode and Fabric image-creation timeout. Must be a positive safe integer.                                                                                                 |
+| `maxExportPixels`    |    `67,108,864` | Maximum raster output pixels after the multiplier. Must be a positive safe integer.                                                                                        |
+| `maxExportDimension` |        `16,384` | Maximum width or height of an allocated output canvas. Must be a positive safe integer.                                                                                    |
+| `exportMultiplier`   |             `1` | Default export scale. A finite value greater than zero is accepted.                                                                                                        |
+| `exportDefaults`     |       see below | Default area, format, quality, multiplier, file name, and contributor options merged into each export call.                                                                |
+| `initialImageBase64` |            `''` | Optional PNG, JPEG, or WebP Data URL loaded as part of `init()`.                                                                                                           |
+| `onError`            |           unset | Receives contained operation and lifecycle errors as `(error, message)`. A throwing callback is isolated.                                                                  |
+| `onWarning`          |           unset | Receives non-fatal diagnostics as `(error, message)`. A throwing callback is isolated.                                                                                     |
 
 Core owns canvas initialization and lifecycle, image loading and resource
 policy, layout, snapshot load/save, raster export, and diagnostics. Transform,
@@ -79,6 +81,38 @@ constructing state directly.
 The single-side limit (`maxExportDimension`) applies even when total pixels are
 below `maxExportPixels`, because browser canvases also have independent width
 and height constraints.
+
+### Image preprocessing
+
+`imagePreprocessing` supplies constructor defaults, and
+`loadImage(source, { preprocessing })` or `loadImageFile(file, { preprocessing })`
+can override them for one load.
+
+| Option                     | Default | Behavior                                                                                      |
+| -------------------------- | ------: | --------------------------------------------------------------------------------------------- |
+| `downsample`               |  `true` | Reduces an image only when an oriented dimension exceeds its configured maximum.              |
+| `maxWidth`                 |  `4000` | Maximum oriented width retained by preprocessing.                                             |
+| `maxHeight`                |  `3000` | Maximum oriented height retained by preprocessing.                                            |
+| `quality`                  |  `0.92` | JPEG/WebP encoding quality from `0` through `1`.                                              |
+| `format`                   |  `null` | Explicit `image/jpeg`, `image/png`, or `image/webp` output; `null` uses source-format policy. |
+| `preserveSourceFormat`     |  `true` | Keeps the source MIME type when `format` is `null`; `false` uses JPEG.                        |
+| `normalizeExifOrientation` |  `true` | Parses JPEG EXIF orientation and rewrites pixels into display orientation.                    |
+
+The input byte and hard raster budgets are checked before allocation. Downsampling
+therefore reduces ordinary large images within those safety limits; it does not make
+malformed dimensions or pixel bombs acceptable.
+
+### Export defaults
+
+`exportDefaults` accepts the same fields as `CoreExportOptions`: `area`, `format`,
+`quality`, `multiplier`, `fileName`, and `contributors`. Per-call values override
+constructor defaults, while contributor objects are shallow-merged. Defaults are
+`area: 'image'`, `format: 'png'`, `quality: 0.92`, `multiplier: 1`, and
+`fileName: 'edited_image'`.
+
+`exportImageFile()` returns a `File` and does not trigger browser navigation or a DOM
+download. Hosts can upload, store, inspect, or download that file with their preferred
+UI policy; a separate direct-download method is intentionally unnecessary.
 
 ## Direct Plugin composition
 
@@ -155,6 +189,6 @@ options do not move Canvas objects or change persistent layer indices.
 - [Overlay State](../plugins/overlay-state.md)
 - [DOM Controls](../plugins/dom-controls.md)
 
-All public import paths above correspond to `package.json#exports`. For older
+All public import paths above correspond to `package.json#exports`. For legacy
 flat constructor options and facade methods, use the
-[2.x migration guide](../guides/migration-from-v2.md).
+[facade migration guide](../guides/migration-from-v2.md).

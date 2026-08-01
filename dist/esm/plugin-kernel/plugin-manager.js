@@ -109,7 +109,7 @@ export class PluginManager {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new OperationRegistry()
+            value: void 0
         });
         Object.defineProperty(this, "toolCoordinator", {
             enumerable: true,
@@ -159,8 +159,12 @@ export class PluginManager {
             writable: true,
             value: null
         });
+        this.operationRegistry = new OperationRegistry(options.activitySink);
         this.capabilityRegistry = new CapabilityRegistry(options);
-        this.toolCoordinator = new ToolCoordinator(options.errorSink ? { errorSink: options.errorSink } : {});
+        this.toolCoordinator = new ToolCoordinator(Object.freeze({
+            ...(options.errorSink ? { errorSink: options.errorSink } : {}),
+            ...(options.activitySink ? { activitySink: options.activitySink } : {}),
+        }));
         this.eventBus = new CommittedEventBus(options);
         for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) {
             this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
@@ -297,6 +301,12 @@ export class PluginManager {
     }
     emitCommitted(eventName, payload) {
         return this.eventBus.emitCommitted(eventName, payload);
+    }
+    onCommittedForHost(eventName, listener) {
+        return this.eventBus.on(eventName, listener);
+    }
+    getActiveToolIdForHost() {
+        return this.toolCoordinator.getActiveToolId();
     }
     async initialize() {
         var _a;

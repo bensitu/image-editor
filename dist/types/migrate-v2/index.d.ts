@@ -55,4 +55,5 @@ export declare function detectSnapshotVersion(input: string | unknown): Snapshot
 export declare function migrateV2Snapshot(input: string | unknown, options?: SnapshotConversionOptions): EditorSnapshot;
 export declare function v2SnapshotMigration(options?: SnapshotConversionOptions): SnapshotMigration;
 export declare function loadV2Snapshot(editor: ImageEditorCore, input: string | unknown, options?: SnapshotMigrationLoadOptions): Promise<void>;
-export {};
+export { migrateV1OverlayState, OverlayStateV1MigrationError } from './overlay-state-v1.js';
+export type { OverlayStateV1MigrationOptions, OverlayStateV1MigrationWarning, OverlayStateV1TransformPolicy, OverlayStateV1UnsupportedPolicy, } from './overlay-state-v1.js';

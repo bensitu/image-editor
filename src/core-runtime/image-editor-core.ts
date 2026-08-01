@@ -30,6 +30,7 @@ import {
     selectLayoutStrategy,
     ViewportCache,
 } from '../image/layout-manager.js';
+import { preprocessImageDataUrl, requiresImagePreprocessing } from '../image/image-preprocessor.js';
 import { CanvasCoreStateAdapter, disposeReplacedBaseImage } from './core-state-adapter.js';
 import {
     CoreRuntimeError,
@@ -88,17 +89,27 @@ import {
 } from './mutation/index.js';
 import type {
     CoreElementMap,
+    CoreEventListener,
     CoreEventMap,
     CoreExportOptions,
     CoreImageInfo,
+    ContainerObservationOptions,
+    CoreRuntimeStatus,
+    CoreStatusListener,
+    CoreStatusSubscriptionOptions,
+    CoreSubscription,
     EditorLifecycleState,
     ElementTarget,
     FabricModule,
     ImageEditorCoreOptions,
     ImageMimeType,
+    ImagePreprocessingOptions,
     LayoutMode,
     LoadImageOptions,
+    ResolvedCoreExportOptions,
+    ResolvedImagePreprocessingOptions,
     ResolvedImageEditorCoreOptions,
+    ResponsiveLayoutOptions,
 } from './public-types.js';
 import {
     MementoService,
@@ -122,8 +133,17 @@ import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS } from '../utils/internal-opera
 const DEFAULT_CORE_OPTIONS: ResolvedImageEditorCoreOptions = Object.freeze({
     canvasWidth: 800,
     canvasHeight: 600,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
     layoutMode: 'expand',
+    imagePreprocessing: Object.freeze({
+        downsample: true,
+        maxWidth: 4_000,
+        maxHeight: 3_000,
+        quality: 0.92,
+        format: null,
+        preserveSourceFormat: true,
+        normalizeExifOrientation: true,
+    }),
     groupSelection: true,
     maxInputBytes: 32 * 1024 * 1024,
     maxInputPixels: 64 * 1024 * 1024,
@@ -131,6 +151,14 @@ const DEFAULT_CORE_OPTIONS: ResolvedImageEditorCoreOptions = Object.freeze({
     maxExportPixels: 64 * 1024 * 1024,
     maxExportDimension: 16_384,
     exportMultiplier: 1,
+    exportDefaults: Object.freeze({
+        area: 'image',
+        format: 'png',
+        quality: 0.92,
+        multiplier: 1,
+        fileName: 'edited_image',
+        contributors: Object.freeze({}),
+    }),
     initialImageBase64: '',
 });
 const MAX_RETAINED_DIAGNOSTICS = 1_000;
@@ -143,17 +171,105 @@ function positiveInteger(value: number | undefined, fallback: number): number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 
+function unitInterval(value: number | undefined, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+        ? value
+        : fallback;
+}
+
 function isLayoutMode(value: unknown): value is LayoutMode {
     return value === 'fit' || value === 'cover' || value === 'expand';
 }
 
+function isImageMimeType(value: unknown): value is ImageMimeType {
+    return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
+}
+
+function resolveImagePreprocessing(
+    options: ImagePreprocessingOptions | undefined,
+    base: ResolvedImagePreprocessingOptions = DEFAULT_CORE_OPTIONS.imagePreprocessing,
+): ResolvedImagePreprocessingOptions {
+    return Object.freeze({
+        downsample: options?.downsample ?? base.downsample,
+        maxWidth: positiveInteger(options?.maxWidth, base.maxWidth),
+        maxHeight: positiveInteger(options?.maxHeight, base.maxHeight),
+        quality: unitInterval(options?.quality, base.quality),
+        format:
+            options?.format === null || isImageMimeType(options?.format)
+                ? options.format
+                : base.format,
+        preserveSourceFormat: options?.preserveSourceFormat ?? base.preserveSourceFormat,
+        normalizeExifOrientation:
+            options?.normalizeExifOrientation ?? base.normalizeExifOrientation,
+    });
+}
+
+function exportFormat(value: unknown, fallback: ResolvedCoreExportOptions['format']) {
+    return value === 'png' || value === 'jpeg' || value === 'webp' ? value : fallback;
+}
+
+function exportArea(value: unknown, fallback: ResolvedCoreExportOptions['area']) {
+    return value === 'image' || value === 'canvas' ? value : fallback;
+}
+
+function resolveExportDefaults(
+    options: CoreExportOptions | undefined,
+    exportMultiplier: number,
+): ResolvedCoreExportOptions {
+    const defaults = DEFAULT_CORE_OPTIONS.exportDefaults;
+    const fileName = options?.fileName?.trim();
+    return Object.freeze({
+        area: exportArea(options?.area, defaults.area),
+        format: exportFormat(options?.format, defaults.format),
+        quality: unitInterval(options?.quality, defaults.quality),
+        multiplier: positiveFinite(options?.multiplier, exportMultiplier),
+        fileName: fileName || defaults.fileName,
+        contributors: Object.freeze({ ...(options?.contributors ?? {}) }),
+    });
+}
+
+function resolveExportOptions(
+    options: CoreExportOptions,
+    defaults: ResolvedCoreExportOptions,
+): ResolvedCoreExportOptions {
+    const fileName = options.fileName?.trim();
+    return Object.freeze({
+        area: exportArea(options.area, defaults.area),
+        format: exportFormat(options.format, defaults.format),
+        quality: unitInterval(options.quality, defaults.quality),
+        multiplier: positiveFinite(options.multiplier, defaults.multiplier),
+        fileName: fileName || defaults.fileName,
+        contributors: Object.freeze({
+            ...defaults.contributors,
+            ...(options.contributors ?? {}),
+        }),
+    });
+}
+
+function exportFileName(baseName: string, format: ResolvedCoreExportOptions['format']): string {
+    const extension = format === 'jpeg' ? 'jpg' : format;
+    const cleaned =
+        [...baseName]
+            .filter((character) => (character.codePointAt(0) ?? 0) >= 0x20)
+            .join('')
+            .trim() || 'edited_image';
+    return /\.(?:jpe?g|png|webp)$/iu.test(cleaned)
+        ? cleaned.replace(/\.(?:jpe?g|png|webp)$/iu, `.${extension}`)
+        : `${cleaned}.${extension}`;
+}
+
 function resolveOptions(options: ImageEditorCoreOptions): ResolvedImageEditorCoreOptions {
     const layoutMode = options.defaultLayoutMode;
+    const exportMultiplier = positiveFinite(
+        options.exportMultiplier,
+        DEFAULT_CORE_OPTIONS.exportMultiplier,
+    );
     return Object.freeze({
         canvasWidth: positiveFinite(options.canvasWidth, DEFAULT_CORE_OPTIONS.canvasWidth),
         canvasHeight: positiveFinite(options.canvasHeight, DEFAULT_CORE_OPTIONS.canvasHeight),
         backgroundColor: options.backgroundColor ?? DEFAULT_CORE_OPTIONS.backgroundColor,
         layoutMode: isLayoutMode(layoutMode) ? layoutMode : DEFAULT_CORE_OPTIONS.layoutMode,
+        imagePreprocessing: resolveImagePreprocessing(options.imagePreprocessing),
         groupSelection: options.groupSelection ?? DEFAULT_CORE_OPTIONS.groupSelection,
         maxInputBytes: positiveInteger(options.maxInputBytes, DEFAULT_CORE_OPTIONS.maxInputBytes),
         maxInputPixels: positiveInteger(
@@ -172,10 +288,8 @@ function resolveOptions(options: ImageEditorCoreOptions): ResolvedImageEditorCor
             options.maxExportDimension,
             DEFAULT_CORE_OPTIONS.maxExportDimension,
         ),
-        exportMultiplier: positiveFinite(
-            options.exportMultiplier,
-            DEFAULT_CORE_OPTIONS.exportMultiplier,
-        ),
+        exportMultiplier,
+        exportDefaults: resolveExportDefaults(options.exportDefaults, exportMultiplier),
         initialImageBase64: options.initialImageBase64 ?? '',
         ...(options.onError ? { onError: options.onError } : {}),
         ...(options.onWarning ? { onWarning: options.onWarning } : {}),
@@ -320,10 +434,24 @@ function reportSafely(
 function base64ToFile(dataUrl: string, fileName: string): File {
     const [header = '', payload = ''] = dataUrl.split(',', 2);
     const mimeType = /data:([^;]+)/.exec(header)?.[1] ?? 'application/octet-stream';
-    const binary = /;base64/i.test(header) ? atob(payload) : decodeURIComponent(payload);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    return new File([bytes], fileName, { type: mimeType });
+    let bytes: Uint8Array;
+    if (/;base64/i.test(header)) {
+        const buffer = (
+            globalThis as typeof globalThis & {
+                Buffer?: { from(input: string, encoding: 'base64'): Uint8Array };
+            }
+        ).Buffer;
+        if (buffer) {
+            bytes = Uint8Array.from(buffer.from(payload, 'base64'));
+        } else {
+            const binary = atob(payload);
+            bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        }
+    } else {
+        const decoded = decodeURIComponent(payload);
+        bytes = new TextEncoder().encode(decoded);
+    }
+    return new File([bytes.slice().buffer as ArrayBuffer], fileName, { type: mimeType });
 }
 
 export interface LoadStateOptions {
@@ -374,6 +502,9 @@ export class ImageEditorCore {
     private disposePromise: Promise<void> | null = null;
     private emergencyResetPromise: Promise<void> | null = null;
     private readonly diagnostics: CoreDiagnostic[] = [];
+    private readonly statusListeners = new Set<CoreStatusListener>();
+    private lastRuntimeStatus: CoreRuntimeStatus | null = null;
+    private relayoutSequence = 0;
 
     constructor(
         readonly fabric: FabricModule,
@@ -576,12 +707,68 @@ export class ImageEditorCore {
         return this.lifecycle.current;
     }
 
+    getRuntimeStatus(): CoreRuntimeStatus {
+        const lifecycle = this.lifecycle.current;
+        let busy = this.geometry.isRunning || this.documentMutations.isRunning;
+        let activeToolId: string | null = null;
+        if (lifecycle !== 'disposed') {
+            try {
+                busy = busy || this.plugins.hasRunningOperations();
+                activeToolId = this.plugins.getActiveToolIdForHost();
+            } catch {
+                // A status read remains available while runtime services are being replaced.
+            }
+        }
+        return Object.freeze({
+            lifecycle,
+            initialized: lifecycle === 'initialized',
+            imageLoaded: this.isImageLoaded(),
+            busy,
+            activeToolId,
+            layoutMode: this.layoutMode,
+            geometryRevision: this.geometryRevision,
+        });
+    }
+
+    subscribeStatus(
+        listener: CoreStatusListener,
+        options: CoreStatusSubscriptionOptions = {},
+    ): CoreSubscription {
+        this.assertNotDisposed('subscribe to runtime status');
+        if (typeof listener !== 'function') {
+            throw new TypeError('[ImageEditor] Status listener must be a function.');
+        }
+        this.statusListeners.add(listener);
+        if (options.emitCurrent !== false)
+            this.invokeStatusListener(listener, this.getRuntimeStatus());
+        let active = true;
+        return Object.freeze({
+            dispose: () => {
+                if (!active) return;
+                active = false;
+                this.statusListeners.delete(listener);
+            },
+        });
+    }
+
+    on<TKey extends keyof CoreEventMap & string>(
+        eventName: TKey,
+        listener: CoreEventListener<CoreEventMap[TKey]>,
+    ): CoreSubscription {
+        this.assertNotDisposed('subscribe to a Core event');
+        if (typeof listener !== 'function') {
+            throw new TypeError('[ImageEditor] Core event listener must be a function.');
+        }
+        return this.plugins.onCommittedForHost(eventName, listener);
+    }
+
     getDiagnostics(): readonly CoreDiagnostic[] {
         return Object.freeze([...this.diagnostics]);
     }
 
     async init(elements: CoreElementMap): Promise<void> {
         this.lifecycle.beginInitialization();
+        this.emitRuntimeStatus();
         let pluginInitializationStarted = false;
         let pluginInitializationCompleted = false;
         let initialImageLoadStarted = false;
@@ -602,6 +789,7 @@ export class ImageEditorCore {
                 this.updatePlaceholder();
             }
             this.lifecycle.completeInitialization();
+            this.emitRuntimeStatus();
         } catch (error) {
             this.initialImageLoadActive = false;
             const cleanupErrors = await this.rollbackInitialization(
@@ -618,6 +806,7 @@ export class ImageEditorCore {
             } else {
                 this.lifecycle.recoverInitialization();
             }
+            this.emitRuntimeStatus();
             if (initialImageLoadStarted) this.reportError(error, 'Initial image load failed.');
             throw error;
         }
@@ -673,7 +862,8 @@ export class ImageEditorCore {
 
     private async performImageLoad(source: string, options: LoadImageOptions = {}): Promise<void> {
         const encodedImage = inspectEncodedImageDataUrl(source);
-        if (!inferMimeType(source) || !encodedImage) {
+        const sourceMimeType = inferMimeType(source);
+        if (!sourceMimeType || !encodedImage) {
             throw new CoreRuntimeError('[ImageEditor] Unsupported image Data URL.');
         }
         if (encodedImage.encodedBytes > this.options.maxInputBytes) {
@@ -693,6 +883,10 @@ export class ImageEditorCore {
         if (options.concurrency && options.concurrency !== 'replace-pending') {
             throw new CoreRuntimeError('[ImageEditor] Unsupported load concurrency policy.');
         }
+        const preprocessing = resolveImagePreprocessing(
+            options.preprocessing,
+            this.options.imagePreprocessing,
+        );
         try {
             await this.plugins.runOperationForHost(
                 'core:load-image',
@@ -700,9 +894,46 @@ export class ImageEditorCore {
                 async (loadSource, operationContext) => {
                     const sequence = ++this.loadSequence;
                     this.latestLoadSequence = sequence;
+                    const dimensions = encodedImage.dimensions;
+                    const processed =
+                        dimensions &&
+                        requiresImagePreprocessing(
+                            sourceMimeType,
+                            dimensions.width,
+                            dimensions.height,
+                            preprocessing,
+                        )
+                            ? await withCoreTimeout(
+                                  (signal) =>
+                                      preprocessImageDataUrl({
+                                          source: loadSource,
+                                          mimeType: sourceMimeType,
+                                          width: dimensions.width,
+                                          height: dimensions.height,
+                                          options: preprocessing,
+                                          ownerDocument:
+                                              this.canvasElement?.ownerDocument ??
+                                              globalThis.document,
+                                          signal,
+                                      }),
+                                  this.options.imageLoadTimeoutMs,
+                                  'Image preprocessing',
+                                  operationContext.signal,
+                              )
+                            : Object.freeze({
+                                  source: loadSource,
+                                  mimeType: sourceMimeType,
+                                  width: 0,
+                                  height: 0,
+                                  sourceWidth: 0,
+                                  sourceHeight: 0,
+                                  orientation: 1 as const,
+                                  orientationNormalized: false,
+                                  downsampled: false,
+                              });
                     const image = await withCoreTimeout(
                         (signal) =>
-                            this.fabric.FabricImage.fromURL(loadSource, {
+                            this.fabric.FabricImage.fromURL(processed.source, {
                                 crossOrigin: 'anonymous',
                                 signal,
                             }),
@@ -734,7 +965,11 @@ export class ImageEditorCore {
                             operationId: 'core:commit-load-image',
                             conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                             signal: operationContext.signal,
-                            metadata: Object.freeze({ sequence }),
+                            metadata: Object.freeze({
+                                sequence,
+                                downsampled: processed.downsampled,
+                                orientationNormalized: processed.orientationNormalized,
+                            }),
                             mutate: async (commitContext) => {
                                 this.assertCurrentLoad(sequence, commitContext.signal);
                                 const previousBaseImage = this.baseImage;
@@ -768,7 +1003,7 @@ export class ImageEditorCore {
                                 imageAdopted = true;
                                 this.imageLoaded = true;
                                 this.baseImageScale = layout.imageScale;
-                                this.imageMimeType = inferMimeType(loadSource);
+                                this.imageMimeType = processed.mimeType;
                                 this.geometryRevision += 1;
                                 disposeReplacedBaseImage(
                                     previousBaseImage,
@@ -896,12 +1131,9 @@ export class ImageEditorCore {
     }
 
     async exportImageFile(options: CoreExportOptions = {}): Promise<File> {
-        const dataUrl = await this.runExport(options);
-        const format = options.format ?? 'png';
-        return base64ToFile(
-            dataUrl,
-            options.fileName ?? `image.${format === 'jpeg' ? 'jpg' : format}`,
-        );
+        const resolved = resolveExportOptions(options, this.options.exportDefaults);
+        const dataUrl = await this.runExport(resolved);
+        return base64ToFile(dataUrl, exportFileName(resolved.fileName, resolved.format));
     }
 
     isImageLoaded(): boolean {
@@ -934,6 +1166,172 @@ export class ImageEditorCore {
         }
         this.layoutMode = mode;
         this.viewportCache.clear();
+        this.emitRuntimeStatus();
+    }
+
+    resizeCanvas(width: number, height: number): void {
+        this.assertReady('resize the Canvas');
+        if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+            throw new TypeError('[ImageEditor] Canvas dimensions must be positive finite numbers.');
+        }
+        this.setCanvasSize(width, height);
+        this.canvas?.renderAll();
+    }
+
+    resizeToContainer(): void {
+        this.assertReady('resize the Canvas to its container');
+        this.viewportCache.clear();
+        const scrollbarSize = measureScrollbarSize(
+            this.containerElement?.ownerDocument ?? this.canvasElement?.ownerDocument ?? null,
+        );
+        const viewport = this.viewportCache.measure(
+            this.containerElement,
+            { width: this.options.canvasWidth, height: this.options.canvasHeight },
+            scrollbarSize,
+        );
+        const image = this.baseImage;
+        if (!image) {
+            this.setCanvasSize(viewport.width, viewport.height);
+            this.canvas?.renderAll();
+            return;
+        }
+        image.setCoords();
+        const bounds = image.getBoundingRect();
+        const imageFitsViewport =
+            bounds.width <= viewport.width + 0.5 && bounds.height <= viewport.height + 0.5;
+        if (imageFitsViewport) {
+            this.setCanvasSize(Math.max(1, viewport.width - 1), Math.max(1, viewport.height - 1));
+        } else if (this.layoutMode === 'fit' || this.layoutMode === 'cover') {
+            const size = computeScrollableCanvasSize(
+                bounds.width,
+                bounds.height,
+                viewport,
+                scrollbarSize,
+            );
+            this.setCanvasSize(size.width, size.height);
+        } else {
+            this.setCanvasSize(
+                Math.max(viewport.width, Math.ceil(bounds.left + bounds.width)),
+                Math.max(viewport.height, Math.ceil(bounds.top + bounds.height)),
+            );
+        }
+        this.canvas?.renderAll();
+    }
+
+    observeContainer(options: ContainerObservationOptions = {}): CoreSubscription {
+        this.assertReady('observe the Canvas container');
+        const container = this.containerElement;
+        if (!container) {
+            throw new CoreRuntimeError('[ImageEditor] Canvas container is unavailable.');
+        }
+        const ownerWindow = container.ownerDocument.defaultView;
+        const ResizeObserverConstructor = ownerWindow?.ResizeObserver ?? globalThis.ResizeObserver;
+        if (typeof ResizeObserverConstructor !== 'function') {
+            throw new CoreRuntimeError('[ImageEditor] ResizeObserver is unavailable.');
+        }
+        let active = true;
+        let frame: number | null = null;
+        const resize = (): void => {
+            if (!active || this.isDisposingOrDisposed()) return;
+            try {
+                this.resizeToContainer();
+            } catch (error) {
+                this.reportWarning(error, 'Responsive Canvas resize failed.');
+            }
+        };
+        const observer = new ResizeObserverConstructor(() => {
+            if (frame !== null) return;
+            if (ownerWindow?.requestAnimationFrame) {
+                frame = ownerWindow.requestAnimationFrame(() => {
+                    frame = null;
+                    resize();
+                });
+            } else {
+                queueMicrotask(resize);
+            }
+        });
+        observer.observe(container);
+        if (options.resizeImmediately !== false) resize();
+        return Object.freeze({
+            dispose: () => {
+                if (!active) return;
+                active = false;
+                observer.disconnect();
+                if (frame !== null && ownerWindow?.cancelAnimationFrame) {
+                    ownerWindow.cancelAnimationFrame(frame);
+                }
+                frame = null;
+            },
+        });
+    }
+
+    async relayout(options: ResponsiveLayoutOptions = {}): Promise<void> {
+        this.assertReady('recompute the image layout');
+        const mode = options.mode ?? this.layoutMode;
+        if (!isLayoutMode(mode)) {
+            throw new TypeError('[ImageEditor] Layout mode must be "fit", "cover", or "expand".');
+        }
+        const image = this.baseImage;
+        if (!image) {
+            this.layoutMode = mode;
+            this.resizeToContainer();
+            this.emitRuntimeStatus();
+            return;
+        }
+        const canvas = this.requireCanvas('recompute the image layout');
+        const rollback = Object.freeze({
+            left: image.left,
+            top: image.top,
+            scaleX: image.scaleX,
+            scaleY: image.scaleY,
+            canvasWidth: canvas.getWidth(),
+            canvasHeight: canvas.getHeight(),
+            baseImageScale: this.baseImageScale,
+            layoutMode: this.layoutMode,
+        });
+        const scroll = this.containerElement
+            ? Object.freeze({
+                  left: this.containerElement.scrollLeft,
+                  top: this.containerElement.scrollTop,
+              })
+            : null;
+        await this.geometry.run({
+            id: `core:relayout:${++this.relayoutSequence}`,
+            kind: 'transform',
+            operationId: 'core:relayout',
+            metadata: Object.freeze({ mode }),
+            mutateBase: () => {
+                this.layoutMode = mode;
+                this.viewportCache.clear();
+                const layout = this.computeLayout(image);
+                this.setCanvasSize(layout.canvasWidth, layout.canvasHeight);
+                image.set({
+                    left: layout.imageLeft,
+                    top: layout.imageTop,
+                    scaleX: layout.imageScale,
+                    scaleY: layout.imageScale,
+                });
+                image.setCoords();
+                this.baseImageScale = layout.baseImageScale;
+            },
+            rollbackBase: () => {
+                this.layoutMode = rollback.layoutMode;
+                this.baseImageScale = rollback.baseImageScale;
+                this.setCanvasSize(rollback.canvasWidth, rollback.canvasHeight);
+                image.set({
+                    left: rollback.left,
+                    top: rollback.top,
+                    scaleX: rollback.scaleX,
+                    scaleY: rollback.scaleY,
+                });
+                image.setCoords();
+            },
+        });
+        if (options.preserveScroll && scroll && this.containerElement) {
+            this.containerElement.scrollLeft = scroll.left;
+            this.containerElement.scrollTop = scroll.top;
+        }
+        this.emitRuntimeStatus();
     }
 
     emergencyReset(): Promise<void> {
@@ -990,6 +1388,7 @@ export class ImageEditorCore {
             return;
         }
         if (!this.lifecycle.beginDisposal()) return;
+        this.emitRuntimeStatus();
         const errors: unknown[] = [];
         for (const cleanup of [
             () => this.plugins.disposeSync(),
@@ -1048,6 +1447,7 @@ export class ImageEditorCore {
         if (this.disposePromise) return this.disposePromise;
         if (this.lifecycle.current === 'disposed') return Promise.resolve();
         if (!this.lifecycle.beginDisposal()) return this.disposePromise ?? Promise.resolve();
+        this.emitRuntimeStatus();
         this.disposePromise = this.performDisposeAsync();
         return this.disposePromise;
     }
@@ -1136,6 +1536,7 @@ export class ImageEditorCore {
             await this.failEmergencyReset(error);
         }
         this.lifecycle.recoverFault();
+        this.emitRuntimeStatus();
     }
 
     private async runEmergencyStep(
@@ -1158,6 +1559,7 @@ export class ImageEditorCore {
 
     private async disposeAfterEmergencyFailure(): Promise<void> {
         if (!this.lifecycle.beginDisposal()) return;
+        this.emitRuntimeStatus();
         const cleanupSteps: ReadonlyArray<readonly [string, () => void | Promise<void>]> = [
             ['Plugin cleanup failed after emergency reset.', () => this.plugins.dispose()],
             ['Geometry cleanup failed after emergency reset.', () => this.geometry.dispose()],
@@ -1195,12 +1597,15 @@ export class ImageEditorCore {
         this.clearRuntimeReferences();
         this.lifecycle.completeDisposal();
         this.clearPluginApiHandles();
+        this.emitRuntimeStatus();
+        this.statusListeners.clear();
     }
 
     private createPluginManager(): PluginManager<CoreEventMap> {
         const manager = new PluginManager<CoreEventMap>({
             warningSink: (warning) => this.reportWarning(warning.cause, warning.message),
             errorSink: (error) => this.reportError(error, 'Plugin lifecycle failed.'),
+            activitySink: () => this.emitRuntimeStatus(),
             hostCapabilities: [
                 {
                     token: CORE_ENVIRONMENT_CAPABILITY,
@@ -1297,6 +1702,19 @@ export class ImageEditorCore {
             mode: 'read',
             conflictDomains: ['document', 'base-image', 'overlay', 'export', 'state'],
             reentrancy: 'queue',
+        });
+        manager.registerHostOperation({
+            id: 'core:relayout',
+            mode: 'mutation',
+            conflictDomains: [
+                'document',
+                'base-image',
+                'geometry',
+                'overlay',
+                'selection',
+                'state',
+            ],
+            reentrancy: 'replace',
         });
         return manager;
     }
@@ -1663,17 +2081,18 @@ export class ImageEditorCore {
 
     private async runExport(options: CoreExportOptions): Promise<string> {
         this.assertReady('export an image');
+        const resolved = resolveExportOptions(options, this.options.exportDefaults);
         const operation = this.plugins.beginOperationForHost('core:export');
         try {
             const canvas = this.requireCanvas('exportImageBase64');
-            const multiplier = positiveFinite(options.multiplier, this.options.exportMultiplier);
-            const format = options.format ?? 'png';
-            const quality = Math.max(0, Math.min(1, options.quality ?? 0.92));
+            const multiplier = resolved.multiplier;
+            const format = resolved.format;
+            const quality = resolved.quality;
             let left = 0;
             let top = 0;
             let width = canvas.getWidth();
             let height = canvas.getHeight();
-            if ((options.area ?? 'image') === 'image') {
+            if (resolved.area === 'image') {
                 if (!this.baseImage)
                     throw new CoreRuntimeError('[ImageEditor] No image is loaded.');
                 this.baseImage.setCoords();
@@ -1701,7 +2120,7 @@ export class ImageEditorCore {
                     exportCanvas.add(clonedBaseImage);
                     exportCanvas.sendObjectToBack(clonedBaseImage);
                 }
-                await this.exportContributors.render({ canvas: exportCanvas, options });
+                await this.exportContributors.render({ canvas: exportCanvas, options: resolved });
                 exportCanvas.renderAll();
                 return exportCanvas.toDataURL({
                     format,
@@ -1787,6 +2206,36 @@ export class ImageEditorCore {
         reportSafely(this.options.onError, error, message, console.error);
     }
 
+    private emitRuntimeStatus(): void {
+        if (this.statusListeners.size === 0) return;
+        const status = this.getRuntimeStatus();
+        const previous = this.lastRuntimeStatus;
+        if (
+            previous &&
+            previous.lifecycle === status.lifecycle &&
+            previous.initialized === status.initialized &&
+            previous.imageLoaded === status.imageLoaded &&
+            previous.busy === status.busy &&
+            previous.activeToolId === status.activeToolId &&
+            previous.layoutMode === status.layoutMode &&
+            previous.geometryRevision === status.geometryRevision
+        ) {
+            return;
+        }
+        this.lastRuntimeStatus = status;
+        for (const listener of [...this.statusListeners]) {
+            this.invokeStatusListener(listener, status);
+        }
+    }
+
+    private invokeStatusListener(listener: CoreStatusListener, status: CoreRuntimeStatus): void {
+        try {
+            listener(status);
+        } catch (error) {
+            this.reportWarning(error, 'Runtime status listener failed.');
+        }
+    }
+
     private enterFaulted(error: unknown): void {
         const state = this.lifecycle.current;
         if (state === 'disposed' || state === 'disposing') return;
@@ -1803,6 +2252,7 @@ export class ImageEditorCore {
         });
         this.recordDiagnostic(error);
         this.reportError(error, 'Core entered the faulted lifecycle state.');
+        this.emitRuntimeStatus();
     }
 
     private recordDiagnostic(error: unknown, message?: string): CoreDiagnostic {
@@ -1903,6 +2353,8 @@ export class ImageEditorCore {
     private completeDisposal(errors: unknown[], label: string): void {
         this.lifecycle.completeDisposal();
         this.clearPluginApiHandles();
+        this.emitRuntimeStatus();
+        this.statusListeners.clear();
         if (errors.length > 0) {
             throw new CoreRuntimeError(
                 `[ImageEditor] ${label} completed with ${errors.length} cleanup error(s).`,

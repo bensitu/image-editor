@@ -69,6 +69,7 @@ export class ToolCoordinator {
         try {
             const current = this.active;
             this.active = null;
+            this.notifyActivityChange();
             if (current) {
                 const result = current.definition.exit('host-dispose', current.context);
                 if (isPromiseLike(result)) {
@@ -106,9 +107,11 @@ export class ToolCoordinator {
             try {
                 await next.definition.enter(next.context);
                 this.active = next;
+                this.notifyActivityChange();
             }
             catch (error) {
                 this.active = null;
+                this.notifyActivityChange();
                 const transitionError = new ToolTransitionError(toolId, 'failed to enter', next.ownerPluginId, error);
                 reportErrorSafely(this.options.errorSink, transitionError);
                 throw transitionError;
@@ -165,6 +168,7 @@ export class ToolCoordinator {
         if (!current)
             return;
         this.active = null;
+        this.notifyActivityChange();
         try {
             await current.definition.exit(reason, current.context);
         }
@@ -208,6 +212,14 @@ export class ToolCoordinator {
     async waitForTransition() {
         while (this.transitionCompletion)
             await this.transitionCompletion;
+    }
+    notifyActivityChange() {
+        var _a, _b;
+        try {
+            (_b = (_a = this.options).activitySink) === null || _b === void 0 ? void 0 : _b.call(_a);
+        }
+        catch {
+        }
     }
     assertActive(operation) {
         if (this.disposed)

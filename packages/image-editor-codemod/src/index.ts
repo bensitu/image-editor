@@ -461,9 +461,9 @@ function canInsertAwait(call: ts.CallExpression, fileName: string): boolean {
     if (owner) {
         return Boolean(
             ts.canHaveModifiers(owner) &&
-                ts.getModifiers(owner)?.some(
-                    (modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword,
-                ),
+            ts
+                .getModifiers(owner)
+                ?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword),
         );
     }
     const extension = path.extname(fileName).toLowerCase();
@@ -478,7 +478,14 @@ function exportOptionsAreSafe(call: ts.CallExpression): boolean {
     const options = call.arguments[0];
     if (!options || options.kind === ts.SyntaxKind.UndefinedKeyword) return true;
     if (!ts.isObjectLiteralExpression(options)) return false;
-    const safeKeys = new Set(['area', 'format', 'quality', 'multiplier', 'fileName', 'contributors']);
+    const safeKeys = new Set([
+        'area',
+        'format',
+        'quality',
+        'multiplier',
+        'fileName',
+        'contributors',
+    ]);
     return options.properties.every((property) => {
         if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
             return false;

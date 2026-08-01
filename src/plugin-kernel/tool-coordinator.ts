@@ -39,6 +39,7 @@ interface RegisteredTool {
 
 export interface ToolCoordinatorOptions {
     readonly errorSink?: PluginErrorSink;
+    readonly activitySink?: () => void;
 }
 
 export class ToolCoordinator implements Disposable {
@@ -81,6 +82,7 @@ export class ToolCoordinator implements Disposable {
         try {
             const current = this.active;
             this.active = null;
+            this.notifyActivityChange();
             if (current) {
                 const result = current.definition.exit('host-dispose', current.context);
                 if (isPromiseLike(result)) {
@@ -124,8 +126,10 @@ export class ToolCoordinator implements Disposable {
             try {
                 await next.definition.enter(next.context);
                 this.active = next;
+                this.notifyActivityChange();
             } catch (error) {
                 this.active = null;
+                this.notifyActivityChange();
                 const transitionError = new ToolTransitionError(
                     toolId,
                     'failed to enter',
@@ -189,6 +193,7 @@ export class ToolCoordinator implements Disposable {
         const current = this.active;
         if (!current) return;
         this.active = null;
+        this.notifyActivityChange();
         try {
             await current.definition.exit(reason, current.context);
         } catch (error) {
@@ -241,6 +246,14 @@ export class ToolCoordinator implements Disposable {
 
     private async waitForTransition(): Promise<void> {
         while (this.transitionCompletion) await this.transitionCompletion;
+    }
+
+    private notifyActivityChange(): void {
+        try {
+            this.options.activitySink?.();
+        } catch {
+            // Host observation must not change Tool transition behavior.
+        }
     }
 
     private assertActive(operation: string): void {

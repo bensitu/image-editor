@@ -4,7 +4,7 @@
  * @module
  */
 export declare const OVERLAY_STATE_SCHEMA: "image-editor.overlay-state";
-export declare const OVERLAY_STATE_WIRE_VERSION: 1;
+export declare const OVERLAY_STATE_WIRE_VERSION: 2;
 export declare const OVERLAY_STATE_COORDINATE_SPACE: "image-normalized";
 export interface OverlayStateImageReference {
     readonly naturalWidth: number;

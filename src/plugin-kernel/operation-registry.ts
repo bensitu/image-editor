@@ -138,6 +138,9 @@ export class OperationRegistry implements Disposable {
     private pendingRequests: ScheduledOperation[] = [];
     private suspendedReason: Error | null = null;
     private disposed = false;
+    private lastBusy = false;
+
+    constructor(private readonly activitySink?: () => void) {}
 
     register<TArgs>(definition: OperationDefinition<TArgs>, ownerPluginId: string): Disposable {
         this.assertActive('register an operation');
@@ -180,6 +183,7 @@ export class OperationRegistry implements Disposable {
         }
         const active = this.createActive(record, undefined, null);
         this.activeOperations.add(active);
+        this.notifyActivityChange();
         return active.token;
     }
 
@@ -364,6 +368,7 @@ export class OperationRegistry implements Disposable {
             this.startRequest(request);
         } else {
             this.pendingRequests.push(request);
+            this.notifyActivityChange();
         }
     }
 
@@ -373,6 +378,7 @@ export class OperationRegistry implements Disposable {
         request.active = active;
         request.state = 'active';
         this.activeOperations.add(active);
+        this.notifyActivityChange();
         const context: OperationExecutionContext = Object.freeze({
             signal: active.controller.signal,
             token: active.token,
@@ -413,6 +419,7 @@ export class OperationRegistry implements Disposable {
                 this.resolveIdleWaiters();
             });
         this.executingRequests.add(tracked);
+        this.notifyActivityChange();
         void tracked.catch(() => undefined);
     }
 
@@ -772,9 +779,21 @@ export class OperationRegistry implements Disposable {
     }
 
     private resolveIdleWaiters(): void {
+        this.notifyActivityChange();
         if (!this.isIdle()) return;
         for (const resolve of this.idleWaiters) resolve();
         this.idleWaiters.clear();
+    }
+
+    private notifyActivityChange(): void {
+        const busy = !this.isIdle();
+        if (busy === this.lastBusy) return;
+        this.lastBusy = busy;
+        try {
+            this.activitySink?.();
+        } catch {
+            // Host observation must not change operation authority or settlement.
+        }
     }
 
     private assertActive(operation: string): void {

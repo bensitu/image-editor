@@ -459,7 +459,13 @@ function definitionsConflict(first, second) {
 	return domainsOverlap(first.conflictDomains, second.conflictDomains);
 }
 var OperationRegistry = class {
-	constructor() {
+	constructor(activitySink) {
+		Object.defineProperty(this, "activitySink", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: activitySink
+		});
 		Object.defineProperty(this, "operations", {
 			enumerable: true,
 			configurable: true,
@@ -502,6 +508,12 @@ var OperationRegistry = class {
 			writable: true,
 			value: false
 		});
+		Object.defineProperty(this, "lastBusy", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: false
+		});
 	}
 	register(definition, ownerPluginId) {
 		this.assertActive("register an operation");
@@ -534,6 +546,7 @@ var OperationRegistry = class {
 		if (conflicts.length > 0) throw this.conflictError(record, conflicts[0].record, ownerPluginId);
 		const active = this.createActive(record, void 0, null);
 		this.activeOperations.add(active);
+		this.notifyActivityChange();
 		return active.token;
 	}
 	run(operationId, ownerPluginId, args, task, options = {}) {
@@ -645,7 +658,10 @@ var OperationRegistry = class {
 			return;
 		}
 		if (this.findConflicts(request.record, request.options.parent).length === 0) this.startRequest(request);
-		else this.pendingRequests.push(request);
+		else {
+			this.pendingRequests.push(request);
+			this.notifyActivityChange();
+		}
 	}
 	startRequest(request) {
 		if (request.state !== "pending") return;
@@ -653,6 +669,7 @@ var OperationRegistry = class {
 		request.active = active;
 		request.state = "active";
 		this.activeOperations.add(active);
+		this.notifyActivityChange();
 		const context = Object.freeze({
 			signal: active.controller.signal,
 			token: active.token,
@@ -681,6 +698,7 @@ var OperationRegistry = class {
 			this.resolveIdleWaiters();
 		});
 		this.executingRequests.add(tracked);
+		this.notifyActivityChange();
 		tracked.catch(() => void 0);
 	}
 	finishRequest(request) {
@@ -901,9 +919,19 @@ var OperationRegistry = class {
 		return this.activeOperations.size === 0 && this.pendingRequests.length === 0 && this.executingRequests.size === 0;
 	}
 	resolveIdleWaiters() {
+		this.notifyActivityChange();
 		if (!this.isIdle()) return;
 		for (const resolve of this.idleWaiters) resolve();
 		this.idleWaiters.clear();
+	}
+	notifyActivityChange() {
+		var _a;
+		const busy = !this.isIdle();
+		if (busy === this.lastBusy) return;
+		this.lastBusy = busy;
+		try {
+			(_a = this.activitySink) === null || _a === void 0 || _a.call(this);
+		} catch {}
 	}
 	assertActive(operation) {
 		if (this.disposed) throw new require_plugin_identifier.PluginKernelDisposedError(operation);
@@ -1272,6 +1300,7 @@ var ToolCoordinator = class {
 		try {
 			const current = this.active;
 			this.active = null;
+			this.notifyActivityChange();
 			if (current) {
 				const result = current.definition.exit("host-dispose", current.context);
 				if (require_core_capabilities.isPromiseLike(result)) {
@@ -1301,8 +1330,10 @@ var ToolCoordinator = class {
 			try {
 				await next.definition.enter(next.context);
 				this.active = next;
+				this.notifyActivityChange();
 			} catch (error) {
 				this.active = null;
+				this.notifyActivityChange();
 				const transitionError = new require_plugin_identifier.ToolTransitionError(toolId, "failed to enter", next.ownerPluginId, error);
 				require_core_capabilities.reportErrorSafely(this.options.errorSink, transitionError);
 				throw transitionError;
@@ -1350,6 +1381,7 @@ var ToolCoordinator = class {
 		const current = this.active;
 		if (!current) return;
 		this.active = null;
+		this.notifyActivityChange();
 		try {
 			await current.definition.exit(reason, current.context);
 		} catch (error) {
@@ -1383,6 +1415,12 @@ var ToolCoordinator = class {
 	}
 	async waitForTransition() {
 		while (this.transitionCompletion) await this.transitionCompletion;
+	}
+	notifyActivityChange() {
+		var _a, _b;
+		try {
+			(_b = (_a = this.options).activitySink) === null || _b === void 0 || _b.call(_a);
+		} catch {}
 	}
 	assertActive(operation) {
 		if (this.disposed) throw new require_plugin_identifier.PluginKernelDisposedError(operation);
@@ -1468,7 +1506,7 @@ var PluginManager = class {
 			enumerable: true,
 			configurable: true,
 			writable: true,
-			value: new OperationRegistry()
+			value: void 0
 		});
 		Object.defineProperty(this, "toolCoordinator", {
 			enumerable: true,
@@ -1518,8 +1556,12 @@ var PluginManager = class {
 			writable: true,
 			value: null
 		});
+		this.operationRegistry = new OperationRegistry(options.activitySink);
 		this.capabilityRegistry = new CapabilityRegistry(options);
-		this.toolCoordinator = new ToolCoordinator(options.errorSink ? { errorSink: options.errorSink } : {});
+		this.toolCoordinator = new ToolCoordinator(Object.freeze({
+			...options.errorSink ? { errorSink: options.errorSink } : {},
+			...options.activitySink ? { activitySink: options.activitySink } : {}
+		}));
 		this.eventBus = new CommittedEventBus(options);
 		for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
 	}
@@ -1635,6 +1677,12 @@ var PluginManager = class {
 	}
 	emitCommitted(eventName, payload) {
 		return this.eventBus.emitCommitted(eventName, payload);
+	}
+	onCommittedForHost(eventName, listener) {
+		return this.eventBus.on(eventName, listener);
+	}
+	getActiveToolIdForHost() {
+		return this.toolCoordinator.getActiveToolId();
 	}
 	async initialize() {
 		var _a;
@@ -2194,4 +2242,4 @@ Object.defineProperty(exports, 'normalizeThrownError', {
     return normalizeThrownError;
   }
 });
-//# sourceMappingURL=plugin-manager-BoNG0xY_.cjs.map
+//# sourceMappingURL=plugin-manager-iUo9HuAR.cjs.map

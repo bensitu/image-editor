@@ -777,4 +777,5 @@ export async function loadV2Snapshot(editor, input, options = {}) {
         ...(signal ? { signal } : {}),
     });
 }
+export { migrateV1OverlayState, OverlayStateV1MigrationError } from './overlay-state-v1.js';
 //# sourceMappingURL=index.js.map

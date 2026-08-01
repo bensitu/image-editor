@@ -7,7 +7,7 @@ import type * as FabricNS from 'fabric';
 import { type PluginRef, type SynchronousEditorPlugin } from '../plugin-kernel/index.js';
 import { type PluginArrayApis, type PluginPlan } from '../plugin-kernel/plugin-plan.js';
 import { type CoreDiagnostic } from './errors.js';
-import type { CoreElementMap, CoreEventMap, CoreExportOptions, CoreImageInfo, EditorLifecycleState, FabricModule, ImageEditorCoreOptions, LayoutMode, LoadImageOptions, ResolvedImageEditorCoreOptions } from './public-types.js';
+import type { CoreElementMap, CoreEventListener, CoreEventMap, CoreExportOptions, CoreImageInfo, ContainerObservationOptions, CoreRuntimeStatus, CoreStatusListener, CoreStatusSubscriptionOptions, CoreSubscription, EditorLifecycleState, FabricModule, ImageEditorCoreOptions, LayoutMode, LoadImageOptions, ResolvedImageEditorCoreOptions, ResponsiveLayoutOptions } from './public-types.js';
 import { type MissingPluginPolicy, type SnapshotMigration } from './state/index.js';
 export interface LoadStateOptions {
     readonly missingPluginPolicy?: MissingPluginPolicy;
@@ -49,6 +49,9 @@ export declare class ImageEditorCore {
     private disposePromise;
     private emergencyResetPromise;
     private readonly diagnostics;
+    private readonly statusListeners;
+    private lastRuntimeStatus;
+    private relayoutSequence;
     constructor(fabric: FabricModule, options?: ImageEditorCoreOptions);
     use<TApi>(plugin: SynchronousEditorPlugin<TApi, CoreEventMap>): TApi;
     install<TApis, TPlugin extends {
@@ -59,6 +62,9 @@ export declare class ImageEditorCore {
     requirePlugin<TApi>(ref: PluginRef<TApi>): TApi;
     getPluginById(pluginId: string): unknown | null;
     getLifecycleState(): EditorLifecycleState;
+    getRuntimeStatus(): CoreRuntimeStatus;
+    subscribeStatus(listener: CoreStatusListener, options?: CoreStatusSubscriptionOptions): CoreSubscription;
+    on<TKey extends keyof CoreEventMap & string>(eventName: TKey, listener: CoreEventListener<CoreEventMap[TKey]>): CoreSubscription;
     getDiagnostics(): readonly CoreDiagnostic[];
     init(elements: CoreElementMap): Promise<void>;
     private createCanvas;
@@ -73,6 +79,10 @@ export declare class ImageEditorCore {
     getImageInfo(): CoreImageInfo | null;
     getCanvas(): FabricNS.Canvas | null;
     setLayoutMode(mode: LayoutMode): void;
+    resizeCanvas(width: number, height: number): void;
+    resizeToContainer(): void;
+    observeContainer(options?: ContainerObservationOptions): CoreSubscription;
+    relayout(options?: ResponsiveLayoutOptions): Promise<void>;
     emergencyReset(): Promise<void>;
     forceDispose(): Promise<void>;
     /**
@@ -122,6 +132,8 @@ export declare class ImageEditorCore {
     private updatePlaceholder;
     private reportWarning;
     private reportError;
+    private emitRuntimeStatus;
+    private invokeStatusListener;
     private enterFaulted;
     private recordDiagnostic;
     private assertReady;

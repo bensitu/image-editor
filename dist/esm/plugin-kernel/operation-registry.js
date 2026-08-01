@@ -37,7 +37,13 @@ function definitionsConflict(first, second) {
     return domainsOverlap(first.conflictDomains, second.conflictDomains);
 }
 export class OperationRegistry {
-    constructor() {
+    constructor(activitySink) {
+        Object.defineProperty(this, "activitySink", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: activitySink
+        });
         Object.defineProperty(this, "operations", {
             enumerable: true,
             configurable: true,
@@ -75,6 +81,12 @@ export class OperationRegistry {
             value: null
         });
         Object.defineProperty(this, "disposed", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "lastBusy", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -121,6 +133,7 @@ export class OperationRegistry {
         }
         const active = this.createActive(record, undefined, null);
         this.activeOperations.add(active);
+        this.notifyActivityChange();
         return active.token;
     }
     run(operationId, ownerPluginId, args, task, options = {}) {
@@ -253,6 +266,7 @@ export class OperationRegistry {
         }
         else {
             this.pendingRequests.push(request);
+            this.notifyActivityChange();
         }
     }
     startRequest(request) {
@@ -262,6 +276,7 @@ export class OperationRegistry {
         request.active = active;
         request.state = 'active';
         this.activeOperations.add(active);
+        this.notifyActivityChange();
         const context = Object.freeze({
             signal: active.controller.signal,
             token: active.token,
@@ -294,6 +309,7 @@ export class OperationRegistry {
             this.resolveIdleWaiters();
         });
         this.executingRequests.add(tracked);
+        this.notifyActivityChange();
         void tracked.catch(() => undefined);
     }
     finishRequest(request) {
@@ -576,11 +592,24 @@ export class OperationRegistry {
             this.executingRequests.size === 0);
     }
     resolveIdleWaiters() {
+        this.notifyActivityChange();
         if (!this.isIdle())
             return;
         for (const resolve of this.idleWaiters)
             resolve();
         this.idleWaiters.clear();
+    }
+    notifyActivityChange() {
+        var _a;
+        const busy = !this.isIdle();
+        if (busy === this.lastBusy)
+            return;
+        this.lastBusy = busy;
+        try {
+            (_a = this.activitySink) === null || _a === void 0 ? void 0 : _a.call(this);
+        }
+        catch {
+        }
     }
     assertActive(operation) {
         if (this.disposed)

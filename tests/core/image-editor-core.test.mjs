@@ -130,6 +130,85 @@ test('ImageEditorCore installs typed plugins before init and loads a core-only i
     await disposeEditor(editor);
 });
 
+test('Core publishes runtime status and committed host events through disposable subscriptions', async () => {
+    const { editor, ids } = createCore();
+    const statuses = [];
+    const loaded = [];
+    editor.subscribeStatus((status) => statuses.push(status));
+    editor.on('image:loaded', (info) => loaded.push(info));
+
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.loadImage(makeImageDataUrl({ width: 72, height: 48 }));
+
+    assert.equal(statuses[0].lifecycle, 'configured');
+    assert.equal(
+        statuses.some(({ lifecycle }) => lifecycle === 'initializing'),
+        true,
+    );
+    assert.equal(
+        statuses.some(({ busy }) => busy),
+        true,
+    );
+    assert.deepEqual(
+        {
+            lifecycle: editor.getRuntimeStatus().lifecycle,
+            imageLoaded: editor.getRuntimeStatus().imageLoaded,
+            busy: editor.getRuntimeStatus().busy,
+        },
+        { lifecycle: 'initialized', imageLoaded: true, busy: false },
+    );
+    assert.equal(loaded.length, 1);
+    assert.equal(loaded[0].naturalWidth, 72);
+
+    await editor.disposeAsync();
+    assert.equal(statuses.at(-1).lifecycle, 'disposed');
+});
+
+test('responsive Core methods resize the viewport and explicitly recompute image layout', async () => {
+    const ids = resetEditorDom({ containerWidth: 200, containerHeight: 100 });
+    const editor = new ImageEditorCore(fabric, { canvasWidth: 320, canvasHeight: 240 });
+    const geometryEvents = [];
+    editor.on('geometry:committed', (descriptor) => geometryEvents.push(descriptor));
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.loadImage(makeImageDataUrl({ width: 400, height: 200 }));
+
+    await editor.relayout({ mode: 'fit' });
+    assert.equal(editor.getRuntimeStatus().layoutMode, 'fit');
+    assert.equal(editor.getImageInfo().geometryRevision, 2);
+    assert.equal(editor.getImageInfo().width <= 199, true);
+    assert.equal(editor.getImageInfo().height <= 99, true);
+    assert.equal(geometryEvents.at(-1).operationId, 'core:relayout');
+
+    const container = document.getElementById(ids.canvasContainer);
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: 300 });
+    Object.defineProperty(container, 'clientHeight', { configurable: true, value: 150 });
+    editor.resizeToContainer();
+    assert.deepEqual(
+        { width: editor.getCanvas().getWidth(), height: editor.getCanvas().getHeight() },
+        { width: 299, height: 149 },
+    );
+    await editor.disposeAsync();
+});
+
+test('Core uses a transparent Canvas and applies configured export defaults', async () => {
+    const { editor, ids } = createCore({
+        exportDefaults: {
+            area: 'canvas',
+            format: 'jpeg',
+            quality: 0.8,
+            fileName: 'review-copy',
+        },
+    });
+    await editor.init({ canvas: ids.canvas });
+    assert.equal(editor.getCanvas().backgroundColor, 'transparent');
+    await editor.loadImage(makeImageDataUrl({ width: 64, height: 48 }));
+
+    const file = await editor.exportImageFile();
+    assert.equal(file.name, 'review-copy.jpg');
+    assert.equal(file.type, 'image/jpeg');
+    await editor.disposeAsync();
+});
+
 test('Transform plugin preserves scale clamp, zoom, rotation, flips, and one-mutation reset', async () => {
     const { editor, ids } = createCore();
     const descriptors = [];
