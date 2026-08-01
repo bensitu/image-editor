@@ -1,7 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-DVpJS3kp.cjs');
+const require_overlay = require('./overlay-BcmsFExs.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-CP6C0Dc2.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 
@@ -329,6 +329,12 @@ var AnnotationController = class {
 			writable: true,
 			value: void 0
 		});
+		Object.defineProperty(this, "listOrder", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: void 0
+		});
 		Object.defineProperty(this, "mutationSequence", {
 			enumerable: true,
 			configurable: true,
@@ -356,6 +362,7 @@ var AnnotationController = class {
 		const configuredLimit = options.maxAnnotationCount;
 		if (configuredLimit !== void 0 && (!Number.isSafeInteger(configuredLimit) || configuredLimit <= 0 || configuredLimit > HARD_MAX_ANNOTATION_COUNT)) throw new AnnotationValidationError(`Annotation count limit must be an integer from 1 to ${HARD_MAX_ANNOTATION_COUNT}.`);
 		this.maxAnnotationCount = configuredLimit !== null && configuredLimit !== void 0 ? configuredLimit : DEFAULT_MAX_ANNOTATION_COUNT;
+		this.listOrder = options.listOrder === "back-to-front" ? "back-to-front" : "front-to-back";
 		this.registrations.push(overlay.registerKind({
 			id: ANNOTATION_PREVIEW_KIND,
 			ownerPluginId: ANNOTATION_FOUNDATION_ID,
@@ -379,7 +386,9 @@ var AnnotationController = class {
 		const objects = this.overlay.list(normalized);
 		const selected = new Set(this.overlay.getSelection().ids);
 		const allLayers = this.persistentOverlayObjects();
-		return Object.freeze(objects.filter((object) => this.isAnnotationObject(object)).map((object) => this.describe(object, selected, allLayers)));
+		const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => this.describe(object, selected, allLayers));
+		if (this.listOrder === "front-to-back") descriptors.reverse();
+		return Object.freeze(descriptors);
 	}
 	get(id) {
 		this.assertIdentifier(id, "Annotation id");
@@ -1094,4 +1103,4 @@ Object.defineProperty(exports, 'annotationFoundationRef', {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-R4ake7XT.cjs.map
+//# sourceMappingURL=annotation-aPWAyROE.cjs.map

@@ -133,6 +133,13 @@ Only namespaces supported by the selected Preset are accepted. See
 [Typed Presets](./presets.md) for the Minimal, Redaction, Annotation, and Full
 compositions.
 
+### Overlay list ordering
+
+`masks.listOrder` controls `masks.getAll()` and Mask change-callback order;
+`annotations.listOrder` controls `annotations.list()`. Both accept `front-to-back` (the default,
+topmost first) or `back-to-front` (Fabric Canvas bottom-to-top order). These display/API ordering
+options do not move Canvas objects or change persistent layer indices.
+
 ## Feature references
 
 - [Transform and Core API](./api.md)

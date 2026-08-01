@@ -62,6 +62,7 @@ const MASK_OPTION_NAMES = new Map<string, string>([
     ['bindMasksToImageTransform', 'bindToImageTransform'],
     ['maskName', 'namePrefix'],
 ]);
+const ANNOTATION_OPTION_NAMES = new Map<string, string>([['annotationListOrder', 'listOrder']]);
 
 const CORE_METHODS = new Set([
     'init',
@@ -150,6 +151,7 @@ interface OptionAnalysis {
     readonly transform: readonly OptionEntry[];
     readonly history: readonly OptionEntry[];
     readonly masks: readonly OptionEntry[];
+    readonly annotations: readonly OptionEntry[];
     readonly blocked: boolean;
     readonly requiresFullPreset: boolean;
 }
@@ -285,6 +287,7 @@ function analyzeOptions(
             transform: Object.freeze([]),
             history: Object.freeze([]),
             masks: Object.freeze([]),
+            annotations: Object.freeze([]),
             blocked: false,
             requiresFullPreset: false,
         });
@@ -307,6 +310,7 @@ function analyzeOptions(
         transform: [] as OptionEntry[],
         history: [] as OptionEntry[],
         masks: [] as OptionEntry[],
+        annotations: [] as OptionEntry[],
     };
     let blocked = false;
     for (const property of node.properties) {
@@ -358,6 +362,7 @@ function analyzeOptions(
             ['transform', TRANSFORM_OPTION_NAMES],
             ['history', HISTORY_OPTION_NAMES],
             ['masks', MASK_OPTION_NAMES],
+            ['annotations', ANNOTATION_OPTION_NAMES],
         ] as const;
         const mapping = mappings.find(([, names]) => names.has(name));
         if (mapping) {
@@ -383,9 +388,14 @@ function analyzeOptions(
         transform: Object.freeze(groups.transform),
         history: Object.freeze(groups.history),
         masks: Object.freeze(groups.masks),
+        annotations: Object.freeze(groups.annotations),
         blocked,
         requiresFullPreset:
-            groups.transform.length + groups.history.length + groups.masks.length > 0,
+            groups.transform.length +
+                groups.history.length +
+                groups.masks.length +
+                groups.annotations.length >
+            0,
     });
 }
 
@@ -397,6 +407,9 @@ function fullPresetOptions(options: OptionAnalysis): string | null {
     }
     if (options.history.length > 0) groups.push(`history: ${optionObject(options.history)}`);
     if (options.masks.length > 0) groups.push(`masks: ${optionObject(options.masks)}`);
+    if (options.annotations.length > 0) {
+        groups.push(`annotations: ${optionObject(options.annotations)}`);
+    }
     return groups.length > 0 ? `{ ${groups.join(', ')} }` : null;
 }
 

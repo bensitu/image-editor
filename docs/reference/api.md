@@ -194,7 +194,9 @@ must have a versioned Codec. See [Overlay transform binding](../plugins/overlay-
 `removeAll()`, and `flatten`. `removeAll()` takes no History option: Mask changes
 always use the shared Overlay transaction and History policy. Labels and
 selection artifacts are transient. Configuration controls defaults, labels,
-rotation, list order, transform binding, and naming.
+rotation, list order, transform binding, and naming. `getAll()` defaults to
+`front-to-back` (topmost first); set `listOrder: 'back-to-front'` to follow
+Fabric's bottom-to-top Canvas order. List order never changes the Canvas layer order.
 
 ### Filters
 
@@ -222,7 +224,8 @@ commit is rollback-safe. See [Mosaic](../plugins/mosaic.md).
 The Foundation depends on Overlay and owns annotation descriptors, selection,
 metadata, hide/lock, ordering, remove, flatten, and subscriptions. Concrete Text,
 Shape, and Draw Plugins register Feature definitions and Codecs. See
-[Annotations](../plugins/annotations.md).
+[Annotations](../plugins/annotations.md). `list()` uses the same configurable
+`front-to-back` or `back-to-front` ordering as Mask lists.
 
 ### Text
 

@@ -66,7 +66,7 @@ async function createDrawStroke(draw) {
 
 function commitMoveGesture(editor, object, left, top) {
     const canvas = editor.getCanvas();
-    canvas.fire('before:transform', { target: object, transform: { action: 'drag' } });
+    canvas.fire('before:transform', { transform: { action: 'drag', target: object } });
     object.set({ left, top });
     object.setCoords();
     canvas.fire('object:moving', { target: object });

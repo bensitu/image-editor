@@ -1295,10 +1295,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					};
 				},
 				restore: (value) => {
-					var _a;
 					this.counter = value.counter;
-					const masks = this.getAll();
-					this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+					this.lastMask = this.findLatestMask();
 					this.reattachRuntimeState();
 				},
 				clearState: () => {
@@ -1340,7 +1338,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				includeHidden: true,
 				includeLocked: true
 			}).filter(isMaskObject);
-			if (this.options.listOrder === "back-to-front") masks.reverse();
+			if (this.options.listOrder === "front-to-back") masks.reverse();
 			return Object.freeze(masks);
 		}
 		remove(id) {
@@ -1387,9 +1385,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				includeHidden: false,
 				includeLocked: true
 			}, options).then(() => {
-				var _a;
-				const masks = this.getAll();
-				this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+				this.lastMask = this.findLatestMask();
 				this.notifyChange();
 			});
 		}
@@ -1524,18 +1520,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			for (const object of canvas.getObjects()) if (isMaskObject(object)) this.counter = Math.max(this.counter, object.maskId);
 		}
 		removeMaskObject(mask) {
-			var _a, _b;
+			var _a;
 			removeLabelForMask(this.labelContext(), mask);
 			detachMaskHoverHandlers(mask);
 			const canvas = this.host.requireCanvas("remove a mask");
 			const canvasWithSelection = canvas;
 			if ((typeof canvasWithSelection.getActiveObjects === "function" ? canvasWithSelection.getActiveObjects() : [(_a = canvasWithSelection.getActiveObject) === null || _a === void 0 ? void 0 : _a.call(canvasWithSelection)].filter((object) => !!object)).includes(mask)) canvas.discardActiveObject();
 			canvas.remove(mask);
-			if (this.lastMask === mask) {
-				const masks = this.getAll();
-				this.lastMask = (_b = masks[masks.length - 1]) !== null && _b !== void 0 ? _b : null;
-			}
+			if (this.lastMask === mask) this.lastMask = this.findLatestMask();
 			this.host.requestRender();
+		}
+		findLatestMask() {
+			let latest = null;
+			for (const mask of this.getAll()) if (!latest || mask.maskId > latest.maskId) latest = mask;
+			return latest;
 		}
 		notifyChange() {
 			var _a, _b;

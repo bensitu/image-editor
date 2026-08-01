@@ -377,10 +377,11 @@ export class OverlayFoundationController {
             configurable: true,
             writable: true,
             value: (event) => {
-                var _a;
-                if (!event.target)
+                var _a, _b, _c;
+                const target = (_a = event.target) !== null && _a !== void 0 ? _a : (_b = event.transform) === null || _b === void 0 ? void 0 : _b.target;
+                if (!target)
                     return;
-                this.beginGesture(event.target, gestureAction((_a = event.transform) === null || _a === void 0 ? void 0 : _a.action));
+                this.beginGesture(target, gestureAction((_c = event.transform) === null || _c === void 0 ? void 0 : _c.action));
             }
         });
         Object.defineProperty(this, "onObjectMoving", {
@@ -421,6 +422,19 @@ export class OverlayFoundationController {
                     return;
                 }
                 this.resolveGesture(this.activeGesture);
+            }
+        });
+        Object.defineProperty(this, "onMouseUp", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: () => {
+                const gesture = this.activeGesture;
+                if (!gesture || gesture.completionSettled)
+                    return;
+                const reason = abortError('Overlay gesture ended without modifying its target.');
+                gesture.quietCancellationReason = reason;
+                this.failGesture(gesture, reason);
             }
         });
         try {
@@ -483,6 +497,7 @@ export class OverlayFoundationController {
             canvas.on('object:scaling', this.onObjectScaling);
             canvas.on('object:rotating', this.onObjectRotating);
             canvas.on('object:modified', this.onObjectModified);
+            canvas.on('mouse:up', this.onMouseUp);
             canvas.on('selection:created', this.onSelectionChanged);
             canvas.on('selection:updated', this.onSelectionChanged);
             canvas.on('selection:cleared', this.onSelectionChanged);
@@ -1062,6 +1077,7 @@ export class OverlayFoundationController {
             canvas.off('object:scaling', this.onObjectScaling);
             canvas.off('object:rotating', this.onObjectRotating);
             canvas.off('object:modified', this.onObjectModified);
+            canvas.off('mouse:up', this.onMouseUp);
             canvas.off('selection:created', this.onSelectionChanged);
             canvas.off('selection:updated', this.onSelectionChanged);
             canvas.off('selection:cleared', this.onSelectionChanged);
@@ -1268,6 +1284,7 @@ export class OverlayFoundationController {
             boundary,
             previewController,
             completionSettled: false,
+            quietCancellationReason: null,
             previewWork: Promise.resolve(),
             transaction: null,
             context: Object.freeze({
@@ -1295,6 +1312,7 @@ export class OverlayFoundationController {
                 await gesture.previewWork;
                 return this.createMutationDescriptor(id, 'overlay:gesture', gesture.action, targets, context.metadata);
             },
+            rollback: () => undefined,
             synchronize: (descriptor, context) => this.runInteractionPolicies(targets, descriptor, context, 'synchronize'),
             validate: (descriptor, context) => this.validateMutation(targets, descriptor, context),
             describeCommit: (descriptor) => descriptor,
@@ -1305,7 +1323,12 @@ export class OverlayFoundationController {
             return this.mutations.run(request).then(() => undefined);
         };
         const previousCommit = this.gestureCommitTail;
-        const transaction = previousCommit ? previousCommit.then(commit) : commit();
+        const rawTransaction = previousCommit ? previousCommit.then(commit) : commit();
+        const transaction = rawTransaction.catch((error) => {
+            if (error === gesture.quietCancellationReason)
+                return;
+            throw error;
+        });
         gesture.transaction = transaction;
         this.gestureCommitTail = transaction;
         this.lastGestureTransaction = transaction;

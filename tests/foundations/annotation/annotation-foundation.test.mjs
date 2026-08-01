@@ -119,11 +119,11 @@ function testAnnotationPlugin(id = 'annotation:test-fixture') {
     });
 }
 
-async function createEditor({ feature = true, historyEnabled = true } = {}) {
+async function createEditor({ feature = true, historyEnabled = true, listOrder } = {}) {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
     const editor = new ImageEditorCore(fabric, { canvasWidth: 320, canvasHeight: 240 });
     const overlay = editor.use(overlayFoundationPlugin());
-    const annotations = editor.use(annotationFoundationPlugin());
+    const annotations = editor.use(annotationFoundationPlugin({ listOrder }));
     const history = editor.use(historyPlugin({ enabled: historyEnabled }));
     const featureApi = feature ? editor.use(testAnnotationPlugin()) : null;
     await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
@@ -292,6 +292,29 @@ test('descriptors reuse Overlay identity and validate shared state', async () =>
     await dispose(editor);
 });
 
+test('Annotation lists support front-to-back and back-to-front ordering', async () => {
+    for (const [listOrder, expected] of [
+        [undefined, ['second', 'first']],
+        ['front-to-back', ['second', 'first']],
+        ['back-to-front', ['first', 'second']],
+    ]) {
+        const { annotations, editor, featureApi } = await createEditor({ listOrder });
+        await load(editor);
+        const firstId = await featureApi.create({ name: 'First' });
+        const secondId = await featureApi.create({ name: 'Second' });
+
+        assert.deepEqual(
+            annotations
+                .list()
+                .map(({ id }) =>
+                    id === firstId ? 'first' : id === secondId ? 'second' : 'unexpected',
+                ),
+            expected,
+        );
+        await dispose(editor);
+    }
+});
+
 test('State round trip restores metadata, interaction, selection, and layer', async () => {
     const { annotations, editor, featureApi } = await createEditor();
     await load(editor);
@@ -305,7 +328,7 @@ test('State round trip restores metadata, interaction, selection, and layer', as
     await editor.loadFromState(snapshot);
     assert.deepEqual(
         annotations.list({ includeHidden: true, includeLocked: true }).map((entry) => entry.id),
-        [secondId, firstId],
+        [firstId, secondId],
     );
     assert.equal(annotations.get(firstId).locked, true);
     assert.deepEqual(annotations.get(firstId).metadata, { revision: 3 });

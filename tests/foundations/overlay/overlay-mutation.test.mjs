@@ -127,7 +127,7 @@ test('programmatic insertion rejects unregistered objects before commit', async 
 });
 
 function beginGesture(editor, target, action) {
-    editor.getCanvas().fire('before:transform', { target, transform: { action } });
+    editor.getCanvas().fire('before:transform', { transform: { action, target } });
 }
 
 function previewGesture(editor, target, eventName) {
@@ -335,6 +335,31 @@ test('repeated before:transform events remain idempotent within one gesture', as
     rect.set({ left: 71, top: 63 });
     previewGesture(editor, rect, 'object:moving');
     endGesture(editor, rect);
+    await overlay.waitForIdle();
+
+    assert.equal(history.getState().size, 1);
+    assert.equal(committed.length, 1);
+    assert.deepEqual(errors, []);
+    await dispose(editor);
+});
+
+test('click-only transforms settle quietly and do not block the next gesture', async () => {
+    const { committed, editor, errors, history, overlay } = await createEditor();
+    const first = addRect(editor, 'rect:click-only', { left: 10, top: 10 });
+    const second = addRect(editor, 'rect:next-gesture', { left: 90, top: 70 });
+    const canvas = editor.getCanvas();
+
+    beginGesture(editor, first, 'drag');
+    canvas.fire('mouse:up', { target: first });
+    await overlay.waitForIdle();
+
+    assert.equal(history.getState().size, 0);
+    assert.equal(committed.length, 0);
+
+    beginGesture(editor, second, 'drag');
+    second.set({ left: 130, top: 95 });
+    previewGesture(editor, second, 'object:moving');
+    endGesture(editor, second);
     await overlay.waitForIdle();
 
     assert.equal(history.getState().size, 1);

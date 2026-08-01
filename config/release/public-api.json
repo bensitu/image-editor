@@ -4231,7 +4231,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "f5834e5e1ea1ed92dfdf384fc6821aa9dc8398c5f8ea7ceec22bc62263cb4d7a",
+        "graphSha256": "014589d49904351ba0140b92d5b1ed5b2780f7c6711fd89c82fcd101be8ba650",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4315,11 +4315,11 @@
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
-                "sha256": "4d8db94b42b50db3419b23dd95a3c184930ec89e39a21a33a2c8adff7fb32aca"
+                "sha256": "7547d3fe2804a2d459e3ef6338b72e8f39ef1670bcf37aae8f5277bf23c96f29"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-definition.d.ts",
-                "sha256": "a52342d467e4f129876fe12a3d5900ab407f94b8ce7b1f360df13cfbe94c8d49"
+                "sha256": "190befa368590556f2e8373c0067023f6dbc32b65c049388a5508cc3b8d369f5"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-errors.d.ts",
@@ -4511,7 +4511,7 @@
             },
             {
                 "file": "dist/types/plugins/mask/mask-controller.d.ts",
-                "sha256": "3dd558811d645b9c8182822c99b26a391fcc777cb2f9703d73e09d09c085a0fb"
+                "sha256": "0f6b16671ea9a7d523711a5ad1d61d6e8aacb4e22bd4b19e7334a3ad6810e46d"
             },
             {
                 "file": "dist/types/plugins/mosaic/index.d.ts",

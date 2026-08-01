@@ -161,11 +161,11 @@ test('Mask Plugin creates every built-in shape and custom Fabric generators with
     assert.ok(custom instanceof fabric.Triangle);
     assert.deepEqual(
         masks.getAll().map((mask) => mask.maskId),
-        [1, 2, 3, 4, 5],
+        [5, 4, 3, 2, 1],
     );
     assert.deepEqual(
         masks.getAll().map((mask) => mask.maskName),
-        ['mask1', 'mask2', 'mask3', 'mask4', 'mask5'],
+        ['mask5', 'mask4', 'mask3', 'mask2', 'mask1'],
     );
     assert.equal(overlay.getByPersistentId('mask-5'), custom);
     assert.equal(changes.length, 5);
@@ -301,7 +301,7 @@ test('create, remove, removeSelected, and removeAll maintain counter and list or
     const third = await masks.create({ left: 110 });
     assert.deepEqual(
         masks.getAll().map((mask) => mask.maskUid),
-        [third.maskUid, second.maskUid, first.maskUid],
+        [first.maskUid, second.maskUid, third.maskUid],
     );
     await masks.remove(second.maskUid);
     assert.equal(masks.getAll().length, 2);
@@ -354,6 +354,54 @@ test('list selection keeps an overlapping Mask as the canvas interaction target'
     await dispose(editor);
 });
 
+test('one pointer click switches between non-overlapping Masks', async () => {
+    const { editor, masks, overlay } = await createEditor();
+    await load(editor);
+    const first = await masks.create({ left: 40, top: 35, width: 64, height: 48 });
+    const second = await masks.create({ left: 150, top: 120, width: 64, height: 48 });
+    const canvas = editor.getCanvas();
+    Object.defineProperty(canvas.upperCanvasEl, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+            bottom: 260,
+            height: 260,
+            left: 0,
+            right: 360,
+            top: 0,
+            width: 360,
+        }),
+    });
+    const click = (x, y) => {
+        canvas._onMouseDown(
+            new window.MouseEvent('mousedown', {
+                bubbles: true,
+                button: 0,
+                clientX: x,
+                clientY: y,
+            }),
+        );
+        canvas._onMouseUp(
+            new window.MouseEvent('mouseup', {
+                bubbles: true,
+                button: 0,
+                clientX: x,
+                clientY: y,
+            }),
+        );
+    };
+
+    click(60, 55);
+    await overlay.waitForIdle();
+    assert.equal(canvas.getActiveObject(), first);
+    assert.equal(overlay.getSelection().primaryId, first.maskUid);
+
+    click(170, 140);
+    await overlay.waitForIdle();
+    assert.equal(canvas.getActiveObject(), second);
+    assert.equal(overlay.getSelection().primaryId, second.maskUid);
+    await dispose(editor);
+});
+
 test('list-selected overlapping Mask keeps its label aligned during a live drag', async () => {
     const { editor, masks, overlay } = await createEditor({ labelOffset: 5 });
     await load(editor);
@@ -370,8 +418,7 @@ test('list-selected overlapping Mask keeps its label aligned during a live drag'
         .filter((object) => object.editorObjectKind === 'mask');
 
     canvas.fire('before:transform', {
-        target: lower,
-        transform: { action: 'drag' },
+        transform: { action: 'drag', target: lower },
     });
     // Keep the target's aCoords stale to mirror Fabric's drag event order.
     lower.set({ left: 160, top: 95 });
@@ -476,8 +523,7 @@ test('Mask labels are transient, track object movement, and never enter Snapshot
     const before = { left: label.left, top: label.top };
     const canvas = editor.getCanvas();
     canvas.fire('before:transform', {
-        target: mask,
-        transform: { action: 'drag' },
+        transform: { action: 'drag', target: mask },
     });
     // Fabric emits object:moving before refreshing the target's aCoords.
     mask.set({ left: 80, top: 65 });

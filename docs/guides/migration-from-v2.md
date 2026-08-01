@@ -93,6 +93,16 @@ Flat options move to their owning module:
 | Mosaic brush/block/output/point limits               | `mosaic`                               |
 | annotation defaults                                  | `annotations`, `text`, `shape`, `draw` |
 
+The legacy list-order options map directly to their owning Plugin namespaces:
+
+| 2.x option            | Current option          |
+| --------------------- | ----------------------- |
+| `maskListOrder`       | `masks.listOrder`       |
+| `annotationListOrder` | `annotations.listOrder` |
+
+Both default to `front-to-back`; `back-to-front` preserves Fabric's bottom-to-top Canvas order.
+Neither option changes the actual layer order.
+
 `onError` and `onWarning` remain Core diagnostics. Feature change
 callbacks become Plugin subscriptions (`history.onChange`, `filters.subscribe`,
 `annotations.subscribe`, and session subscriptions). Image lifecycle and

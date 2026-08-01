@@ -6,7 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
-import type { GeometryMutationDescriptor } from '../../core/index.js';
+import type { GeometryMutationDescriptor, OverlayListOrder } from '../../core/index.js';
 import type { Disposable, MaybePromise } from '../../sdk/index.js';
 import type {
     FlattenOptions,
@@ -157,4 +157,13 @@ export interface AnnotationAuthoringPort {
 
 export interface AnnotationFoundationOptions {
     readonly maxAnnotationCount?: number;
+    /**
+     * Ordering used by `AnnotationPluginApi.list()`.
+     *
+     * `front-to-back` returns the topmost Annotation first. `back-to-front` follows Fabric's
+     * bottom-to-top Canvas order.
+     *
+     * @defaultValue `'front-to-back'`
+     */
+    readonly listOrder?: OverlayListOrder;
 }

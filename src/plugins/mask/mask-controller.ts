@@ -59,6 +59,14 @@ export interface MaskPluginOptions {
     readonly rotatable?: boolean;
     readonly label?: LabelConfig | false;
     readonly labelOffset?: number;
+    /**
+     * Ordering used by `MaskPluginApi.getAll()` and `onChange`.
+     *
+     * `front-to-back` returns the topmost Mask first. `back-to-front` follows Fabric's
+     * bottom-to-top Canvas order.
+     *
+     * @defaultValue `'front-to-back'`
+     */
     readonly listOrder?: OverlayListOrder;
     readonly bindToImageTransform?: boolean;
     readonly namePrefix?: string;
@@ -562,8 +570,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 },
                 restore: (value: { counter: number }) => {
                     this.counter = value.counter;
-                    const masks = this.getAll();
-                    this.lastMask = masks[masks.length - 1] ?? null;
+                    this.lastMask = this.findLatestMask();
                     this.reattachRuntimeState();
                 },
                 clearState: () => {
@@ -609,7 +616,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         const masks = this.overlay
             .list({ kinds: ['mask:object'], includeHidden: true, includeLocked: true })
             .filter(isMaskObject);
-        if (this.options.listOrder === 'back-to-front') masks.reverse();
+        if (this.options.listOrder === 'front-to-back') masks.reverse();
         return Object.freeze(masks);
     }
 
@@ -659,8 +666,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         return this.overlay
             .flatten({ kinds: ['mask:object'], includeHidden: false, includeLocked: true }, options)
             .then(() => {
-                const masks = this.getAll();
-                this.lastMask = masks[masks.length - 1] ?? null;
+                this.lastMask = this.findLatestMask();
                 this.notifyChange();
             });
     }
@@ -853,10 +859,17 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         if (activeObjects.includes(mask)) canvas.discardActiveObject();
         canvas.remove(mask);
         if (this.lastMask === mask) {
-            const masks = this.getAll();
-            this.lastMask = masks[masks.length - 1] ?? null;
+            this.lastMask = this.findLatestMask();
         }
         this.host.requestRender();
+    }
+
+    private findLatestMask(): MaskObject | null {
+        let latest: MaskObject | null = null;
+        for (const mask of this.getAll()) {
+            if (!latest || mask.maskId > latest.maskId) latest = mask;
+        }
+        return latest;
     }
 
     private notifyChange(): void {

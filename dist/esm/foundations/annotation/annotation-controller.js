@@ -152,6 +152,12 @@ export class AnnotationController {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "listOrder", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "mutationSequence", {
             enumerable: true,
             configurable: true,
@@ -184,6 +190,7 @@ export class AnnotationController {
             throw new AnnotationValidationError(`Annotation count limit must be an integer from 1 to ${HARD_MAX_ANNOTATION_COUNT}.`);
         }
         this.maxAnnotationCount = configuredLimit !== null && configuredLimit !== void 0 ? configuredLimit : DEFAULT_MAX_ANNOTATION_COUNT;
+        this.listOrder = options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back';
         this.registrations.push(overlay.registerKind({
             id: ANNOTATION_PREVIEW_KIND,
             ownerPluginId: ANNOTATION_FOUNDATION_ID,
@@ -205,9 +212,12 @@ export class AnnotationController {
         const objects = this.overlay.list(normalized);
         const selected = new Set(this.overlay.getSelection().ids);
         const allLayers = this.persistentOverlayObjects();
-        return Object.freeze(objects
+        const descriptors = objects
             .filter((object) => this.isAnnotationObject(object))
-            .map((object) => this.describe(object, selected, allLayers)));
+            .map((object) => this.describe(object, selected, allLayers));
+        if (this.listOrder === 'front-to-back')
+            descriptors.reverse();
+        return Object.freeze(descriptors);
     }
     get(id) {
         this.assertIdentifier(id, 'Annotation id');

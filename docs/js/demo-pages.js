@@ -270,7 +270,7 @@
                 pixelBlockSizePx: 10,
                 format: 'png',
             },
-            annotations: {},
+            annotations: { listOrder: 'front-to-back' },
             text: {
                 defaultText: 'Review note',
                 width: 260,

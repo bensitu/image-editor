@@ -108,6 +108,7 @@ interface ActiveOverlayGesture {
     readonly boundary: InteractiveMutationBoundary;
     readonly previewController: AbortController;
     completionSettled: boolean;
+    quietCancellationReason: unknown | null;
     previewWork: Promise<void>;
     transaction: Promise<void> | null;
     context: DocumentMutationContext;
@@ -115,7 +116,10 @@ interface ActiveOverlayGesture {
 
 interface OverlayTransformEvent {
     readonly target?: FabricNS.FabricObject;
-    readonly transform?: Readonly<{ action?: string }>;
+    readonly transform?: Readonly<{
+        action?: string;
+        target?: FabricNS.FabricObject;
+    }>;
 }
 
 function getActiveCanvasObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[] {
@@ -443,8 +447,9 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
     private readonly onSelectionChanged = (): void => this.emitSelection();
 
     private readonly onBeforeTransform = (event: OverlayTransformEvent): void => {
-        if (!event.target) return;
-        this.beginGesture(event.target, gestureAction(event.transform?.action));
+        const target = event.target ?? event.transform?.target;
+        if (!target) return;
+        this.beginGesture(target, gestureAction(event.transform?.action));
     };
 
     private readonly onObjectMoving = (event: OverlayTransformEvent): void => {
@@ -475,6 +480,14 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             return;
         }
         this.resolveGesture(this.activeGesture);
+    };
+
+    private readonly onMouseUp = (): void => {
+        const gesture = this.activeGesture;
+        if (!gesture || gesture.completionSettled) return;
+        const reason = abortError('Overlay gesture ended without modifying its target.');
+        gesture.quietCancellationReason = reason;
+        this.failGesture(gesture, reason);
     };
 
     constructor(
@@ -558,6 +571,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             canvas.on('object:scaling', this.onObjectScaling);
             canvas.on('object:rotating', this.onObjectRotating);
             canvas.on('object:modified', this.onObjectModified);
+            canvas.on('mouse:up', this.onMouseUp);
             canvas.on('selection:created', this.onSelectionChanged);
             canvas.on('selection:updated', this.onSelectionChanged);
             canvas.on('selection:cleared', this.onSelectionChanged);
@@ -1218,6 +1232,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             canvas.off('object:scaling', this.onObjectScaling);
             canvas.off('object:rotating', this.onObjectRotating);
             canvas.off('object:modified', this.onObjectModified);
+            canvas.off('mouse:up', this.onMouseUp);
             canvas.off('selection:created', this.onSelectionChanged);
             canvas.off('selection:updated', this.onSelectionChanged);
             canvas.off('selection:cleared', this.onSelectionChanged);
@@ -1441,6 +1456,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             boundary,
             previewController,
             completionSettled: false,
+            quietCancellationReason: null,
             previewWork: Promise.resolve(),
             transaction: null,
             context: Object.freeze({
@@ -1477,6 +1493,10 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                         context.metadata,
                     );
                 },
+                // A click starts Fabric's transform lifecycle without changing geometry. The
+                // no-op rollback lets Core confirm that the captured Memento still matches and
+                // avoid replacing live objects merely to cancel that empty gesture.
+                rollback: () => undefined,
                 synchronize: (
                     descriptor: OverlayMutationDescriptor,
                     context: DocumentMutationContext,
@@ -1495,7 +1515,11 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             return this.mutations.run(request).then(() => undefined);
         };
         const previousCommit = this.gestureCommitTail;
-        const transaction = previousCommit ? previousCommit.then(commit) : commit();
+        const rawTransaction = previousCommit ? previousCommit.then(commit) : commit();
+        const transaction = rawTransaction.catch((error: unknown) => {
+            if (error === gesture.quietCancellationReason) return;
+            throw error;
+        });
         gesture.transaction = transaction;
         this.gestureCommitTail = transaction;
         this.lastGestureTransaction = transaction;

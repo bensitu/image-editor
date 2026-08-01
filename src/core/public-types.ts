@@ -15,7 +15,7 @@ import type { FabricModule, LayoutMode } from '../core-runtime/public-types.js';
 export type SessionObjectType =
     'cropRect' | 'maskLabel' | 'mosaicPreviewCircle' | 'mosaicPreviewImage';
 
-/** Render order for Mask lists exposed by the Mask Plugin. */
+/** Render order for Mask and Annotation lists exposed by their Plugin APIs. */
 export type OverlayListOrder = 'front-to-back' | 'back-to-front';
 
 export interface BaseImageObject extends FabricNS.FabricImage {

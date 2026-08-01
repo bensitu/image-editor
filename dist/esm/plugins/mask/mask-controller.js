@@ -440,10 +440,8 @@ export class MaskPluginController {
                     : { valid: false, message: 'Mask counter state is malformed.' };
             },
             restore: (value) => {
-                var _a;
                 this.counter = value.counter;
-                const masks = this.getAll();
-                this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+                this.lastMask = this.findLatestMask();
                 this.reattachRuntimeState();
             },
             clearState: () => {
@@ -487,7 +485,7 @@ export class MaskPluginController {
         const masks = this.overlay
             .list({ kinds: ['mask:object'], includeHidden: true, includeLocked: true })
             .filter(isMaskObject);
-        if (this.options.listOrder === 'back-to-front')
+        if (this.options.listOrder === 'front-to-back')
             masks.reverse();
         return Object.freeze(masks);
     }
@@ -534,9 +532,7 @@ export class MaskPluginController {
         return this.overlay
             .flatten({ kinds: ['mask:object'], includeHidden: false, includeLocked: true }, options)
             .then(() => {
-            var _a;
-            const masks = this.getAll();
-            this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+            this.lastMask = this.findLatestMask();
             this.notifyChange();
         });
     }
@@ -711,7 +707,7 @@ export class MaskPluginController {
         }
     }
     removeMaskObject(mask) {
-        var _a, _b;
+        var _a;
         removeLabelForMask(this.labelContext(), mask);
         detachMaskHoverHandlers(mask);
         const canvas = this.host.requireCanvas('remove a mask');
@@ -723,10 +719,17 @@ export class MaskPluginController {
             canvas.discardActiveObject();
         canvas.remove(mask);
         if (this.lastMask === mask) {
-            const masks = this.getAll();
-            this.lastMask = (_b = masks[masks.length - 1]) !== null && _b !== void 0 ? _b : null;
+            this.lastMask = this.findLatestMask();
         }
         this.host.requestRender();
+    }
+    findLatestMask() {
+        let latest = null;
+        for (const mask of this.getAll()) {
+            if (!latest || mask.maskId > latest.maskId)
+                latest = mask;
+        }
+        return latest;
     }
     notifyChange() {
         var _a, _b;

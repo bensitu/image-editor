@@ -48,6 +48,7 @@ const MASK_OPTION_NAMES = new Map([
     ['bindMasksToImageTransform', 'bindToImageTransform'],
     ['maskName', 'namePrefix'],
 ]);
+const ANNOTATION_OPTION_NAMES = new Map([['annotationListOrder', 'listOrder']]);
 const CORE_METHODS = new Set([
     'init',
     'loadImage',
@@ -143,6 +144,7 @@ function analyzeOptions(sourceFile, fileName, node, unresolved) {
             transform: Object.freeze([]),
             history: Object.freeze([]),
             masks: Object.freeze([]),
+            annotations: Object.freeze([]),
             blocked: false,
             requiresFullPreset: false,
         });
@@ -156,6 +158,7 @@ function analyzeOptions(sourceFile, fileName, node, unresolved) {
         transform: [],
         history: [],
         masks: [],
+        annotations: [],
     };
     let blocked = false;
     for (const property of node.properties) {
@@ -183,6 +186,7 @@ function analyzeOptions(sourceFile, fileName, node, unresolved) {
             ['transform', TRANSFORM_OPTION_NAMES],
             ['history', HISTORY_OPTION_NAMES],
             ['masks', MASK_OPTION_NAMES],
+            ['annotations', ANNOTATION_OPTION_NAMES],
         ];
         const mapping = mappings.find(([, names]) => names.has(name));
         if (mapping) {
@@ -200,8 +204,13 @@ function analyzeOptions(sourceFile, fileName, node, unresolved) {
         transform: Object.freeze(groups.transform),
         history: Object.freeze(groups.history),
         masks: Object.freeze(groups.masks),
+        annotations: Object.freeze(groups.annotations),
         blocked,
-        requiresFullPreset: groups.transform.length + groups.history.length + groups.masks.length > 0,
+        requiresFullPreset: groups.transform.length +
+            groups.history.length +
+            groups.masks.length +
+            groups.annotations.length >
+            0,
     });
 }
 function fullPresetOptions(options) {
@@ -215,6 +224,9 @@ function fullPresetOptions(options) {
         groups.push(`history: ${optionObject(options.history)}`);
     if (options.masks.length > 0)
         groups.push(`masks: ${optionObject(options.masks)}`);
+    if (options.annotations.length > 0) {
+        groups.push(`annotations: ${optionObject(options.annotations)}`);
+    }
     return groups.length > 0 ? `{ ${groups.join(', ')} }` : null;
 }
 function importReplacement(sourceFile, node, oldLocals) {

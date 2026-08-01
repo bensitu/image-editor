@@ -168,6 +168,21 @@ test('supports every documented JavaScript and TypeScript source extension', () 
     }
 });
 
+test('maps legacy Mask and Annotation list ordering into Plugin namespaces', () => {
+    const source = [
+        "import { ImageEditor } from '@bensitu/image-editor';",
+        "const editor = new ImageEditor(fabric, { maskListOrder: 'back-to-front', annotationListOrder: 'front-to-back' });",
+        "editor.init({ canvas: 'canvas' });",
+        '',
+    ].join('\n');
+
+    const result = transformSource(source, 'list-order.ts');
+
+    assert.deepEqual(result.unresolved, []);
+    assert.match(result.code, /masks: \{ listOrder: 'back-to-front' \}/);
+    assert.match(result.code, /annotations: \{ listOrder: 'front-to-back' \}/);
+});
+
 test('reports every ambiguous syntax class without changing source', async () => {
     const cases = [
         ['dom-guidance.input.ts', 'DOM_ELEMENT_MAP_REVIEW_REQUIRED'],

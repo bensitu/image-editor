@@ -13,6 +13,14 @@ export interface MaskPluginOptions {
     readonly rotatable?: boolean;
     readonly label?: LabelConfig | false;
     readonly labelOffset?: number;
+    /**
+     * Ordering used by `MaskPluginApi.getAll()` and `onChange`.
+     *
+     * `front-to-back` returns the topmost Mask first. `back-to-front` follows Fabric's
+     * bottom-to-top Canvas order.
+     *
+     * @defaultValue `'front-to-back'`
+     */
     readonly listOrder?: OverlayListOrder;
     readonly bindToImageTransform?: boolean;
     readonly namePrefix?: string;
@@ -75,6 +83,7 @@ export declare class MaskPluginController implements MaskPluginApi, Disposable {
     private reattachRuntimeState;
     private synchronizeCounterFromCanvas;
     private removeMaskObject;
+    private findLatestMask;
     private notifyChange;
     private assertActive;
 }

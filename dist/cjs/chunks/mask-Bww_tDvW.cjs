@@ -3,7 +3,7 @@ const require_core = require('./core-BW28rysE.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-DVpJS3kp.cjs');
+const require_overlay = require('./overlay-BcmsFExs.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-CP6C0Dc2.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-Co4kk4f1.cjs');
@@ -1024,10 +1024,8 @@ var MaskPluginController = class {
 				};
 			},
 			restore: (value) => {
-				var _a;
 				this.counter = value.counter;
-				const masks = this.getAll();
-				this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+				this.lastMask = this.findLatestMask();
 				this.reattachRuntimeState();
 			},
 			clearState: () => {
@@ -1069,7 +1067,7 @@ var MaskPluginController = class {
 			includeHidden: true,
 			includeLocked: true
 		}).filter(isMaskObject);
-		if (this.options.listOrder === "back-to-front") masks.reverse();
+		if (this.options.listOrder === "front-to-back") masks.reverse();
 		return Object.freeze(masks);
 	}
 	remove(id) {
@@ -1116,9 +1114,7 @@ var MaskPluginController = class {
 			includeHidden: false,
 			includeLocked: true
 		}, options).then(() => {
-			var _a;
-			const masks = this.getAll();
-			this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+			this.lastMask = this.findLatestMask();
 			this.notifyChange();
 		});
 	}
@@ -1253,18 +1249,20 @@ var MaskPluginController = class {
 		for (const object of canvas.getObjects()) if (isMaskObject(object)) this.counter = Math.max(this.counter, object.maskId);
 	}
 	removeMaskObject(mask) {
-		var _a, _b;
+		var _a;
 		removeLabelForMask(this.labelContext(), mask);
 		detachMaskHoverHandlers(mask);
 		const canvas = this.host.requireCanvas("remove a mask");
 		const canvasWithSelection = canvas;
 		if ((typeof canvasWithSelection.getActiveObjects === "function" ? canvasWithSelection.getActiveObjects() : [(_a = canvasWithSelection.getActiveObject) === null || _a === void 0 ? void 0 : _a.call(canvasWithSelection)].filter((object) => !!object)).includes(mask)) canvas.discardActiveObject();
 		canvas.remove(mask);
-		if (this.lastMask === mask) {
-			const masks = this.getAll();
-			this.lastMask = (_b = masks[masks.length - 1]) !== null && _b !== void 0 ? _b : null;
-		}
+		if (this.lastMask === mask) this.lastMask = this.findLatestMask();
 		this.host.requestRender();
+	}
+	findLatestMask() {
+		let latest = null;
+		for (const mask of this.getAll()) if (!latest || mask.maskId > latest.maskId) latest = mask;
+		return latest;
 	}
 	notifyChange() {
 		var _a, _b;
@@ -1401,4 +1399,4 @@ Object.defineProperty(exports, 'maskPluginRef', {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-B8mIuiXJ.cjs.map
+//# sourceMappingURL=mask-Bww_tDvW.cjs.map

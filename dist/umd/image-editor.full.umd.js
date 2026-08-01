@@ -8006,9 +8006,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				configurable: true,
 				writable: true,
 				value: (event) => {
-					var _a;
-					if (!event.target) return;
-					this.beginGesture(event.target, gestureAction((_a = event.transform) === null || _a === void 0 ? void 0 : _a.action));
+					var _a, _b, _c;
+					const target = (_a = event.target) !== null && _a !== void 0 ? _a : (_b = event.transform) === null || _b === void 0 ? void 0 : _b.target;
+					if (!target) return;
+					this.beginGesture(target, gestureAction((_c = event.transform) === null || _c === void 0 ? void 0 : _c.action));
 				}
 			});
 			Object.defineProperty(this, "onObjectMoving", {
@@ -8047,6 +8048,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						return;
 					}
 					this.resolveGesture(this.activeGesture);
+				}
+			});
+			Object.defineProperty(this, "onMouseUp", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: () => {
+					const gesture = this.activeGesture;
+					if (!gesture || gesture.completionSettled) return;
+					const reason = abortError$2("Overlay gesture ended without modifying its target.");
+					gesture.quietCancellationReason = reason;
+					this.failGesture(gesture, reason);
 				}
 			});
 			try {
@@ -8105,6 +8118,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				canvas.on("object:scaling", this.onObjectScaling);
 				canvas.on("object:rotating", this.onObjectRotating);
 				canvas.on("object:modified", this.onObjectModified);
+				canvas.on("mouse:up", this.onMouseUp);
 				canvas.on("selection:created", this.onSelectionChanged);
 				canvas.on("selection:updated", this.onSelectionChanged);
 				canvas.on("selection:cleared", this.onSelectionChanged);
@@ -8571,6 +8585,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				canvas.off("object:scaling", this.onObjectScaling);
 				canvas.off("object:rotating", this.onObjectRotating);
 				canvas.off("object:modified", this.onObjectModified);
+				canvas.off("mouse:up", this.onMouseUp);
 				canvas.off("selection:created", this.onSelectionChanged);
 				canvas.off("selection:updated", this.onSelectionChanged);
 				canvas.off("selection:cleared", this.onSelectionChanged);
@@ -8747,6 +8762,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				boundary,
 				previewController,
 				completionSettled: false,
+				quietCancellationReason: null,
 				previewWork: Promise.resolve(),
 				transaction: null,
 				context: Object.freeze({
@@ -8774,6 +8790,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					await gesture.previewWork;
 					return this.createMutationDescriptor(id, "overlay:gesture", gesture.action, targets, context.metadata);
 				},
+				rollback: () => void 0,
 				synchronize: (descriptor, context) => this.runInteractionPolicies(targets, descriptor, context, "synchronize"),
 				validate: (descriptor, context) => this.validateMutation(targets, descriptor, context),
 				describeCommit: (descriptor) => descriptor
@@ -8784,7 +8801,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return this.mutations.run(request).then(() => void 0);
 			};
 			const previousCommit = this.gestureCommitTail;
-			const transaction = previousCommit ? previousCommit.then(commit) : commit();
+			const transaction = (previousCommit ? previousCommit.then(commit) : commit()).catch((error) => {
+				if (error === gesture.quietCancellationReason) return;
+				throw error;
+			});
 			gesture.transaction = transaction;
 			this.gestureCommitTail = transaction;
 			this.lastGestureTransaction = transaction;
@@ -9908,6 +9928,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: void 0
 			});
+			Object.defineProperty(this, "listOrder", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: void 0
+			});
 			Object.defineProperty(this, "mutationSequence", {
 				enumerable: true,
 				configurable: true,
@@ -9935,6 +9961,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const configuredLimit = options.maxAnnotationCount;
 			if (configuredLimit !== void 0 && (!Number.isSafeInteger(configuredLimit) || configuredLimit <= 0 || configuredLimit > HARD_MAX_ANNOTATION_COUNT)) throw new AnnotationValidationError(`Annotation count limit must be an integer from 1 to ${HARD_MAX_ANNOTATION_COUNT}.`);
 			this.maxAnnotationCount = configuredLimit !== null && configuredLimit !== void 0 ? configuredLimit : DEFAULT_MAX_ANNOTATION_COUNT;
+			this.listOrder = options.listOrder === "back-to-front" ? "back-to-front" : "front-to-back";
 			this.registrations.push(overlay.registerKind({
 				id: ANNOTATION_PREVIEW_KIND,
 				ownerPluginId: ANNOTATION_FOUNDATION_ID,
@@ -9958,7 +9985,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const objects = this.overlay.list(normalized);
 			const selected = new Set(this.overlay.getSelection().ids);
 			const allLayers = this.persistentOverlayObjects();
-			return Object.freeze(objects.filter((object) => this.isAnnotationObject(object)).map((object) => this.describe(object, selected, allLayers)));
+			const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => this.describe(object, selected, allLayers));
+			if (this.listOrder === "front-to-back") descriptors.reverse();
+			return Object.freeze(descriptors);
 		}
 		get(id) {
 			this.assertIdentifier(id, "Annotation id");
@@ -12880,10 +12909,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					};
 				},
 				restore: (value) => {
-					var _a;
 					this.counter = value.counter;
-					const masks = this.getAll();
-					this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+					this.lastMask = this.findLatestMask();
 					this.reattachRuntimeState();
 				},
 				clearState: () => {
@@ -12925,7 +12952,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				includeHidden: true,
 				includeLocked: true
 			}).filter(isMaskObject);
-			if (this.options.listOrder === "back-to-front") masks.reverse();
+			if (this.options.listOrder === "front-to-back") masks.reverse();
 			return Object.freeze(masks);
 		}
 		remove(id) {
@@ -12972,9 +12999,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				includeHidden: false,
 				includeLocked: true
 			}, options).then(() => {
-				var _a;
-				const masks = this.getAll();
-				this.lastMask = (_a = masks[masks.length - 1]) !== null && _a !== void 0 ? _a : null;
+				this.lastMask = this.findLatestMask();
 				this.notifyChange();
 			});
 		}
@@ -13109,18 +13134,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			for (const object of canvas.getObjects()) if (isMaskObject(object)) this.counter = Math.max(this.counter, object.maskId);
 		}
 		removeMaskObject(mask) {
-			var _a, _b;
+			var _a;
 			removeLabelForMask(this.labelContext(), mask);
 			detachMaskHoverHandlers(mask);
 			const canvas = this.host.requireCanvas("remove a mask");
 			const canvasWithSelection = canvas;
 			if ((typeof canvasWithSelection.getActiveObjects === "function" ? canvasWithSelection.getActiveObjects() : [(_a = canvasWithSelection.getActiveObject) === null || _a === void 0 ? void 0 : _a.call(canvasWithSelection)].filter((object) => !!object)).includes(mask)) canvas.discardActiveObject();
 			canvas.remove(mask);
-			if (this.lastMask === mask) {
-				const masks = this.getAll();
-				this.lastMask = (_b = masks[masks.length - 1]) !== null && _b !== void 0 ? _b : null;
-			}
+			if (this.lastMask === mask) this.lastMask = this.findLatestMask();
 			this.host.requestRender();
+		}
+		findLatestMask() {
+			let latest = null;
+			for (const mask of this.getAll()) if (!latest || mask.maskId > latest.maskId) latest = mask;
+			return latest;
 		}
 		notifyChange() {
 			var _a, _b;

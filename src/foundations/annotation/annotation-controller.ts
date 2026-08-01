@@ -6,6 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import type { OverlayListOrder } from '../../core/index.js';
 import type {
     CanvasReadPort,
     CoreDiagnosticsPort,
@@ -235,6 +236,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     private readonly listeners = new Set<AnnotationStatusListener>();
     private readonly registrations: Disposable[] = [];
     private readonly maxAnnotationCount: number;
+    private readonly listOrder: OverlayListOrder;
     private mutationSequence = 0;
     private generatedIdSequence = 0;
     private lastInteractionId: string | null = null;
@@ -257,6 +259,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             );
         }
         this.maxAnnotationCount = configuredLimit ?? DEFAULT_MAX_ANNOTATION_COUNT;
+        this.listOrder = options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back';
         this.registrations.push(
             overlay.registerKind({
                 id: ANNOTATION_PREVIEW_KIND,
@@ -283,11 +286,11 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         const objects = this.overlay.list(normalized);
         const selected = new Set(this.overlay.getSelection().ids);
         const allLayers = this.persistentOverlayObjects();
-        return Object.freeze(
-            objects
-                .filter((object) => this.isAnnotationObject(object))
-                .map((object) => this.describe(object, selected, allLayers)),
-        );
+        const descriptors = objects
+            .filter((object) => this.isAnnotationObject(object))
+            .map((object) => this.describe(object, selected, allLayers));
+        if (this.listOrder === 'front-to-back') descriptors.reverse();
+        return Object.freeze(descriptors);
     }
 
     get(id: AnnotationId): AnnotationDescriptor | null {

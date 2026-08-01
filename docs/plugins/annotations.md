@@ -44,6 +44,11 @@ const visibleText = annotations.list({ kinds: ['annotation:text'] });
 const all = annotations.list({ includeHidden: true, includeLocked: true });
 ```
 
+`list()` defaults to `front-to-back`, so the topmost and usually most recently created
+Annotation appears first. Use `annotationFoundationPlugin({ listOrder: 'back-to-front' })` to
+return Fabric's bottom-to-top Canvas order instead. This option changes only descriptor/list UI
+order; it does not reorder Canvas objects or alter `layerIndex`.
+
 Names are trimmed strings of at most 128 characters. Metadata must be a plain, JSON-safe object;
 functions, symbols, cycles, dangerous prototype keys, non-finite numbers, and excessive depth or
 size are rejected. Returned metadata is an immutable clone.
