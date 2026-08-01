@@ -5,7 +5,7 @@ not use a JavaScript bundler. It exposes one shared Core runtime and one file fo
 each official Foundation or Feature Plugin. Plugins remain explicit definitions:
 loading a script does not install it or mutate an editor instance.
 
-Modern bundled applications should continue to use the documented ESM package
+Bundled applications should use the documented ESM package
 subpaths. Pages that need every official Feature should normally use the single
 Full UMD because loading all modular files can cost more compressed bytes and
 more requests.
@@ -29,7 +29,7 @@ Fabric must load first. Core must load before every Plugin, and Foundations must
 load before the Features that depend on them. Every Core and Plugin file on a
 page must come from the exact same `@bensitu/image-editor` package version.
 
-Replace `VERSION` with one exact published 3.x version in every URL:
+Replace `VERSION` with one exact published package version in every URL:
 
 ```text
 @bensitu/image-editor@VERSION/dist/umd/image-editor.core.umd.min.js
@@ -177,7 +177,7 @@ factory with `annotation-shape`/`shapeAnnotationPlugin` or
 - Bundled applications should prefer ESM package subpaths so their bundler can
   optimize the selected graph.
 - Modular UMD primarily supports traditional script tags, no-bundler pages, and
-  legacy host integrations that still require UMD.
+  host integrations that require UMD.
 
 The enforced gzip-9 baselines and per-module ceilings are recorded in
 [`config/bundle/modular-umd-budget.json`](../../config/bundle/modular-umd-budget.json).

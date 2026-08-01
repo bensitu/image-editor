@@ -6,8 +6,8 @@ methods live on the typed APIs returned when Plugins are installed. The package
 root and `/core` resolve to the same `ImageEditorCore` class; the root does not
 export Features, Presets, DOM Controls, or migration code.
 
-This reference describes the current modular public API. The Core and Feature
-contracts replace the legacy facade contract.
+This reference describes the modular public API. The Core and Feature contracts
+replace the Facade contract.
 
 ## Formal package entries
 
@@ -37,7 +37,7 @@ CommonJS declarations, and NodeNext resolution. Fabric stays external.
 | `@bensitu/image-editor/presets/redaction`        | Redaction-focused composition                     |
 | `@bensitu/image-editor/presets/annotation`       | Annotation-focused composition                    |
 | `@bensitu/image-editor/presets/full`             | Every official Feature and both Foundations       |
-| `@bensitu/image-editor/migrate-v2`               | Isolated legacy-Snapshot detection and conversion |
+| `@bensitu/image-editor/migrate-v2`               | Isolated source-Snapshot detection and conversion |
 
 Do not import source paths, `dist` files, controllers, coordinators, registries,
 or internal chunks. `@bensitu/image-editor-codemod` is a separate package, not a
@@ -324,7 +324,7 @@ selected. Fabric is a peer/global and is not bundled.
 Bundled applications should prefer ESM subpaths. Script-tag applications choose
 either Full UMD or the on-demand Core plus selected Plugin UMD files; the two
 modes must not be loaded together. Full UMD exposes the public
-composition/factories through `ImageEditorFull`, has no removed monolithic
-facade, and installs DOM Controls only through an explicit option. See
+composition/factories through `ImageEditorFull`, does not emulate the Facade,
+and installs DOM Controls only through an explicit option. See
 [Modular UMD loading](./modular-umd.md) for globals, dependency order, and
 version rules.

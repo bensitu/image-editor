@@ -208,7 +208,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/plugins/crop/crop-overlay-policy.js
-	const defaultOverlayPolicy = Object.freeze({
+	const DEFAULT_OVERLAY_POLICY = Object.freeze({
 		preview: "keep",
 		apply: "keep"
 	});
@@ -245,7 +245,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return prototype === Object.prototype || prototype === null;
 	}
 	function normalizeCropOverlayPolicy(value) {
-		if (value === void 0) return defaultOverlayPolicy;
+		if (value === void 0) return DEFAULT_OVERLAY_POLICY;
 		if (!isRecord$2(value)) throw new CropValidationError("Crop overlay policy must be an object.");
 		const allowedKeys = /* @__PURE__ */ new Set([
 			"preview",

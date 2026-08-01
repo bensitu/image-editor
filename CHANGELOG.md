@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Migrate directly compatible Node product, unit, property, release, and Codemod tests to checked `.test.ts` files while retaining JavaScript only for compiled-consumer proofs and test doubles that still require it.
-- Replace the monolithic root facade with a Core-only public root. Feature methods are available through installed Plugin APIs or typed Preset results.
+- Replace the root Facade with a Core-only public root. Feature methods are available through installed Plugin APIs or typed Preset results.
 - Require applications to pass the Fabric module explicitly and split flat configuration by Core or Feature ownership.
 - Accept the current `image-editor.state@3` Snapshot schema in Core; recognizable older schemas require an explicitly imported migration handler.
 - Require persistent Overlay kinds to install versioned Codecs atomically and privileged Capability consumers to declare exact permissions before setup.
@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make `disposeAsync()` the authoritative observable cleanup path and deprecate the best-effort `dispose()` starter, which can return before cleanup settles.
 - Bound each committed-event listener to a documented five-second execution window so stalled observers cannot starve later listeners or emissions.
 - Make a configured initial image and its Plugin hooks part of the awaited `init()` contract, with complete rollback and retry after recoverable failure.
-- Replace the stale flat-options reference and transform-binding guide with current Core, Plugin, and Preset contracts, and enforce documented boundaries for current, migration, and explicitly labelled legacy material.
+- Replace the stale flat-options reference and transform-binding guide with supported Core, Plugin, and Preset contracts, and enforce documented boundaries for runtime, migration, and explicitly archived material.
 - Preserve the Full Preset UMD as the CDN default while adding a separate, mutually exclusive Modular UMD mode; DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.
 - Replace Rollup and its plugin stack with pinned Rolldown for distribution, reference Plugin and template packages, and consumer bundle integrity measurement.
@@ -225,7 +225,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release DOM, session, configuration, event, history, and Fabric references from `dispose()` more completely.
 - Disable all editor controls after disposal, including controls that were active inside tool modes.
 - Match live Fabric objects to serialized canvas JSON by stable editor metadata before falling back to positional matching.
-- Include legacy mask angle and scale fields when matching same-position masks during state restore.
+- Include Facade mask angle and scale fields when matching same-position masks during state restore.
 - Keep preserved crop masks aligned when the committed cropped image is scaled by the active layout mode.
 - Roll back runtime scale and rotation state when Fabric transform animations fail to start or complete.
 - Restore the temporary rotation origin after non-dispose animation failures, and still record transform history when post-snap UI sync fails.
@@ -248,7 +248,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avoid post-dispose UI refreshes from queued transform finalizers.
 - Clamp DOM zoom-step calculations back to a finite fallback and clamp mask-label callback indexes to non-negative values.
 - Drop unsafe object-copy keys while normalizing `defaultMaskConfig` and its `styles` object.
-- Index `loadFromState()` mask restoration by `maskUid` before falling back to legacy positional matching.
+- Index `loadFromState()` mask restoration by `maskUid` before falling back to source positional matching.
 - Suppress public `onSelectionChange` callbacks during export and merge-only active selection teardown/restoration.
 - Reject export MIME fallback when the browser returns a different `data:image/...` type than the requested format.
 - Skip JPEG EXIF auto-orientation when raw `createImageBitmap` decode is unavailable, avoiding fallback double-rotation risk.
@@ -321,7 +321,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Store actual DOM listener elements in `DomBindings` so cleanup detaches from the originally-bound node even if a framework replaces refs.
 - Export `ElementTarget`, `ElementMap`, `ResizeToContainerOptions`, and `RelayoutOptions` from the package root.
-- Remove unused legacy facade helpers from `ImageEditor`, including stale context-builder wrappers and the old private `getRuntimeOptions()` path; the runtime-owned `EditorRuntime.getRuntimeOptions()` remains the active source for current layout-mode options.
+- Remove unused Facade helpers from `ImageEditor`, including stale context-builder wrappers and the private `getRuntimeOptions()` path; the runtime-owned `EditorRuntime.getRuntimeOptions()` remains the active source for layout-mode options.
 - Remove the unused `ui-state` module and internal `ResolvedElementIdMap` / `resolveElementIds` compatibility aliases after the ref-based element map architecture replaced the old ID-only helper path.
 - Update internal merge-layout coverage to exercise the public `mergeMasks()` path instead of reading TypeScript-private facade methods at runtime.
 - Clarify test comments so the suite documents library behavior, source modules, package metadata, and build artifacts rather than demo pages or README/docs content.
@@ -398,7 +398,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Ensure image flip operations do not mirror masks, annotations, or session overlays.
 - Ensure `exportImageFile()` and `downloadImage()` append or correct filename extensions from the resolved export format.
-- Ensure invalid runtime download options reject clearly instead of being treated as legacy filename shorthand.
+- Ensure invalid runtime download options reject clearly instead of being treated as filename shorthand.
 - Ensure `loadImage()` rejects unsupported image data URL MIME types, including SVG, before mutating editor state.
 
 ## [2.2.0] - 2026-06-15
@@ -408,7 +408,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require `editorObjectKind` metadata on every editor-owned Fabric object.
 - Make `isMaskObject()` strict: masks now require `editorObjectKind: 'mask'`, `maskId`, `maskUid`, and `maskName`.
 - Make `MaskObject.maskUid` required.
-- Stop migrating legacy serialized states that do not include `editorObjectKind`.
+- Stop migrating source serialized states that do not include `editorObjectKind`.
 - Rename export option mergeMask to `mergeMasks`.
 - Rename constructor default mergeMaskByDefault to `mergeMasksByDefault`.
 
@@ -457,7 +457,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rework the v2 demo workspace into a side-toolbar layout, compact icon controls, and a narrower mask list to avoid toolbar overflow.
 - Update docs demo with Mosaic controls, examples, and public API documentation.
-- Update demo page scripts and merge/isolate the legacy v1 demo page in the docs.
+- Update demo page scripts and isolate the archived 1.x demo page in the docs.
 
 ### Fixed
 

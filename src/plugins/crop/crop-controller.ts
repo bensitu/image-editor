@@ -72,7 +72,6 @@ const EMPTY_CANDIDATES: CropOverlayCandidates = Object.freeze({
     allIds: Object.freeze([]),
     intersectingIds: Object.freeze([]),
 });
-
 function positiveSafeInteger(value: unknown, fallback: number, label: string): number {
     if (value === undefined) return fallback;
     if (!Number.isSafeInteger(value) || Number(value) <= 0) {

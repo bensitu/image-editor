@@ -2,7 +2,7 @@ const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
 const require_abortable_promise = require('./abortable-promise-Cd-vToiC.cjs');
-const require_overlay = require('./overlay-Cu0ag11p.cjs');
+const require_overlay = require('./overlay-jv9sBUzH.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-CP6C0Dc2.cjs');
 const require_error = require('./error-MZMZBLzQ.cjs');
 
@@ -176,7 +176,7 @@ function fitCropRectToAspectRatio(rect, ratio, bounds) {
 
 //#endregion
 //#region dist/esm/plugins/crop/crop-overlay-policy.js
-const defaultOverlayPolicy = Object.freeze({
+const DEFAULT_OVERLAY_POLICY = Object.freeze({
 	preview: "keep",
 	apply: "keep"
 });
@@ -213,7 +213,7 @@ function isRecord$2(value) {
 	return prototype === Object.prototype || prototype === null;
 }
 function normalizeCropOverlayPolicy(value) {
-	if (value === void 0) return defaultOverlayPolicy;
+	if (value === void 0) return DEFAULT_OVERLAY_POLICY;
 	if (!isRecord$2(value)) throw new CropValidationError("Crop overlay policy must be an object.");
 	const allowedKeys = /* @__PURE__ */ new Set([
 		"preview",
@@ -1217,4 +1217,4 @@ Object.defineProperty(exports, 'cropPluginRef', {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-avAH0Ox4.cjs.map
+//# sourceMappingURL=crop-CTeCz3NU.cjs.map

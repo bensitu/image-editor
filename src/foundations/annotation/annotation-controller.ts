@@ -73,11 +73,10 @@ import {
 
 const ANNOTATION_FOUNDATION_ID = 'foundation:annotation';
 const ANNOTATION_PREVIEW_KIND = 'annotation:preview';
-const featureKindPattern = /^annotation:[a-z][a-z0-9-]{0,63}$/;
-const identifierPattern = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
+const FEATURE_KIND_PATTERN = /^annotation:[a-z][a-z0-9-]{0,63}$/;
+const IDENTIFIER_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 const DEFAULT_MAX_ANNOTATION_COUNT = 2_000;
 const HARD_MAX_ANNOTATION_COUNT = 10_000;
-
 type AnnotationCoreAccess = CoreDiagnosticsPort &
     FabricRuntimePort &
     CanvasReadPort &
@@ -1074,7 +1073,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     }
 
     private requireFeature(kind: `annotation:${string}`): RegisteredFeature {
-        if (!featureKindPattern.test(kind) || kind === ANNOTATION_PREVIEW_KIND) {
+        if (!FEATURE_KIND_PATTERN.test(kind) || kind === ANNOTATION_PREVIEW_KIND) {
             throw new AnnotationValidationError(`Annotation Feature kind "${kind}" is invalid.`);
         }
         const feature = this.features.get(kind);
@@ -1089,7 +1088,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             throw new AnnotationValidationError('Annotation Feature definition must be an object.');
         }
         if (
-            !featureKindPattern.test(definition.kind) ||
+            !FEATURE_KIND_PATTERN.test(definition.kind) ||
             definition.kind === ANNOTATION_PREVIEW_KIND
         ) {
             throw new AnnotationValidationError('Annotation Feature kind is invalid.');
@@ -1098,7 +1097,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         if (
             typeof definition.classify !== 'function' ||
             !isPlainRecord(definition.codec) ||
-            !identifierPattern.test(definition.codec.type) ||
+            !IDENTIFIER_PATTERN.test(definition.codec.type) ||
             !/^\d+\.\d+\.\d+$/.test(definition.codec.version) ||
             typeof definition.codec.serialize !== 'function' ||
             typeof definition.codec.validate !== 'function' ||
@@ -1177,7 +1176,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     }
 
     private assertIdentifier(value: string, label: string): void {
-        if (typeof value !== 'string' || !identifierPattern.test(value)) {
+        if (typeof value !== 'string' || !IDENTIFIER_PATTERN.test(value)) {
             throw new AnnotationValidationError(`${label} is invalid.`);
         }
     }

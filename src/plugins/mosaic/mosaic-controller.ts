@@ -80,7 +80,7 @@ interface MosaicRuntimeStroke {
     readonly points: MosaicImagePoint[];
 }
 
-const defaultConfiguration: MosaicConfiguration = Object.freeze({
+const DEFAULT_CONFIGURATION: MosaicConfiguration = Object.freeze({
     brushSizePx: 24,
     pixelBlockSizePx: 8,
     format: 'source',
@@ -94,7 +94,6 @@ const defaultConfiguration: MosaicConfiguration = Object.freeze({
     }),
 });
 const MAX_INTERPOLATED_POINT_COUNT = 250_000;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     const prototype = Object.getPrototypeOf(value);
@@ -218,7 +217,7 @@ function normalizeConfiguration(current: MosaicConfiguration, patch: unknown): M
 }
 
 export function resolveMosaicConfiguration(options: MosaicPluginOptions): MosaicConfiguration {
-    return normalizeConfiguration(defaultConfiguration, options);
+    return normalizeConfiguration(DEFAULT_CONFIGURATION, options);
 }
 
 function cloneDirtyRectangle(rectangle: DirtyRectangle | null): DirtyRectangle | null {

@@ -166,7 +166,7 @@ test('Crop exposes active Fabric controls and commits the resized raster', async
         active: true,
         evented: true,
         hasControls: true,
-        rotationControlVisible: false,
+        rotationControlVisible: true,
         selectable: true,
     });
 

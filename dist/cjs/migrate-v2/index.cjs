@@ -263,7 +263,7 @@ function convertText(source, path, image, layer, id, warn) {
 	const lineHeight = positive(style.lineHeight, `${path}.style.lineHeight`, 1.16);
 	const lineCount = Math.max(1, value.split(/\r?\n/u).length);
 	const height = fontSizePx * lineHeight * lineCount / image.naturalHeight;
-	warn("text.bounds.approximated", `${path}.geometry`, "Overlay State v1 did not store rendered text height; v2 bounds were estimated from font size and line height.");
+	warn("text.bounds.approximated", `${path}.geometry`, "Wire format 1 did not store rendered text height; wire format 2 bounds were estimated from font size and line height.");
 	return item(id, "annotation:text", layer, source.hidden === true, source.locked === true, boundsCorners(x, y, width, height, angle), annotationEnvelope(id, source, Object.freeze({
 		version: 1,
 		text: value,
@@ -377,7 +377,7 @@ function imageReference(value) {
 function migrateV1OverlayState(input, options = {}) {
 	const resolvedOptions = resolveMigrationOptions(options);
 	const source = record(input, "$");
-	if (source.schema !== SCHEMA || source.version !== 1 || source.coordinateSpace !== COORDINATE_SPACE) return fail("document.unsupported", "Input is not a supported Overlay State v1 document.", "$");
+	if (source.schema !== SCHEMA || source.version !== 1 || source.coordinateSpace !== COORDINATE_SPACE) return fail("document.unsupported", "Input is not a supported Overlay State wire format 1 document.", "$");
 	const warn = (code, path, message) => {
 		var _a;
 		(_a = resolvedOptions.onWarning) === null || _a === void 0 || _a.call(resolvedOptions, Object.freeze({
@@ -389,39 +389,39 @@ function migrateV1OverlayState(input, options = {}) {
 	if (source.baseImageTransform !== void 0) {
 		const transform = record(source.baseImageTransform, "$.baseImageTransform");
 		if (numberValue(transform.rotation, "$.baseImageTransform.rotation", 0) !== 0 || transform.flipX === true || transform.flipY === true) {
-			if (resolvedOptions.baseImageTransformPolicy === "error") return fail("transform.unsupported", "Overlay State v2 does not mutate the Base Image transform; pass baseImageTransformPolicy: \"drop\" only when the host restores that transform separately.", "$.baseImageTransform");
-			warn("transform.dropped", "$.baseImageTransform", "The v1 Base Image transform was dropped; the host must restore it separately.");
+			if (resolvedOptions.baseImageTransformPolicy === "error") return fail("transform.unsupported", "Overlay State wire format 2 does not mutate the Base Image transform; pass baseImageTransformPolicy: \"drop\" only when the host restores that transform separately.", "$.baseImageTransform");
+			warn("transform.dropped", "$.baseImageTransform", "The wire format 1 Base Image transform was dropped; the host must restore it separately.");
 		}
 	}
 	const image = imageReference(source.image);
-	if (record(source.image, "$.image").orientation !== void 0 && record(source.image, "$.image").orientation !== 1) return fail("image.orientation", "Non-normalized v1 image orientation cannot be represented in Overlay State v2.", "$.image.orientation");
+	if (record(source.image, "$.image").orientation !== void 0 && record(source.image, "$.image").orientation !== 1) return fail("image.orientation", "Non-normalized wire format 1 image orientation cannot be represented in Overlay State wire format 2.", "$.image.orientation");
 	if (!Array.isArray(source.overlays) || source.overlays.length > MAX_OVERLAYS) return fail("document.overlays", "Overlay collection is invalid.", "$.overlays");
 	const overlays = [];
 	const reserved = /* @__PURE__ */ new Set();
 	for (let index = 0; index < source.overlays.length; index += 1) {
 		const path = `$.overlays[${index}]`;
-		const legacy = record(source.overlays[index], path);
-		const requestedId = stringValue(legacy.id, `${path}.id`);
-		if (legacy.kind === "mask") {
+		const sourceOverlay = record(source.overlays[index], path);
+		const requestedId = stringValue(sourceOverlay.id, `${path}.id`);
+		if (sourceOverlay.kind === "mask") {
 			if (overlays.length >= MAX_OVERLAYS) return fail("document.overlays", "Overlay collection exceeds its limit.", path);
 			const id = uniqueId(requestedId, reserved);
-			overlays.push(convertMask(legacy, path, image, overlays.length, id));
+			overlays.push(convertMask(sourceOverlay, path, image, overlays.length, id));
 			continue;
 		}
-		if (legacy.kind === "annotation") {
+		if (sourceOverlay.kind === "annotation") {
 			const id = uniqueId(requestedId, reserved);
-			if (legacy.annotationType === "text") {
+			if (sourceOverlay.annotationType === "text") {
 				if (overlays.length >= MAX_OVERLAYS) return fail("document.overlays", "Overlay collection exceeds its limit.", path);
-				overlays.push(convertText(legacy, path, image, overlays.length, id, warn));
-			} else if (legacy.annotationType === "shape") {
+				overlays.push(convertText(sourceOverlay, path, image, overlays.length, id, warn));
+			} else if (sourceOverlay.annotationType === "shape") {
 				if (overlays.length >= MAX_OVERLAYS) return fail("document.overlays", "Overlay collection exceeds its limit.", path);
-				overlays.push(convertShape(legacy, path, image, overlays.length, id));
-			} else if (legacy.annotationType === "draw") overlays.push(...convertDraw(legacy, path, image, overlays.length, id, reserved, MAX_OVERLAYS - overlays.length));
+				overlays.push(convertShape(sourceOverlay, path, image, overlays.length, id));
+			} else if (sourceOverlay.annotationType === "draw") overlays.push(...convertDraw(sourceOverlay, path, image, overlays.length, id, reserved, MAX_OVERLAYS - overlays.length));
 			else return fail("annotation.type", "Annotation type is unsupported.", `${path}.annotationType`);
 			continue;
 		}
-		if (resolvedOptions.unsupportedOverlayPolicy === "error") return fail("overlay.unsupported", `Overlay kind "${String(legacy.kind)}" has no built-in v2 State Codec mapping.`, `${path}.kind`);
-		warn("overlay.skipped", path, `Overlay kind "${String(legacy.kind)}" was skipped because no v2 State Codec mapping exists.`);
+		if (resolvedOptions.unsupportedOverlayPolicy === "error") return fail("overlay.unsupported", `Overlay kind "${String(sourceOverlay.kind)}" has no built-in wire format 2 State Codec mapping.`, `${path}.kind`);
+		warn("overlay.skipped", path, `Overlay kind "${String(sourceOverlay.kind)}" was skipped because no wire format 2 State Codec mapping exists.`);
 	}
 	return Object.freeze({
 		schema: SCHEMA,

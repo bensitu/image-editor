@@ -1,5 +1,5 @@
 import { CropValidationError } from './crop-errors.js';
-const defaultOverlayPolicy = Object.freeze({
+const DEFAULT_OVERLAY_POLICY = Object.freeze({
     preview: 'keep',
     apply: 'keep',
 });
@@ -44,7 +44,7 @@ function isRecord(value) {
 }
 export function normalizeCropOverlayPolicy(value) {
     if (value === undefined)
-        return defaultOverlayPolicy;
+        return DEFAULT_OVERLAY_POLICY;
     if (!isRecord(value))
         throw new CropValidationError('Crop overlay policy must be an object.');
     const allowedKeys = new Set(['preview', 'apply', 'kinds']);

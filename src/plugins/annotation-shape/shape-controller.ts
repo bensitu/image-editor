@@ -41,7 +41,6 @@ const SHAPE_PLUGIN_ID = 'annotation:shape';
 const MAX_COORDINATE = 10_000_000;
 const MAX_SHAPE_OBJECT_BYTES = 256 * 1024;
 const MIN_GEOMETRY_SIZE = 0.5;
-
 type ShapeHost = CoreDiagnosticsPort & FabricRuntimePort & BaseImageInfoPort;
 type ShapeObject = FabricNS.FabricObject & {
     editorShapeKind?: ShapeAnnotationKind;

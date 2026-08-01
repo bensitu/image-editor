@@ -1,7 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-Cu0ag11p.cjs');
+const require_overlay = require('./overlay-jv9sBUzH.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-CP6C0Dc2.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 
@@ -632,8 +632,8 @@ function synchronizeAnnotationRuntimeState(object) {
 //#region dist/esm/foundations/annotation/annotation-controller.js
 const ANNOTATION_FOUNDATION_ID = "foundation:annotation";
 const ANNOTATION_PREVIEW_KIND = "annotation:preview";
-const featureKindPattern = /^annotation:[a-z][a-z0-9-]{0,63}$/;
-const identifierPattern = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
+const FEATURE_KIND_PATTERN = /^annotation:[a-z][a-z0-9-]{0,63}$/;
+const IDENTIFIER_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 const DEFAULT_MAX_ANNOTATION_COUNT = 2e3;
 const HARD_MAX_ANNOTATION_COUNT = 1e4;
 function isPlainRecord(value) {
@@ -1406,16 +1406,16 @@ var AnnotationController = class {
 		return object;
 	}
 	requireFeature(kind) {
-		if (!featureKindPattern.test(kind) || kind === ANNOTATION_PREVIEW_KIND) throw new AnnotationValidationError(`Annotation Feature kind "${kind}" is invalid.`);
+		if (!FEATURE_KIND_PATTERN.test(kind) || kind === ANNOTATION_PREVIEW_KIND) throw new AnnotationValidationError(`Annotation Feature kind "${kind}" is invalid.`);
 		const feature = this.features.get(kind);
 		if (!feature) throw new AnnotationNotFoundError(`Annotation Feature "${kind}" is not installed.`);
 		return feature;
 	}
 	validateFeatureDefinition(definition) {
 		if (!isPlainRecord(definition)) throw new AnnotationValidationError("Annotation Feature definition must be an object.");
-		if (!featureKindPattern.test(definition.kind) || definition.kind === ANNOTATION_PREVIEW_KIND) throw new AnnotationValidationError("Annotation Feature kind is invalid.");
+		if (!FEATURE_KIND_PATTERN.test(definition.kind) || definition.kind === ANNOTATION_PREVIEW_KIND) throw new AnnotationValidationError("Annotation Feature kind is invalid.");
 		this.assertIdentifier(definition.ownerPluginId, "Annotation Feature owner");
-		if (typeof definition.classify !== "function" || !isPlainRecord(definition.codec) || !identifierPattern.test(definition.codec.type) || !/^\d+\.\d+\.\d+$/.test(definition.codec.version) || typeof definition.codec.serialize !== "function" || typeof definition.codec.validate !== "function" || typeof definition.codec.deserialize !== "function") throw new AnnotationValidationError("Annotation Feature codec is invalid.");
+		if (typeof definition.classify !== "function" || !isPlainRecord(definition.codec) || !IDENTIFIER_PATTERN.test(definition.codec.type) || !/^\d+\.\d+\.\d+$/.test(definition.codec.version) || typeof definition.codec.serialize !== "function" || typeof definition.codec.validate !== "function" || typeof definition.codec.deserialize !== "function") throw new AnnotationValidationError("Annotation Feature codec is invalid.");
 	}
 	assertPreviewRequest(request) {
 		this.assertIdentifier(request.id, "Annotation preview id");
@@ -1466,7 +1466,7 @@ var AnnotationController = class {
 		if (errors.length > 0) throw new AnnotationError(`Annotation cleanup had ${errors.length} synchronous error(s).`);
 	}
 	assertIdentifier(value, label) {
-		if (typeof value !== "string" || !identifierPattern.test(value)) throw new AnnotationValidationError(`${label} is invalid.`);
+		if (typeof value !== "string" || !IDENTIFIER_PATTERN.test(value)) throw new AnnotationValidationError(`${label} is invalid.`);
 	}
 	assertActive(operation) {
 		if (this.disposed) throw new AnnotationError(`Cannot ${operation} after disposal.`);
@@ -1616,4 +1616,4 @@ Object.defineProperty(exports, 'annotationFoundationRef', {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-Cp1Tja0T.cjs.map
+//# sourceMappingURL=annotation-DbBdw20j.cjs.map

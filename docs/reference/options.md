@@ -214,6 +214,6 @@ needed because per-call export values already override these defaults predictabl
 - [Overlay State](../plugins/overlay-state.md)
 - [DOM Controls](../plugins/dom-controls.md)
 
-All public import paths above correspond to `package.json#exports`. For legacy
-flat constructor options and facade methods, use the
+All public import paths above correspond to `package.json#exports`. For Facade
+constructor options and methods, use the
 [facade migration guide](../guides/migration-from-v2.md).

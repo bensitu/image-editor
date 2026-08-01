@@ -1,24 +1,24 @@
-# Migration from 2.x
+# Facade-to-Plugin migration
 
 > **Migration source only:** “Before” examples on this page intentionally use
-> the 2.x facade. Do not copy them into a 3.x application; use the paired
+> the Facade API. Do not copy them into a modular application; use the paired
 > “After” examples and current [options reference](../reference/options.md).
 
-Version 3 is a breaking major release. The former monolithic
-`ImageEditor` facade is replaced by `ImageEditorCore`, public Feature Plugins,
-and typed Presets. Existing applications can migrate incrementally, but must not
-expect old source code or Snapshots to load automatically.
+The modular package line is a breaking architecture release. The `ImageEditor`
+Facade is replaced by `ImageEditorCore`, public Feature Plugins, and typed Presets.
+Existing applications can migrate incrementally, but Facade source code and
+Snapshots are not accepted automatically.
 
-The maintained 2.9 baseline is the published `legacy/v2` branch. It receives
-security and critical-correctness fixes only; the Plugin architecture and new
-Features are developed on the current major line.
+The maintained Facade baseline is the published `legacy/v2` branch. It receives
+security and critical-correctness fixes only; Plugin architecture and Feature
+development continue on the modular line.
 
 ## Choose a composition
 
 Use a Preset when it matches the product. Use Core + Plugins when bundle size or
 custom installation matters.
 
-Before:
+Facade composition:
 
 ```ts
 import * as fabric from 'fabric';
@@ -38,7 +38,7 @@ await editor.loadImage(source);
 await editor.rotateImage(90);
 ```
 
-After, with a Preset:
+Preset composition:
 
 ```ts
 import * as fabric from 'fabric';
@@ -57,7 +57,7 @@ await kit.transform.rotate(90);
 await kit.editor.disposeAsync();
 ```
 
-After, with direct composition:
+Direct Plugin composition:
 
 ```ts
 import { ImageEditorCore } from '@bensitu/image-editor/core';
@@ -82,7 +82,7 @@ installation; they are not added as methods on Core.
 
 Flat options move to their owning module:
 
-| Older option group                                   | Current owner                          |
+| Facade option group                                  | Modular owner                          |
 | ---------------------------------------------------- | -------------------------------------- |
 | canvas/layout, resource limits, export, diagnostics  | `core` / `ImageEditorCoreOptions`      |
 | animation, min/max scale, scale and rotation steps   | `transform`                            |
@@ -93,9 +93,9 @@ Flat options move to their owning module:
 | Mosaic brush/block/output/point limits               | `mosaic`                               |
 | annotation defaults                                  | `annotations`, `text`, `shape`, `draw` |
 
-The legacy list-order options map directly to their owning Plugin namespaces:
+The Facade list-order options map directly to their owning Plugin namespaces:
 
-| 2.x option            | Current option          |
+| Facade option         | Plugin option           |
 | --------------------- | ----------------------- |
 | `maskListOrder`       | `masks.listOrder`       |
 | `annotationListOrder` | `annotations.listOrder` |
@@ -129,7 +129,7 @@ unless a `domControls` factory is supplied.
 
 ## Method mapping
 
-| Older facade call                            | Current API                                              |
+| Facade call                                  | Modular API                                              |
 | -------------------------------------------- | -------------------------------------------------------- |
 | `editor.scaleImage(factor)`                  | `transform.scale(factor)`                                |
 | `editor.rotateImage(degrees)`                | `transform.rotate(degrees)`                              |
@@ -149,7 +149,7 @@ unless a `domControls` factory is supplied.
 | Shape create/session methods                 | Shape Plugin API                                         |
 | Draw/Eraser mode methods                     | Draw Plugin API                                          |
 | overlay-state export/validate/import         | `overlayState.exportState/validate/importState`          |
-| `editor.saveState()` / `loadFromState()`     | same Core methods, but current Snapshot schema only      |
+| `editor.saveState()` / `loadFromState()`     | same Core methods, with the supported Snapshot schema    |
 | image load/info/export/dispose               | same responsibilities on `kit.editor` / Core             |
 
 Crop and Mosaic previews remain transient. Their committed raster output is
@@ -169,7 +169,7 @@ undoable. There is no fallback hidden history manager when the Plugin is absent.
 
 Core accepts `image-editor.state@3`. It rejects recognizable unsupported
 Snapshot schemas with `SnapshotVersionUnsupportedError` and a migration-entry
-hint. It never loads or converts older data silently.
+hint. It never loads or converts source-format data silently.
 
 ```ts
 import {
@@ -179,18 +179,18 @@ import {
     v2SnapshotMigration,
 } from '@bensitu/image-editor/migrate-v2';
 
-const detection = detectSnapshotVersion(olderSnapshot);
+const detection = detectSnapshotVersion(sourceSnapshot);
 
 if (detection.kind === 'source') {
-    const currentSnapshot = migrateV2Snapshot(olderSnapshot);
-    await editor.loadFromState(currentSnapshot);
+    const migratedSnapshot = migrateV2Snapshot(sourceSnapshot);
+    await editor.loadFromState(migratedSnapshot);
 }
 
 // Equivalent public convenience path:
-await loadV2Snapshot(editor, olderSnapshot);
+await loadV2Snapshot(editor, sourceSnapshot);
 
 // Or use the generic Core hook explicitly:
-await editor.loadFromState(olderSnapshot, {
+await editor.loadFromState(sourceSnapshot, {
     migrations: [v2SnapshotMigration()],
 });
 ```
@@ -209,7 +209,7 @@ that deliberately accept a lossy conversion must opt in and record warnings:
 import type { SnapshotMigrationWarning } from '@bensitu/image-editor/migrate-v2';
 
 const warnings: SnapshotMigrationWarning[] = [];
-const currentSnapshot = migrateV2Snapshot(olderSnapshot, {
+const migratedSnapshot = migrateV2Snapshot(sourceSnapshot, {
     unsupportedFieldPolicy: 'warn-and-skip',
     onWarning: (warning) => warnings.push(warning),
 });
@@ -265,7 +265,7 @@ The root stays Core-only; choosing a Preset intentionally includes its Features.
 Import `migrate-v2` only in the migration path, and remove it from normal startup
 after stored data has been converted.
 
-Script-tag applications replace the old global facade with Fabric plus the one
+Script-tag applications replace the Facade global with Fabric plus the one
 Full Preset UMD:
 
 ```html
@@ -281,22 +281,22 @@ Full Preset UMD:
 </script>
 ```
 
-Fabric remains an external global. `ImageEditorFull` exposes the current Full
-composition and official factories, not a compatibility facade. DOM Controls is
+Fabric remains an external global. `ImageEditorFull` exposes the supported Full
+composition and official factories rather than emulating the Facade. DOM Controls is
 absent unless passed explicitly. Applications that need only selected Features
 may instead use the separate Modular UMD mode, but must not combine it with Full
 UMD. See [Modular UMD loading](../reference/modular-umd.md) for the Core/Plugin globals and
 dependency order.
 
-## 2.x maintenance line
+## Facade maintenance line
 
 Maintenance releases for `legacy/v2` use an independent review, verification,
 version, and release process. Changes are not merged automatically between
-`legacy/v2` and the current major. A fix that applies to both lines must be
+`legacy/v2` and the modular line. A fix that applies to both lines must be
 reviewed against and implemented for each line's contracts.
 
-Maintenance availability does not make 2.x source integrations or Snapshots
-valid inputs for the current Core. Applications should migrate with the public
+Maintenance availability does not make Facade integrations or Snapshots valid
+inputs for Core. Applications should migrate with the public
 Core and Plugin APIs, the isolated Snapshot conversion entry, and the Codemod
 unresolved-report workflow described above.
 
@@ -304,6 +304,6 @@ unresolved-report workflow described above.
 
 Private controllers/managers, compatibility modules, direct Canvas mutation,
 facade subclasses, reflection over facade methods, implicit Fabric discovery,
-and arbitrary old Snapshot shapes have no supported automatic conversion.
+and arbitrary Snapshot shapes have no supported automatic conversion.
 Replace them with public Core/SDK/Feature contracts or keep the application on
-the maintained 2.9 line while completing manual work.
+the maintained Facade line while completing manual work.

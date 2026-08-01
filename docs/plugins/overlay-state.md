@@ -93,23 +93,23 @@ runtime objects.
 cycles, functions, symbols, non-finite numbers, dangerous object keys, malformed
 identifiers, unsupported wire versions, and values beyond configured limits.
 
-`migrate()` validates wire v2 input and returns the detached current document
+`migrate()` validates wire format 2 input and returns the detached document
 shape. It does not silently reinterpret another wire version.
 
-The optional migration entry converts legacy wire v1 documents explicitly:
+The optional migration entry converts wire format 1 documents explicitly:
 
 ```ts
 import { migrateV1OverlayState } from '@bensitu/image-editor/migrate-v2';
 
-const document = migrateV1OverlayState(legacyDocument, {
+const document = migrateV1OverlayState(sourceDocument, {
     onWarning: (warning) => console.warn(warning),
 });
 
 await overlayState.importState(document);
 ```
 
-Legacy custom overlays have no automatic codec mapping. A stored Base Image
-transform is also rejected by default because wire v2 does not mutate Base
+Source custom overlays have no automatic codec mapping. A stored Base Image
+transform is also rejected by default because wire format 2 does not mutate Base
 Image geometry. Callers may opt into `unsupportedOverlayPolicy: 'skip'` or
 `baseImageTransformPolicy: 'drop'` only after handling the reported data loss.
 

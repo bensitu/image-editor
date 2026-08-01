@@ -1,4 +1,4 @@
-import * as LegacyEditor from '@bensitu/image-editor';
+import * as SourceEditor from '@bensitu/image-editor';
 
-const editor = new LegacyEditor.ImageEditor(fabric);
+const editor = new SourceEditor.ImageEditor(fabric);
 editor.init({ canvas: 'canvas' });

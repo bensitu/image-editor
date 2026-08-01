@@ -413,7 +413,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 
 //#endregion
 //#region dist/esm/plugins/mosaic/mosaic-controller.js
-	const defaultConfiguration = Object.freeze({
+	const DEFAULT_CONFIGURATION = Object.freeze({
 		brushSizePx: 24,
 		pixelBlockSizePx: 8,
 		format: "source",
@@ -491,7 +491,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 	function resolveMosaicConfiguration(options) {
-		return normalizeConfiguration(defaultConfiguration, options);
+		return normalizeConfiguration(DEFAULT_CONFIGURATION, options);
 	}
 	function cloneDirtyRectangle(rectangle) {
 		return rectangle ? Object.freeze({ ...rectangle }) : null;

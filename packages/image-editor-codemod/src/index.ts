@@ -177,7 +177,7 @@ interface OldEditorImportAnalysis {
     readonly declarations: readonly ts.ImportDeclaration[];
     readonly locals: ReadonlySet<string>;
     readonly unsupportedNamespace: ts.ImportDeclaration | null;
-    readonly hasCurrentRuntimeImport: boolean;
+    readonly hasTargetRuntimeImport: boolean;
 }
 
 interface ParsedSource {
@@ -619,7 +619,7 @@ function callsForCandidate(
                         fileName,
                         node.parent,
                         'SAVE_STATE_SEMANTICS_CHANGED',
-                        'The former saveState() created a History checkpoint, while Core saveState() serializes a Snapshot. Select an explicit History or Snapshot workflow manually.',
+                        'The Facade saveState() behavior created a History checkpoint, while Core saveState() serializes a Snapshot. Select an explicit History or Snapshot workflow manually.',
                     ),
                 );
                 blocked = true;
@@ -645,7 +645,7 @@ function callsForCandidate(
                         fileName,
                         node.parent,
                         'MASK_REMOVE_ALL_OPTIONS_CHANGED',
-                        'The former removeAllMasks() options do not have an equivalent Mask Plugin argument.',
+                        'The Facade removeAllMasks() options do not have an equivalent Mask Plugin argument.',
                     ),
                 );
                 blocked = true;
@@ -661,7 +661,7 @@ function callsForCandidate(
                         fileName,
                         node.parent,
                         'EXPORT_OPTIONS_SEMANTICS_CHANGED',
-                        'Legacy export option names and Mask/Annotation merge switches require explicit modular export contributor options.',
+                        'Facade export option names and Mask/Annotation merge switches require explicit modular export contributor options.',
                     ),
                 );
                 blocked = true;
@@ -740,7 +740,7 @@ function callsForCandidate(
                 fileName,
                 node,
                 'EDITOR_ESCAPE',
-                'Passing or storing the former editor object requires manual capability selection.',
+                'Passing or storing the Facade editor instance requires manual capability selection.',
             ),
         );
         blocked = true;
@@ -752,13 +752,13 @@ function oldEditorImports(sourceFile: ts.SourceFile): OldEditorImportAnalysis {
     const declarations: ts.ImportDeclaration[] = [];
     const locals = new Set<string>();
     let unsupportedNamespace: ts.ImportDeclaration | null = null;
-    let hasCurrentRuntimeImport = false;
+    let hasTargetRuntimeImport = false;
     for (const statement of sourceFile.statements) {
         if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
             continue;
         }
         const specifier = statement.moduleSpecifier.text;
-        if (specifier.startsWith(`${PACKAGE_ROOT}/`)) hasCurrentRuntimeImport = true;
+        if (specifier.startsWith(`${PACKAGE_ROOT}/`)) hasTargetRuntimeImport = true;
         if (specifier !== PACKAGE_ROOT || !statement.importClause) continue;
         declarations.push(statement);
         const clause = statement.importClause;
@@ -777,7 +777,7 @@ function oldEditorImports(sourceFile: ts.SourceFile): OldEditorImportAnalysis {
         declarations: Object.freeze(declarations),
         locals,
         unsupportedNamespace,
-        hasCurrentRuntimeImport,
+        hasTargetRuntimeImport,
     });
 }
 
@@ -843,19 +843,19 @@ function determineTransformationBlockers(
                 fileName,
                 imports.unsupportedNamespace,
                 'NAMESPACE_IMPORT',
-                'Namespace access to the former editor export requires manual migration.',
+                'Namespace access to the Facade editor export requires manual migration.',
             ),
         );
         globallyBlocked = true;
     }
-    if (imports.hasCurrentRuntimeImport) {
+    if (imports.hasTargetRuntimeImport) {
         unresolved.push(
             finding(
                 sourceFile,
                 fileName,
                 imports.declarations[0]!,
                 'MIXED_EDITOR_VERSIONS',
-                'A file importing both former and current runtime entries must be separated manually.',
+                'A file importing both Facade and modular runtime entries must be separated manually.',
             ),
         );
         globallyBlocked = true;
@@ -875,7 +875,7 @@ function determineTransformationBlockers(
                                 fileName,
                                 type,
                                 'FACADE_SUBCLASS',
-                                'Subclasses of the former editor must be redesigned around Core and Plugin composition.',
+                                'Facade editor subclasses must be redesigned around Core and Plugin composition.',
                             ),
                         );
                         globallyBlocked = true;
@@ -899,7 +899,7 @@ function determineTransformationBlockers(
                     fileName,
                     node,
                     'EDITOR_REFLECTION',
-                    'Reflection over the former editor surface cannot be rewritten safely.',
+                    'Reflection over the Facade editor surface cannot be rewritten safely.',
                 ),
             );
             globallyBlocked = true;
@@ -920,7 +920,7 @@ function determineTransformationBlockers(
                     fileName,
                     expression,
                     'CONSTRUCTOR_CONTEXT',
-                    'The former constructor must be assigned to a simple local variable before migration.',
+                    'The Facade constructor must be assigned to a simple local variable before migration.',
                 ),
             );
             globallyBlocked = true;
@@ -948,7 +948,7 @@ function determineTransformationBlockers(
                     fileName,
                     expression,
                     'FABRIC_MODULE_REQUIRED',
-                    'Current constructors require an explicit Fabric module.',
+                    'Core constructors require an explicit Fabric module.',
                 ),
             );
             blocked = true;
@@ -997,7 +997,7 @@ function determineTransformationBlockers(
                 fileName,
                 imports.declarations[0]!,
                 'NO_STATIC_CONSTRUCTOR',
-                'No statically recognizable former editor constructor was found.',
+                'No statically recognizable Facade editor constructor was found.',
             ),
         );
         globallyBlocked = true;

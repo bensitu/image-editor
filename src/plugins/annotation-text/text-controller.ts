@@ -45,7 +45,6 @@ const MAX_FONT_FIELD_LENGTH = 256;
 const MAX_TEXT_OBJECT_BYTES = 256 * 1024;
 const MAX_TEXT_WIDTH = 100_000;
 const MAX_COORDINATE = 10_000_000;
-
 type TextHost = CoreDiagnosticsPort & FabricRuntimePort & BaseImageInfoPort;
 type TextObject = FabricNS.Textbox & {
     editorOverlayLocked?: boolean;

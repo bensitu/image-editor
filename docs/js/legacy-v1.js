@@ -48,8 +48,7 @@ const translations = {
         maskList: 'Mask list',
         noImageLoaded: 'No image loaded',
         darkMode: 'Dark mode',
-        legacyDemo: 'Legacy v1 demo',
-        usingLegacyDemo: 'Using v1',
+        usingArchiveDemo: 'Archived 1.x demo',
         maskShapeRect: 'Rect',
         maskShapeCircle: 'Circle',
         maskShapeEllipse: 'Ellipse',
@@ -90,8 +89,7 @@ const translations = {
         maskList: '遮罩列表',
         noImageLoaded: '尚未加载图片',
         darkMode: '深色模式',
-        legacyDemo: '旧版 v1 演示',
-        usingLegacyDemo: '正在使用 v1',
+        usingArchiveDemo: '1.x 归档演示',
         maskShapeRect: '矩形',
         maskShapeCircle: '圆形',
         maskShapeEllipse: '椭圆',
@@ -132,8 +130,7 @@ const translations = {
         maskList: 'マスクリスト',
         noImageLoaded: '画像が読み込まれていません',
         darkMode: 'ダークモード',
-        legacyDemo: '旧 v1 デモ',
-        usingLegacyDemo: 'v1 使用中',
+        usingArchiveDemo: '1.x アーカイブデモ',
         maskShapeRect: '長方形',
         maskShapeCircle: '円',
         maskShapeEllipse: '楕円',
@@ -174,8 +171,7 @@ const translations = {
         maskList: '마스크 목록',
         noImageLoaded: '이미지가 없습니다',
         darkMode: '다크 모드',
-        legacyDemo: '이전 v1 데모',
-        usingLegacyDemo: 'v1 사용 중',
+        usingArchiveDemo: '1.x 보관 데모',
         maskShapeRect: '사각형',
         maskShapeCircle: '원',
         maskShapeEllipse: '타원',
@@ -216,8 +212,7 @@ const translations = {
         maskList: 'Liste des masques',
         noImageLoaded: 'Aucune image chargée',
         darkMode: 'Mode sombre',
-        legacyDemo: 'Démo v1 historique',
-        usingLegacyDemo: 'Version v1 active',
+        usingArchiveDemo: 'Démo 1.x archivée',
         maskShapeRect: 'Rectangle',
         maskShapeCircle: 'Cercle',
         maskShapeEllipse: 'Ellipse',
@@ -258,8 +253,7 @@ const translations = {
         maskList: 'Lista de máscaras',
         noImageLoaded: 'No hay imagen cargada',
         darkMode: 'Modo oscuro',
-        legacyDemo: 'Demo v1 anterior',
-        usingLegacyDemo: 'Usando v1',
+        usingArchiveDemo: 'Demostración 1.x archivada',
         maskShapeRect: 'Rectángulo',
         maskShapeCircle: 'Círculo',
         maskShapeEllipse: 'Elipse',
@@ -457,7 +451,7 @@ function summarizeDataUrl(dataUrl) {
 }
 
 async function copyTextToClipboard(text) {
-    // Prefer the modern async clipboard API, with a textarea fallback for
+    // Prefer the asynchronous Clipboard API, with a textarea fallback for
     // browsers or local file contexts where `navigator.clipboard` is absent.
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
         await navigator.clipboard.writeText(text);
@@ -696,9 +690,8 @@ function setOptions() {
     if (!editor) return;
     const layoutMode = getSelectedLayoutMode();
 
-    // `setLayoutMode` is the public API for changing how the NEXT image load
-    // is placed in v2. v1 has no equivalent setter, so this legacy page
-    // recreates the editor with the selected constructor options before loading.
+    // Use `setLayoutMode` when the loaded build supports it. The archived build
+    // has no equivalent setter, so recreate the editor before loading an image.
     if (typeof editor.setLayoutMode === 'function') {
         editor.setLayoutMode(layoutMode);
     } else {

@@ -40,11 +40,11 @@ async function dispose(editor) {
 }
 
 function assertDefaultByteBudgetStatus(history, expected) {
-    const { bytes, maxBytes, ...legacyStatus } = history.getState();
+    const { bytes, maxBytes, ...statusWithoutByteAccounting } = history.getState();
     assert.ok(Number.isSafeInteger(bytes));
     assert.ok(bytes >= 0);
     assert.equal(maxBytes, 128 * 1024 * 1024);
-    assert.deepEqual(legacyStatus, expected);
+    assert.deepEqual(statusWithoutByteAccounting, expected);
 }
 
 function installHistoryTrustProbe(editor) {

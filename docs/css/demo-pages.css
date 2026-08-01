@@ -1105,20 +1105,20 @@ canvas {
     box-shadow: var(--shadow-soft);
 }
 
-.legacy-note {
+.archive-note {
     margin-top: 8px;
     margin-left: 10px;
     color: var(--muted);
     font-size: 13px;
 }
 
-.legacy-note a {
+.archive-note a {
     color: var(--accent-strong);
     font-weight: 760;
     text-decoration: none;
 }
 
-.legacy-note a:hover {
+.archive-note a:hover {
     text-decoration: underline;
 }
 

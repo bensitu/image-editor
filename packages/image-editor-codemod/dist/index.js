@@ -378,7 +378,7 @@ function callsForCandidate(sourceFile, fileName, declaration, variable, unresolv
                 return;
             }
             if (method === 'saveState') {
-                unresolved.push(finding(sourceFile, fileName, node.parent, 'SAVE_STATE_SEMANTICS_CHANGED', 'The former saveState() created a History checkpoint, while Core saveState() serializes a Snapshot. Select an explicit History or Snapshot workflow manually.'));
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'SAVE_STATE_SEMANTICS_CHANGED', 'The Facade saveState() behavior created a History checkpoint, while Core saveState() serializes a Snapshot. Select an explicit History or Snapshot workflow manually.'));
                 blocked = true;
                 return;
             }
@@ -388,13 +388,13 @@ function callsForCandidate(sourceFile, fileName, declaration, variable, unresolv
                 return;
             }
             if (method === 'removeAllMasks' && node.parent.arguments.length > 0) {
-                unresolved.push(finding(sourceFile, fileName, node.parent, 'MASK_REMOVE_ALL_OPTIONS_CHANGED', 'The former removeAllMasks() options do not have an equivalent Mask Plugin argument.'));
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'MASK_REMOVE_ALL_OPTIONS_CHANGED', 'The Facade removeAllMasks() options do not have an equivalent Mask Plugin argument.'));
                 blocked = true;
                 return;
             }
             if ((method === 'exportImageBase64' || method === 'exportImageFile') &&
                 !exportOptionsAreSafe(node.parent)) {
-                unresolved.push(finding(sourceFile, fileName, node.parent, 'EXPORT_OPTIONS_SEMANTICS_CHANGED', 'Legacy export option names and Mask/Annotation merge switches require explicit modular export contributor options.'));
+                unresolved.push(finding(sourceFile, fileName, node.parent, 'EXPORT_OPTIONS_SEMANTICS_CHANGED', 'Facade export option names and Mask/Annotation merge switches require explicit modular export contributor options.'));
                 blocked = true;
                 return;
             }
@@ -440,7 +440,7 @@ function callsForCandidate(sourceFile, fileName, declaration, variable, unresolv
             parent.expression === node) {
             return;
         }
-        unresolved.push(finding(sourceFile, fileName, node, 'EDITOR_ESCAPE', 'Passing or storing the former editor object requires manual capability selection.'));
+        unresolved.push(finding(sourceFile, fileName, node, 'EDITOR_ESCAPE', 'Passing or storing the Facade editor instance requires manual capability selection.'));
         blocked = true;
     });
     return Object.freeze({ calls: Object.freeze(calls), blocked, requiresFullPreset });
@@ -449,14 +449,14 @@ function oldEditorImports(sourceFile) {
     const declarations = [];
     const locals = new Set();
     let unsupportedNamespace = null;
-    let hasCurrentRuntimeImport = false;
+    let hasTargetRuntimeImport = false;
     for (const statement of sourceFile.statements) {
         if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
             continue;
         }
         const specifier = statement.moduleSpecifier.text;
         if (specifier.startsWith(`${PACKAGE_ROOT}/`))
-            hasCurrentRuntimeImport = true;
+            hasTargetRuntimeImport = true;
         if (specifier !== PACKAGE_ROOT || !statement.importClause)
             continue;
         declarations.push(statement);
@@ -478,7 +478,7 @@ function oldEditorImports(sourceFile) {
         declarations: Object.freeze(declarations),
         locals,
         unsupportedNamespace,
-        hasCurrentRuntimeImport,
+        hasTargetRuntimeImport,
     });
 }
 function sortFindings(values) {
@@ -510,11 +510,11 @@ function collectEditorCandidates(sourceFile, imports) {
 function determineTransformationBlockers(sourceFile, fileName, imports, newExpressions, unresolved) {
     let globallyBlocked = false;
     if (imports.unsupportedNamespace) {
-        unresolved.push(finding(sourceFile, fileName, imports.unsupportedNamespace, 'NAMESPACE_IMPORT', 'Namespace access to the former editor export requires manual migration.'));
+        unresolved.push(finding(sourceFile, fileName, imports.unsupportedNamespace, 'NAMESPACE_IMPORT', 'Namespace access to the Facade editor export requires manual migration.'));
         globallyBlocked = true;
     }
-    if (imports.hasCurrentRuntimeImport) {
-        unresolved.push(finding(sourceFile, fileName, imports.declarations[0], 'MIXED_EDITOR_VERSIONS', 'A file importing both former and current runtime entries must be separated manually.'));
+    if (imports.hasTargetRuntimeImport) {
+        unresolved.push(finding(sourceFile, fileName, imports.declarations[0], 'MIXED_EDITOR_VERSIONS', 'A file importing both Facade and modular runtime entries must be separated manually.'));
         globallyBlocked = true;
     }
     visit(sourceFile, (node) => {
@@ -523,7 +523,7 @@ function determineTransformationBlockers(sourceFile, fileName, imports, newExpre
                 for (const type of clause.types) {
                     if (ts.isIdentifier(type.expression) &&
                         imports.locals.has(type.expression.text)) {
-                        unresolved.push(finding(sourceFile, fileName, type, 'FACADE_SUBCLASS', 'Subclasses of the former editor must be redesigned around Core and Plugin composition.'));
+                        unresolved.push(finding(sourceFile, fileName, type, 'FACADE_SUBCLASS', 'Facade editor subclasses must be redesigned around Core and Plugin composition.'));
                         globallyBlocked = true;
                     }
                 }
@@ -535,7 +535,7 @@ function determineTransformationBlockers(sourceFile, fileName, imports, newExpre
                 ['Object', 'Reflect'].includes(node.expression.expression.text)) ||
                 node.expression.name.text === 'hasOwnProperty') &&
             node.arguments.some((argument) => [...imports.locals].some((name) => argument.getText(sourceFile).includes(name)))) {
-            unresolved.push(finding(sourceFile, fileName, node, 'EDITOR_REFLECTION', 'Reflection over the former editor surface cannot be rewritten safely.'));
+            unresolved.push(finding(sourceFile, fileName, node, 'EDITOR_REFLECTION', 'Reflection over the Facade editor surface cannot be rewritten safely.'));
             globallyBlocked = true;
         }
     });
@@ -545,7 +545,7 @@ function determineTransformationBlockers(sourceFile, fileName, imports, newExpre
         if (!ts.isVariableDeclaration(declaration) ||
             declaration.initializer !== expression ||
             !ts.isIdentifier(declaration.name)) {
-            unresolved.push(finding(sourceFile, fileName, expression, 'CONSTRUCTOR_CONTEXT', 'The former constructor must be assigned to a simple local variable before migration.'));
+            unresolved.push(finding(sourceFile, fileName, expression, 'CONSTRUCTOR_CONTEXT', 'The Facade constructor must be assigned to a simple local variable before migration.'));
             globallyBlocked = true;
             continue;
         }
@@ -557,7 +557,7 @@ function determineTransformationBlockers(sourceFile, fileName, imports, newExpre
             blocked = true;
         }
         if (args.length === 0 || (args.length === 1 && ts.isObjectLiteralExpression(args[0]))) {
-            unresolved.push(finding(sourceFile, fileName, expression, 'FABRIC_MODULE_REQUIRED', 'Current constructors require an explicit Fabric module.'));
+            unresolved.push(finding(sourceFile, fileName, expression, 'FABRIC_MODULE_REQUIRED', 'Core constructors require an explicit Fabric module.'));
             blocked = true;
         }
         else if (args.length > 2) {
@@ -584,7 +584,7 @@ function determineTransformationBlockers(sourceFile, fileName, imports, newExpre
         }));
     }
     if (newExpressions.length === 0) {
-        unresolved.push(finding(sourceFile, fileName, imports.declarations[0], 'NO_STATIC_CONSTRUCTOR', 'No statically recognizable former editor constructor was found.'));
+        unresolved.push(finding(sourceFile, fileName, imports.declarations[0], 'NO_STATIC_CONSTRUCTOR', 'No statically recognizable Facade editor constructor was found.'));
         globallyBlocked = true;
     }
     return Object.freeze({

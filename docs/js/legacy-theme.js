@@ -1,5 +1,5 @@
 /**
- * Applies the persisted or system theme before the isolated Legacy demo renders.
+ * Applies the persisted or system theme before the archived demo renders.
  *
  * @module
  */

@@ -146,6 +146,17 @@
                                 value="0"
                             />
                         </label>
+                        <label class="field" for="cropRotationInput">
+                            <span>Rotation (degrees)</span>
+                            <input
+                                id="cropRotationInput"
+                                type="number"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                        </label>
                         <div class="control-grid">
                             <label class="field" for="imageBlurInput">
                                 <span>Blur</span>
@@ -343,6 +354,9 @@
                             <code>ImageEditorPlugins.Filters.filtersPlugin()</code>
                             <code>ImageEditorPlugins.Crop.cropPlugin()</code>
                             <code>editor.loadImage()</code>
+                            <code>editor.loadImageFile()</code>
+                            <code>editor.observeContainer()</code>
+                            <code>editor.subscribeStatus()</code>
                             <code>editor.setLayoutMode()</code>
                             <code>plugins.transform.scale()</code>
                             <code>plugins.transform.rotate()</code>
@@ -353,6 +367,7 @@
                             <code>plugins.filters.commit()</code>
                             <code>plugins.filters.clear()</code>
                             <code>plugins.crop.enter()</code>
+                            <code>plugins.crop.setRotation()</code>
                             <code>plugins.crop.apply()</code>
                             <code>editor.exportImageBase64()</code>
                             <code>editor.exportImageFile()</code>

@@ -16,6 +16,7 @@ import { MementoService, ObjectPropertyRegistry, SnapshotService, StateSliceRegi
 import { inspectEncodedImageDataUrl } from './state/image-data-url.js';
 import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS } from '../utils/internal-operation-conflict-domains.js';
+const DEFAULT_EXPORT_FILE_NAME = 'edited_image';
 const DEFAULT_CORE_OPTIONS = Object.freeze({
     canvasWidth: 800,
     canvasHeight: 600,
@@ -42,7 +43,7 @@ const DEFAULT_CORE_OPTIONS = Object.freeze({
         format: 'png',
         quality: 0.92,
         multiplier: 1,
-        fileName: 'edited_image',
+        fileName: DEFAULT_EXPORT_FILE_NAME,
         contributors: Object.freeze({}),
     }),
     initialImageBase64: '',
@@ -118,7 +119,7 @@ function exportFileName(baseName, format) {
     const cleaned = [...baseName]
         .filter((character) => { var _a; return ((_a = character.codePointAt(0)) !== null && _a !== void 0 ? _a : 0) >= 0x20; })
         .join('')
-        .trim() || 'edited_image';
+        .trim() || DEFAULT_EXPORT_FILE_NAME;
     return /\.(?:jpe?g|png|webp)$/iu.test(cleaned)
         ? cleaned.replace(/\.(?:jpe?g|png|webp)$/iu, `.${extension}`)
         : `${cleaned}.${extension}`;
@@ -250,24 +251,23 @@ function reportSafely(callback, error, message, fallback) {
         fallback('[ImageEditor] Error callback failed.', callbackError);
     }
 }
-function base64ToFile(dataUrl, fileName) {
-    var _a, _b;
-    const [header = '', payload = ''] = dataUrl.split(',', 2);
-    const mimeType = (_b = (_a = /data:([^;]+)/.exec(header)) === null || _a === void 0 ? void 0 : _a[1]) !== null && _b !== void 0 ? _b : 'application/octet-stream';
+function dataUrlToFile(dataUrl, fileName) {
+    var _a;
+    const commaIndex = dataUrl.indexOf(',');
+    const header = commaIndex < 0 ? '' : dataUrl.slice(0, commaIndex);
+    const mimeType = (_a = /^data:([^;,]+);base64$/iu.exec(header)) === null || _a === void 0 ? void 0 : _a[1];
+    if (!mimeType) {
+        throw new CoreRuntimeError('[ImageEditor] Export did not produce a base64 Data URL.');
+    }
+    const payload = dataUrl.slice(commaIndex + 1);
+    const buffer = globalThis.Buffer;
     let bytes;
-    if (/;base64/i.test(header)) {
-        const buffer = globalThis.Buffer;
-        if (buffer) {
-            bytes = Uint8Array.from(buffer.from(payload, 'base64'));
-        }
-        else {
-            const binary = atob(payload);
-            bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-        }
+    if (buffer) {
+        bytes = Uint8Array.from(buffer.from(payload, 'base64'));
     }
     else {
-        const decoded = decodeURIComponent(payload);
-        bytes = new TextEncoder().encode(decoded);
+        const binary = atob(payload);
+        bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     }
     return new File([bytes.slice().buffer], fileName, { type: mimeType });
 }
@@ -1017,7 +1017,7 @@ export class ImageEditorCore {
     async exportImageFile(options = {}) {
         const resolved = resolveExportOptions(options, this.options.exportDefaults);
         const dataUrl = await this.runExport(resolved);
-        return base64ToFile(dataUrl, exportFileName(resolved.fileName, resolved.format));
+        return dataUrlToFile(dataUrl, exportFileName(resolved.fileName, resolved.format));
     }
     isImageLoaded() {
         return this.imageLoaded && this.baseImage !== null;

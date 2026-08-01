@@ -20,7 +20,7 @@ async function loadNamespace(): Promise<FullUmdNamespace> {
     return globalObject.ImageEditorFull;
 }
 
-test('Full UMD exposes one modern global and every official Feature factory', async () => {
+test('Full UMD exposes one primary global and every official Feature factory', async () => {
     const namespace = await loadNamespace();
     assert.ok(namespace);
     for (const name of [

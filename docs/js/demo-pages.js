@@ -243,6 +243,16 @@
                 canvasWidth: 960,
                 canvasHeight: 620,
                 defaultLayoutMode: 'fit',
+                imagePreprocessing: {
+                    maxWidth: 2048,
+                    maxHeight: 2048,
+                    preserveSourceFormat: true,
+                    normalizeExifOrientation: true,
+                },
+                exportDefaults: {
+                    area: 'image',
+                    fileName: 'image-editor-demo',
+                },
                 onError(error, message) {
                     showMessage(message || error || 'Image editor operation failed.', 'error');
                 },
@@ -264,11 +274,18 @@
                 paddingPx: 18,
                 minimumWidthPx: 60,
                 minimumHeightPx: 60,
+                rotatable: true,
             },
             mosaic: {
                 brushSizePx: 48,
                 pixelBlockSizePx: 10,
                 format: 'png',
+                preview: {
+                    stroke: '#2563eb',
+                    strokeWidth: 2,
+                    strokeDashArray: [4, 4],
+                    fill: 'rgba(37,99,235,0.12)',
+                },
             },
             annotations: { listOrder: 'front-to-back' },
             text: {
@@ -309,6 +326,7 @@
 
     function registerPluginObservers(kit) {
         const refresh = () => queueMicrotask(updateDemoUi);
+        trackCleanup(kit.editor.subscribeStatus(refresh));
         trackCleanup(kit.history?.onChange(refresh));
         trackCleanup(kit.filters?.subscribe(refresh));
         trackCleanup(kit.crop?.subscribe(refresh));
@@ -583,6 +601,7 @@
                 canvasContainer: 'canvasContainer',
                 imagePlaceholder: 'imagePlaceholder',
             });
+            trackCleanup(kit.editor.observeContainer());
             registerPluginObservers(kit);
             registerCanvasPointerBridge(kit);
             updateDemoUi();
@@ -778,6 +797,7 @@
         setDisabled('applyCropButton', activeToolMode !== 'crop' || busy);
         setDisabled('cancelCropButton', activeToolMode !== 'crop' || busy);
         setDisabled('cropAspectRatioSelect', !hasImage || busy);
+        setDisabled('cropRotationInput', !hasImage || busy);
         setDisabled('enterMosaicModeButton', !canUseIdleImage);
         setDisabled('exitMosaicModeButton', activeToolMode !== 'mosaic' || busy);
         setDisabled('mosaicBrushSizeInput', !hasImage || busy);
@@ -1673,9 +1693,10 @@
         const kit = getKit();
         if (!kit?.editor.isImageLoaded() || isDemoBusy()) return;
         const aspectRatio = getOptionalElement('cropAspectRatioSelect')?.value || 'free';
+        const rotationDegrees = readNumberControl('cropRotationInput', 0);
         void runDemoAction(
             'crop:enter',
-            () => kit.crop.enter({ aspectRatio }),
+            () => kit.crop.enter({ aspectRatio, rotationDegrees }),
             'Crop preview active.',
         );
     }
@@ -1685,6 +1706,13 @@
         if (!kit?.crop.isActive || isDemoBusy()) return;
         const aspectRatio = getOptionalElement('cropAspectRatioSelect')?.value || 'free';
         void runDemoAction('crop:set-aspect-ratio', () => kit.crop.setAspectRatio(aspectRatio));
+    }
+
+    function updateCropRotation() {
+        const kit = getKit();
+        if (!kit?.crop.isActive || isDemoBusy()) return;
+        const rotationDegrees = readNumberControl('cropRotationInput', 0);
+        void runDemoAction('crop:set-rotation', () => kit.crop.setRotation(rotationDegrees));
     }
 
     function applyCrop() {
@@ -1875,6 +1903,7 @@
             ['applyCropButton', 'click', applyCrop],
             ['cancelCropButton', 'click', cancelCrop],
             ['cropAspectRatioSelect', 'change', updateCropAspectRatio],
+            ['cropRotationInput', 'change', updateCropRotation],
             ['createShapeAnnotationButton', 'click', createShapeAnnotation],
             ['enterShapeModeButton', 'click', enterShapeMode],
             ['exitShapeModeButton', 'click', exitShapeMode],

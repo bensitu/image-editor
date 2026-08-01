@@ -5,10 +5,10 @@
 [![](https://data.jsdelivr.com/v1/package/npm/@bensitu/image-editor/badge)](https://www.jsdelivr.com/package/npm/@bensitu/image-editor)
 
 A TypeScript-first Core Framework and public Plugin SDK built on
-[Fabric.js](https://fabricjs.com/) v7. The current major release separates canvas
+[Fabric.js](https://fabricjs.com/) v7. The modular architecture separates canvas
 lifecycle from typed Feature Plugins for transforms, history, redaction,
 annotations, persistence, and optional DOM controls. Applications moving from
-2.x should follow the [migration guide](docs/guides/migration-from-v2.md).
+the Facade API should follow the [migration guide](docs/guides/migration-from-v2.md).
 
 Fabric `>=7.4.0 <8` is a peer dependency and is never bundled. Core composition
 is DOM-independent and safe to import in SSR/headless code; canvas initialization
@@ -272,7 +272,7 @@ the linked Feature documents and declaration files for their complete contracts.
 - Minimum supported Node: 22.12.0 (`engines.node` remains `>=22.12.0`).
 - **Fabric.js**: peer dependency `>=7.4.0 <8`.
 - **Browsers**: Chrome 100+, Firefox 100+, Safari 15+, Edge 100+.
-- **JavaScript target**: distributed files target ES2019 and modern DOM APIs.
+- **JavaScript target**: distributed files target ES2019 and browser DOM APIs.
 - **TypeScript**: strict consumers that compile dependencies with
   `skipLibCheck: false` should include the ES2019 and DOM libraries in
   `tsconfig.json`. Fabric v7.4 declarations also reference `jsdom` types, so
@@ -307,7 +307,7 @@ Do not load Full UMD together with Core or Plugin UMD files on one page. Fabric
 remains a separate script in both modes. The Full Preset does not install DOM
 Controls unless requested.
 
-Replace `VERSION` in the CDN examples with one exact published 3.x version.
+Replace `VERSION` in the CDN examples with one exact published package version.
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
@@ -371,7 +371,7 @@ supported frozen maintenance Snapshots. Core never migrates implicitly. The
 separate `@bensitu/image-editor-codemod` CLI rewrites common integrations and
 reports ambiguous patterns without changing them.
 
-The maintained 2.9 baseline lives on the published `legacy/v2` branch.
+The maintained Facade baseline lives on the published `legacy/v2` branch.
 Maintenance is limited to security and critical correctness fixes, with a
 separate release process and no automatic merges from `develop`.
 

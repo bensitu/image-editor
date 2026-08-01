@@ -5,7 +5,7 @@ import { MosaicIntegrationError, MosaicSessionError, MosaicValidationError, } fr
 import { createMosaicPreviewImage, createMosaicRasterCache, disposeMosaicRasterCache, writeMosaicDirtyRegion, } from './mosaic-raster-cache.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { normalizeMosaicCommitOptions, renderMosaicImage } from './mosaic-renderer.js';
-const defaultConfiguration = Object.freeze({
+const DEFAULT_CONFIGURATION = Object.freeze({
     brushSizePx: 24,
     pixelBlockSizePx: 8,
     format: 'source',
@@ -122,7 +122,7 @@ function normalizeConfiguration(current, patch) {
     });
 }
 export function resolveMosaicConfiguration(options) {
-    return normalizeConfiguration(defaultConfiguration, options);
+    return normalizeConfiguration(DEFAULT_CONFIGURATION, options);
 }
 function cloneDirtyRectangle(rectangle) {
     return rectangle ? Object.freeze({ ...rectangle }) : null;

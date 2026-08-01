@@ -5,7 +5,6 @@ import type * as FabricNS from 'fabric';
 
 import {
     fitCropRectToAspectRatio,
-    intersectCropRectangles,
     normalizeCropAspectRatio,
     normalizeCropRect,
 } from '../../../src/plugins/crop/crop-geometry.js';
@@ -89,18 +88,6 @@ test('fixed-ratio fitting remains centered and bounded deterministically', () =>
             heightPx: 75,
         }),
         { leftPx: 0, topPx: 0, widthPx: 100, heightPx: 75 },
-    );
-});
-
-test('rectangle intersection treats touching edges as outside', () => {
-    const selected = { left: 10, top: 10, width: 20, height: 20 };
-    assert.equal(
-        intersectCropRectangles(selected, { left: 20, top: 20, width: 20, height: 20 }),
-        true,
-    );
-    assert.equal(
-        intersectCropRectangles(selected, { left: 30, top: 10, width: 4, height: 4 }),
-        false,
     );
 });
 

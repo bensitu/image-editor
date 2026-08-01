@@ -1,8 +1,8 @@
 /**
- * Converts the legacy Overlay State wire v1 format to the current wire v2 format.
+ * Converts Overlay State wire format 1 into wire format 2.
  *
  * The converter is deliberately kept in the optional migrate-v2 entry so the
- * runtime Overlay State Plugin does not depend on legacy feature knowledge.
+ * runtime Overlay State Plugin does not depend on source-format feature knowledge.
  *
  * @module
  */
@@ -19,7 +19,6 @@ const COORDINATE_SPACE = 'image-normalized' as const;
 const MAX_OVERLAYS = 100_000;
 const MAX_POINTS = 65_536;
 const MAX_TEXT_LENGTH = 20_000;
-
 type JsonRecord = Record<string, unknown>;
 type Point = Readonly<{ x: number; y: number }>;
 
@@ -33,9 +32,9 @@ export interface OverlayStateV1MigrationWarning {
 }
 
 export interface OverlayStateV1MigrationOptions {
-    /** How custom v1 overlays without a v2 State Codec are handled. @defaultValue `'error'` */
+    /** How wire format 1 overlays without a wire format 2 State Codec are handled. @defaultValue `'error'` */
     readonly unsupportedOverlayPolicy?: OverlayStateV1UnsupportedPolicy;
-    /** How a v1 base-image transform that cannot be represented in v2 is handled. @defaultValue `'error'` */
+    /** How a wire format 1 Base Image transform that cannot be represented in wire format 2 is handled. @defaultValue `'error'` */
     readonly baseImageTransformPolicy?: OverlayStateV1TransformPolicy;
     readonly onWarning?: (warning: OverlayStateV1MigrationWarning) => void;
 }
@@ -404,7 +403,7 @@ function convertText(
     warn(
         'text.bounds.approximated',
         `${path}.geometry`,
-        'Overlay State v1 did not store rendered text height; v2 bounds were estimated from font size and line height.',
+        'Wire format 1 did not store rendered text height; wire format 2 bounds were estimated from font size and line height.',
     );
     return item(
         id,
@@ -663,7 +662,7 @@ function imageReference(value: unknown): OverlayStateImageReference {
     });
 }
 
-/** Converts a legacy Overlay State wire v1 document into the current wire v2 shape. */
+/** Converts an Overlay State wire format 1 document into wire format 2. */
 export function migrateV1OverlayState(
     input: unknown,
     options: OverlayStateV1MigrationOptions = {},
@@ -677,7 +676,7 @@ export function migrateV1OverlayState(
     ) {
         return fail(
             'document.unsupported',
-            'Input is not a supported Overlay State v1 document.',
+            'Input is not a supported Overlay State wire format 1 document.',
             '$',
         );
     }
@@ -694,14 +693,14 @@ export function migrateV1OverlayState(
             if (resolvedOptions.baseImageTransformPolicy === 'error') {
                 return fail(
                     'transform.unsupported',
-                    'Overlay State v2 does not mutate the Base Image transform; pass baseImageTransformPolicy: "drop" only when the host restores that transform separately.',
+                    'Overlay State wire format 2 does not mutate the Base Image transform; pass baseImageTransformPolicy: "drop" only when the host restores that transform separately.',
                     '$.baseImageTransform',
                 );
             }
             warn(
                 'transform.dropped',
                 '$.baseImageTransform',
-                'The v1 Base Image transform was dropped; the host must restore it separately.',
+                'The wire format 1 Base Image transform was dropped; the host must restore it separately.',
             );
         }
     }
@@ -712,7 +711,7 @@ export function migrateV1OverlayState(
     ) {
         return fail(
             'image.orientation',
-            'Non-normalized v1 image orientation cannot be represented in Overlay State v2.',
+            'Non-normalized wire format 1 image orientation cannot be represented in Overlay State wire format 2.',
             '$.image.orientation',
         );
     }
@@ -723,32 +722,32 @@ export function migrateV1OverlayState(
     const reserved = new Set<string>();
     for (let index = 0; index < source.overlays.length; index += 1) {
         const path = `$.overlays[${index}]`;
-        const legacy = record(source.overlays[index], path);
-        const requestedId = stringValue(legacy.id, `${path}.id`);
-        if (legacy.kind === 'mask') {
+        const sourceOverlay = record(source.overlays[index], path);
+        const requestedId = stringValue(sourceOverlay.id, `${path}.id`);
+        if (sourceOverlay.kind === 'mask') {
             if (overlays.length >= MAX_OVERLAYS) {
                 return fail('document.overlays', 'Overlay collection exceeds its limit.', path);
             }
             const id = uniqueId(requestedId, reserved);
-            overlays.push(convertMask(legacy, path, image, overlays.length, id));
+            overlays.push(convertMask(sourceOverlay, path, image, overlays.length, id));
             continue;
         }
-        if (legacy.kind === 'annotation') {
+        if (sourceOverlay.kind === 'annotation') {
             const id = uniqueId(requestedId, reserved);
-            if (legacy.annotationType === 'text') {
+            if (sourceOverlay.annotationType === 'text') {
                 if (overlays.length >= MAX_OVERLAYS) {
                     return fail('document.overlays', 'Overlay collection exceeds its limit.', path);
                 }
-                overlays.push(convertText(legacy, path, image, overlays.length, id, warn));
-            } else if (legacy.annotationType === 'shape') {
+                overlays.push(convertText(sourceOverlay, path, image, overlays.length, id, warn));
+            } else if (sourceOverlay.annotationType === 'shape') {
                 if (overlays.length >= MAX_OVERLAYS) {
                     return fail('document.overlays', 'Overlay collection exceeds its limit.', path);
                 }
-                overlays.push(convertShape(legacy, path, image, overlays.length, id));
-            } else if (legacy.annotationType === 'draw') {
+                overlays.push(convertShape(sourceOverlay, path, image, overlays.length, id));
+            } else if (sourceOverlay.annotationType === 'draw') {
                 overlays.push(
                     ...convertDraw(
-                        legacy,
+                        sourceOverlay,
                         path,
                         image,
                         overlays.length,
@@ -769,14 +768,14 @@ export function migrateV1OverlayState(
         if (resolvedOptions.unsupportedOverlayPolicy === 'error') {
             return fail(
                 'overlay.unsupported',
-                `Overlay kind "${String(legacy.kind)}" has no built-in v2 State Codec mapping.`,
+                `Overlay kind "${String(sourceOverlay.kind)}" has no built-in wire format 2 State Codec mapping.`,
                 `${path}.kind`,
             );
         }
         warn(
             'overlay.skipped',
             path,
-            `Overlay kind "${String(legacy.kind)}" was skipped because no v2 State Codec mapping exists.`,
+            `Overlay kind "${String(sourceOverlay.kind)}" was skipped because no wire format 2 State Codec mapping exists.`,
         );
     }
     return Object.freeze({

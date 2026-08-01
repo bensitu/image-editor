@@ -321,7 +321,7 @@ async function renderMosaicImage(host, source, cache, options, signal) {
 
 //#endregion
 //#region dist/esm/plugins/mosaic/mosaic-controller.js
-const defaultConfiguration = Object.freeze({
+const DEFAULT_CONFIGURATION = Object.freeze({
 	brushSizePx: 24,
 	pixelBlockSizePx: 8,
 	format: "source",
@@ -399,7 +399,7 @@ function normalizeConfiguration(current, patch) {
 	});
 }
 function resolveMosaicConfiguration(options) {
-	return normalizeConfiguration(defaultConfiguration, options);
+	return normalizeConfiguration(DEFAULT_CONFIGURATION, options);
 }
 function cloneDirtyRectangle(rectangle) {
 	return rectangle ? Object.freeze({ ...rectangle }) : null;
@@ -1115,4 +1115,4 @@ Object.defineProperty(exports, 'mosaicPluginRef', {
     return mosaicPluginRef;
   }
 });
-//# sourceMappingURL=mosaic-w9vfJ7xj.cjs.map
+//# sourceMappingURL=mosaic-8KjFfKM1.cjs.map

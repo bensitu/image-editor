@@ -100,13 +100,6 @@ export function constrainCropRectToRotation(
     );
 }
 
-interface Rectangle {
-    readonly left: number;
-    readonly top: number;
-    readonly width: number;
-    readonly height: number;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     const prototype = Object.getPrototypeOf(value);
@@ -232,14 +225,5 @@ export function fitCropRectToAspectRatio(
     return normalizeCropRect(
         { leftPx: left, topPx: top, widthPx: width, heightPx: height },
         { ...bounds, minimumWidthPx: 1, minimumHeightPx: 1 },
-    );
-}
-
-export function intersectCropRectangles(left: Rectangle, right: Rectangle): boolean {
-    return (
-        left.left < right.left + right.width &&
-        left.left + left.width > right.left &&
-        left.top < right.top + right.height &&
-        left.top + left.height > right.top
     );
 }

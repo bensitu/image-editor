@@ -160,10 +160,4 @@ export function fitCropRectToAspectRatio(rect, ratio, bounds) {
     const top = Math.max(0, Math.min(bounds.heightPx - height, centerY - height / 2));
     return normalizeCropRect({ leftPx: left, topPx: top, widthPx: width, heightPx: height }, { ...bounds, minimumWidthPx: 1, minimumHeightPx: 1 });
 }
-export function intersectCropRectangles(left, right) {
-    return (left.left < right.left + right.width &&
-        left.left + left.width > right.left &&
-        left.top < right.top + right.height &&
-        left.top + left.height > right.top);
-}
 //# sourceMappingURL=crop-geometry.js.map

@@ -11,11 +11,10 @@ import type { OverlayRuntimeApi } from '../../foundations/overlay/index.js';
 import { CropValidationError } from './crop-errors.js';
 import type { CropOverlayPolicy } from './crop-session.js';
 
-const defaultOverlayPolicy: CropOverlayPolicy = Object.freeze({
+const DEFAULT_OVERLAY_POLICY: CropOverlayPolicy = Object.freeze({
     preview: 'keep',
     apply: 'keep',
 });
-
 function intersectConvexPolygons(
     left: readonly FabricNS.Point[],
     right: readonly FabricNS.Point[],
@@ -61,7 +60,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function normalizeCropOverlayPolicy(value: unknown): CropOverlayPolicy {
-    if (value === undefined) return defaultOverlayPolicy;
+    if (value === undefined) return DEFAULT_OVERLAY_POLICY;
     if (!isRecord(value)) throw new CropValidationError('Crop overlay policy must be an object.');
     const allowedKeys = new Set(['preview', 'apply', 'kinds']);
     if (Object.keys(value).some((key) => !allowedKeys.has(key))) {

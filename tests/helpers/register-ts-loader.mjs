@@ -8,9 +8,9 @@ if (typeof moduleApi.registerHooks === 'function') {
     // Node 20 and early Node 22 releases predate registerHooks(). Keep the
     // compatibility path isolated so supported newer runtimes never invoke
     // the deprecated asynchronous registration API.
-    const legacyRegister = Reflect.get(moduleApi, 'register');
-    if (typeof legacyRegister !== 'function') {
+    const fallbackRegister = Reflect.get(moduleApi, 'register');
+    if (typeof fallbackRegister !== 'function') {
         throw new Error('This Node.js release cannot register the TypeScript test loader.');
     }
-    Reflect.apply(legacyRegister, moduleApi, ['./ts-resolve-hook.mjs', import.meta.url]);
+    Reflect.apply(fallbackRegister, moduleApi, ['./ts-resolve-hook.mjs', import.meta.url]);
 }

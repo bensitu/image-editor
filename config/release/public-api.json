@@ -4431,7 +4431,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "ab01f4ad598afd3fe136a97b9ea668de5cabf644e25ad16e674125b35f12b8fa",
+        "graphSha256": "ddb727251328cf8f5af65cb765e49103c9706477a982ba67c79c026bdb5effae",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4555,7 +4555,7 @@
             },
             {
                 "file": "dist/types/migrate-v2/overlay-state-v1.d.ts",
-                "sha256": "65998845b4cdcef7e38d90352e8bd539612d58472130619b96a3f742e9879cbd"
+                "sha256": "60053ba9fefd21f16bf0bc79c01ad15204e231d88a8a093aa97d318f366a9ca3"
             },
             {
                 "file": "dist/types/plugin-kernel/capability-registry.d.ts",
@@ -4659,7 +4659,7 @@
             },
             {
                 "file": "dist/types/plugins/crop/crop-geometry.d.ts",
-                "sha256": "aecfbddf0a103ed3ae3566032e84a39c8b26b22b0c46a1e367af0f48c87a1a65"
+                "sha256": "91b0e75c48d4c4666ce3d8b1e29dd6b748fa7c6114e55a21cb9e7e92c3a7e864"
             },
             {
                 "file": "dist/types/plugins/crop/crop-session.d.ts",

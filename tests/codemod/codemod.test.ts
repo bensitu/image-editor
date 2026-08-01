@@ -87,11 +87,11 @@ test('leaves unrelated source byte-for-byte unchanged', () => {
 
 test('transforms multiple aliased candidates while preserving mixed import bindings', () => {
     const source = [
-        "import { ImageEditor as LegacyEditor, type FabricModule } from '@bensitu/image-editor';",
+        "import { ImageEditor as SourceEditor, type FabricModule } from '@bensitu/image-editor';",
         '',
-        'const first = new LegacyEditor(fabric);',
+        'const first = new SourceEditor(fabric);',
         "first.init({ canvas: 'first' });",
-        'const second = new LegacyEditor(fabric, { canvasWidth: 320 });',
+        'const second = new SourceEditor(fabric, { canvasWidth: 320 });',
         "second.init({ canvas: 'second' });",
         'declare const fabricModule: FabricModule;',
         'void fabricModule;',
@@ -246,7 +246,7 @@ test('blocks rewrites when asynchronous control flow or method meaning cannot be
     assert.ok(classField.unresolved.some((value) => value.code === 'ASYNC_CONTEXT_REQUIRED'));
 });
 
-test('maps legacy Mask and Annotation list ordering into Plugin namespaces', () => {
+test('maps Facade Mask and Annotation list ordering into Plugin namespaces', () => {
     const source = [
         "import { ImageEditor } from '@bensitu/image-editor';",
         "const editor = new ImageEditor(fabric, { maskListOrder: 'back-to-front', annotationListOrder: 'front-to-back' });",
