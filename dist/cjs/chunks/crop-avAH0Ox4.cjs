@@ -173,9 +173,6 @@ function fitCropRectToAspectRatio(rect, ratio, bounds) {
 		minimumHeightPx: 1
 	});
 }
-function intersectCropRectangles(left, right) {
-	return left.left < right.left + right.width && left.left + left.width > right.left && left.top < right.top + right.height && left.top + left.height > right.top;
-}
 
 //#endregion
 //#region dist/esm/plugins/crop/crop-overlay-policy.js
@@ -183,6 +180,33 @@ const defaultOverlayPolicy = Object.freeze({
 	preview: "keep",
 	apply: "keep"
 });
+function intersectConvexPolygons(left, right) {
+	if (left.length < 3 || right.length < 3) return false;
+	for (const polygon of [left, right]) for (let index = 0; index < polygon.length; index += 1) {
+		const start = polygon[index];
+		const end = polygon[(index + 1) % polygon.length];
+		if (!start || !end) return false;
+		const axisX = -(end.y - start.y);
+		const axisY = end.x - start.x;
+		if (!Number.isFinite(axisX) || !Number.isFinite(axisY)) return false;
+		let leftMinimum = Number.POSITIVE_INFINITY;
+		let leftMaximum = Number.NEGATIVE_INFINITY;
+		let rightMinimum = Number.POSITIVE_INFINITY;
+		let rightMaximum = Number.NEGATIVE_INFINITY;
+		for (const point of left) {
+			const projection = point.x * axisX + point.y * axisY;
+			leftMinimum = Math.min(leftMinimum, projection);
+			leftMaximum = Math.max(leftMaximum, projection);
+		}
+		for (const point of right) {
+			const projection = point.x * axisX + point.y * axisY;
+			rightMinimum = Math.min(rightMinimum, projection);
+			rightMaximum = Math.max(rightMaximum, projection);
+		}
+		if (leftMaximum <= rightMinimum || rightMaximum <= leftMinimum) return false;
+	}
+	return true;
+}
 function isRecord$2(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
@@ -212,7 +236,7 @@ function normalizeCropOverlayPolicy(value) {
 		...kinds ? { kinds } : {}
 	});
 }
-function findCropOverlayCandidates(overlay, cropBounds, policy) {
+function findCropOverlayCandidates(overlay, cropPreview, policy) {
 	if (!overlay) return Object.freeze({
 		allIds: Object.freeze([]),
 		intersectingIds: Object.freeze([])
@@ -228,7 +252,7 @@ function findCropOverlayCandidates(overlay, cropBounds, policy) {
 		const classification = overlay.classify(object);
 		if (!classification) continue;
 		allIds.push(classification.persistentId);
-		if (intersectCropRectangles(cropBounds, object.getBoundingRect())) intersectingIds.push(classification.persistentId);
+		if (intersectConvexPolygons(cropPreview.getCoords(), object.getCoords())) intersectingIds.push(classification.persistentId);
 	}
 	return Object.freeze({
 		allIds: Object.freeze(allIds),
@@ -659,7 +683,7 @@ var CropController = class {
 		this.assertSourceCurrent(session);
 		const normalizedOptions = normalizeCropApplyOptions(options, (_b = (_a = this.host.getImageInfo()) === null || _a === void 0 ? void 0 : _a.mimeType) !== null && _b !== void 0 ? _b : null);
 		const rect = session.state.rect;
-		const candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
+		const candidates = findCropOverlayCandidates(this.overlay, session.preview, session.state.overlayPolicy);
 		const state = session.state;
 		const selectionIds = session.selectionIds;
 		this.closeSession(true);
@@ -879,7 +903,7 @@ var CropController = class {
 			this.host.reportWarning(error, "Crop preview visibility cleanup failed.");
 		});
 		session.previewVisibility = null;
-		session.candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
+		session.candidates = findCropOverlayCandidates(this.overlay, session.preview, session.state.overlayPolicy);
 		if (this.overlay && session.state.overlayPolicy.preview === "hide-participating" && session.candidates.intersectingIds.length > 0) session.previewVisibility = this.overlay.hideForPreview(session.candidates.intersectingIds);
 		this.host.requestRender();
 	}
@@ -1193,4 +1217,4 @@ Object.defineProperty(exports, 'cropPluginRef', {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-Cgf4OPHB.cjs.map
+//# sourceMappingURL=crop-avAH0Ox4.cjs.map

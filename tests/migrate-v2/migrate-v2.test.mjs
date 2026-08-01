@@ -42,7 +42,7 @@ test('Overlay State wire migration maps supported overlays into codec-owned wire
                     annotationType: 'text',
                     id: 'note',
                     geometry: { x: 0.2, y: 0.3, width: 0.4 },
-                    text: { value: 'Review' },
+                    text: { value: '' },
                     style: { fontSize: 20, fill: '#445566' },
                     locked: true,
                 },
@@ -83,9 +83,32 @@ test('Overlay State wire migration maps supported overlays into codec-owned wire
     );
     assert.equal(migrated.overlays[0].data.strokeWidth, 0.01);
     assert.equal(migrated.overlays[1].data.feature.fontSize, 0.1);
+    assert.equal(migrated.overlays[1].data.feature.text, '');
     assert.equal(migrated.overlays[1].locked, true);
     assert.equal(migrated.overlays[3].id, 'ink:stroke-2');
     assert.equal(warnings[0].code, 'text.bounds.approximated');
+});
+
+test('Overlay State wire migration rejects malformed policy options', () => {
+    const source = {
+        schema: 'image-editor.overlay-state',
+        version: 1,
+        coordinateSpace: 'image-normalized',
+        image: { naturalWidth: 100, naturalHeight: 80 },
+        overlays: [],
+    };
+    for (const options of [
+        { unsupportedOverlayPolicy: 'discard' },
+        { baseImageTransformPolicy: 'preserve' },
+        { onWarning: true },
+        { unknown: true },
+    ]) {
+        assert.throws(
+            () => migrateV1OverlayState(source, options),
+            (error) =>
+                error instanceof OverlayStateV1MigrationError && error.code.startsWith('options.'),
+        );
+    }
 });
 
 test('Overlay State wire migration reports transformations and unsupported custom data', () => {
@@ -95,7 +118,16 @@ test('Overlay State wire migration reports transformations and unsupported custo
         coordinateSpace: 'image-normalized',
         image: { naturalWidth: 100, naturalHeight: 80 },
         baseImageTransform: { rotation: 90 },
-        overlays: [{ kind: 'custom', id: 'custom-1', customType: 'example:badge', data: {} }],
+        overlays: [
+            { kind: 'custom', id: 'shared-id', customType: 'example:badge', data: {} },
+            {
+                kind: 'mask',
+                id: 'shared-id',
+                maskShape: 'rect',
+                geometry: { type: 'rect', x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
+                style: { fill: '#000000', alpha: 1, strokeWidth: 0 },
+            },
+        ],
     };
     assert.throws(
         () => migrateV1OverlayState(source),
@@ -108,7 +140,7 @@ test('Overlay State wire migration reports transformations and unsupported custo
         unsupportedOverlayPolicy: 'skip',
         onWarning: (warning) => warnings.push(warning),
     });
-    assert.deepEqual(migrated.overlays, []);
+    assert.equal(migrated.overlays[0].id, 'shared-id');
     assert.deepEqual(
         warnings.map(({ code }) => code),
         ['transform.dropped', 'overlay.skipped'],

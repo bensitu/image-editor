@@ -10700,6 +10700,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				value: /* @__PURE__ */ new Map()
 			});
 		}
+		withBaseStyle(object, task) {
+			const binding = this.suspendHover(object);
+			try {
+				return task();
+			} finally {
+				this.resumeHover(object, binding);
+			}
+		}
+		async withBaseStyleAsync(object, task) {
+			const binding = this.suspendHover(object);
+			try {
+				return await task();
+			} finally {
+				this.resumeHover(object, binding);
+			}
+		}
 		synchronize(object) {
 			const descriptor = this.describe(object);
 			if (!descriptor) return;
@@ -10739,20 +10755,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const style = this.options.hoverStyle;
 			if (style === false || this.hoverBindings.has(object)) return;
 			const binding = {
+				hovered: false,
 				original: null,
 				over: () => {
 					if (object.editorOverlayHidden || object.editorOverlayLocked) return;
+					binding.hovered = true;
 					if (binding.original) return;
-					binding.original = Object.freeze({
-						..."fill" in style ? { fill: object.fill } : {},
-						..."opacity" in style ? { opacity: object.opacity } : {},
-						..."stroke" in style ? { stroke: object.stroke } : {},
-						..."strokeWidth" in style ? { strokeWidth: object.strokeWidth } : {}
-					});
+					binding.original = this.captureHoverProperties(object, style);
 					object.set(style);
+					object.setCoords();
 					this.host.requestRender();
 				},
 				out: () => {
+					binding.hovered = false;
 					this.restoreHover(object);
 					this.host.requestRender();
 				}
@@ -10765,11 +10780,43 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const binding = this.hoverBindings.get(object);
 			if (!(binding === null || binding === void 0 ? void 0 : binding.original)) return;
 			object.set(binding.original);
+			object.setCoords();
 			binding.original = null;
+		}
+		suspendHover(object) {
+			const binding = this.hoverBindings.get(object);
+			if (!(binding === null || binding === void 0 ? void 0 : binding.original)) return null;
+			object.set(binding.original);
+			object.setCoords();
+			binding.original = null;
+			return binding;
+		}
+		resumeHover(object, binding) {
+			if (!binding || this.hoverBindings.get(object) !== binding || binding.original) return;
+			if (object.editorOverlayHidden || object.editorOverlayLocked) {
+				binding.hovered = false;
+				return;
+			}
+			if (!binding.hovered) return;
+			const style = this.options.hoverStyle;
+			if (style === false) return;
+			binding.original = this.captureHoverProperties(object, style);
+			object.set(style);
+			object.setCoords();
+			this.host.requestRender();
+		}
+		captureHoverProperties(object, style) {
+			return Object.freeze({
+				..."fill" in style ? { fill: object.fill } : {},
+				..."opacity" in style ? { opacity: object.opacity } : {},
+				..."stroke" in style ? { stroke: object.stroke } : {},
+				..."strokeWidth" in style ? { strokeWidth: object.strokeWidth } : {}
+			});
 		}
 		detachHoverBinding(object) {
 			const binding = this.hoverBindings.get(object);
 			if (!binding) return;
+			binding.hovered = false;
 			this.restoreHover(object);
 			object.off("mouseover", binding.over);
 			object.off("mouseout", binding.out);
@@ -11181,11 +11228,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 		async removeAll(options = {}) {
+			var _a, _b;
 			const { force, query } = this.normalizeRemoveAllOptions(options);
 			const ids = this.list({
 				...query,
-				includeHidden: true,
-				includeLocked: true
+				includeHidden: (_a = query.includeHidden) !== null && _a !== void 0 ? _a : true,
+				includeLocked: (_b = query.includeLocked) !== null && _b !== void 0 ? _b : true
 			}).filter((entry) => force || !entry.locked).map((entry) => entry.id);
 			await this.removeFeatures({
 				ids,
@@ -11310,7 +11358,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const featureChanged = feature.hasUpdate ? feature.hasUpdate(object, normalizedFeaturePatch) : false;
 			const sharedChanged = this.hasSharedUpdate(object, normalizedShared);
 			if (!featureChanged && !sharedChanged) return;
-			await this.overlay.mutate({
+			await this.presentations.withBaseStyleAsync(object, () => this.overlay.mutate({
 				id: this.nextMutationId("feature-update"),
 				operationId: request.operationId,
 				action: "programmatic",
@@ -11323,7 +11371,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					(_b = feature.synchronize) === null || _b === void 0 || _b.call(feature, object);
 				},
 				synchronize: () => this.emitStatus()
-			});
+			}));
 			this.synchronizePresentations();
 		}
 		async removeFeatures(request) {
@@ -11464,7 +11512,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					codec: {
 						type: definition.codec.type,
 						version: definition.codec.version,
-						serialize: (object) => freezeEnvelope(object, definition.codec.serialize(object)),
+						serialize: (object) => {
+							const annotation = object;
+							return this.presentations.withBaseStyle(annotation, () => freezeEnvelope(annotation, definition.codec.serialize(object)));
+						},
 						validate: (value) => isEnvelopeShape(value) && (() => {
 							try {
 								normalizeAnnotationName(value.name);
@@ -11498,16 +11549,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				version: stateCodec.version,
 				serialize: (object, context) => {
 					const annotation = object;
-					const feature = stateCodec.serialize(object, context);
-					return Object.freeze({
-						geometry: feature.geometry,
-						metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
-						data: Object.freeze({
-							version: 1,
-							name: normalizeAnnotationName(annotation.editorAnnotationName),
-							interaction: captureAnnotationInteraction(annotation),
-							feature: feature.data
-						})
+					return this.presentations.withBaseStyle(annotation, () => {
+						const feature = stateCodec.serialize(object, context);
+						return Object.freeze({
+							geometry: feature.geometry,
+							metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
+							data: Object.freeze({
+								version: 1,
+								name: normalizeAnnotationName(annotation.editorAnnotationName),
+								interaction: captureAnnotationInteraction(annotation),
+								feature: feature.data
+							})
+						});
 					});
 				},
 				validate: (value) => {
@@ -11569,18 +11622,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				ownerPluginId: definition.ownerPluginId,
 				order: 200,
 				render: async (context) => {
-					if (definition.render) {
-						await definition.render(context);
-						return;
-					}
-					const clone = await context.source.clone();
-					clone.set({
-						visible: true,
-						selectable: false,
-						evented: false,
-						hasControls: false
+					await this.presentations.withBaseStyleAsync(context.source, async () => {
+						if (definition.render) {
+							await definition.render(context);
+							return;
+						}
+						const clone = await context.source.clone();
+						clone.set({
+							visible: true,
+							selectable: false,
+							evented: false,
+							hasControls: false
+						});
+						context.targetCanvas.add(clone);
 					});
-					context.targetCanvas.add(clone);
 				}
 			};
 		}
@@ -15843,9 +15898,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			minimumHeightPx: 1
 		});
 	}
-	function intersectCropRectangles(left, right) {
-		return left.left < right.left + right.width && left.left + left.width > right.left && left.top < right.top + right.height && left.top + left.height > right.top;
-	}
 
 //#endregion
 //#region dist/esm/plugins/crop/crop-overlay-policy.js
@@ -15853,6 +15905,33 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		preview: "keep",
 		apply: "keep"
 	});
+	function intersectConvexPolygons(left, right) {
+		if (left.length < 3 || right.length < 3) return false;
+		for (const polygon of [left, right]) for (let index = 0; index < polygon.length; index += 1) {
+			const start = polygon[index];
+			const end = polygon[(index + 1) % polygon.length];
+			if (!start || !end) return false;
+			const axisX = -(end.y - start.y);
+			const axisY = end.x - start.x;
+			if (!Number.isFinite(axisX) || !Number.isFinite(axisY)) return false;
+			let leftMinimum = Number.POSITIVE_INFINITY;
+			let leftMaximum = Number.NEGATIVE_INFINITY;
+			let rightMinimum = Number.POSITIVE_INFINITY;
+			let rightMaximum = Number.NEGATIVE_INFINITY;
+			for (const point of left) {
+				const projection = point.x * axisX + point.y * axisY;
+				leftMinimum = Math.min(leftMinimum, projection);
+				leftMaximum = Math.max(leftMaximum, projection);
+			}
+			for (const point of right) {
+				const projection = point.x * axisX + point.y * axisY;
+				rightMinimum = Math.min(rightMinimum, projection);
+				rightMaximum = Math.max(rightMaximum, projection);
+			}
+			if (leftMaximum <= rightMinimum || rightMaximum <= leftMinimum) return false;
+		}
+		return true;
+	}
 	function isRecord$4(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -15882,7 +15961,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			...kinds ? { kinds } : {}
 		});
 	}
-	function findCropOverlayCandidates(overlay, cropBounds, policy) {
+	function findCropOverlayCandidates(overlay, cropPreview, policy) {
 		if (!overlay) return Object.freeze({
 			allIds: Object.freeze([]),
 			intersectingIds: Object.freeze([])
@@ -15898,7 +15977,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const classification = overlay.classify(object);
 			if (!classification) continue;
 			allIds.push(classification.persistentId);
-			if (intersectCropRectangles(cropBounds, object.getBoundingRect())) intersectingIds.push(classification.persistentId);
+			if (intersectConvexPolygons(cropPreview.getCoords(), object.getCoords())) intersectingIds.push(classification.persistentId);
 		}
 		return Object.freeze({
 			allIds: Object.freeze(allIds),
@@ -16329,7 +16408,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.assertSourceCurrent(session);
 			const normalizedOptions = normalizeCropApplyOptions(options, (_b = (_a = this.host.getImageInfo()) === null || _a === void 0 ? void 0 : _a.mimeType) !== null && _b !== void 0 ? _b : null);
 			const rect = session.state.rect;
-			const candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
+			const candidates = findCropOverlayCandidates(this.overlay, session.preview, session.state.overlayPolicy);
 			const state = session.state;
 			const selectionIds = session.selectionIds;
 			this.closeSession(true);
@@ -16549,7 +16628,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.host.reportWarning(error, "Crop preview visibility cleanup failed.");
 			});
 			session.previewVisibility = null;
-			session.candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
+			session.candidates = findCropOverlayCandidates(this.overlay, session.preview, session.state.overlayPolicy);
 			if (this.overlay && session.state.overlayPolicy.preview === "hide-participating" && session.candidates.intersectingIds.length > 0) session.previewVisibility = this.overlay.hideForPreview(session.candidates.intersectingIds);
 			this.host.requestRender();
 		}

@@ -226,6 +226,24 @@ export class AnnotationPresentationManager {
             value: new Map()
         });
     }
+    withBaseStyle(object, task) {
+        const binding = this.suspendHover(object);
+        try {
+            return task();
+        }
+        finally {
+            this.resumeHover(object, binding);
+        }
+    }
+    async withBaseStyleAsync(object, task) {
+        const binding = this.suspendHover(object);
+        try {
+            return await task();
+        }
+        finally {
+            this.resumeHover(object, binding);
+        }
+    }
     synchronize(object) {
         const descriptor = this.describe(object);
         if (!descriptor)
@@ -281,22 +299,21 @@ export class AnnotationPresentationManager {
         if (style === false || this.hoverBindings.has(object))
             return;
         const binding = {
+            hovered: false,
             original: null,
             over: () => {
                 if (object.editorOverlayHidden || object.editorOverlayLocked)
                     return;
+                binding.hovered = true;
                 if (binding.original)
                     return;
-                binding.original = Object.freeze({
-                    ...('fill' in style ? { fill: object.fill } : {}),
-                    ...('opacity' in style ? { opacity: object.opacity } : {}),
-                    ...('stroke' in style ? { stroke: object.stroke } : {}),
-                    ...('strokeWidth' in style ? { strokeWidth: object.strokeWidth } : {}),
-                });
+                binding.original = this.captureHoverProperties(object, style);
                 object.set(style);
+                object.setCoords();
                 this.host.requestRender();
             },
             out: () => {
+                binding.hovered = false;
                 this.restoreHover(object);
                 this.host.requestRender();
             },
@@ -310,12 +327,48 @@ export class AnnotationPresentationManager {
         if (!(binding === null || binding === void 0 ? void 0 : binding.original))
             return;
         object.set(binding.original);
+        object.setCoords();
         binding.original = null;
+    }
+    suspendHover(object) {
+        const binding = this.hoverBindings.get(object);
+        if (!(binding === null || binding === void 0 ? void 0 : binding.original))
+            return null;
+        object.set(binding.original);
+        object.setCoords();
+        binding.original = null;
+        return binding;
+    }
+    resumeHover(object, binding) {
+        if (!binding || this.hoverBindings.get(object) !== binding || binding.original)
+            return;
+        if (object.editorOverlayHidden || object.editorOverlayLocked) {
+            binding.hovered = false;
+            return;
+        }
+        if (!binding.hovered)
+            return;
+        const style = this.options.hoverStyle;
+        if (style === false)
+            return;
+        binding.original = this.captureHoverProperties(object, style);
+        object.set(style);
+        object.setCoords();
+        this.host.requestRender();
+    }
+    captureHoverProperties(object, style) {
+        return Object.freeze({
+            ...('fill' in style ? { fill: object.fill } : {}),
+            ...('opacity' in style ? { opacity: object.opacity } : {}),
+            ...('stroke' in style ? { stroke: object.stroke } : {}),
+            ...('strokeWidth' in style ? { strokeWidth: object.strokeWidth } : {}),
+        });
     }
     detachHoverBinding(object) {
         const binding = this.hoverBindings.get(object);
         if (!binding)
             return;
+        binding.hovered = false;
         this.restoreHover(object);
         object.off('mouseover', binding.over);
         object.off('mouseout', binding.out);

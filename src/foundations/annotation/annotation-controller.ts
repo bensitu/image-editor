@@ -355,7 +355,11 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
 
     async removeAll(options: AnnotationRemoveAllOptions = {}): Promise<void> {
         const { force, query } = this.normalizeRemoveAllOptions(options);
-        const ids = this.list({ ...query, includeHidden: true, includeLocked: true })
+        const ids = this.list({
+            ...query,
+            includeHidden: query.includeHidden ?? true,
+            includeLocked: query.includeLocked ?? true,
+        })
             .filter((entry) => force || !entry.locked)
             .map((entry) => entry.id);
         await this.removeFeatures({ ids, operationId: 'annotation:remove-all' });
@@ -532,19 +536,21 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             : false;
         const sharedChanged = this.hasSharedUpdate(object, normalizedShared);
         if (!featureChanged && !sharedChanged) return;
-        await this.overlay.mutate({
-            id: this.nextMutationId('feature-update'),
-            operationId: request.operationId,
-            action: 'programmatic',
-            objectIds: [request.id],
-            metadata: Object.freeze({ annotationKind: request.kind }),
-            mutate: () => {
-                if (featureChanged) feature.applyUpdate?.(object, normalizedFeaturePatch);
-                if (sharedChanged) this.applySharedUpdate(object, normalizedShared);
-                feature.synchronize?.(object);
-            },
-            synchronize: () => this.emitStatus(),
-        });
+        await this.presentations.withBaseStyleAsync(object, () =>
+            this.overlay.mutate({
+                id: this.nextMutationId('feature-update'),
+                operationId: request.operationId,
+                action: 'programmatic',
+                objectIds: [request.id],
+                metadata: Object.freeze({ annotationKind: request.kind }),
+                mutate: () => {
+                    if (featureChanged) feature.applyUpdate?.(object, normalizedFeaturePatch);
+                    if (sharedChanged) this.applySharedUpdate(object, normalizedShared);
+                    feature.synchronize?.(object);
+                },
+                synchronize: () => this.emitStatus(),
+            }),
+        );
         this.synchronizePresentations();
     }
 
@@ -699,11 +705,12 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
                 codec: {
                     type: definition.codec.type,
                     version: definition.codec.version,
-                    serialize: (object) =>
-                        freezeEnvelope(
-                            object as AnnotationFabricObject,
-                            definition.codec.serialize(object),
-                        ),
+                    serialize: (object) => {
+                        const annotation = object as AnnotationFabricObject;
+                        return this.presentations.withBaseStyle(annotation, () =>
+                            freezeEnvelope(annotation, definition.codec.serialize(object)),
+                        );
+                    },
                     validate: (value) =>
                         isEnvelopeShape(value) &&
                         (() => {
@@ -750,16 +757,18 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             version: stateCodec.version,
             serialize: (object, context) => {
                 const annotation = object as AnnotationFabricObject;
-                const feature = stateCodec.serialize(object, context);
-                return Object.freeze({
-                    geometry: feature.geometry,
-                    metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
-                    data: Object.freeze({
-                        version: 1,
-                        name: normalizeAnnotationName(annotation.editorAnnotationName),
-                        interaction: captureAnnotationInteraction(annotation),
-                        feature: feature.data,
-                    }),
+                return this.presentations.withBaseStyle(annotation, () => {
+                    const feature = stateCodec.serialize(object, context);
+                    return Object.freeze({
+                        geometry: feature.geometry,
+                        metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
+                        data: Object.freeze({
+                            version: 1,
+                            name: normalizeAnnotationName(annotation.editorAnnotationName),
+                            interaction: captureAnnotationInteraction(annotation),
+                            feature: feature.data,
+                        }),
+                    });
                 });
             },
             validate: (value: OverlayStateCodecValue) => {
@@ -832,18 +841,23 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             ownerPluginId: definition.ownerPluginId,
             order: 200,
             render: async (context) => {
-                if (definition.render) {
-                    await definition.render(context);
-                    return;
-                }
-                const clone = await context.source.clone();
-                clone.set({
-                    visible: true,
-                    selectable: false,
-                    evented: false,
-                    hasControls: false,
-                });
-                context.targetCanvas.add(clone);
+                await this.presentations.withBaseStyleAsync(
+                    context.source as AnnotationFabricObject,
+                    async () => {
+                        if (definition.render) {
+                            await definition.render(context);
+                            return;
+                        }
+                        const clone = await context.source.clone();
+                        clone.set({
+                            visible: true,
+                            selectable: false,
+                            evented: false,
+                            hasControls: false,
+                        });
+                        context.targetCanvas.add(clone);
+                    },
+                );
             },
         };
     }

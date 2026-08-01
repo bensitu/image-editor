@@ -293,7 +293,7 @@ export class CropController {
         this.assertSourceCurrent(session);
         const normalizedOptions = normalizeCropApplyOptions(options, (_b = (_a = this.host.getImageInfo()) === null || _a === void 0 ? void 0 : _a.mimeType) !== null && _b !== void 0 ? _b : null);
         const rect = session.state.rect;
-        const candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
+        const candidates = findCropOverlayCandidates(this.overlay, session.preview, session.state.overlayPolicy);
         const state = session.state;
         const selectionIds = session.selectionIds;
         this.closeSession(true);
@@ -526,7 +526,7 @@ export class CropController {
             });
         }
         session.previewVisibility = null;
-        session.candidates = findCropOverlayCandidates(this.overlay, session.preview.getBoundingRect(), session.state.overlayPolicy);
+        session.candidates = findCropOverlayCandidates(this.overlay, session.preview, session.state.overlayPolicy);
         if (this.overlay &&
             session.state.overlayPolicy.preview === 'hide-participating' &&
             session.candidates.intersectingIds.length > 0) {

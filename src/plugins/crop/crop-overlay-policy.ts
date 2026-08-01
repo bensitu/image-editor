@@ -8,7 +8,6 @@ import type * as FabricNS from 'fabric';
 
 import type { DocumentMutationContext } from '../../core/index.js';
 import type { OverlayRuntimeApi } from '../../foundations/overlay/index.js';
-import { intersectCropRectangles } from './crop-geometry.js';
 import { CropValidationError } from './crop-errors.js';
 import type { CropOverlayPolicy } from './crop-session.js';
 
@@ -16,6 +15,39 @@ const defaultOverlayPolicy: CropOverlayPolicy = Object.freeze({
     preview: 'keep',
     apply: 'keep',
 });
+
+function intersectConvexPolygons(
+    left: readonly FabricNS.Point[],
+    right: readonly FabricNS.Point[],
+): boolean {
+    if (left.length < 3 || right.length < 3) return false;
+    for (const polygon of [left, right]) {
+        for (let index = 0; index < polygon.length; index += 1) {
+            const start = polygon[index];
+            const end = polygon[(index + 1) % polygon.length];
+            if (!start || !end) return false;
+            const axisX = -(end.y - start.y);
+            const axisY = end.x - start.x;
+            if (!Number.isFinite(axisX) || !Number.isFinite(axisY)) return false;
+            let leftMinimum = Number.POSITIVE_INFINITY;
+            let leftMaximum = Number.NEGATIVE_INFINITY;
+            let rightMinimum = Number.POSITIVE_INFINITY;
+            let rightMaximum = Number.NEGATIVE_INFINITY;
+            for (const point of left) {
+                const projection = point.x * axisX + point.y * axisY;
+                leftMinimum = Math.min(leftMinimum, projection);
+                leftMaximum = Math.max(leftMaximum, projection);
+            }
+            for (const point of right) {
+                const projection = point.x * axisX + point.y * axisY;
+                rightMinimum = Math.min(rightMinimum, projection);
+                rightMaximum = Math.max(rightMaximum, projection);
+            }
+            if (leftMaximum <= rightMinimum || rightMaximum <= leftMinimum) return false;
+        }
+    }
+    return true;
+}
 
 export interface CropOverlayCandidates {
     readonly allIds: readonly string[];
@@ -65,7 +97,7 @@ export function normalizeCropOverlayPolicy(value: unknown): CropOverlayPolicy {
 
 export function findCropOverlayCandidates(
     overlay: OverlayRuntimeApi | null,
-    cropBounds: Readonly<{ left: number; top: number; width: number; height: number }>,
+    cropPreview: FabricNS.FabricObject,
     policy: CropOverlayPolicy,
 ): CropOverlayCandidates {
     if (!overlay)
@@ -81,7 +113,7 @@ export function findCropOverlayCandidates(
         const classification = overlay.classify(object);
         if (!classification) continue;
         allIds.push(classification.persistentId);
-        if (intersectCropRectangles(cropBounds, object.getBoundingRect())) {
+        if (intersectConvexPolygons(cropPreview.getCoords(), object.getCoords())) {
             intersectingIds.push(classification.persistentId);
         }
     }

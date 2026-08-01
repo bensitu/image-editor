@@ -73,15 +73,22 @@ function testAnnotationPlugin(id = 'annotation:test-fixture') {
                         if (
                             patch === null ||
                             typeof patch !== 'object' ||
-                            !Number.isFinite(patch.left)
+                            (patch.left === undefined && patch.fill === undefined) ||
+                            (patch.left !== undefined && !Number.isFinite(patch.left)) ||
+                            (patch.fill !== undefined && typeof patch.fill !== 'string')
                         ) {
                             throw new TypeError('Test Annotation update is malformed.');
                         }
-                        return Object.freeze({ left: patch.left });
+                        return Object.freeze({
+                            ...(patch.left !== undefined ? { left: patch.left } : {}),
+                            ...(patch.fill !== undefined ? { fill: patch.fill } : {}),
+                        });
                     },
-                    hasUpdate: (object, patch) => object.left !== patch.left,
+                    hasUpdate: (object, patch) =>
+                        (patch.left !== undefined && object.left !== patch.left) ||
+                        (patch.fill !== undefined && object.fill !== patch.fill),
                     applyUpdate: (object, patch) => {
-                        object.set({ left: patch.left });
+                        object.set(patch);
                         if (failUpdate) throw new Error('synthetic Annotation update failure');
                     },
                 }),
@@ -108,6 +115,13 @@ function testAnnotationPlugin(id = 'annotation:test-fixture') {
                         id: annotationId,
                         kind: featureKind,
                         patch: { left },
+                        operationId: 'annotation-test:update',
+                    }),
+                updateFill: (annotationId, fill) =>
+                    annotations.updateFeature({
+                        id: annotationId,
+                        kind: featureKind,
+                        patch: { fill },
                         operationId: 'annotation-test:update',
                     }),
                 getObject: (annotationId) => annotations.getObject(annotationId, featureKind),
@@ -325,6 +339,7 @@ test('removeAll preserves locked Annotations until force is explicit', async () 
     const { annotations, editor, featureApi } = await createEditor();
     await load(editor);
     const unlockedId = await featureApi.create({ name: 'Unlocked' });
+    const hiddenId = await featureApi.create({ left: 48, name: 'Hidden', hidden: true });
     const lockedId = await featureApi.create({ left: 72, name: 'Locked', locked: true });
     const lockedObject = featureApi.getObject(lockedId);
     const indicator = editor
@@ -336,8 +351,11 @@ test('removeAll preserves locked Annotations until force is explicit', async () 
 
     await featureApi.updateLeft(lockedId, 108);
     assert.notEqual(indicator.left, originalIndicatorLeft);
-    await annotations.removeAll();
+    await annotations.removeAll({ includeHidden: false });
     assert.equal(annotations.get(unlockedId), null);
+    assert.equal(annotations.get(hiddenId)?.hidden, true);
+    await annotations.removeAll();
+    assert.equal(annotations.get(hiddenId), null);
     assert.equal(annotations.get(lockedId)?.locked, true);
     assert.equal(editor.getCanvas().getObjects().includes(lockedObject), true);
 
@@ -361,7 +379,12 @@ test('Annotation presentation options customize controls, hover, and transient l
                 cornerColor: '#abcdef',
                 cornerSize: 14,
             },
-            hoverStyle: { opacity: 0.4, stroke: '#00ff00', strokeWidth: 3 },
+            hoverStyle: {
+                fill: '#00ff00',
+                opacity: 0.4,
+                stroke: '#00ff00',
+                strokeWidth: 3,
+            },
             label: {
                 showOn: 'always',
                 offset: 6,
@@ -381,19 +404,28 @@ test('Annotation presentation options customize controls, hover, and transient l
         .find((candidate) => candidate.sessionObjectType === 'annotationLabel');
     assert.equal(label?.text, 'Label: Review');
     const normalStyle = {
+        fill: object.fill,
         opacity: object.opacity,
         stroke: object.stroke,
         strokeWidth: object.strokeWidth,
     };
 
     object.fire('mouseover');
+    assert.equal(object.fill, '#00ff00');
     assert.equal(object.opacity, 0.4);
     assert.equal(object.stroke, '#00ff00');
     assert.equal(object.strokeWidth, 3);
+    await featureApi.updateFill(id, '#112233');
+    assert.equal(object.fill, '#00ff00');
+    const snapshot = editor.saveState();
+    assert.equal(object.fill, '#00ff00');
     object.fire('mouseout');
+    assert.equal(object.fill, '#112233');
     assert.equal(object.opacity, normalStyle.opacity);
     assert.equal(object.stroke, normalStyle.stroke);
     assert.equal(object.strokeWidth, normalStyle.strokeWidth);
+    await editor.loadFromState(snapshot);
+    assert.equal(featureApi.getObject(id).fill, '#112233');
     await dispose(editor);
 });
 

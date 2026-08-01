@@ -265,18 +265,59 @@ function containingFunction(node) {
     }
     return null;
 }
-function canInsertAwait(call, fileName) {
+function isWithinFunctionBody(node, owner) {
+    const body = owner.body;
+    if (!body)
+        return false;
+    let current = node;
+    while (current && current !== owner) {
+        if (current === body)
+            return true;
+        current = current.parent;
+    }
+    return false;
+}
+function hasTopLevelOnlyContainer(node, sourceFile) {
+    let current = node.parent;
+    while (current && current !== sourceFile) {
+        if (ts.isClassLike(current) || ts.isModuleDeclaration(current))
+            return false;
+        current = current.parent;
+    }
+    return current === sourceFile;
+}
+function hasEstablishedTopLevelAwait(sourceFile) {
+    let found = false;
+    const inspect = (node) => {
+        if (found ||
+            (node !== sourceFile &&
+                (ts.isFunctionLike(node) || ts.isClassLike(node) || ts.isModuleDeclaration(node)))) {
+            return;
+        }
+        if (ts.isAwaitExpression(node)) {
+            found = true;
+            return;
+        }
+        node.forEachChild(inspect);
+    };
+    inspect(sourceFile);
+    return found;
+}
+function canInsertAwait(call, fileName, sourceFile) {
     if (ts.isAwaitExpression(call.parent))
         return true;
     const owner = containingFunction(call);
     if (owner) {
-        return Boolean(ts.canHaveModifiers(owner) &&
+        return Boolean(isWithinFunctionBody(call, owner) &&
+            ts.canHaveModifiers(owner) &&
             ts
                 .getModifiers(owner)
                 ?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword));
     }
+    if (!hasTopLevelOnlyContainer(call, sourceFile))
+        return false;
     const extension = path.extname(fileName).toLowerCase();
-    return extension !== '.cjs' && extension !== '.cts';
+    return extension === '.mjs' || extension === '.mts' || hasEstablishedTopLevelAwait(sourceFile);
 }
 function needsInsertedAwait(call) {
     return !ts.isAwaitExpression(call.parent);
@@ -377,7 +418,7 @@ function callsForCandidate(sourceFile, fileName, declaration, variable, unresolv
                 }
             }
             const newlyAsync = NEWLY_ASYNC_VOID_METHODS.has(method);
-            if (newlyAsync && !canInsertAwait(node.parent, fileName)) {
+            if (newlyAsync && !canInsertAwait(node.parent, fileName, sourceFile)) {
                 unresolved.push(finding(sourceFile, fileName, node.parent, 'ASYNC_CONTEXT_REQUIRED', `Editor method "${method}" is asynchronous in the modular API, but this context cannot safely accept an inserted await.`));
                 blocked = true;
                 return;

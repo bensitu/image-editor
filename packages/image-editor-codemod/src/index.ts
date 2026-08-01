@@ -455,19 +455,65 @@ function containingFunction(node: ts.Node): ts.SignatureDeclaration | null {
     return null;
 }
 
-function canInsertAwait(call: ts.CallExpression, fileName: string): boolean {
+function isWithinFunctionBody(node: ts.Node, owner: ts.SignatureDeclaration): boolean {
+    const body = (owner as ts.SignatureDeclaration & { readonly body?: ts.ConciseBody }).body;
+    if (!body) return false;
+    let current: ts.Node | undefined = node;
+    while (current && current !== owner) {
+        if (current === body) return true;
+        current = current.parent;
+    }
+    return false;
+}
+
+function hasTopLevelOnlyContainer(node: ts.Node, sourceFile: ts.SourceFile): boolean {
+    let current: ts.Node | undefined = node.parent;
+    while (current && current !== sourceFile) {
+        if (ts.isClassLike(current) || ts.isModuleDeclaration(current)) return false;
+        current = current.parent;
+    }
+    return current === sourceFile;
+}
+
+function hasEstablishedTopLevelAwait(sourceFile: ts.SourceFile): boolean {
+    let found = false;
+    const inspect = (node: ts.Node): void => {
+        if (
+            found ||
+            (node !== sourceFile &&
+                (ts.isFunctionLike(node) || ts.isClassLike(node) || ts.isModuleDeclaration(node)))
+        ) {
+            return;
+        }
+        if (ts.isAwaitExpression(node)) {
+            found = true;
+            return;
+        }
+        node.forEachChild(inspect);
+    };
+    inspect(sourceFile);
+    return found;
+}
+
+function canInsertAwait(
+    call: ts.CallExpression,
+    fileName: string,
+    sourceFile: ts.SourceFile,
+): boolean {
     if (ts.isAwaitExpression(call.parent)) return true;
     const owner = containingFunction(call);
     if (owner) {
         return Boolean(
+            isWithinFunctionBody(call, owner) &&
             ts.canHaveModifiers(owner) &&
             ts
                 .getModifiers(owner)
                 ?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword),
         );
     }
+    if (!hasTopLevelOnlyContainer(call, sourceFile)) return false;
     const extension = path.extname(fileName).toLowerCase();
-    return extension !== '.cjs' && extension !== '.cts';
+    return extension === '.mjs' || extension === '.mts' || hasEstablishedTopLevelAwait(sourceFile);
 }
 
 function needsInsertedAwait(call: ts.CallExpression): boolean {
@@ -656,7 +702,7 @@ function callsForCandidate(
                 }
             }
             const newlyAsync = NEWLY_ASYNC_VOID_METHODS.has(method);
-            if (newlyAsync && !canInsertAwait(node.parent, fileName)) {
+            if (newlyAsync && !canInsertAwait(node.parent, fileName, sourceFile)) {
                 unresolved.push(
                     finding(
                         sourceFile,

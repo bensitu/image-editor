@@ -37,6 +37,7 @@ type PresentationObject = FabricNS.FabricObject & {
 interface HoverBinding {
     readonly over: () => void;
     readonly out: () => void;
+    hovered: boolean;
     original: Partial<
         Pick<FabricNS.FabricObject, 'fill' | 'opacity' | 'stroke' | 'strokeWidth'>
     > | null;
@@ -295,6 +296,27 @@ export class AnnotationPresentationManager {
         private readonly isSelected: (id: string) => boolean,
     ) {}
 
+    withBaseStyle<T>(object: AnnotationFabricObject, task: () => T): T {
+        const binding = this.suspendHover(object);
+        try {
+            return task();
+        } finally {
+            this.resumeHover(object, binding);
+        }
+    }
+
+    async withBaseStyleAsync<T>(
+        object: AnnotationFabricObject,
+        task: () => Promise<T>,
+    ): Promise<T> {
+        const binding = this.suspendHover(object);
+        try {
+            return await task();
+        } finally {
+            this.resumeHover(object, binding);
+        }
+    }
+
     synchronize(object: AnnotationFabricObject): void {
         const descriptor = this.describe(object);
         if (!descriptor) return;
@@ -347,20 +369,19 @@ export class AnnotationPresentationManager {
         const style = this.options.hoverStyle;
         if (style === false || this.hoverBindings.has(object)) return;
         const binding: HoverBinding = {
+            hovered: false,
             original: null,
             over: () => {
                 if (object.editorOverlayHidden || object.editorOverlayLocked) return;
+                binding.hovered = true;
                 if (binding.original) return;
-                binding.original = Object.freeze({
-                    ...('fill' in style ? { fill: object.fill } : {}),
-                    ...('opacity' in style ? { opacity: object.opacity } : {}),
-                    ...('stroke' in style ? { stroke: object.stroke } : {}),
-                    ...('strokeWidth' in style ? { strokeWidth: object.strokeWidth } : {}),
-                });
+                binding.original = this.captureHoverProperties(object, style);
                 object.set(style);
+                object.setCoords();
                 this.host.requestRender();
             },
             out: () => {
+                binding.hovered = false;
                 this.restoreHover(object);
                 this.host.requestRender();
             },
@@ -374,12 +395,50 @@ export class AnnotationPresentationManager {
         const binding = this.hoverBindings.get(object);
         if (!binding?.original) return;
         object.set(binding.original);
+        object.setCoords();
         binding.original = null;
+    }
+
+    private suspendHover(object: AnnotationFabricObject): HoverBinding | null {
+        const binding = this.hoverBindings.get(object);
+        if (!binding?.original) return null;
+        object.set(binding.original);
+        object.setCoords();
+        binding.original = null;
+        return binding;
+    }
+
+    private resumeHover(object: AnnotationFabricObject, binding: HoverBinding | null): void {
+        if (!binding || this.hoverBindings.get(object) !== binding || binding.original) return;
+        if (object.editorOverlayHidden || object.editorOverlayLocked) {
+            binding.hovered = false;
+            return;
+        }
+        if (!binding.hovered) return;
+        const style = this.options.hoverStyle;
+        if (style === false) return;
+        binding.original = this.captureHoverProperties(object, style);
+        object.set(style);
+        object.setCoords();
+        this.host.requestRender();
+    }
+
+    private captureHoverProperties(
+        object: AnnotationFabricObject,
+        style: Readonly<AnnotationHoverStyle>,
+    ): HoverBinding['original'] {
+        return Object.freeze({
+            ...('fill' in style ? { fill: object.fill } : {}),
+            ...('opacity' in style ? { opacity: object.opacity } : {}),
+            ...('stroke' in style ? { stroke: object.stroke } : {}),
+            ...('strokeWidth' in style ? { strokeWidth: object.strokeWidth } : {}),
+        });
     }
 
     private detachHoverBinding(object: AnnotationFabricObject): void {
         const binding = this.hoverBindings.get(object);
         if (!binding) return;
+        binding.hovered = false;
         this.restoreHover(object);
         object.off('mouseover', binding.over);
         object.off('mouseout', binding.out);

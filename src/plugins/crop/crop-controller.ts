@@ -349,7 +349,7 @@ export class CropController {
         const rect = session.state.rect;
         const candidates = findCropOverlayCandidates(
             this.overlay,
-            session.preview.getBoundingRect(),
+            session.preview,
             session.state.overlayPolicy,
         );
         const state = session.state;
@@ -649,7 +649,7 @@ export class CropController {
         session.previewVisibility = null;
         session.candidates = findCropOverlayCandidates(
             this.overlay,
-            session.preview.getBoundingRect(),
+            session.preview,
             session.state.overlayPolicy,
         );
         if (

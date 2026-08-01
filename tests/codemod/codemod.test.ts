@@ -110,7 +110,7 @@ test('transforms multiple aliased candidates while preserving mixed import bindi
         '',
     ].join('\n');
 
-    const result = transformSource(source, 'multiple-aliases.ts');
+    const result = transformSource(source, 'multiple-aliases.mts');
     assert.equal(result.code, expected);
     assert.equal(result.changed, true);
     assert.deepEqual(result.unresolved, []);
@@ -126,7 +126,7 @@ test('rewrites safe candidates without changing a blocked candidate', () => {
         "blocked.init({ canvas: 'blocked' });",
         '',
     ].join('\n');
-    const result = transformSource(source, 'partially-blocked.ts');
+    const result = transformSource(source, 'partially-blocked.mts');
 
     assert.match(result.code, /const safe = new ImageEditorCore\(fabric\);/);
     assert.match(result.code, /const blocked = new ImageEditor\(fabric, runtimeOptions\);/);
@@ -146,11 +146,11 @@ test('preserves BOM and CRLF while inserting imports', () => {
         'const editor = new ImageEditorCore(fabric);\r\n' +
         "await editor.init({ canvas: 'canvas' });\r\n";
 
-    const result = transformSource(source, 'bom-crlf.ts');
+    const result = transformSource(source, 'bom-crlf.mts');
     assert.equal(result.code, expected);
     assert.equal(result.code.charCodeAt(0), 0xfeff);
     assert.doesNotMatch(result.code.replaceAll('\r\n', ''), /\n/);
-    assert.equal(transformSource(result.code, 'bom-crlf.ts').code, expected);
+    assert.equal(transformSource(result.code, 'bom-crlf.mts').code, expected);
 });
 
 test('supports every documented JavaScript and TypeScript source extension', () => {
@@ -160,14 +160,14 @@ test('supports every documented JavaScript and TypeScript source extension', () 
         "editor.init({ canvas: 'canvas' });",
         '',
     ].join('\n');
-    for (const extension of ['js', 'jsx', 'ts', 'tsx', 'mjs', 'mts']) {
+    for (const extension of ['mjs', 'mts']) {
         const result = transformSource(source, `source.${extension}`);
         assert.equal(result.changed, true, extension);
         assert.match(result.code, /new ImageEditorCore\(fabric\)/, extension);
         assert.match(result.code, /await editor\.init/, extension);
         assert.deepEqual(result.unresolved, [], extension);
     }
-    for (const extension of ['cjs', 'cts']) {
+    for (const extension of ['js', 'jsx', 'ts', 'tsx', 'cjs', 'cts']) {
         const result = transformSource(source, `source.${extension}`);
         assert.equal(result.changed, false, extension);
         assert.equal(result.code, source, extension);
@@ -175,6 +175,13 @@ test('supports every documented JavaScript and TypeScript source extension', () 
             result.unresolved.some((value) => value.code === 'ASYNC_CONTEXT_REQUIRED'),
             extension,
         );
+    }
+    for (const extension of ['js', 'jsx', 'ts', 'tsx']) {
+        const establishedAsyncSource = `${source}await Promise.resolve();\n`;
+        const result = transformSource(establishedAsyncSource, `source.${extension}`);
+        assert.equal(result.changed, true, extension);
+        assert.match(result.code, /await editor\.init/, extension);
+        assert.deepEqual(result.unresolved, [], extension);
     }
 });
 
@@ -210,6 +217,15 @@ test('blocks rewrites when asynchronous control flow or method meaning cannot be
             ].join('\n'),
             'MASK_CREATE_SEMANTICS_CHANGED',
         ],
+        [
+            [
+                "import { ImageEditor } from '@bensitu/image-editor';",
+                'const editor = new ImageEditor(fabric);',
+                "async function mount(value = editor.init({ canvas: 'canvas' })) { return value; }",
+                '',
+            ].join('\n'),
+            'ASYNC_CONTEXT_REQUIRED',
+        ],
     ];
     for (const [source, code] of cases) {
         const result = transformSource(source, 'semantic-review.ts');
@@ -217,6 +233,17 @@ test('blocks rewrites when asynchronous control flow or method meaning cannot be
         assert.equal(result.code, source);
         assert.ok(result.unresolved.some((value) => value.code === code));
     }
+
+    const classFieldSource = [
+        "import { ImageEditor } from '@bensitu/image-editor';",
+        'const editor = new ImageEditor(fabric);',
+        "class View { mounted = editor.init({ canvas: 'canvas' }); }",
+        '',
+    ].join('\n');
+    const classField = transformSource(classFieldSource, 'class-field.mts');
+    assert.equal(classField.changed, false);
+    assert.equal(classField.code, classFieldSource);
+    assert.ok(classField.unresolved.some((value) => value.code === 'ASYNC_CONTEXT_REQUIRED'));
 });
 
 test('maps legacy Mask and Annotation list ordering into Plugin namespaces', () => {
@@ -227,7 +254,7 @@ test('maps legacy Mask and Annotation list ordering into Plugin namespaces', () 
         '',
     ].join('\n');
 
-    const result = transformSource(source, 'list-order.ts');
+    const result = transformSource(source, 'list-order.mts');
 
     assert.deepEqual(result.unresolved, []);
     assert.match(result.code, /masks: \{ listOrder: 'back-to-front' \}/);

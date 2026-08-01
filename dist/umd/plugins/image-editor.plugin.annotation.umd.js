@@ -397,6 +397,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				value: /* @__PURE__ */ new Map()
 			});
 		}
+		withBaseStyle(object, task) {
+			const binding = this.suspendHover(object);
+			try {
+				return task();
+			} finally {
+				this.resumeHover(object, binding);
+			}
+		}
+		async withBaseStyleAsync(object, task) {
+			const binding = this.suspendHover(object);
+			try {
+				return await task();
+			} finally {
+				this.resumeHover(object, binding);
+			}
+		}
 		synchronize(object) {
 			const descriptor = this.describe(object);
 			if (!descriptor) return;
@@ -436,20 +452,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const style = this.options.hoverStyle;
 			if (style === false || this.hoverBindings.has(object)) return;
 			const binding = {
+				hovered: false,
 				original: null,
 				over: () => {
 					if (object.editorOverlayHidden || object.editorOverlayLocked) return;
+					binding.hovered = true;
 					if (binding.original) return;
-					binding.original = Object.freeze({
-						..."fill" in style ? { fill: object.fill } : {},
-						..."opacity" in style ? { opacity: object.opacity } : {},
-						..."stroke" in style ? { stroke: object.stroke } : {},
-						..."strokeWidth" in style ? { strokeWidth: object.strokeWidth } : {}
-					});
+					binding.original = this.captureHoverProperties(object, style);
 					object.set(style);
+					object.setCoords();
 					this.host.requestRender();
 				},
 				out: () => {
+					binding.hovered = false;
 					this.restoreHover(object);
 					this.host.requestRender();
 				}
@@ -462,11 +477,43 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const binding = this.hoverBindings.get(object);
 			if (!(binding === null || binding === void 0 ? void 0 : binding.original)) return;
 			object.set(binding.original);
+			object.setCoords();
 			binding.original = null;
+		}
+		suspendHover(object) {
+			const binding = this.hoverBindings.get(object);
+			if (!(binding === null || binding === void 0 ? void 0 : binding.original)) return null;
+			object.set(binding.original);
+			object.setCoords();
+			binding.original = null;
+			return binding;
+		}
+		resumeHover(object, binding) {
+			if (!binding || this.hoverBindings.get(object) !== binding || binding.original) return;
+			if (object.editorOverlayHidden || object.editorOverlayLocked) {
+				binding.hovered = false;
+				return;
+			}
+			if (!binding.hovered) return;
+			const style = this.options.hoverStyle;
+			if (style === false) return;
+			binding.original = this.captureHoverProperties(object, style);
+			object.set(style);
+			object.setCoords();
+			this.host.requestRender();
+		}
+		captureHoverProperties(object, style) {
+			return Object.freeze({
+				..."fill" in style ? { fill: object.fill } : {},
+				..."opacity" in style ? { opacity: object.opacity } : {},
+				..."stroke" in style ? { stroke: object.stroke } : {},
+				..."strokeWidth" in style ? { strokeWidth: object.strokeWidth } : {}
+			});
 		}
 		detachHoverBinding(object) {
 			const binding = this.hoverBindings.get(object);
 			if (!binding) return;
+			binding.hovered = false;
 			this.restoreHover(object);
 			object.off("mouseover", binding.over);
 			object.off("mouseout", binding.out);
@@ -878,11 +925,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 		async removeAll(options = {}) {
+			var _a, _b;
 			const { force, query } = this.normalizeRemoveAllOptions(options);
 			const ids = this.list({
 				...query,
-				includeHidden: true,
-				includeLocked: true
+				includeHidden: (_a = query.includeHidden) !== null && _a !== void 0 ? _a : true,
+				includeLocked: (_b = query.includeLocked) !== null && _b !== void 0 ? _b : true
 			}).filter((entry) => force || !entry.locked).map((entry) => entry.id);
 			await this.removeFeatures({
 				ids,
@@ -1007,7 +1055,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const featureChanged = feature.hasUpdate ? feature.hasUpdate(object, normalizedFeaturePatch) : false;
 			const sharedChanged = this.hasSharedUpdate(object, normalizedShared);
 			if (!featureChanged && !sharedChanged) return;
-			await this.overlay.mutate({
+			await this.presentations.withBaseStyleAsync(object, () => this.overlay.mutate({
 				id: this.nextMutationId("feature-update"),
 				operationId: request.operationId,
 				action: "programmatic",
@@ -1020,7 +1068,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					(_b = feature.synchronize) === null || _b === void 0 || _b.call(feature, object);
 				},
 				synchronize: () => this.emitStatus()
-			});
+			}));
 			this.synchronizePresentations();
 		}
 		async removeFeatures(request) {
@@ -1161,7 +1209,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					codec: {
 						type: definition.codec.type,
 						version: definition.codec.version,
-						serialize: (object) => freezeEnvelope(object, definition.codec.serialize(object)),
+						serialize: (object) => {
+							const annotation = object;
+							return this.presentations.withBaseStyle(annotation, () => freezeEnvelope(annotation, definition.codec.serialize(object)));
+						},
 						validate: (value) => isEnvelopeShape(value) && (() => {
 							try {
 								normalizeAnnotationName(value.name);
@@ -1195,16 +1246,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				version: stateCodec.version,
 				serialize: (object, context) => {
 					const annotation = object;
-					const feature = stateCodec.serialize(object, context);
-					return Object.freeze({
-						geometry: feature.geometry,
-						metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
-						data: Object.freeze({
-							version: 1,
-							name: normalizeAnnotationName(annotation.editorAnnotationName),
-							interaction: captureAnnotationInteraction(annotation),
-							feature: feature.data
-						})
+					return this.presentations.withBaseStyle(annotation, () => {
+						const feature = stateCodec.serialize(object, context);
+						return Object.freeze({
+							geometry: feature.geometry,
+							metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
+							data: Object.freeze({
+								version: 1,
+								name: normalizeAnnotationName(annotation.editorAnnotationName),
+								interaction: captureAnnotationInteraction(annotation),
+								feature: feature.data
+							})
+						});
 					});
 				},
 				validate: (value) => {
@@ -1266,18 +1319,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				ownerPluginId: definition.ownerPluginId,
 				order: 200,
 				render: async (context) => {
-					if (definition.render) {
-						await definition.render(context);
-						return;
-					}
-					const clone = await context.source.clone();
-					clone.set({
-						visible: true,
-						selectable: false,
-						evented: false,
-						hasControls: false
+					await this.presentations.withBaseStyleAsync(context.source, async () => {
+						if (definition.render) {
+							await definition.render(context);
+							return;
+						}
+						const clone = await context.source.clone();
+						clone.set({
+							visible: true,
+							selectable: false,
+							evented: false,
+							hasControls: false
+						});
+						context.targetCanvas.add(clone);
 					});
-					context.targetCanvas.add(clone);
 				}
 			};
 		}

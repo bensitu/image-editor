@@ -266,8 +266,13 @@ export class AnnotationController {
         await this.removeFeatures({ ids: [id], operationId: 'annotation:remove' });
     }
     async removeAll(options = {}) {
+        var _a, _b;
         const { force, query } = this.normalizeRemoveAllOptions(options);
-        const ids = this.list({ ...query, includeHidden: true, includeLocked: true })
+        const ids = this.list({
+            ...query,
+            includeHidden: (_a = query.includeHidden) !== null && _a !== void 0 ? _a : true,
+            includeLocked: (_b = query.includeLocked) !== null && _b !== void 0 ? _b : true,
+        })
             .filter((entry) => force || !entry.locked)
             .map((entry) => entry.id);
         await this.removeFeatures({ ids, operationId: 'annotation:remove-all' });
@@ -413,7 +418,7 @@ export class AnnotationController {
         const sharedChanged = this.hasSharedUpdate(object, normalizedShared);
         if (!featureChanged && !sharedChanged)
             return;
-        await this.overlay.mutate({
+        await this.presentations.withBaseStyleAsync(object, () => this.overlay.mutate({
             id: this.nextMutationId('feature-update'),
             operationId: request.operationId,
             action: 'programmatic',
@@ -428,7 +433,7 @@ export class AnnotationController {
                 (_b = feature.synchronize) === null || _b === void 0 ? void 0 : _b.call(feature, object);
             },
             synchronize: () => this.emitStatus(),
-        });
+        }));
         this.synchronizePresentations();
     }
     async removeFeatures(request) {
@@ -573,7 +578,10 @@ export class AnnotationController {
                 codec: {
                     type: definition.codec.type,
                     version: definition.codec.version,
-                    serialize: (object) => freezeEnvelope(object, definition.codec.serialize(object)),
+                    serialize: (object) => {
+                        const annotation = object;
+                        return this.presentations.withBaseStyle(annotation, () => freezeEnvelope(annotation, definition.codec.serialize(object)));
+                    },
                     validate: (value) => isEnvelopeShape(value) &&
                         (() => {
                             try {
@@ -612,16 +620,18 @@ export class AnnotationController {
             version: stateCodec.version,
             serialize: (object, context) => {
                 const annotation = object;
-                const feature = stateCodec.serialize(object, context);
-                return Object.freeze({
-                    geometry: feature.geometry,
-                    metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
-                    data: Object.freeze({
-                        version: 1,
-                        name: normalizeAnnotationName(annotation.editorAnnotationName),
-                        interaction: captureAnnotationInteraction(annotation),
-                        feature: feature.data,
-                    }),
+                return this.presentations.withBaseStyle(annotation, () => {
+                    const feature = stateCodec.serialize(object, context);
+                    return Object.freeze({
+                        geometry: feature.geometry,
+                        metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
+                        data: Object.freeze({
+                            version: 1,
+                            name: normalizeAnnotationName(annotation.editorAnnotationName),
+                            interaction: captureAnnotationInteraction(annotation),
+                            feature: feature.data,
+                        }),
+                    });
                 });
             },
             validate: (value) => {
@@ -690,18 +700,20 @@ export class AnnotationController {
             ownerPluginId: definition.ownerPluginId,
             order: 200,
             render: async (context) => {
-                if (definition.render) {
-                    await definition.render(context);
-                    return;
-                }
-                const clone = await context.source.clone();
-                clone.set({
-                    visible: true,
-                    selectable: false,
-                    evented: false,
-                    hasControls: false,
+                await this.presentations.withBaseStyleAsync(context.source, async () => {
+                    if (definition.render) {
+                        await definition.render(context);
+                        return;
+                    }
+                    const clone = await context.source.clone();
+                    clone.set({
+                        visible: true,
+                        selectable: false,
+                        evented: false,
+                        hasControls: false,
+                    });
+                    context.targetCanvas.add(clone);
                 });
-                context.targetCanvas.add(clone);
             },
         };
     }

@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import type * as FabricNS from 'fabric';
+
 import {
     fitCropRectToAspectRatio,
     intersectCropRectangles,
     normalizeCropAspectRatio,
     normalizeCropRect,
 } from '../../../src/plugins/crop/crop-geometry.js';
+import { findCropOverlayCandidates } from '../../../src/plugins/crop/crop-overlay-policy.js';
+import type { OverlayRuntimeApi } from '../../../src/foundations/overlay/index.js';
 
 test('Crop aspect ratios preserve established free, preset, numeric, string, and object forms', () => {
     const cases = [
@@ -97,5 +101,42 @@ test('rectangle intersection treats touching edges as outside', () => {
     assert.equal(
         intersectCropRectangles(selected, { left: 30, top: 10, width: 4, height: 4 }),
         false,
+    );
+});
+
+test('Crop candidate selection excludes rotated bounding-box corners', () => {
+    const diamond = [
+        { x: 50, y: 0 },
+        { x: 100, y: 50 },
+        { x: 50, y: 100 },
+        { x: 0, y: 50 },
+    ];
+    const corner = {
+        getCoords: () => [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 10, y: 10 },
+            { x: 0, y: 10 },
+        ],
+    } as unknown as FabricNS.FabricObject;
+    const center = {
+        getCoords: () => [
+            { x: 45, y: 45 },
+            { x: 55, y: 45 },
+            { x: 55, y: 55 },
+            { x: 45, y: 55 },
+        ],
+    } as unknown as FabricNS.FabricObject;
+    const preview = { getCoords: () => diamond } as unknown as FabricNS.FabricObject;
+    const overlay = {
+        list: () => [corner, center],
+        classify: (object: FabricNS.FabricObject) => ({
+            persistentId: object === corner ? 'corner' : 'center',
+        }),
+    } as unknown as OverlayRuntimeApi;
+
+    assert.deepEqual(
+        findCropOverlayCandidates(overlay, preview, { preview: 'keep', apply: 'keep' }),
+        { allIds: ['corner', 'center'], intersectingIds: ['center'] },
     );
 });
