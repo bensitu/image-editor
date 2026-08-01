@@ -78,7 +78,7 @@ test('leaves unrelated source byte-for-byte unchanged', () => {
         "\uFEFFimport { ImageEditorCore } from '@bensitu/image-editor/core';\r\n" +
         '\r\n' +
         'const editor = new ImageEditorCore(fabric);\r\n';
-    const result = transformSource(source, 'already-v3.ts');
+    const result = transformSource(source, 'already-current.ts');
 
     assert.equal(result.code, source);
     assert.equal(result.changed, false);
@@ -335,7 +335,7 @@ test('runner refuses symbolic-link traversal', async () => {
 test('CLI preserves source in dry-run and diff modes and writes an unresolved report', async () => {
     await withTemporaryDirectory(async (directory) => {
         await writeFile(path.join(directory, 'editor.ts'), await fixture('common.input.ts'));
-        const dryRun = await runCli(['v2-to-v3', 'editor.ts', '--dry-run'], directory);
+        const dryRun = await runCli(['migrate', 'editor.ts', '--dry-run'], directory);
         assert.equal(dryRun.code, 1);
         assert.match(dryRun.stdout, /"mode": "dry-run"/);
         assert.equal(
@@ -343,7 +343,7 @@ test('CLI preserves source in dry-run and diff modes and writes an unresolved re
             await fixture('common.input.ts'),
         );
 
-        const diff = await runCli(['v2-to-v3', 'editor.ts', '--diff'], directory);
+        const diff = await runCli(['migrate', 'editor.ts', '--diff'], directory);
         assert.equal(diff.code, 1);
         assert.match(diff.stdout, /^--- a\/editor\.ts/m);
 
@@ -352,7 +352,7 @@ test('CLI preserves source in dry-run and diff modes and writes an unresolved re
             await fixture('dynamic-property.input.js'),
         );
         const unresolved = await runCli(
-            ['v2-to-v3', 'dynamic.js', '--dry-run', '--report', 'report.json'],
+            ['migrate', 'dynamic.js', '--dry-run', '--report', 'report.json'],
             directory,
         );
         assert.equal(unresolved.code, 2);

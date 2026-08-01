@@ -162,9 +162,9 @@ void report;
         'utf8',
     );
     const cliPath = path.join(installedRoot, 'dist', 'cli.js');
-    await runCli([cliPath, 'v2-to-v3', 'editor.ts', '--dry-run'], consumerRoot, 1);
-    await runCli([cliPath, 'v2-to-v3', 'editor.ts', '--write'], consumerRoot, 0);
-    await runCli([cliPath, 'v2-to-v3', 'editor.ts', '--write'], consumerRoot, 0);
+    await runCli([cliPath, 'migrate', 'editor.ts', '--dry-run'], consumerRoot, 1);
+    await runCli([cliPath, 'migrate', 'editor.ts', '--write'], consumerRoot, 0);
+    await runCli([cliPath, 'migrate', 'editor.ts', '--write'], consumerRoot, 0);
     if (!(await readFile(sourcePath, 'utf8')).includes('ImageEditorCore')) {
         throw new Error('Installed codemod CLI did not transform the source file.');
     }

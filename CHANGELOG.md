@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the isolated public Testing entry, conformance profile `3.0`, deterministic host fixtures, package/bundle assertions, and independently packable Watermark, Metadata, Grid/Guide, and Blur Region reference Plugins.
 - Add explicit unsupported-Snapshot detection and generic Snapshot migration handlers that revalidate migrated output before mutation.
 - Add the isolated `@bensitu/image-editor/migrate-v2` entry for strict detection, conversion, explicit loading, lossy-warning opt-in, and bounded frozen fixtures.
-- Add the separate `@bensitu/image-editor-codemod` package and `v2-to-v3` CLI with dry-run, diff, write, idempotency, and unresolved-pattern reporting.
+- Add the separate `@bensitu/image-editor-codemod` package and `migrate` CLI with dry-run, diff, write, idempotency, and unresolved-pattern reporting.
 - Add ESM, CommonJS, ESM declarations, CommonJS declarations, and NodeNext conditions for every formal package entry.
 - Add a Full Preset UMD under the `ImageEditorFull` global while keeping Fabric external, plus browser smoke coverage and permanent size attribution.
 - Add modular Core and per-Plugin UMD artifacts for script-tag consumers.
@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve the Full Preset UMD as the CDN default while adding a separate, mutually exclusive Modular UMD mode; DOM Controls remain opt-in.
 - Require Fabric `>=7.4.0 <8` as an external peer.
 - Replace Rollup and its plugin stack with pinned Rolldown for distribution, reference Plugin and template packages, and consumer bundle integrity measurement.
-- Align Mask numeric and custom Fabric factory callbacks with the frozen v3 Mask runtime subset through `MaskFactoryOptions`.
+- Align Mask numeric and custom Fabric factory callbacks with the documented Mask runtime subset through `MaskFactoryOptions`.
 - Remove the ignored `saveHistory` option from `MaskPluginApi.removeAll()` so all Mask removals consistently use the shared Overlay transaction and History policy.
 
 ### Security

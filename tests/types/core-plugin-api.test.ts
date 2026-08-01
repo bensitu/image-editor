@@ -80,7 +80,7 @@ declare const maskFactoryOptions: MaskFactoryOptions;
 
 const maskFactoryLayout = maskFactoryOptions.layoutMode;
 const maskFactoryWidth = maskFactoryOptions.defaultMaskWidth;
-// @ts-expect-error Mask callbacks receive only the options present in the v3 Mask runtime.
+// @ts-expect-error Mask callbacks receive only the options present in the documented Mask runtime.
 const unavailableMaskFactoryCanvasWidth = maskFactoryOptions.canvasWidth;
 
 const exactOptionalCoreOptions: ImageEditorCoreOptions = {};

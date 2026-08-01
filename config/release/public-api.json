@@ -7236,7 +7236,7 @@
                 ]
             }
         ],
-        "declarationSha256": "fc2b28a8df41fa9dce5e2955fb476c892381da0f2b253798d8ad401ef3c4a811",
-        "help": "Usage:\n  image-editor-codemod v2-to-v3 <path...> [--write | --dry-run | --diff] [--report <file>]\n\nModes:\n  --write     Apply safe transformations atomically (default).\n  --dry-run   Report changes without writing source files.\n  --diff      Print a source diff without writing source files.\n"
+        "declarationSha256": "1613161a7271483b5fb2e52d38bcb646b01183880b42e85a79676dae3ab95554",
+        "help": "Usage:\n  image-editor-codemod migrate <path...> [--write | --dry-run | --diff] [--report <file>]\n\nModes:\n  --write     Apply safe transformations atomically (default).\n  --dry-run   Report changes without writing source files.\n  --diff      Print a source diff without writing source files.\n"
     }
 }

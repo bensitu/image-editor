@@ -228,9 +228,9 @@ no frozen runtime, Fabric constructors, DOM Controls, or Preset composition.
 Run the separate package against a clean Git branch:
 
 ```bash
-npx @bensitu/image-editor-codemod v2-to-v3 src --dry-run --report codemod-report.json
-npx @bensitu/image-editor-codemod v2-to-v3 src --diff
-npx @bensitu/image-editor-codemod v2-to-v3 src --write --report codemod-report.json
+npx @bensitu/image-editor-codemod migrate src --dry-run --report codemod-report.json
+npx @bensitu/image-editor-codemod migrate src --diff
+npx @bensitu/image-editor-codemod migrate src --write --report codemod-report.json
 ```
 
 `--write` is the default and applies safe edits atomically. `--dry-run` reports

@@ -6,7 +6,7 @@
  */
 import { runCodemod, writeCodemodReport } from './index.js';
 const USAGE = `Usage:
-  image-editor-codemod v2-to-v3 <path...> [--write | --dry-run | --diff] [--report <file>]
+  image-editor-codemod migrate <path...> [--write | --dry-run | --diff] [--report <file>]
 
 Modes:
   --write     Apply safe transformations atomically (default).
@@ -16,8 +16,8 @@ Modes:
 function parseArguments(args) {
     if (args.includes('--help') || args.includes('-h'))
         return null;
-    if (args[0] !== 'v2-to-v3')
-        throw new Error('The required command is "v2-to-v3".');
+    if (args[0] !== 'migrate')
+        throw new Error('The required command is "migrate".');
     const targets = [];
     let mode = 'write';
     let selectedMode = false;

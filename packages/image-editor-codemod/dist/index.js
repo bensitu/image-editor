@@ -848,7 +848,7 @@ export async function runCodemod(targets, options = {}) {
         }));
     }
     return Object.freeze({
-        command: 'v2-to-v3',
+        command: 'migrate',
         mode,
         result: unresolvedCount > 0
             ? 'UNRESOLVED'

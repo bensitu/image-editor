@@ -26,7 +26,7 @@ export interface CodemodFileReport {
     readonly diff?: string;
 }
 export interface CodemodReport {
-    readonly command: 'v2-to-v3';
+    readonly command: 'migrate';
     readonly mode: CodemodMode;
     readonly result: 'PASS' | 'CHANGES_AVAILABLE' | 'UNRESOLVED';
     readonly filesScanned: number;

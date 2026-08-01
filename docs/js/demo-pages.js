@@ -1975,7 +1975,7 @@
         context.fillText('Product workspace', 108, 414);
         context.font = '20px Arial';
         context.fillStyle = '#475569';
-        context.fillText('Compose only the v3 plugins this workflow needs.', 108, 454);
+        context.fillText('Compose only the plugins this workflow needs.', 108, 454);
         drawChartBars(context, 108, 486);
     }
 

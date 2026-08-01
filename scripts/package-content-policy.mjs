@@ -362,7 +362,7 @@ export async function inspectMainPackageContents({ packageRoot, manifest, files 
         failures.push(`Packed old Runtime artifact remains: ${file}.`);
 
     const codemodFiles = [...normalizedFiles]
-        .filter((file) => /(?:^|\/)(?:codemod|v2-to-v3)(?:[./-]|$)/u.test(file))
+        .filter((file) => /(?:^|\/)codemod(?:[./-]|$)/u.test(file))
         .sort();
     for (const file of codemodFiles)
         failures.push(`Main package contains Codemod runtime: ${file}.`);

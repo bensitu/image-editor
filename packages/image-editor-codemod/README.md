@@ -5,9 +5,9 @@ Plugin APIs. The package rewrites only statically recognizable integrations and 
 patterns without silently changing them.
 
 ```bash
-npx @bensitu/image-editor-codemod v2-to-v3 src --dry-run
-npx @bensitu/image-editor-codemod v2-to-v3 src --diff
-npx @bensitu/image-editor-codemod v2-to-v3 src --write --report codemod-report.json
+npx @bensitu/image-editor-codemod migrate src --dry-run
+npx @bensitu/image-editor-codemod migrate src --diff
+npx @bensitu/image-editor-codemod migrate src --write --report codemod-report.json
 ```
 
 `--dry-run` and `--diff` never write source files. `--write` applies safe edits atomically. Exit
