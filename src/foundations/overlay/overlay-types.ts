@@ -39,6 +39,13 @@ export interface OverlayKindDefinition {
     setHidden?(object: FabricNS.FabricObject, hidden: boolean): void;
     isLocked?(object: FabricNS.FabricObject): boolean;
     setLocked?(object: FabricNS.FabricObject, locked: boolean): void;
+    /**
+     * Whether objects of this kind participate in export when `includeKinds` is not supplied.
+     * An explicit `includeKinds` entry enables the kind for that export call.
+     *
+     * @defaultValue `true`
+     */
+    readonly exportByDefault?: boolean;
     readonly exportOrder?: number;
     readonly persistence: OverlayPersistenceDefinition;
     readonly stateCodec?: OverlayStateKindCodec;

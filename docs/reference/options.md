@@ -174,6 +174,30 @@ compositions.
 topmost first) or `back-to-front` (Fabric Canvas bottom-to-top order). These display/API ordering
 options do not move Canvas objects or change persistent layer indices.
 
+### Overlay export participation
+
+`masks.exportByDefault` and `annotations.exportByDefault` default to `true`. Set either value to
+`false` when the host wants those objects available for editing and state persistence but omitted
+from ordinary exports. Explicit `includeKinds` values on an export call override the registered
+default, while `excludeKinds` always excludes a matching kind.
+
+```ts
+const editor = new ImageEditorCore(fabric, {
+    exportDefaults: { fileName: 'reviewed-image', area: 'image' },
+});
+editor.use(maskPlugin({ exportByDefault: false }));
+
+const file = await editor.exportImageFile({
+    contributors: {
+        'foundation:overlay': { includeKinds: ['mask:object'] },
+    },
+});
+```
+
+`exportDefaults.area` is the constructor-level export-area policy and
+`exportDefaults.fileName` is the default name used by `exportImageFile()`. Separate aliases are not
+needed because per-call export values already override these defaults predictably.
+
 ## Feature references
 
 - [Transform and Core API](./api.md)

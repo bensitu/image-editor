@@ -119,11 +119,16 @@ function testAnnotationPlugin(id = 'annotation:test-fixture') {
     });
 }
 
-async function createEditor({ feature = true, historyEnabled = true, listOrder } = {}) {
+async function createEditor({
+    annotationOptions = {},
+    feature = true,
+    historyEnabled = true,
+    listOrder,
+} = {}) {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
     const editor = new ImageEditorCore(fabric, { canvasWidth: 320, canvasHeight: 240 });
     const overlay = editor.use(overlayFoundationPlugin());
-    const annotations = editor.use(annotationFoundationPlugin({ listOrder }));
+    const annotations = editor.use(annotationFoundationPlugin({ ...annotationOptions, listOrder }));
     const history = editor.use(historyPlugin({ enabled: historyEnabled }));
     const featureApi = feature ? editor.use(testAnnotationPlugin()) : null;
     await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
@@ -196,7 +201,7 @@ test('Feature registration builders retain atomic cleanup and registration order
         reportWarning: () => undefined,
         reportError: () => undefined,
     };
-    const controller = new AnnotationController(host, overlay, {});
+    const controller = new AnnotationController(host, overlay, { exportByDefault: false });
     const definition = {
         kind: 'annotation:builder-test',
         ownerPluginId: 'example-test:annotation-builder',
@@ -230,6 +235,7 @@ test('Feature registration builders retain atomic cleanup and registration order
         'register:annotation:builder-test-interaction',
     ]);
     assert.equal(definitions.kind.persistence.codec.type, definition.codec.type);
+    assert.equal(definitions.kind.exportByDefault, false);
     assert.equal(definitions.geometry.kind, definition.kind);
     assert.equal(definitions.export.order, 200);
     assert.equal(definitions.interaction.kind, definition.kind);
@@ -313,6 +319,82 @@ test('Annotation lists support front-to-back and back-to-front ordering', async 
         );
         await dispose(editor);
     }
+});
+
+test('removeAll preserves locked Annotations until force is explicit', async () => {
+    const { annotations, editor, featureApi } = await createEditor();
+    await load(editor);
+    const unlockedId = await featureApi.create({ name: 'Unlocked' });
+    const lockedId = await featureApi.create({ left: 72, name: 'Locked', locked: true });
+    const lockedObject = featureApi.getObject(lockedId);
+    const indicator = editor
+        .getCanvas()
+        .getObjects()
+        .find((object) => object.sessionObjectType === 'annotationLockIndicator');
+    assert.ok(indicator);
+    const originalIndicatorLeft = indicator.left;
+
+    await featureApi.updateLeft(lockedId, 108);
+    assert.notEqual(indicator.left, originalIndicatorLeft);
+    await annotations.removeAll();
+    assert.equal(annotations.get(unlockedId), null);
+    assert.equal(annotations.get(lockedId)?.locked, true);
+    assert.equal(editor.getCanvas().getObjects().includes(lockedObject), true);
+
+    await annotations.removeAll({ force: true });
+    assert.equal(annotations.get(lockedId), null);
+    assert.equal(
+        editor
+            .getCanvas()
+            .getObjects()
+            .some((object) => object.sessionObjectType === 'annotationLockIndicator'),
+        false,
+    );
+    await dispose(editor);
+});
+
+test('Annotation presentation options customize controls, hover, and transient labels', async () => {
+    const { editor, featureApi } = await createEditor({
+        annotationOptions: {
+            controlStyle: {
+                borderColor: '#123456',
+                cornerColor: '#abcdef',
+                cornerSize: 14,
+            },
+            hoverStyle: { opacity: 0.4, stroke: '#00ff00', strokeWidth: 3 },
+            label: {
+                showOn: 'always',
+                offset: 6,
+                getText: (annotation) => `Label: ${annotation.name}`,
+            },
+        },
+    });
+    await load(editor);
+    const id = await featureApi.create({ name: 'Review' });
+    const object = featureApi.getObject(id);
+    assert.equal(object.borderColor, '#123456');
+    assert.equal(object.cornerColor, '#abcdef');
+    assert.equal(object.cornerSize, 14);
+    const label = editor
+        .getCanvas()
+        .getObjects()
+        .find((candidate) => candidate.sessionObjectType === 'annotationLabel');
+    assert.equal(label?.text, 'Label: Review');
+    const normalStyle = {
+        opacity: object.opacity,
+        stroke: object.stroke,
+        strokeWidth: object.strokeWidth,
+    };
+
+    object.fire('mouseover');
+    assert.equal(object.opacity, 0.4);
+    assert.equal(object.stroke, '#00ff00');
+    assert.equal(object.strokeWidth, 3);
+    object.fire('mouseout');
+    assert.equal(object.opacity, normalStyle.opacity);
+    assert.equal(object.stroke, normalStyle.stroke);
+    assert.equal(object.strokeWidth, normalStyle.strokeWidth);
+    await dispose(editor);
 });
 
 test('State round trip restores metadata, interaction, selection, and layer', async () => {

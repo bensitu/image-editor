@@ -13,6 +13,7 @@ import type {
     Disposable,
     FabricRuntimePort,
     RenderRequestPort,
+    SnapshotRegistrationPort,
 } from '../../sdk/index.js';
 import { createDisposable } from '../../sdk/index.js';
 import { placeSessionObject } from '../../utils/internal-layer-placement.js';
@@ -41,6 +42,7 @@ import type {
     AnnotationPluginApi,
     AnnotationPreviewRequest,
     AnnotationQuery,
+    AnnotationRemoveAllOptions,
     AnnotationStatus,
     AnnotationStatusListener,
     AnnotationUpdate,
@@ -55,6 +57,12 @@ import {
     normalizeAnnotationMetadata,
     normalizeAnnotationName,
 } from './annotation-metadata.js';
+import {
+    AnnotationPresentationManager,
+    isAnnotationPresentationObject,
+    resolveAnnotationPresentationOptions,
+    type ResolvedAnnotationPresentationOptions,
+} from './annotation-presentation-manager.js';
 import {
     applyAnnotationInteraction,
     captureAnnotationInteraction,
@@ -237,6 +245,8 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     private readonly registrations: Disposable[] = [];
     private readonly maxAnnotationCount: number;
     private readonly listOrder: OverlayListOrder;
+    private readonly presentationOptions: ResolvedAnnotationPresentationOptions;
+    private readonly presentations: AnnotationPresentationManager;
     private mutationSequence = 0;
     private generatedIdSequence = 0;
     private lastInteractionId: string | null = null;
@@ -246,6 +256,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         private readonly host: AnnotationCoreAccess,
         private readonly overlay: OverlayFoundationApi,
         options: AnnotationFoundationOptions,
+        state?: SnapshotRegistrationPort,
     ) {
         const configuredLimit = options.maxAnnotationCount;
         if (
@@ -260,6 +271,13 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         }
         this.maxAnnotationCount = configuredLimit ?? DEFAULT_MAX_ANNOTATION_COUNT;
         this.listOrder = options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back';
+        this.presentationOptions = resolveAnnotationPresentationOptions(options);
+        this.presentations = new AnnotationPresentationManager(
+            host,
+            this.presentationOptions,
+            (object) => this.describePresentationOwner(object),
+            (id) => this.overlay.getSelection().ids.includes(id),
+        );
         this.registrations.push(
             overlay.registerKind({
                 id: ANNOTATION_PREVIEW_KIND,
@@ -277,7 +295,19 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
                 persistence: { mode: 'transient' },
             }),
         );
-        this.registrations.push(overlay.onSelectionChange(() => this.emitStatus()));
+        if (state) {
+            this.registrations.push(
+                state.registerTransientObject(ANNOTATION_FOUNDATION_ID, (object) =>
+                    isAnnotationPresentationObject(object),
+                ),
+            );
+        }
+        this.registrations.push(
+            overlay.onSelectionChange(() => {
+                this.synchronizePresentations();
+                this.emitStatus();
+            }),
+        );
     }
 
     list(query: AnnotationQuery = {}): readonly AnnotationDescriptor[] {
@@ -323,10 +353,11 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         await this.removeFeatures({ ids: [id], operationId: 'annotation:remove' });
     }
 
-    async removeAll(query: AnnotationQuery = {}): Promise<void> {
-        const ids = this.list({ ...query, includeHidden: true, includeLocked: true }).map(
-            (entry) => entry.id,
-        );
+    async removeAll(options: AnnotationRemoveAllOptions = {}): Promise<void> {
+        const { force, query } = this.normalizeRemoveAllOptions(options);
+        const ids = this.list({ ...query, includeHidden: true, includeLocked: true })
+            .filter((entry) => force || !entry.locked)
+            .map((entry) => entry.id);
         await this.removeFeatures({ ids, operationId: 'annotation:remove-all' });
     }
 
@@ -433,6 +464,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             if (this.features.get(normalizedDefinition.kind) !== record) return;
             this.features.delete(normalizedDefinition.kind);
             this.disposeRegistrations(registrations);
+            this.synchronizePresentations();
             this.emitStatus();
         });
     }
@@ -480,6 +512,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
                 this.emitStatus();
             },
         });
+        this.synchronizePresentations();
         return id;
     }
 
@@ -512,6 +545,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             },
             synchronize: () => this.emitStatus(),
         });
+        this.synchronizePresentations();
     }
 
     async removeFeatures(request: AnnotationFeatureRemoveRequest): Promise<void> {
@@ -534,6 +568,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             },
             synchronize: () => this.emitStatus(),
         });
+        this.synchronizePresentations();
     }
 
     getObject(id: AnnotationId, kind?: `annotation:${string}`): FabricNS.FabricObject | null {
@@ -610,12 +645,18 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
 
     resetForImage(): void {
         this.removeAllPreviews();
+        this.presentations.reset();
         this.emitStatus();
+    }
+
+    synchronizeRuntimePresentation(): void {
+        this.synchronizePresentations();
     }
 
     dispose(): void {
         if (this.disposed) return;
         this.removeAllPreviews();
+        this.presentations.reset();
         this.listeners.clear();
         for (const feature of [...this.features.values()].reverse()) {
             this.disposeRegistrations(feature.registrations);
@@ -652,6 +693,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
                 annotation.editorOverlayLocked = locked;
                 synchronizeAnnotationRuntimeState(annotation);
             },
+            exportByDefault: definition.exportByDefault ?? this.presentationOptions.exportByDefault,
             persistence: {
                 mode: 'persistent',
                 codec: {
@@ -775,6 +817,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
                 for (const object of this.listObjects(definition.kind)) {
                     synchronizeAnnotationRuntimeState(object as AnnotationFabricObject);
                     definition.synchronize?.(object);
+                    this.presentations.synchronize(object as AnnotationFabricObject);
                 }
             },
         };
@@ -812,9 +855,13 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             id: `${definition.kind}-interaction`,
             kind: definition.kind,
             ownerPluginId: definition.ownerPluginId,
+            preview: (object) => {
+                this.presentations.synchronize(object as AnnotationFabricObject);
+            },
             synchronize: (object, context) => {
                 synchronizeAnnotationRuntimeState(object as AnnotationFabricObject);
                 definition.synchronize?.(object);
+                this.presentations.synchronize(object as AnnotationFabricObject);
                 if (this.lastInteractionId !== context.descriptor.id) {
                     this.lastInteractionId = context.descriptor.id;
                     this.emitStatus();
@@ -867,6 +914,36 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
                       ) as boolean,
                   }),
         });
+    }
+
+    private normalizeRemoveAllOptions(
+        options: AnnotationRemoveAllOptions,
+    ): Readonly<{ force: boolean; query: AnnotationQuery }> {
+        if (!isPlainRecord(options)) {
+            throw new AnnotationValidationError(
+                'Annotation removeAll options must be a plain object.',
+            );
+        }
+        const allowed = new Set(['kinds', 'ids', 'includeHidden', 'includeLocked', 'force']);
+        if (Object.keys(options).some((key) => !allowed.has(key))) {
+            throw new AnnotationValidationError(
+                'Annotation removeAll options contain unknown keys.',
+            );
+        }
+        const typedOptions = options as AnnotationRemoveAllOptions;
+        const force = validateBoolean(typedOptions.force, 'Annotation removeAll force') ?? false;
+        const query: AnnotationQuery = Object.freeze({
+            ...(typedOptions.kinds === undefined ? {} : { kinds: typedOptions.kinds }),
+            ...(typedOptions.ids === undefined ? {} : { ids: typedOptions.ids }),
+            ...(typedOptions.includeHidden === undefined
+                ? {}
+                : { includeHidden: typedOptions.includeHidden }),
+            ...(typedOptions.includeLocked === undefined
+                ? {}
+                : { includeLocked: typedOptions.includeLocked }),
+        });
+        this.normalizeQuery(query);
+        return Object.freeze({ force, query });
     }
 
     private describe(
@@ -946,6 +1023,24 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     private isAnnotationObject(object: FabricNS.FabricObject): object is AnnotationFabricObject {
         const classification = this.overlay.classify(object);
         return !!classification && this.features.has(classification.kind);
+    }
+
+    private describePresentationOwner(object: AnnotationFabricObject): AnnotationDescriptor | null {
+        const id = object.editorOverlayId;
+        if (!id) return null;
+        return this.get(id);
+    }
+
+    private synchronizePresentations(): void {
+        if (this.disposed) return;
+        const objects = this.overlay
+            .list({
+                kinds: [...this.features.keys()],
+                includeHidden: true,
+                includeLocked: true,
+            })
+            .filter((object): object is AnnotationFabricObject => this.isAnnotationObject(object));
+        this.presentations.synchronizeAll(objects);
     }
 
     private requireAnnotation(

@@ -13,7 +13,12 @@ import type * as FabricNS from 'fabric';
 import type { FabricModule, LayoutMode } from '../core-runtime/public-types.js';
 
 export type SessionObjectType =
-    'cropRect' | 'maskLabel' | 'mosaicPreviewCircle' | 'mosaicPreviewImage';
+    | 'annotationLabel'
+    | 'annotationLockIndicator'
+    | 'cropRect'
+    | 'maskLabel'
+    | 'mosaicPreviewCircle'
+    | 'mosaicPreviewImage';
 
 /** Render order for Mask and Annotation lists exposed by their Plugin APIs. */
 export type OverlayListOrder = 'front-to-back' | 'back-to-front';

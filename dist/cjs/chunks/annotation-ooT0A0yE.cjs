@@ -1,7 +1,7 @@
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-DhpSM97c.cjs');
+const require_overlay = require('./overlay-BF4aP6ki.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-CP6C0Dc2.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 
@@ -105,7 +105,7 @@ const MAX_ANNOTATION_NAME_LENGTH = 128;
 const MAX_ANNOTATION_METADATA_DEPTH = 4;
 const MAX_ANNOTATION_METADATA_KEYS = 32;
 const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
-function isPlainRecord$1(value) {
+function isPlainRecord$2(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -130,7 +130,7 @@ function cloneMetadataValue(value, depth, budget) {
 			if (value.length > 32) throw new AnnotationValidationError("Annotation metadata arrays are too large.");
 			return Object.freeze(value.map((entry) => cloneMetadataValue(entry, depth + 1, budget)));
 		}
-		if (!isPlainRecord$1(value)) throw new AnnotationValidationError("Annotation metadata objects must be plain.");
+		if (!isPlainRecord$2(value)) throw new AnnotationValidationError("Annotation metadata objects must be plain.");
 		const entries = Object.entries(value);
 		budget.keyCount += entries.length;
 		if (budget.keyCount > 32) throw new AnnotationValidationError("Annotation metadata contains too many keys.");
@@ -151,7 +151,7 @@ function normalizeAnnotationName(value, fallback) {
 	return candidate;
 }
 function normalizeAnnotationMetadata(value = {}) {
-	if (!isPlainRecord$1(value)) throw new AnnotationValidationError("Annotation metadata must be a plain object.");
+	if (!isPlainRecord$2(value)) throw new AnnotationValidationError("Annotation metadata must be a plain object.");
 	return cloneMetadataValue(value, 0, {
 		keyCount: 0,
 		stringBytes: 0,
@@ -165,6 +165,381 @@ function isValidAnnotationMetadata(value) {
 	} catch {
 		return false;
 	}
+}
+
+//#endregion
+//#region dist/esm/foundations/annotation/annotation-presentation-manager.js
+const DEFAULT_LOCK_INDICATOR = Object.freeze({
+	size: 16,
+	offset: 3,
+	backgroundColor: "#111827",
+	iconColor: "#ffffff"
+});
+function isPlainRecord$1(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+}
+function finiteRange(value, label, minimum, maximum) {
+	if (value === void 0) return void 0;
+	if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) throw new AnnotationValidationError(`${label} must be a finite number from ${minimum} through ${maximum}.`);
+	return value;
+}
+function color(value, label) {
+	if (value === void 0) return void 0;
+	if (typeof value !== "string" || value.length === 0 || value.length > 256) throw new AnnotationValidationError(`${label} must be a non-empty CSS color string.`);
+	return value;
+}
+function nullableColor(value, label) {
+	if (value === null) return null;
+	return color(value, label);
+}
+function resolveHoverStyle(value) {
+	if (value === void 0 || value === false) return false;
+	if (!isPlainRecord$1(value)) throw new AnnotationValidationError("Annotation hoverStyle must be an object or false.");
+	const allowed = /* @__PURE__ */ new Set([
+		"fill",
+		"opacity",
+		"stroke",
+		"strokeWidth"
+	]);
+	if (Object.keys(value).some((key) => !allowed.has(key))) throw new AnnotationValidationError("Annotation hoverStyle contains unknown keys.");
+	return Object.freeze({
+		...value.fill !== void 0 ? { fill: nullableColor(value.fill, "Annotation hover fill") } : {},
+		...value.opacity !== void 0 ? { opacity: finiteRange(value.opacity, "Annotation hover opacity", 0, 1) } : {},
+		...value.stroke !== void 0 ? { stroke: nullableColor(value.stroke, "Annotation hover stroke") } : {},
+		...value.strokeWidth !== void 0 ? { strokeWidth: finiteRange(value.strokeWidth, "Annotation hover strokeWidth", 0, 256) } : {}
+	});
+}
+function resolveControlStyle(value) {
+	if (value === void 0) return Object.freeze({});
+	if (!isPlainRecord$1(value)) throw new AnnotationValidationError("Annotation controlStyle must be an object.");
+	const allowed = /* @__PURE__ */ new Set([
+		"borderColor",
+		"cornerColor",
+		"cornerStrokeColor",
+		"cornerSize",
+		"touchCornerSize",
+		"transparentCorners",
+		"padding"
+	]);
+	if (Object.keys(value).some((key) => !allowed.has(key))) throw new AnnotationValidationError("Annotation controlStyle contains unknown keys.");
+	if (value.transparentCorners !== void 0 && typeof value.transparentCorners !== "boolean") throw new AnnotationValidationError("Annotation controlStyle.transparentCorners must be boolean.");
+	return Object.freeze({
+		...value.borderColor !== void 0 ? { borderColor: color(value.borderColor, "Annotation borderColor") } : {},
+		...value.cornerColor !== void 0 ? { cornerColor: color(value.cornerColor, "Annotation cornerColor") } : {},
+		...value.cornerStrokeColor !== void 0 ? { cornerStrokeColor: color(value.cornerStrokeColor, "Annotation cornerStrokeColor") } : {},
+		...value.cornerSize !== void 0 ? { cornerSize: finiteRange(value.cornerSize, "Annotation cornerSize", 1, 128) } : {},
+		...value.touchCornerSize !== void 0 ? { touchCornerSize: finiteRange(value.touchCornerSize, "Annotation touchCornerSize", 1, 256) } : {},
+		...value.transparentCorners === void 0 ? {} : { transparentCorners: value.transparentCorners },
+		...value.padding !== void 0 ? { padding: finiteRange(value.padding, "Annotation control padding", 0, 128) } : {}
+	});
+}
+function resolveLabel(value) {
+	var _a, _b;
+	if (value === void 0 || value === false) return false;
+	if (!isPlainRecord$1(value)) throw new AnnotationValidationError("Annotation label must be an object or false.");
+	const allowed = /* @__PURE__ */ new Set([
+		"showOn",
+		"offset",
+		"getText",
+		"textOptions"
+	]);
+	if (Object.keys(value).some((key) => !allowed.has(key))) throw new AnnotationValidationError("Annotation label contains unknown keys.");
+	if (value.showOn !== void 0 && value.showOn !== "selected" && value.showOn !== "always") throw new AnnotationValidationError("Annotation label.showOn must be selected or always.");
+	if (value.getText !== void 0 && typeof value.getText !== "function") throw new AnnotationValidationError("Annotation label.getText must be a function.");
+	if (value.textOptions !== void 0 && !isPlainRecord$1(value.textOptions)) throw new AnnotationValidationError("Annotation label.textOptions must be an object.");
+	return Object.freeze({
+		showOn: (_a = value.showOn) !== null && _a !== void 0 ? _a : "selected",
+		offset: (_b = finiteRange(value.offset, "Annotation label offset", 0, 256)) !== null && _b !== void 0 ? _b : 3,
+		...value.getText ? { getText: value.getText } : {},
+		...value.textOptions ? { textOptions: Object.freeze({ ...value.textOptions }) } : {}
+	});
+}
+function resolveLockIndicator(value) {
+	var _a, _b, _c, _d;
+	if (value === false) return false;
+	if (value !== void 0 && !isPlainRecord$1(value)) throw new AnnotationValidationError("Annotation lockIndicator must be an object or false.");
+	const config = value !== null && value !== void 0 ? value : {};
+	const allowed = /* @__PURE__ */ new Set([
+		"size",
+		"offset",
+		"backgroundColor",
+		"iconColor"
+	]);
+	if (Object.keys(config).some((key) => !allowed.has(key))) throw new AnnotationValidationError("Annotation lockIndicator contains unknown keys.");
+	return Object.freeze({
+		size: (_a = finiteRange(config.size, "Annotation lock indicator size", 8, 64)) !== null && _a !== void 0 ? _a : DEFAULT_LOCK_INDICATOR.size,
+		offset: (_b = finiteRange(config.offset, "Annotation lock indicator offset", 0, 64)) !== null && _b !== void 0 ? _b : DEFAULT_LOCK_INDICATOR.offset,
+		backgroundColor: (_c = color(config.backgroundColor, "Annotation lock indicator backgroundColor")) !== null && _c !== void 0 ? _c : DEFAULT_LOCK_INDICATOR.backgroundColor,
+		iconColor: (_d = color(config.iconColor, "Annotation lock indicator iconColor")) !== null && _d !== void 0 ? _d : DEFAULT_LOCK_INDICATOR.iconColor
+	});
+}
+function resolveAnnotationPresentationOptions(options) {
+	return Object.freeze({
+		exportByDefault: options.exportByDefault !== false,
+		hoverStyle: resolveHoverStyle(options.hoverStyle),
+		controlStyle: resolveControlStyle(options.controlStyle),
+		label: resolveLabel(options.label),
+		lockIndicator: resolveLockIndicator(options.lockIndicator)
+	});
+}
+var AnnotationPresentationManager = class {
+	constructor(host, options, describe, isSelected) {
+		Object.defineProperty(this, "host", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: host
+		});
+		Object.defineProperty(this, "options", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: options
+		});
+		Object.defineProperty(this, "describe", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: describe
+		});
+		Object.defineProperty(this, "isSelected", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: isSelected
+		});
+		Object.defineProperty(this, "labels", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: /* @__PURE__ */ new Map()
+		});
+		Object.defineProperty(this, "lockIndicators", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: /* @__PURE__ */ new Map()
+		});
+		Object.defineProperty(this, "hoverBindings", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: /* @__PURE__ */ new Map()
+		});
+	}
+	synchronize(object) {
+		const descriptor = this.describe(object);
+		if (!descriptor) return;
+		this.applyControlStyle(object);
+		this.ensureHoverBinding(object);
+		if (descriptor.hidden || descriptor.locked) this.restoreHover(object);
+		this.synchronizeLabel(object, descriptor);
+		this.synchronizeLockIndicator(object, descriptor);
+		this.host.requestRender();
+	}
+	synchronizeAll(objects) {
+		const live = new Set(objects);
+		for (const object of [...this.labels.keys()]) if (!live.has(object)) this.removeFor(object);
+		for (const object of [...this.lockIndicators.keys()]) if (!live.has(object)) this.removeFor(object);
+		for (const object of [...this.hoverBindings.keys()]) if (!live.has(object)) this.removeFor(object);
+		for (const object of objects) this.synchronize(object);
+	}
+	removeFor(object) {
+		this.removePresentation(this.labels, object);
+		this.removePresentation(this.lockIndicators, object);
+		this.detachHoverBinding(object);
+	}
+	reset() {
+		for (const object of /* @__PURE__ */ new Set([
+			...this.labels.keys(),
+			...this.lockIndicators.keys(),
+			...this.hoverBindings.keys()
+		])) this.removeFor(object);
+		this.host.requestRender();
+	}
+	applyControlStyle(object) {
+		if (Object.keys(this.options.controlStyle).length === 0) return;
+		object.set(this.options.controlStyle);
+		object.setCoords();
+	}
+	ensureHoverBinding(object) {
+		const style = this.options.hoverStyle;
+		if (style === false || this.hoverBindings.has(object)) return;
+		const binding = {
+			original: null,
+			over: () => {
+				if (object.editorOverlayHidden || object.editorOverlayLocked) return;
+				if (binding.original) return;
+				binding.original = Object.freeze({
+					..."fill" in style ? { fill: object.fill } : {},
+					..."opacity" in style ? { opacity: object.opacity } : {},
+					..."stroke" in style ? { stroke: object.stroke } : {},
+					..."strokeWidth" in style ? { strokeWidth: object.strokeWidth } : {}
+				});
+				object.set(style);
+				this.host.requestRender();
+			},
+			out: () => {
+				this.restoreHover(object);
+				this.host.requestRender();
+			}
+		};
+		object.on("mouseover", binding.over);
+		object.on("mouseout", binding.out);
+		this.hoverBindings.set(object, binding);
+	}
+	restoreHover(object) {
+		const binding = this.hoverBindings.get(object);
+		if (!(binding === null || binding === void 0 ? void 0 : binding.original)) return;
+		object.set(binding.original);
+		binding.original = null;
+	}
+	detachHoverBinding(object) {
+		const binding = this.hoverBindings.get(object);
+		if (!binding) return;
+		this.restoreHover(object);
+		object.off("mouseover", binding.over);
+		object.off("mouseout", binding.out);
+		this.hoverBindings.delete(object);
+	}
+	synchronizeLabel(object, descriptor) {
+		var _a, _b;
+		const config = this.options.label;
+		if (config === false) {
+			this.removePresentation(this.labels, object);
+			return;
+		}
+		if (!(!descriptor.hidden && (config.showOn === "always" || this.isSelected(descriptor.id)))) {
+			this.removePresentation(this.labels, object);
+			return;
+		}
+		let label = this.labels.get(object);
+		const text = this.labelText(config, descriptor);
+		if (!label) {
+			label = require_internal_layer_placement.markSessionObject(new this.host.fabric.FabricText(text, {
+				fontFamily: "monospace",
+				fontSize: 12,
+				fill: "#ffffff",
+				backgroundColor: "rgba(0, 0, 0, 0.75)",
+				...(_a = config.textOptions) !== null && _a !== void 0 ? _a : {},
+				originX: "left",
+				originY: "top",
+				selectable: false,
+				evented: false,
+				hasControls: false,
+				excludeFromExport: true
+			}), "annotationLabel");
+			this.markPresentation(label, descriptor.id);
+			this.labels.set(object, label);
+			require_internal_layer_placement.placeSessionObject(this.host.requireCanvas("show an Annotation label"), label);
+		} else if (label.text !== text) label.set({ text });
+		const bounds = object.getBoundingRect();
+		label.set({
+			left: bounds.left,
+			top: Math.max(0, bounds.top - label.getScaledHeight() - ((_b = config.offset) !== null && _b !== void 0 ? _b : 3)),
+			visible: true
+		});
+		label.setCoords();
+	}
+	labelText(config, descriptor) {
+		if (!config.getText) return descriptor.name;
+		try {
+			const value = config.getText(descriptor);
+			return typeof value === "string" ? value : descriptor.name;
+		} catch (error) {
+			this.host.reportWarning(error, "Annotation label.getText callback failed.");
+			return descriptor.name;
+		}
+	}
+	synchronizeLockIndicator(object, descriptor) {
+		const config = this.options.lockIndicator;
+		if (config === false || descriptor.hidden || !descriptor.locked) {
+			this.removePresentation(this.lockIndicators, object);
+			return;
+		}
+		let indicator = this.lockIndicators.get(object);
+		if (!indicator) {
+			indicator = this.createLockIndicator(config, descriptor.id);
+			this.lockIndicators.set(object, indicator);
+			require_internal_layer_placement.placeSessionObject(this.host.requireCanvas("show an Annotation lock indicator"), indicator);
+		}
+		const bounds = object.getBoundingRect();
+		indicator.set({
+			left: Math.max(0, bounds.left + bounds.width - config.size - config.offset),
+			top: Math.max(0, bounds.top + config.offset),
+			visible: true
+		});
+		indicator.setCoords();
+	}
+	createLockIndicator(config, ownerId) {
+		const strokeWidth = Math.max(1, config.size / 10);
+		const shackle = new this.host.fabric.Rect({
+			left: config.size * .27,
+			top: strokeWidth / 2,
+			width: config.size * .46,
+			height: config.size * .52,
+			rx: config.size * .2,
+			ry: config.size * .2,
+			fill: "transparent",
+			stroke: config.iconColor,
+			strokeWidth,
+			selectable: false,
+			evented: false
+		});
+		const body = new this.host.fabric.Rect({
+			left: strokeWidth / 2,
+			top: config.size * .42,
+			width: config.size - strokeWidth,
+			height: config.size * .55,
+			rx: config.size * .1,
+			ry: config.size * .1,
+			fill: config.backgroundColor,
+			stroke: config.iconColor,
+			strokeWidth,
+			selectable: false,
+			evented: false
+		});
+		const keyhole = new this.host.fabric.Circle({
+			left: config.size * .44,
+			top: config.size * .6,
+			radius: config.size * .07,
+			fill: config.iconColor,
+			selectable: false,
+			evented: false
+		});
+		const group = require_internal_layer_placement.markSessionObject(new this.host.fabric.Group([
+			shackle,
+			body,
+			keyhole
+		], {
+			originX: "left",
+			originY: "top",
+			selectable: false,
+			evented: false,
+			hasControls: false,
+			excludeFromExport: true
+		}), "annotationLockIndicator");
+		this.markPresentation(group, ownerId);
+		return group;
+	}
+	markPresentation(object, ownerId) {
+		const presentation = object;
+		presentation.annotationPresentation = true;
+		presentation.annotationOwnerId = ownerId;
+	}
+	removePresentation(collection, owner) {
+		const presentation = collection.get(owner);
+		if (!presentation) return;
+		collection.delete(owner);
+		const canvas = this.host.getCanvas();
+		if (canvas === null || canvas === void 0 ? void 0 : canvas.getObjects().includes(presentation)) canvas.remove(presentation);
+		presentation.dispose();
+	}
+};
+function isAnnotationPresentationObject(object) {
+	return object.annotationPresentation === true;
 }
 
 //#endregion
@@ -292,7 +667,7 @@ function validateStringList(value, label) {
 	return Object.freeze([...new Set(value)]);
 }
 var AnnotationController = class {
-	constructor(host, overlay, options) {
+	constructor(host, overlay, options, state) {
 		Object.defineProperty(this, "host", {
 			enumerable: true,
 			configurable: true,
@@ -335,6 +710,18 @@ var AnnotationController = class {
 			writable: true,
 			value: void 0
 		});
+		Object.defineProperty(this, "presentationOptions", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: void 0
+		});
+		Object.defineProperty(this, "presentations", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: void 0
+		});
 		Object.defineProperty(this, "mutationSequence", {
 			enumerable: true,
 			configurable: true,
@@ -363,6 +750,8 @@ var AnnotationController = class {
 		if (configuredLimit !== void 0 && (!Number.isSafeInteger(configuredLimit) || configuredLimit <= 0 || configuredLimit > HARD_MAX_ANNOTATION_COUNT)) throw new AnnotationValidationError(`Annotation count limit must be an integer from 1 to ${HARD_MAX_ANNOTATION_COUNT}.`);
 		this.maxAnnotationCount = configuredLimit !== null && configuredLimit !== void 0 ? configuredLimit : DEFAULT_MAX_ANNOTATION_COUNT;
 		this.listOrder = options.listOrder === "back-to-front" ? "back-to-front" : "front-to-back";
+		this.presentationOptions = resolveAnnotationPresentationOptions(options);
+		this.presentations = new AnnotationPresentationManager(host, this.presentationOptions, (object) => this.describePresentationOwner(object), (id) => this.overlay.getSelection().ids.includes(id));
 		this.registrations.push(overlay.registerKind({
 			id: ANNOTATION_PREVIEW_KIND,
 			ownerPluginId: ANNOTATION_FOUNDATION_ID,
@@ -378,7 +767,11 @@ var AnnotationController = class {
 			},
 			persistence: { mode: "transient" }
 		}));
-		this.registrations.push(overlay.onSelectionChange(() => this.emitStatus()));
+		if (state) this.registrations.push(state.registerTransientObject(ANNOTATION_FOUNDATION_ID, (object) => isAnnotationPresentationObject(object)));
+		this.registrations.push(overlay.onSelectionChange(() => {
+			this.synchronizePresentations();
+			this.emitStatus();
+		}));
 	}
 	list(query = {}) {
 		this.assertActive("list Annotations");
@@ -416,12 +809,13 @@ var AnnotationController = class {
 			operationId: "annotation:remove"
 		});
 	}
-	async removeAll(query = {}) {
+	async removeAll(options = {}) {
+		const { force, query } = this.normalizeRemoveAllOptions(options);
 		const ids = this.list({
 			...query,
 			includeHidden: true,
 			includeLocked: true
-		}).map((entry) => entry.id);
+		}).filter((entry) => force || !entry.locked).map((entry) => entry.id);
 		await this.removeFeatures({
 			ids,
 			operationId: "annotation:remove-all"
@@ -498,6 +892,7 @@ var AnnotationController = class {
 			if (this.features.get(normalizedDefinition.kind) !== record) return;
 			this.features.delete(normalizedDefinition.kind);
 			this.disposeRegistrations(registrations);
+			this.synchronizePresentations();
 			this.emitStatus();
 		});
 	}
@@ -532,6 +927,7 @@ var AnnotationController = class {
 				this.emitStatus();
 			}
 		});
+		this.synchronizePresentations();
 		return id;
 	}
 	async updateFeature(request) {
@@ -557,6 +953,7 @@ var AnnotationController = class {
 			},
 			synchronize: () => this.emitStatus()
 		});
+		this.synchronizePresentations();
 	}
 	async removeFeatures(request) {
 		var _a;
@@ -579,6 +976,7 @@ var AnnotationController = class {
 			},
 			synchronize: () => this.emitStatus()
 		});
+		this.synchronizePresentations();
 	}
 	getObject(id, kind) {
 		const object = this.overlay.getByPersistentId(id);
@@ -646,11 +1044,16 @@ var AnnotationController = class {
 	}
 	resetForImage() {
 		this.removeAllPreviews();
+		this.presentations.reset();
 		this.emitStatus();
+	}
+	synchronizeRuntimePresentation() {
+		this.synchronizePresentations();
 	}
 	dispose() {
 		if (this.disposed) return;
 		this.removeAllPreviews();
+		this.presentations.reset();
 		this.listeners.clear();
 		for (const feature of [...this.features.values()].reverse()) this.disposeRegistrations(feature.registrations);
 		this.features.clear();
@@ -659,6 +1062,7 @@ var AnnotationController = class {
 		this.disposed = true;
 	}
 	buildOverlayKindDefinition(definition) {
+		var _a;
 		const stateCodec = this.buildOverlayStateCodec(definition);
 		return {
 			id: definition.kind,
@@ -683,6 +1087,7 @@ var AnnotationController = class {
 				annotation.editorOverlayLocked = locked;
 				synchronizeAnnotationRuntimeState(annotation);
 			},
+			exportByDefault: (_a = definition.exportByDefault) !== null && _a !== void 0 ? _a : this.presentationOptions.exportByDefault,
 			persistence: {
 				mode: "persistent",
 				codec: {
@@ -781,6 +1186,7 @@ var AnnotationController = class {
 				for (const object of this.listObjects(definition.kind)) {
 					synchronizeAnnotationRuntimeState(object);
 					(_a = definition.synchronize) === null || _a === void 0 || _a.call(definition, object);
+					this.presentations.synchronize(object);
 				}
 			}
 		};
@@ -812,10 +1218,14 @@ var AnnotationController = class {
 			id: `${definition.kind}-interaction`,
 			kind: definition.kind,
 			ownerPluginId: definition.ownerPluginId,
+			preview: (object) => {
+				this.presentations.synchronize(object);
+			},
 			synchronize: (object, context) => {
 				var _a;
 				synchronizeAnnotationRuntimeState(object);
 				(_a = definition.synchronize) === null || _a === void 0 || _a.call(definition, object);
+				this.presentations.synchronize(object);
 				if (this.lastInteractionId !== context.descriptor.id) {
 					this.lastInteractionId = context.descriptor.id;
 					this.emitStatus();
@@ -844,6 +1254,31 @@ var AnnotationController = class {
 			...query.ids === void 0 ? {} : { ids: validateStringList(query.ids, "Annotation query ids") },
 			...query.includeHidden === void 0 ? {} : { includeHidden: validateBoolean(query.includeHidden, "Query includeHidden") },
 			...query.includeLocked === void 0 ? {} : { includeLocked: validateBoolean(query.includeLocked, "Query includeLocked") }
+		});
+	}
+	normalizeRemoveAllOptions(options) {
+		var _a;
+		if (!isPlainRecord(options)) throw new AnnotationValidationError("Annotation removeAll options must be a plain object.");
+		const allowed = /* @__PURE__ */ new Set([
+			"kinds",
+			"ids",
+			"includeHidden",
+			"includeLocked",
+			"force"
+		]);
+		if (Object.keys(options).some((key) => !allowed.has(key))) throw new AnnotationValidationError("Annotation removeAll options contain unknown keys.");
+		const typedOptions = options;
+		const force = (_a = validateBoolean(typedOptions.force, "Annotation removeAll force")) !== null && _a !== void 0 ? _a : false;
+		const query = Object.freeze({
+			...typedOptions.kinds === void 0 ? {} : { kinds: typedOptions.kinds },
+			...typedOptions.ids === void 0 ? {} : { ids: typedOptions.ids },
+			...typedOptions.includeHidden === void 0 ? {} : { includeHidden: typedOptions.includeHidden },
+			...typedOptions.includeLocked === void 0 ? {} : { includeLocked: typedOptions.includeLocked }
+		});
+		this.normalizeQuery(query);
+		return Object.freeze({
+			force,
+			query
 		});
 	}
 	describe(object, selected, layers) {
@@ -894,6 +1329,20 @@ var AnnotationController = class {
 	isAnnotationObject(object) {
 		const classification = this.overlay.classify(object);
 		return !!classification && this.features.has(classification.kind);
+	}
+	describePresentationOwner(object) {
+		const id = object.editorOverlayId;
+		if (!id) return null;
+		return this.get(id);
+	}
+	synchronizePresentations() {
+		if (this.disposed) return;
+		const objects = this.overlay.list({
+			kinds: [...this.features.keys()],
+			includeHidden: true,
+			includeLocked: true
+		}).filter((object) => this.isAnnotationObject(object));
+		this.presentations.synchronizeAll(objects);
 	}
 	requireAnnotation(id, kind) {
 		this.assertIdentifier(id, "Annotation id");
@@ -1008,6 +1457,10 @@ function annotationFoundationPlugin(options = {}) {
 				{
 					token: require_core_capabilities.RENDER_REQUEST_CAPABILITY,
 					range: "^1.0.0"
+				},
+				{
+					token: require_core_capabilities.SNAPSHOT_REGISTRATION_CAPABILITY,
+					range: "^1.0.0"
 				}
 			],
 			permissions: [
@@ -1024,6 +1477,7 @@ function annotationFoundationPlugin(options = {}) {
 			const fabric = context.capabilities.require(require_core_capabilities.FABRIC_RUNTIME_CAPABILITY);
 			const canvas = context.capabilities.require(require_core_capabilities.CANVAS_READ_CAPABILITY);
 			const render = context.capabilities.require(require_core_capabilities.RENDER_REQUEST_CAPABILITY);
+			const state = context.capabilities.require(require_core_capabilities.SNAPSHOT_REGISTRATION_CAPABILITY);
 			for (const operationId of [
 				"annotation:update",
 				"annotation:remove",
@@ -1042,13 +1496,16 @@ function annotationFoundationPlugin(options = {}) {
 			}), Object.freeze({
 				...overlay,
 				...registration
-			}), options);
+			}), options, state);
 			context.capabilities.provide(ANNOTATION_CAPABILITY, controller, { version: ANNOTATION_CAPABILITY.version });
 			context.capabilities.provide(ANNOTATION_AUTHORING_CAPABILITY, controller, {
 				version: ANNOTATION_AUTHORING_CAPABILITY.version,
 				requiredPermission: "fabric:objects"
 			});
 			return controller;
+		},
+		onImageLoaded() {
+			controller === null || controller === void 0 || controller.synchronizeRuntimePresentation();
 		},
 		onImageCleared() {
 			controller === null || controller === void 0 || controller.resetForImage();
@@ -1103,4 +1560,4 @@ Object.defineProperty(exports, 'annotationFoundationRef', {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-BFxa-mQH.cjs.map
+//# sourceMappingURL=annotation-ooT0A0yE.cjs.map

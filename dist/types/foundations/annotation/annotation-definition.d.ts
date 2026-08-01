@@ -29,6 +29,11 @@ export interface AnnotationQuery {
     readonly includeHidden?: boolean;
     readonly includeLocked?: boolean;
 }
+/** Filters accepted by `removeAll`, plus an explicit locked-object override. */
+export interface AnnotationRemoveAllOptions extends AnnotationQuery {
+    /** Remove matching locked Annotations as well. @defaultValue `false` */
+    readonly force?: boolean;
+}
 export interface AnnotationUpdate {
     readonly name?: string;
     readonly metadata?: AnnotationMetadata;
@@ -46,7 +51,7 @@ export interface AnnotationPluginApi {
     get(id: AnnotationId): AnnotationDescriptor | null;
     update(id: AnnotationId, patch: AnnotationUpdate): Promise<void>;
     remove(id: AnnotationId): Promise<void>;
-    removeAll(query?: AnnotationQuery): Promise<void>;
+    removeAll(options?: AnnotationRemoveAllOptions): Promise<void>;
     select(ids: readonly AnnotationId[]): Promise<void>;
     clearSelection(): Promise<void>;
     bringForward(id: AnnotationId): Promise<void>;
@@ -74,6 +79,8 @@ export interface AnnotationFeatureDefinition<TUpdate = unknown> {
     applyUpdate?(object: FabricNS.FabricObject, patch: TUpdate): void;
     bindToImageTransform?(): boolean;
     preserveReadable?(): boolean;
+    /** Overrides the Foundation export default for this Annotation kind. */
+    readonly exportByDefault?: boolean;
     synchronize?(object: FabricNS.FabricObject): void;
     render?(context: OverlayExportRenderContext): MaybePromise<void>;
 }
@@ -121,6 +128,16 @@ export interface AnnotationAuthoringPort {
 }
 export interface AnnotationFoundationOptions {
     readonly maxAnnotationCount?: number;
+    /** Whether registered Annotation kinds participate in exports by default. */
+    readonly exportByDefault?: boolean;
+    /** Temporary style applied while the pointer is over an unlocked Annotation. */
+    readonly hoverStyle?: AnnotationHoverStyle | false;
+    /** Fabric selection-control appearance applied to each Annotation. */
+    readonly controlStyle?: AnnotationControlStyle;
+    /** Optional transient label presentation. Labels never enter state or exports. */
+    readonly label?: AnnotationLabelConfig | false;
+    /** Transient lock indicator presentation. @defaultValue enabled */
+    readonly lockIndicator?: AnnotationLockIndicatorConfig | false;
     /**
      * Ordering used by `AnnotationPluginApi.list()`.
      *
@@ -130,4 +147,32 @@ export interface AnnotationFoundationOptions {
      * @defaultValue `'front-to-back'`
      */
     readonly listOrder?: OverlayListOrder;
+}
+export interface AnnotationHoverStyle {
+    readonly fill?: string | null;
+    readonly opacity?: number;
+    readonly stroke?: string | null;
+    readonly strokeWidth?: number;
+}
+export interface AnnotationControlStyle {
+    readonly borderColor?: string;
+    readonly cornerColor?: string;
+    readonly cornerStrokeColor?: string;
+    readonly cornerSize?: number;
+    readonly touchCornerSize?: number;
+    readonly transparentCorners?: boolean;
+    readonly padding?: number;
+}
+export interface AnnotationLabelConfig {
+    /** Selective labels are shown only while their Annotation is selected. */
+    readonly showOn?: 'selected' | 'always';
+    readonly offset?: number;
+    readonly getText?: (annotation: AnnotationDescriptor) => string;
+    readonly textOptions?: Partial<FabricNS.TextProps>;
+}
+export interface AnnotationLockIndicatorConfig {
+    readonly size?: number;
+    readonly offset?: number;
+    readonly backgroundColor?: string;
+    readonly iconColor?: string;
 }

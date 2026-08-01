@@ -1902,6 +1902,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                 const indexed = this.byObject.get(object)!;
                 const classification = this.classificationFor(indexed);
                 if (included && !included.has(classification.kind)) return false;
+                if (!included && indexed.kind.definition.exportByDefault === false) return false;
                 if (excluded?.has(classification.kind)) return false;
                 return !classification.hidden || overlayOptions.includeHidden;
             });

@@ -3,6 +3,7 @@ import { placeSessionObject } from '../../utils/internal-layer-placement.js';
 import { applyAnnotationGeometry } from './annotation-geometry.js';
 import { AnnotationError, AnnotationNotFoundError, AnnotationValidationError, } from './annotation-errors.js';
 import { isValidAnnotationMetadata, normalizeAnnotationMetadata, normalizeAnnotationName, } from './annotation-metadata.js';
+import { AnnotationPresentationManager, isAnnotationPresentationObject, resolveAnnotationPresentationOptions, } from './annotation-presentation-manager.js';
 import { applyAnnotationInteraction, captureAnnotationInteraction, synchronizeAnnotationRuntimeState, } from './annotation-runtime-state.js';
 const ANNOTATION_FOUNDATION_ID = 'foundation:annotation';
 const ANNOTATION_PREVIEW_KIND = 'annotation:preview';
@@ -115,7 +116,7 @@ function validateStringList(value, label) {
     return Object.freeze([...new Set(value)]);
 }
 export class AnnotationController {
-    constructor(host, overlay, options) {
+    constructor(host, overlay, options, state) {
         Object.defineProperty(this, "host", {
             enumerable: true,
             configurable: true,
@@ -158,6 +159,18 @@ export class AnnotationController {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "presentationOptions", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "presentations", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "mutationSequence", {
             enumerable: true,
             configurable: true,
@@ -191,6 +204,8 @@ export class AnnotationController {
         }
         this.maxAnnotationCount = configuredLimit !== null && configuredLimit !== void 0 ? configuredLimit : DEFAULT_MAX_ANNOTATION_COUNT;
         this.listOrder = options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back';
+        this.presentationOptions = resolveAnnotationPresentationOptions(options);
+        this.presentations = new AnnotationPresentationManager(host, this.presentationOptions, (object) => this.describePresentationOwner(object), (id) => this.overlay.getSelection().ids.includes(id));
         this.registrations.push(overlay.registerKind({
             id: ANNOTATION_PREVIEW_KIND,
             ownerPluginId: ANNOTATION_FOUNDATION_ID,
@@ -204,7 +219,13 @@ export class AnnotationController {
             },
             persistence: { mode: 'transient' },
         }));
-        this.registrations.push(overlay.onSelectionChange(() => this.emitStatus()));
+        if (state) {
+            this.registrations.push(state.registerTransientObject(ANNOTATION_FOUNDATION_ID, (object) => isAnnotationPresentationObject(object)));
+        }
+        this.registrations.push(overlay.onSelectionChange(() => {
+            this.synchronizePresentations();
+            this.emitStatus();
+        }));
     }
     list(query = {}) {
         this.assertActive('list Annotations');
@@ -244,8 +265,11 @@ export class AnnotationController {
     async remove(id) {
         await this.removeFeatures({ ids: [id], operationId: 'annotation:remove' });
     }
-    async removeAll(query = {}) {
-        const ids = this.list({ ...query, includeHidden: true, includeLocked: true }).map((entry) => entry.id);
+    async removeAll(options = {}) {
+        const { force, query } = this.normalizeRemoveAllOptions(options);
+        const ids = this.list({ ...query, includeHidden: true, includeLocked: true })
+            .filter((entry) => force || !entry.locked)
+            .map((entry) => entry.id);
         await this.removeFeatures({ ids, operationId: 'annotation:remove-all' });
     }
     async select(ids) {
@@ -328,6 +352,7 @@ export class AnnotationController {
                 return;
             this.features.delete(normalizedDefinition.kind);
             this.disposeRegistrations(registrations);
+            this.synchronizePresentations();
             this.emitStatus();
         });
     }
@@ -368,6 +393,7 @@ export class AnnotationController {
                 this.emitStatus();
             },
         });
+        this.synchronizePresentations();
         return id;
     }
     async updateFeature(request) {
@@ -403,6 +429,7 @@ export class AnnotationController {
             },
             synchronize: () => this.emitStatus(),
         });
+        this.synchronizePresentations();
     }
     async removeFeatures(request) {
         var _a;
@@ -427,6 +454,7 @@ export class AnnotationController {
             },
             synchronize: () => this.emitStatus(),
         });
+        this.synchronizePresentations();
     }
     getObject(id, kind) {
         const object = this.overlay.getByPersistentId(id);
@@ -495,12 +523,17 @@ export class AnnotationController {
     }
     resetForImage() {
         this.removeAllPreviews();
+        this.presentations.reset();
         this.emitStatus();
+    }
+    synchronizeRuntimePresentation() {
+        this.synchronizePresentations();
     }
     dispose() {
         if (this.disposed)
             return;
         this.removeAllPreviews();
+        this.presentations.reset();
         this.listeners.clear();
         for (const feature of [...this.features.values()].reverse()) {
             this.disposeRegistrations(feature.registrations);
@@ -511,6 +544,7 @@ export class AnnotationController {
         this.disposed = true;
     }
     buildOverlayKindDefinition(definition) {
+        var _a;
         const stateCodec = this.buildOverlayStateCodec(definition);
         return {
             id: definition.kind,
@@ -533,6 +567,7 @@ export class AnnotationController {
                 annotation.editorOverlayLocked = locked;
                 synchronizeAnnotationRuntimeState(annotation);
             },
+            exportByDefault: (_a = definition.exportByDefault) !== null && _a !== void 0 ? _a : this.presentationOptions.exportByDefault,
             persistence: {
                 mode: 'persistent',
                 codec: {
@@ -643,6 +678,7 @@ export class AnnotationController {
                 for (const object of this.listObjects(definition.kind)) {
                     synchronizeAnnotationRuntimeState(object);
                     (_a = definition.synchronize) === null || _a === void 0 ? void 0 : _a.call(definition, object);
+                    this.presentations.synchronize(object);
                 }
             },
         };
@@ -674,10 +710,14 @@ export class AnnotationController {
             id: `${definition.kind}-interaction`,
             kind: definition.kind,
             ownerPluginId: definition.ownerPluginId,
+            preview: (object) => {
+                this.presentations.synchronize(object);
+            },
             synchronize: (object, context) => {
                 var _a;
                 synchronizeAnnotationRuntimeState(object);
                 (_a = definition.synchronize) === null || _a === void 0 ? void 0 : _a.call(definition, object);
+                this.presentations.synchronize(object);
                 if (this.lastInteractionId !== context.descriptor.id) {
                     this.lastInteractionId = context.descriptor.id;
                     this.emitStatus();
@@ -721,6 +761,30 @@ export class AnnotationController {
                     includeLocked: validateBoolean(query.includeLocked, 'Query includeLocked'),
                 }),
         });
+    }
+    normalizeRemoveAllOptions(options) {
+        var _a;
+        if (!isPlainRecord(options)) {
+            throw new AnnotationValidationError('Annotation removeAll options must be a plain object.');
+        }
+        const allowed = new Set(['kinds', 'ids', 'includeHidden', 'includeLocked', 'force']);
+        if (Object.keys(options).some((key) => !allowed.has(key))) {
+            throw new AnnotationValidationError('Annotation removeAll options contain unknown keys.');
+        }
+        const typedOptions = options;
+        const force = (_a = validateBoolean(typedOptions.force, 'Annotation removeAll force')) !== null && _a !== void 0 ? _a : false;
+        const query = Object.freeze({
+            ...(typedOptions.kinds === undefined ? {} : { kinds: typedOptions.kinds }),
+            ...(typedOptions.ids === undefined ? {} : { ids: typedOptions.ids }),
+            ...(typedOptions.includeHidden === undefined
+                ? {}
+                : { includeHidden: typedOptions.includeHidden }),
+            ...(typedOptions.includeLocked === undefined
+                ? {}
+                : { includeLocked: typedOptions.includeLocked }),
+        });
+        this.normalizeQuery(query);
+        return Object.freeze({ force, query });
     }
     describe(object, selected, layers) {
         const annotation = object;
@@ -786,6 +850,24 @@ export class AnnotationController {
     isAnnotationObject(object) {
         const classification = this.overlay.classify(object);
         return !!classification && this.features.has(classification.kind);
+    }
+    describePresentationOwner(object) {
+        const id = object.editorOverlayId;
+        if (!id)
+            return null;
+        return this.get(id);
+    }
+    synchronizePresentations() {
+        if (this.disposed)
+            return;
+        const objects = this.overlay
+            .list({
+            kinds: [...this.features.keys()],
+            includeHidden: true,
+            includeLocked: true,
+        })
+            .filter((object) => this.isAnnotationObject(object));
+        this.presentations.synchronizeAll(objects);
     }
     requireAnnotation(id, kind) {
         this.assertIdentifier(id, 'Annotation id');

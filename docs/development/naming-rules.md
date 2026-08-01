@@ -10,9 +10,7 @@ Names should describe the current responsibility and domain meaning. Treat the c
 - Keep names consistent with nearby modules.
 - Avoid vague names such as `data`, `info`, `obj`, `temp`, `process`, `handle`, `manager`, `helper`, or `utils` when a more precise name exists.
 - Do not use version or history terms in active code names:
-    - `v2`
-    - `v2.9`
-    - `v3`
+    - release-number prefixes or suffixes
     - `legacy`
     - `compat`
     - `compatibility`

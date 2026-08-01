@@ -1,5 +1,5 @@
 import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
-import { CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, RENDER_REQUEST_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { OVERLAY_CAPABILITY, OVERLAY_REGISTRATION_CAPABILITY, overlayFoundationRef, } from '../overlay/index.js';
 import { AnnotationController } from './annotation-controller.js';
 export const ANNOTATION_CAPABILITY = createCapabilityToken('foundation:annotation', '1.0.0');
@@ -22,6 +22,7 @@ export function annotationFoundationPlugin(options = {}) {
                 { token: FABRIC_RUNTIME_CAPABILITY, range: '^1.0.0' },
                 { token: CANVAS_READ_CAPABILITY, range: '^1.0.0' },
                 { token: RENDER_REQUEST_CAPABILITY, range: '^1.0.0' },
+                { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
             ],
             permissions: ['fabric:objects', 'fabric:canvas-read', 'fabric:custom-class'],
         },
@@ -33,6 +34,7 @@ export function annotationFoundationPlugin(options = {}) {
             const fabric = context.capabilities.require(FABRIC_RUNTIME_CAPABILITY);
             const canvas = context.capabilities.require(CANVAS_READ_CAPABILITY);
             const render = context.capabilities.require(RENDER_REQUEST_CAPABILITY);
+            const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
             for (const operationId of [
                 'annotation:update',
                 'annotation:remove',
@@ -45,7 +47,7 @@ export function annotationFoundationPlugin(options = {}) {
                     reentrancy: 'reject',
                 }));
             }
-            controller = new AnnotationController(Object.freeze({ ...diagnostics, ...fabric, ...canvas, ...render }), Object.freeze({ ...overlay, ...registration }), options);
+            controller = new AnnotationController(Object.freeze({ ...diagnostics, ...fabric, ...canvas, ...render }), Object.freeze({ ...overlay, ...registration }), options, state);
             context.capabilities.provide(ANNOTATION_CAPABILITY, controller, {
                 version: ANNOTATION_CAPABILITY.version,
             });
@@ -54,6 +56,9 @@ export function annotationFoundationPlugin(options = {}) {
                 requiredPermission: 'fabric:objects',
             });
             return controller;
+        },
+        onImageLoaded() {
+            controller === null || controller === void 0 ? void 0 : controller.synchronizeRuntimePresentation();
         },
         onImageCleared() {
             controller === null || controller === void 0 ? void 0 : controller.resetForImage();

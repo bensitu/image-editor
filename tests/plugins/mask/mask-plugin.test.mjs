@@ -49,6 +49,7 @@ async function dispose(editor) {
 test('Mask registrations use Plugin scope disposal with complete async error aggregation', async () => {
     const disposalOrder = [];
     const owned = [];
+    let registeredKind = null;
     const synchronousFailure = new Error('synthetic synchronous cleanup failure');
     const promiseFailure = new Error('synthetic Promise cleanup failure');
     const thenableFailure = new Error('synthetic thenable cleanup failure');
@@ -76,7 +77,10 @@ test('Mask registrations use Plugin scope disposal with complete async error agg
         },
     };
     const overlay = {
-        registerKind: () => registration('kind'),
+        registerKind: (definition) => {
+            registeredKind = definition;
+            return registration('kind');
+        },
         registerGeometryPolicy: () => registration('geometry', 'sync'),
         registerExportRenderer: () => registration('export'),
         registerInteractionPolicy: () => registration('interaction'),
@@ -106,6 +110,7 @@ test('Mask registrations use Plugin scope disposal with complete async error agg
         disposables,
         resolveMaskPluginOptions({ label: false }),
     );
+    assert.equal(registeredKind.exportByDefault, true);
 
     controller.dispose();
     assert.deepEqual(disposalOrder, []);

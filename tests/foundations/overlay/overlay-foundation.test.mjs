@@ -25,7 +25,7 @@ function createEditor(options = {}) {
     return { editor, ids, overlay, warnings };
 }
 
-function registerRectKind(overlay) {
+function registerRectKind(overlay, options = {}) {
     const kind = overlay.registerKind({
         id: TEST_KIND,
         ownerPluginId: TEST_OWNER,
@@ -34,6 +34,7 @@ function registerRectKind(overlay) {
         setPersistentId: (object, id) => {
             object.editorOverlayId = id;
         },
+        exportByDefault: options.exportByDefault,
         persistence: {
             mode: 'persistent',
             codec: {
@@ -414,6 +415,36 @@ test('export contributors render from a copy and never mutate the live overlay',
         before,
     );
     renderer.dispose();
+    await dispose(editor);
+});
+
+test('kind export defaults remain overridable for each export call', async () => {
+    const { editor, ids, overlay } = createEditor();
+    registerRectKind(overlay, { exportByDefault: false });
+    await initializeAndLoad(editor, ids);
+    addRect(editor, 'rect:optional-export');
+    let renderCount = 0;
+    overlay.registerExportRenderer({
+        id: `${TEST_KIND}-optional-renderer`,
+        kind: TEST_KIND,
+        ownerPluginId: TEST_OWNER,
+        order: 10,
+        render: () => {
+            renderCount += 1;
+        },
+    });
+
+    await editor.exportImageBase64({ area: 'canvas', format: 'png' });
+    assert.equal(renderCount, 0);
+
+    await editor.exportImageBase64({
+        area: 'canvas',
+        format: 'png',
+        contributors: {
+            'foundation:overlay': { includeKinds: [TEST_KIND] },
+        },
+    });
+    assert.equal(renderCount, 1);
     await dispose(editor);
 });
 

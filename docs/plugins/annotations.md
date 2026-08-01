@@ -17,7 +17,20 @@ import { overlayFoundationPlugin } from '@bensitu/image-editor/plugins/overlay';
 
 const editor = new ImageEditorCore(fabric);
 editor.use(overlayFoundationPlugin());
-const annotations = editor.use(annotationFoundationPlugin());
+const annotations = editor.use(
+    annotationFoundationPlugin({
+        controlStyle: {
+            borderColor: '#ef4444',
+            cornerColor: '#111827',
+            cornerSize: 10,
+        },
+        hoverStyle: { opacity: 0.8, stroke: '#22c55e', strokeWidth: 2 },
+        label: {
+            showOn: 'selected',
+            getText: (annotation) => annotation.name,
+        },
+    }),
+);
 const text = editor.use(textAnnotationPlugin());
 const shape = editor.use(shapeAnnotationPlugin());
 const draw = editor.use(drawAnnotationPlugin());
@@ -65,7 +78,10 @@ await annotations.update(annotationId, {
 A hidden Annotation remains registered and remains in Snapshot and History state, but is not
 rendered by normal export or default flattening. It can still be read and updated by ID. A locked
 Annotation is visible but cannot be selected or transformed interactively; Text editing is also
-disabled. Unlocking restores the interaction policy supplied by its concrete Plugin.
+disabled. Unlocking restores the interaction policy supplied by its concrete Plugin. A transient
+lock indicator identifies locked objects on the Canvas without entering state, History, or export.
+Its size, offset, and colors are configurable through `lockIndicator`; set it to `false` to disable
+the indicator.
 
 ```ts
 await annotations.update(annotationId, { hidden: true });
@@ -79,6 +95,19 @@ await annotations.bringToFront(firstId);
 await annotations.sendToBack(firstId);
 ```
 
+`removeAll()` preserves matching locked Annotations by default. Use an explicit force option only
+when the caller has chosen to remove locked content as well.
+
+```ts
+await annotations.removeAll();
+await annotations.removeAll({ kinds: ['annotation:shape'], force: true });
+```
+
+`hoverStyle` controls temporary hover fill, opacity, stroke, and stroke width. `controlStyle`
+controls Fabric border and corner presentation. `label` can show a transient name on selection or
+at all times. These settings affect authoring presentation only; they do not change serialized
+feature data or rendered output.
+
 Overlay remains the selection and layer authority. Mixed Mask and Annotation selections use the
 same generic Overlay ordering; the Annotation API filters only Annotation descriptors.
 
@@ -90,7 +119,10 @@ Snapshot containing an unavailable feature kind is rejected atomically. Tool ses
 are never committed to Snapshot state.
 
 Normal export includes visible Annotations in layer order, includes visible locked objects, and
-excludes selection controls and sessions. Export operates on copies and does not change the live
+excludes selection controls and sessions. Set `exportByDefault: false` on the Foundation to keep
+all registered Annotation kinds out of normal exports. A Feature definition can override that
+default for its own kind. An export call with `contributors['foundation:overlay'].includeKinds`
+explicitly selects kinds for that call. Export operates on copies and does not change the live
 document or History.
 
 ```ts

@@ -87,6 +87,12 @@
                     ]
                 },
                 {
+                    "name": "ContainerObservationOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "CoreDiagnostic",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -112,6 +118,12 @@
                 },
                 {
                     "name": "CoreErrorSeverity",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreEventListener",
                     "kinds": [
                         "TypeAliasDeclaration"
                     ]
@@ -165,7 +177,31 @@
                     ]
                 },
                 {
+                    "name": "CoreRuntimeStatus",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "CoreStateAdapter",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreStatusListener",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreStatusSubscriptionOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreSubscription",
                     "kinds": [
                         "InterfaceDeclaration"
                     ]
@@ -381,6 +417,12 @@
                     ]
                 },
                 {
+                    "name": "ImagePreprocessingOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "invertAffine",
                     "kinds": [
                         "FunctionDeclaration"
@@ -537,7 +579,25 @@
                     ]
                 },
                 {
+                    "name": "ResolvedCoreExportOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "ResolvedImageEditorCoreOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "ResolvedImagePreprocessingOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "ResponsiveLayoutOptions",
                     "kinds": [
                         "InterfaceDeclaration"
                     ]
@@ -807,6 +867,12 @@
                     ]
                 },
                 {
+                    "name": "ContainerObservationOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "CoreDiagnostic",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -832,6 +898,12 @@
                 },
                 {
                     "name": "CoreErrorSeverity",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreEventListener",
                     "kinds": [
                         "TypeAliasDeclaration"
                     ]
@@ -885,7 +957,31 @@
                     ]
                 },
                 {
+                    "name": "CoreRuntimeStatus",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "CoreStateAdapter",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreStatusListener",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreStatusSubscriptionOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "CoreSubscription",
                     "kinds": [
                         "InterfaceDeclaration"
                     ]
@@ -1089,6 +1185,12 @@
                     ]
                 },
                 {
+                    "name": "ImagePreprocessingOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "invertAffine",
                     "kinds": [
                         "FunctionDeclaration"
@@ -1245,7 +1347,25 @@
                     ]
                 },
                 {
+                    "name": "ResolvedCoreExportOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "ResolvedImageEditorCoreOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "ResolvedImagePreprocessingOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "ResponsiveLayoutOptions",
                     "kinds": [
                         "InterfaceDeclaration"
                     ]
@@ -3093,6 +3213,12 @@
                     ]
                 },
                 {
+                    "name": "MosaicBrushPreviewStyle",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "MosaicCommitOptions",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -3100,6 +3226,12 @@
                 },
                 {
                     "name": "MosaicConfiguration",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "MosaicConfigurationPatch",
                     "kinds": [
                         "InterfaceDeclaration"
                     ]
@@ -3149,7 +3281,7 @@
                 {
                     "name": "MosaicPluginOptions",
                     "kinds": [
-                        "InterfaceDeclaration"
+                        "TypeAliasDeclaration"
                     ]
                 },
                 {
@@ -4168,9 +4300,45 @@
                     ]
                 },
                 {
+                    "name": "migrateV1OverlayState",
+                    "kinds": [
+                        "FunctionDeclaration"
+                    ]
+                },
+                {
                     "name": "migrateV2Snapshot",
                     "kinds": [
                         "FunctionDeclaration"
+                    ]
+                },
+                {
+                    "name": "OverlayStateV1MigrationError",
+                    "kinds": [
+                        "ClassDeclaration"
+                    ]
+                },
+                {
+                    "name": "OverlayStateV1MigrationOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "OverlayStateV1MigrationWarning",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "OverlayStateV1TransformPolicy",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "OverlayStateV1UnsupportedPolicy",
+                    "kinds": [
+                        "TypeAliasDeclaration"
                     ]
                 },
                 {
@@ -4217,9 +4385,11 @@
                 }
             ],
             "runtimeExports": [
+                "OverlayStateV1MigrationError",
                 "SnapshotMigrationError",
                 "detectSnapshotVersion",
                 "loadV2Snapshot",
+                "migrateV1OverlayState",
                 "migrateV2Snapshot",
                 "v2SnapshotMigration"
             ]
@@ -4231,7 +4401,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "014589d49904351ba0140b92d5b1ed5b2780f7c6711fd89c82fcd101be8ba650",
+        "graphSha256": "233ebb2e4ca36621e0fcf91558a946f4ddb7579ea29028edb45d31d8f41ee2ff",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4255,7 +4425,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "9ab1b4f1c463c4ecd81530b13eaa24b7fc91e2e2ef4e68b5818ff7f0b9cdfb69"
+                "sha256": "3d0cebd98273f353c52eb37d5acfded7fb2da39b3212d231339d1df1a17db4cc"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
@@ -4271,7 +4441,7 @@
             },
             {
                 "file": "dist/types/core-runtime/public-types.d.ts",
-                "sha256": "0ba0acf2306f74dced204fa028f31abd3204a0ff6c30a7a38a6216dc21634270"
+                "sha256": "41384569f6b5cc0198db85d1509f23f7fd77a22cb4ab8dde832d8eb6646a4c51"
             },
             {
                 "file": "dist/types/core-runtime/state/clone-state-value.d.ts",
@@ -4311,7 +4481,7 @@
             },
             {
                 "file": "dist/types/core/index.d.ts",
-                "sha256": "54cb8238b8e23d7bacb2f922e463594d1c60b11ef9f1b9967e74f4c6988ce982"
+                "sha256": "35d3ebfc1f8fa4348ec23d6130e384462dcc25de7e8a39a7c1f3520ec9b4b0d3"
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
@@ -4351,7 +4521,11 @@
             },
             {
                 "file": "dist/types/migrate-v2/index.d.ts",
-                "sha256": "db88d0446f32274639923f97b0f4120b7c076063065ef470bc1f6d200723e291"
+                "sha256": "d9bce7b2d18221fe3a9317d6cfe996f938bc7fc8ed745693d52bfc917598e173"
+            },
+            {
+                "file": "dist/types/migrate-v2/overlay-state-v1.d.ts",
+                "sha256": "65998845b4cdcef7e38d90352e8bd539612d58472130619b96a3f742e9879cbd"
             },
             {
                 "file": "dist/types/plugin-kernel/capability-registry.d.ts",
@@ -4379,7 +4553,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
-                "sha256": "c1b53c50f75f0034be8b680078992fe286b5b3889587c8970128214692f6aa9a"
+                "sha256": "183744d6a6f1a52c0b69e0badc7eb83a1b630f5d02afa89c453cda359df3a022"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-identifier.d.ts",
@@ -4423,7 +4597,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/tool-coordinator.d.ts",
-                "sha256": "e1904b74addc04928c746b5deddd549e0a89b95a7df7fcdb897cab13bcd4f073"
+                "sha256": "ea0dac98a77de229506b3f5ef9760b2a17645556a8c7f29c52accd4f4bb6b0ba"
             },
             {
                 "file": "dist/types/plugins/annotation-draw/draw-annotation.d.ts",
@@ -4455,11 +4629,11 @@
             },
             {
                 "file": "dist/types/plugins/crop/crop-geometry.d.ts",
-                "sha256": "51587f9ea023aa3ff73c23c80e37a3a6a432e1b0bde6e20f5ed5c61a4449a5e2"
+                "sha256": "aecfbddf0a103ed3ae3566032e84a39c8b26b22b0c46a1e367af0f48c87a1a65"
             },
             {
                 "file": "dist/types/plugins/crop/crop-session.d.ts",
-                "sha256": "0953c34cc7043934bbf7711c9f571f11ee68e71c7a62164935971e46a9357532"
+                "sha256": "60ac02bbef87a8bffd6ff5d55885cf8600daad90906ae19d907989018c26c28f"
             },
             {
                 "file": "dist/types/plugins/crop/index.d.ts",
@@ -4515,7 +4689,7 @@
             },
             {
                 "file": "dist/types/plugins/mosaic/index.d.ts",
-                "sha256": "3688491bff9ec9e86d49bf6594f98235956352b80766ad600ecef98e9f834a8b"
+                "sha256": "c4021a0937c8bf87ed6d56ea3584819dc8c78a7fb0f6cb3c0ab2b22815cd9330"
             },
             {
                 "file": "dist/types/plugins/mosaic/mosaic-brush.d.ts",
@@ -4527,7 +4701,7 @@
             },
             {
                 "file": "dist/types/plugins/mosaic/mosaic-session.d.ts",
-                "sha256": "54715aebf18c38cf0ea70cc63f62bacb2d9934920f0aff485116277993ad01b7"
+                "sha256": "ce244efee4bbecc3ee17d30b6797d4061fbfe84b4f6c32fe108a61438161dde0"
             },
             {
                 "file": "dist/types/plugins/overlay-state/index.d.ts",
@@ -4539,7 +4713,7 @@
             },
             {
                 "file": "dist/types/plugins/overlay-state/overlay-state-types.d.ts",
-                "sha256": "14694d5bad992bb6af470c55847112550a2471bad31df1b68f25f99cecf23d31"
+                "sha256": "a95589ffca46b573b5c4d901a8ee259756cf2036c1cd7764654db96f681b91d9"
             },
             {
                 "file": "dist/types/plugins/overlay-state/overlay-state-validation.d.ts",
@@ -4637,7 +4811,7 @@
             "schema": "image-editor.canvas@2",
             "version": 2
         },
-        "overlayStateWireVersion": 1,
+        "overlayStateWireVersion": 2,
         "pluginRefs": [
             {
                 "name": "annotationFoundationRef",
@@ -4960,6 +5134,12 @@
                 ]
             },
             {
+                "name": "AnnotationControlStyle",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
                 "name": "AnnotationCreateRequest",
                 "kinds": [
                     "InterfaceDeclaration"
@@ -5026,9 +5206,27 @@
                 ]
             },
             {
+                "name": "AnnotationHoverStyle",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
                 "name": "AnnotationId",
                 "kinds": [
                     "TypeAliasDeclaration"
+                ]
+            },
+            {
+                "name": "AnnotationLabelConfig",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "AnnotationLockIndicatorConfig",
+                "kinds": [
+                    "InterfaceDeclaration"
                 ]
             },
             {
@@ -5075,6 +5273,12 @@
             },
             {
                 "name": "AnnotationQuery",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "AnnotationRemoveAllOptions",
                 "kinds": [
                     "InterfaceDeclaration"
                 ]
@@ -5986,6 +6190,12 @@
                 ]
             },
             {
+                "name": "MosaicBrushPreviewStyle",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
                 "name": "MosaicCommitOptions",
                 "kinds": [
                     "InterfaceDeclaration"
@@ -5993,6 +6203,12 @@
             },
             {
                 "name": "MosaicConfiguration",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "MosaicConfigurationPatch",
                 "kinds": [
                     "InterfaceDeclaration"
                 ]
@@ -6048,7 +6264,7 @@
             {
                 "name": "MosaicPluginOptions",
                 "kinds": [
-                    "InterfaceDeclaration"
+                    "TypeAliasDeclaration"
                 ]
             },
             {

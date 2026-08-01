@@ -59,6 +59,8 @@ export interface MaskPluginOptions {
     readonly rotatable?: boolean;
     readonly label?: LabelConfig | false;
     readonly labelOffset?: number;
+    /** Whether Masks participate in exports unless the call supplies `includeKinds`. */
+    readonly exportByDefault?: boolean;
     /**
      * Ordering used by `MaskPluginApi.getAll()` and `onChange`.
      *
@@ -80,6 +82,7 @@ export interface ResolvedMaskPluginOptions {
     readonly rotatable: boolean;
     readonly label: LabelConfig | false;
     readonly labelOffset: number;
+    readonly exportByDefault: boolean;
     readonly listOrder: OverlayListOrder;
     readonly bindToImageTransform: boolean;
     readonly namePrefix: string;
@@ -176,6 +179,7 @@ export function resolveMaskPluginOptions(
         label:
             options.label === false ? false : Object.freeze({ ...DEFAULT_LABEL, ...options.label }),
         labelOffset: nonNegative(options.labelOffset, 3),
+        exportByDefault: options.exportByDefault !== false,
         listOrder: options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back',
         bindToImageTransform: options.bindToImageTransform === true,
         namePrefix: options.namePrefix?.trim() || 'mask',
@@ -367,6 +371,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 setPersistentId: (object, id) => {
                     if (isMaskObject(object)) object.maskUid = id;
                 },
+                exportByDefault: this.options.exportByDefault,
                 persistence: {
                     mode: 'persistent',
                     codec: {

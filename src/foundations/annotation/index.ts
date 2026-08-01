@@ -11,6 +11,7 @@ import {
     CORE_DIAGNOSTICS_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
     RENDER_REQUEST_CAPABILITY,
+    SNAPSHOT_REGISTRATION_CAPABILITY,
     createCapabilityToken,
     definePlugin,
     definePluginRef,
@@ -63,6 +64,7 @@ export function annotationFoundationPlugin(
                 { token: FABRIC_RUNTIME_CAPABILITY, range: '^1.0.0' },
                 { token: CANVAS_READ_CAPABILITY, range: '^1.0.0' },
                 { token: RENDER_REQUEST_CAPABILITY, range: '^1.0.0' },
+                { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
             ],
             permissions: ['fabric:objects', 'fabric:canvas-read', 'fabric:custom-class'],
         },
@@ -74,6 +76,7 @@ export function annotationFoundationPlugin(
             const fabric = context.capabilities.require(FABRIC_RUNTIME_CAPABILITY);
             const canvas = context.capabilities.require(CANVAS_READ_CAPABILITY);
             const render = context.capabilities.require(RENDER_REQUEST_CAPABILITY);
+            const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
             for (const operationId of [
                 'annotation:update',
                 'annotation:remove',
@@ -92,6 +95,7 @@ export function annotationFoundationPlugin(
                 Object.freeze({ ...diagnostics, ...fabric, ...canvas, ...render }),
                 Object.freeze({ ...overlay, ...registration }),
                 options,
+                state,
             );
             context.capabilities.provide(ANNOTATION_CAPABILITY, controller, {
                 version: ANNOTATION_CAPABILITY.version,
@@ -101,6 +105,9 @@ export function annotationFoundationPlugin(
                 requiredPermission: 'fabric:objects',
             });
             return controller;
+        },
+        onImageLoaded() {
+            controller?.synchronizeRuntimePresentation();
         },
         onImageCleared() {
             controller?.resetForImage();
@@ -121,14 +128,19 @@ export type {
     AnnotationFeatureRemoveRequest,
     AnnotationFeatureUpdateRequest,
     AnnotationFlattenOptions,
+    AnnotationHoverStyle,
+    AnnotationControlStyle,
     AnnotationFoundationOptions,
     AnnotationId,
     AnnotationMetadata,
     AnnotationMetadataObject,
     AnnotationMetadataValue,
+    AnnotationLabelConfig,
+    AnnotationLockIndicatorConfig,
     AnnotationPluginApi,
     AnnotationPreviewRequest,
     AnnotationQuery,
+    AnnotationRemoveAllOptions,
     AnnotationStatus,
     AnnotationStatusListener,
     AnnotationUpdate,

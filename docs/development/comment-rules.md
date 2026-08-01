@@ -152,7 +152,7 @@ Avoid:
 ```ts
 // Replaces the old runtime.
 // The new implementation uses the Plugin SDK.
-// Kept for compatibility with the previous version.
+// Selects behavior by release number.
 // Temporary alternate path.
 ```
 

@@ -13,6 +13,8 @@ export interface MaskPluginOptions {
     readonly rotatable?: boolean;
     readonly label?: LabelConfig | false;
     readonly labelOffset?: number;
+    /** Whether Masks participate in exports unless the call supplies `includeKinds`. */
+    readonly exportByDefault?: boolean;
     /**
      * Ordering used by `MaskPluginApi.getAll()` and `onChange`.
      *
@@ -33,6 +35,7 @@ export interface ResolvedMaskPluginOptions {
     readonly rotatable: boolean;
     readonly label: LabelConfig | false;
     readonly labelOffset: number;
+    readonly exportByDefault: boolean;
     readonly listOrder: OverlayListOrder;
     readonly bindToImageTransform: boolean;
     readonly namePrefix: string;

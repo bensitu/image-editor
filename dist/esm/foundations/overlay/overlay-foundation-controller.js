@@ -1643,6 +1643,8 @@ export class OverlayFoundationController {
                 const classification = this.classificationFor(indexed);
                 if (included && !included.has(classification.kind))
                     return false;
+                if (!included && indexed.kind.definition.exportByDefault === false)
+                    return false;
                 if (excluded === null || excluded === void 0 ? void 0 : excluded.has(classification.kind))
                     return false;
                 return !classification.hidden || overlayOptions.includeHidden;

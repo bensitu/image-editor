@@ -978,6 +978,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...options.label
 			}),
 			labelOffset: nonNegative(options.labelOffset, 3),
+			exportByDefault: options.exportByDefault !== false,
 			listOrder: options.listOrder === "back-to-front" ? "back-to-front" : "front-to-back",
 			bindToImageTransform: options.bindToImageTransform === true,
 			namePrefix: ((_b = options.namePrefix) === null || _b === void 0 ? void 0 : _b.trim()) || "mask",
@@ -1139,6 +1140,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				setPersistentId: (object, id) => {
 					if (isMaskObject(object)) object.maskUid = id;
 				},
+				exportByDefault: this.options.exportByDefault,
 				persistence: {
 					mode: "persistent",
 					codec: {
