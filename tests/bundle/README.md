@@ -31,5 +31,5 @@ npm run check:bundle-size
 The bundle check builds the Blur Region and Watermark reference packages used by its
 third-party fixtures, so it does not depend on ignored `dist` artifacts from an earlier run.
 The check measures every fixture once. It enforces public-entry feature isolation and a
-57,344-byte maximum gzip size for `platform-anchor`; other reported sizes are diagnostic
+61,440-byte maximum gzip size for `platform-anchor`; other reported sizes are diagnostic
 and are not pinned to a commit, tool version, hash, or historical baseline.

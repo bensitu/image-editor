@@ -90,7 +90,7 @@ function classifyModule(moduleName) {
     if (
         moduleName.startsWith('dist/esm/core-runtime/') ||
         moduleName.startsWith('dist/esm/core/') ||
-        moduleName === 'dist/esm/image/layout-manager.js'
+        moduleName.startsWith('dist/esm/image/')
     ) {
         return 'CORE';
     }

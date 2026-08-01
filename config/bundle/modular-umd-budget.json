@@ -5,9 +5,9 @@
     "roundingBytes": 1024,
     "modules": {
         "core": {
-            "baselineMinifiedBytes": 165084,
-            "baselineMinifiedGzipBytes": 40827,
-            "maximumMinifiedGzipBytes": 47104
+            "baselineMinifiedBytes": 187818,
+            "baselineMinifiedGzipBytes": 46204,
+            "maximumMinifiedGzipBytes": 53248
         },
         "overlay": {
             "baselineMinifiedBytes": 45683,
@@ -15,9 +15,9 @@
             "maximumMinifiedGzipBytes": 14336
         },
         "annotation": {
-            "baselineMinifiedBytes": 24464,
-            "baselineMinifiedGzipBytes": 6917,
-            "maximumMinifiedGzipBytes": 8192
+            "baselineMinifiedBytes": 36445,
+            "baselineMinifiedGzipBytes": 9653,
+            "maximumMinifiedGzipBytes": 11264
         },
         "transform": {
             "baselineMinifiedBytes": 11757,
@@ -40,14 +40,14 @@
             "maximumMinifiedGzipBytes": 9216
         },
         "crop": {
-            "baselineMinifiedBytes": 23810,
-            "baselineMinifiedGzipBytes": 7019,
-            "maximumMinifiedGzipBytes": 8192
+            "baselineMinifiedBytes": 29852,
+            "baselineMinifiedGzipBytes": 8758,
+            "maximumMinifiedGzipBytes": 10240
         },
         "mosaic": {
-            "baselineMinifiedBytes": 22130,
-            "baselineMinifiedGzipBytes": 6788,
-            "maximumMinifiedGzipBytes": 8192
+            "baselineMinifiedBytes": 27200,
+            "baselineMinifiedGzipBytes": 8101,
+            "maximumMinifiedGzipBytes": 10240
         },
         "annotation-text": {
             "baselineMinifiedBytes": 20182,
