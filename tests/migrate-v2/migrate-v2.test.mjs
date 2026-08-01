@@ -6,8 +6,10 @@ import { createFullPreset } from '../../src/presets/full/index.js';
 import { createMinimalPreset } from '../../src/presets/minimal/index.js';
 import {
     SnapshotMigrationError,
+    OverlayStateV1MigrationError,
     detectSnapshotVersion,
     loadV2Snapshot,
+    migrateV1OverlayState,
     migrateV2Snapshot,
     v2SnapshotMigration,
 } from '../../src/migrate-v2/index.js';
@@ -18,6 +20,100 @@ async function fixture(name) {
         await readFile(new URL(`../fixtures/migrate-v2/${name}.json`, import.meta.url), 'utf8'),
     );
 }
+
+test('Overlay State wire migration maps supported overlays into codec-owned wire v2 items', () => {
+    const warnings = [];
+    const migrated = migrateV1OverlayState(
+        {
+            schema: 'image-editor.overlay-state',
+            version: 1,
+            coordinateSpace: 'image-normalized',
+            image: { naturalWidth: 400, naturalHeight: 200, mimeType: 'image/png' },
+            overlays: [
+                {
+                    kind: 'mask',
+                    id: 'mask-7',
+                    maskShape: 'rect',
+                    geometry: { type: 'rect', x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+                    style: { fill: '#112233', alpha: 0.5, strokeWidth: 2 },
+                },
+                {
+                    kind: 'annotation',
+                    annotationType: 'text',
+                    id: 'note',
+                    geometry: { x: 0.2, y: 0.3, width: 0.4 },
+                    text: { value: 'Review' },
+                    style: { fontSize: 20, fill: '#445566' },
+                    locked: true,
+                },
+                {
+                    kind: 'annotation',
+                    annotationType: 'draw',
+                    id: 'ink',
+                    strokes: [
+                        {
+                            points: [
+                                { x: 0.1, y: 0.1 },
+                                { x: 0.2, y: 0.2 },
+                            ],
+                            brush: { color: '#000000', width: 4 },
+                        },
+                        {
+                            points: [
+                                { x: 0.3, y: 0.3 },
+                                { x: 0.4, y: 0.4 },
+                            ],
+                            brush: { color: '#ff0000', width: 6 },
+                        },
+                    ],
+                },
+            ],
+        },
+        { onWarning: (warning) => warnings.push(warning) },
+    );
+
+    assert.equal(migrated.version, 2);
+    assert.deepEqual(
+        migrated.overlays.map(({ kind }) => kind),
+        ['mask:object', 'annotation:text', 'annotation:draw', 'annotation:draw'],
+    );
+    assert.deepEqual(
+        migrated.overlays.map(({ layer }) => layer),
+        [0, 1, 2, 3],
+    );
+    assert.equal(migrated.overlays[0].data.strokeWidth, 0.01);
+    assert.equal(migrated.overlays[1].data.feature.fontSize, 0.1);
+    assert.equal(migrated.overlays[1].locked, true);
+    assert.equal(migrated.overlays[3].id, 'ink:stroke-2');
+    assert.equal(warnings[0].code, 'text.bounds.approximated');
+});
+
+test('Overlay State wire migration reports transformations and unsupported custom data', () => {
+    const source = {
+        schema: 'image-editor.overlay-state',
+        version: 1,
+        coordinateSpace: 'image-normalized',
+        image: { naturalWidth: 100, naturalHeight: 80 },
+        baseImageTransform: { rotation: 90 },
+        overlays: [{ kind: 'custom', id: 'custom-1', customType: 'example:badge', data: {} }],
+    };
+    assert.throws(
+        () => migrateV1OverlayState(source),
+        (error) =>
+            error instanceof OverlayStateV1MigrationError && error.code === 'transform.unsupported',
+    );
+    const warnings = [];
+    const migrated = migrateV1OverlayState(source, {
+        baseImageTransformPolicy: 'drop',
+        unsupportedOverlayPolicy: 'skip',
+        onWarning: (warning) => warnings.push(warning),
+    });
+    assert.deepEqual(migrated.overlays, []);
+    assert.deepEqual(
+        warnings.map(({ code }) => code),
+        ['transform.dropped', 'overlay.skipped'],
+    );
+});
 
 test('snapshot generation detection distinguishes source, current, future, and malformed input', async () => {
     const source = await fixture('core-transform-filters');

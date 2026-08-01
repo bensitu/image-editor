@@ -248,7 +248,7 @@ objects; it does not split paths. See [Draw/Eraser](../plugins/annotation-draw.m
 ### Overlay State
 
 `OverlayStatePluginApi` exposes `validate`, `migrate`, `exportState`, and
-`importState`. Wire version 1 uses schema `image-editor.overlay-state` and
+`importState`. Wire version 2 uses schema `image-editor.overlay-state` and
 image-normalized coordinates. Import validates resource limits and Codecs before
 an atomic replace/append transaction. It is portable overlay data, not a full
 editor Snapshot. See [Overlay State](../plugins/overlay-state.md).

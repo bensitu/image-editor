@@ -7,7 +7,7 @@ test('Overlay State round-trips an image-normalized document in the browser', as
     const result = await page.evaluate(() => window.__overlayStateTest.roundTrip());
     expect(result).toMatchObject({
         schema: 'image-editor.overlay-state',
-        version: 1,
+        version: 2,
         coordinateSpace: 'image-normalized',
         kind: 'mask:object',
         countAfterRemoval: 0,

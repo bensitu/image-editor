@@ -16,7 +16,7 @@ import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-e
 function emptyDocument(overrides = {}) {
     return {
         schema: 'image-editor.overlay-state',
-        version: 1,
+        version: 2,
         coordinateSpace: 'image-normalized',
         image: { naturalWidth: 120, naturalHeight: 80, mimeType: 'image/png' },
         overlays: [],
@@ -143,7 +143,7 @@ test('Overlay State validates and freezes the renderer-independent schema', asyn
     const result = state.validate(emptyDocument());
     assert.equal(result.valid, true);
     assert.equal(result.document.schema, 'image-editor.overlay-state');
-    assert.equal(result.document.version, 1);
+    assert.equal(result.document.version, 2);
     assert.equal(result.document.coordinateSpace, 'image-normalized');
     assert.equal(Object.isFrozen(result.document), true);
     assert.equal(Object.isFrozen(result.document.overlays), true);
@@ -153,7 +153,7 @@ test('Overlay State validates and freezes the renderer-independent schema', asyn
 
 test('Overlay State rejects future versions, unsafe values, cycles, and configured limits', async () => {
     const { editor, state } = await createEditor({ limits: { maxOverlays: 1, maxDepth: 6 } });
-    assert.equal(state.validate(emptyDocument({ version: 2 })).valid, false);
+    assert.equal(state.validate(emptyDocument({ version: 3 })).valid, false);
     assert.equal(state.validate(emptyDocument({ metadata: { value: Number.NaN } })).valid, false);
     assert.equal(
         state.validate(emptyDocument({ metadata: { constructor: { polluted: true } } })).valid,

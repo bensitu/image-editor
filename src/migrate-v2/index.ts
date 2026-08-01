@@ -1127,3 +1127,11 @@ export async function loadV2Snapshot(
         ...(signal ? { signal } : {}),
     });
 }
+
+export { migrateV1OverlayState, OverlayStateV1MigrationError } from './overlay-state-v1.js';
+export type {
+    OverlayStateV1MigrationOptions,
+    OverlayStateV1MigrationWarning,
+    OverlayStateV1TransformPolicy,
+    OverlayStateV1UnsupportedPolicy,
+} from './overlay-state-v1.js';

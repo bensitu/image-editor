@@ -5,7 +5,7 @@
  */
 
 export const OVERLAY_STATE_SCHEMA = 'image-editor.overlay-state' as const;
-export const OVERLAY_STATE_WIRE_VERSION = 1 as const;
+export const OVERLAY_STATE_WIRE_VERSION = 2 as const;
 export const OVERLAY_STATE_COORDINATE_SPACE = 'image-normalized' as const;
 
 export interface OverlayStateImageReference {

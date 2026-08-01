@@ -39,7 +39,7 @@ Every exported document has these fixed identifiers:
 ```ts
 {
     schema: 'image-editor.overlay-state',
-    version: 1,
+    version: 2,
     coordinateSpace: 'image-normalized',
     image: { naturalWidth, naturalHeight, mimeType?, sourceId?, checksum? },
     overlays: [
@@ -93,8 +93,25 @@ runtime objects.
 cycles, functions, symbols, non-finite numbers, dangerous object keys, malformed
 identifiers, unsupported wire versions, and values beyond configured limits.
 
-`migrate()` validates the input and returns the current document shape. A future
-wire adapter can be added without changing `importState()` callers.
+`migrate()` validates wire v2 input and returns the detached current document
+shape. It does not silently reinterpret another wire version.
+
+The optional migration entry converts legacy wire v1 documents explicitly:
+
+```ts
+import { migrateV1OverlayState } from '@bensitu/image-editor/migrate-v2';
+
+const document = migrateV1OverlayState(legacyDocument, {
+    onWarning: (warning) => console.warn(warning),
+});
+
+await overlayState.importState(document);
+```
+
+Legacy custom overlays have no automatic codec mapping. A stored Base Image
+transform is also rejected by default because wire v2 does not mutate Base
+Image geometry. Callers may opt into `unsupportedOverlayPolicy: 'skip'` or
+`baseImageTransformPolicy: 'drop'` only after handling the reported data loss.
 
 ## Atomic import
 
