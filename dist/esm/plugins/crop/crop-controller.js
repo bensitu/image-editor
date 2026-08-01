@@ -1,7 +1,7 @@
 import { markSessionObject, placeSessionObject } from '../../utils/internal-layer-placement.js';
 import { createDisposable, observePromise, } from '../../sdk/index.js';
 import { CropIntegrationError, CropSessionError, CropValidationError } from './crop-errors.js';
-import { fitCropRectToAspectRatio, normalizeCropAspectRatio, normalizeCropRect, } from './crop-geometry.js';
+import { constrainCropRectToRotation, fitCropRectToAspectRatio, normalizeCropAspectRatio, normalizeCropRect, normalizeCropRotation, } from './crop-geometry.js';
 import { applyCropOverlayPolicy, findCropOverlayCandidates, normalizeCropOverlayPolicy, } from './crop-overlay-policy.js';
 import { normalizeCropApplyOptions, renderCropImage } from './crop-renderer.js';
 const EMPTY_CANDIDATES = Object.freeze({
@@ -28,14 +28,18 @@ export function resolveCropConfiguration(options) {
     if (typeof options !== 'object' || options === null || Array.isArray(options)) {
         throw new CropValidationError('Crop Plugin options must be an object.');
     }
-    const allowedKeys = new Set(['paddingPx', 'minimumWidthPx', 'minimumHeightPx']);
+    const allowedKeys = new Set(['paddingPx', 'minimumWidthPx', 'minimumHeightPx', 'rotatable']);
     if (Object.keys(options).some((key) => !allowedKeys.has(key))) {
         throw new CropValidationError('Crop Plugin options contain unknown keys.');
+    }
+    if (options.rotatable !== undefined && typeof options.rotatable !== 'boolean') {
+        throw new CropValidationError('Crop rotatable must be a boolean.');
     }
     return Object.freeze({
         paddingPx: nonNegativeSafeInteger(options.paddingPx, 10, 'Crop paddingPx'),
         minimumWidthPx: positiveSafeInteger(options.minimumWidthPx, 1, 'Crop minimumWidthPx'),
         minimumHeightPx: positiveSafeInteger(options.minimumHeightPx, 1, 'Crop minimumHeightPx'),
+        rotatable: options.rotatable === true,
     });
 }
 function cloneSessionState(state) {
@@ -64,6 +68,10 @@ function cropRectsMatch(left, right) {
         left.topPx === right.topPx &&
         left.widthPx === right.widthPx &&
         left.heightPx === right.heightPx);
+}
+function cropRotationsMatch(left, right) {
+    const difference = Math.abs(normalizeCropRotation(left) - normalizeCropRotation(right));
+    return Math.min(difference, 360 - difference) < 1e-6;
 }
 export class CropController {
     constructor(host, geometry, raster, overlay, visibleRasterBake, visibleRasterBakeStatus, configuration) {
@@ -152,7 +160,7 @@ export class CropController {
         });
     }
     enter(options = {}) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d;
         this.assertActive('enter Crop');
         if (this.session)
             throw new CropSessionError('Crop is already active.');
@@ -161,7 +169,7 @@ export class CropController {
         }
         if (!isRecord(options))
             throw new CropValidationError('Crop enter options must be an object.');
-        const allowedKeys = new Set(['rect', 'aspectRatio', 'overlayPolicy']);
+        const allowedKeys = new Set(['rect', 'aspectRatio', 'rotationDegrees', 'overlayPolicy']);
         if (Object.keys(options).some((key) => !allowedKeys.has(key))) {
             throw new CropValidationError('Crop enter options contain unknown keys.');
         }
@@ -186,7 +194,11 @@ export class CropController {
         };
         const padding = Math.min(this.configuration.paddingPx, Math.floor((widthPx - this.configuration.minimumWidthPx) / 2), Math.floor((heightPx - this.configuration.minimumHeightPx) / 2));
         const aspectRatio = normalizeCropAspectRatio(options.aspectRatio);
-        let rect = normalizeCropRect((_a = options.rect) !== null && _a !== void 0 ? _a : {
+        const rotationDegrees = normalizeCropRotation((_a = options.rotationDegrees) !== null && _a !== void 0 ? _a : 0);
+        if (!this.configuration.rotatable && rotationDegrees !== 0) {
+            throw new CropValidationError('Crop rectangle rotation is disabled.');
+        }
+        let rect = normalizeCropRect((_b = options.rect) !== null && _b !== void 0 ? _b : {
             leftPx: padding,
             topPx: padding,
             widthPx: widthPx - padding * 2,
@@ -195,14 +207,16 @@ export class CropController {
         if (aspectRatio !== null) {
             rect = normalizeCropRect(fitCropRectToAspectRatio(rect, aspectRatio, { widthPx, heightPx }), limits);
         }
+        rect = constrainCropRectToRotation(rect, rotationDegrees, limits);
         const overlayPolicy = normalizeCropOverlayPolicy(options.overlayPolicy);
-        const preview = this.createPreview(baseImage, rect);
+        const preview = this.createPreview(baseImage, rect, rotationDegrees);
         const canvas = this.host.requireCanvas('enter Crop');
         markSessionObject(preview, 'cropRect');
         placeSessionObject(canvas, preview);
         const state = Object.freeze({
             rect,
             aspectRatio,
+            rotationDegrees,
             sourceRevision: this.host.getGeometryRevision(),
             sourceWidthPx: widthPx,
             sourceHeightPx: heightPx,
@@ -214,7 +228,7 @@ export class CropController {
             previewInteraction: null,
             previewVisibility: null,
             candidates: EMPTY_CANDIDATES,
-            selectionIds: (_c = (_b = this.overlay) === null || _b === void 0 ? void 0 : _b.getSelection().ids) !== null && _c !== void 0 ? _c : Object.freeze([]),
+            selectionIds: (_d = (_c = this.overlay) === null || _c === void 0 ? void 0 : _c.getSelection().ids) !== null && _d !== void 0 ? _d : Object.freeze([]),
             synchronizingPreview: false,
         };
         this.session.previewInteraction = this.bindPreviewInteraction(this.session);
@@ -234,6 +248,7 @@ export class CropController {
                 heightPx: session.state.sourceHeightPx,
             }), limits);
         }
+        rect = constrainCropRectToRotation(rect, session.state.rotationDegrees, limits);
         session.state = Object.freeze({ ...session.state, rect });
         this.refreshPreview(session);
         this.emitStatus();
@@ -249,7 +264,20 @@ export class CropController {
                 heightPx: session.state.sourceHeightPx,
             }), this.limits(session));
         }
+        rect = constrainCropRectToRotation(rect, session.state.rotationDegrees, this.limits(session));
         session.state = Object.freeze({ ...session.state, rect, aspectRatio });
+        this.refreshPreview(session);
+        this.emitStatus();
+    }
+    setRotation(value) {
+        const session = this.requireSession('set the Crop rotation');
+        this.assertSourceCurrent(session);
+        const rotationDegrees = normalizeCropRotation(value);
+        if (!this.configuration.rotatable && rotationDegrees !== 0) {
+            throw new CropValidationError('Crop rectangle rotation is disabled.');
+        }
+        const rect = constrainCropRectToRotation(session.state.rect, rotationDegrees, this.limits(session));
+        session.state = Object.freeze({ ...session.state, rect, rotationDegrees });
         this.refreshPreview(session);
         this.emitStatus();
     }
@@ -286,6 +314,7 @@ export class CropController {
                 targetSize: { width: rect.widthPx, height: rect.heightPx },
                 metadata: Object.freeze({
                     sourceRevision: state.sourceRevision,
+                    rotationDegrees: state.rotationDegrees,
                     overlayPolicy: state.overlayPolicy.apply,
                     bakeVisibleFilters: normalizedOptions.bakeVisibleFilters,
                 }),
@@ -301,7 +330,7 @@ export class CropController {
                     }
                     this.assertSourceDimensions(state);
                     const source = this.requireBaseImage();
-                    const rendered = await renderCropImage(this.host, source, rect, normalizedOptions, signal);
+                    const rendered = await renderCropImage(this.host, source, rect, state.rotationDegrees, normalizedOptions, signal);
                     resources.replacement = rendered.image;
                     resources.replacedSource = source;
                     this.raster.replaceBaseImage(transaction, rendered.image, {
@@ -344,7 +373,7 @@ export class CropController {
         this.listeners.clear();
         this.disposed = true;
     }
-    createPreview(baseImage, rect) {
+    createPreview(baseImage, rect, rotationDegrees) {
         const preview = new this.host.fabric.Rect({
             width: rect.widthPx,
             height: rect.heightPx,
@@ -358,7 +387,7 @@ export class CropController {
             selectable: true,
             evented: true,
             hasControls: true,
-            lockRotation: true,
+            lockRotation: !this.configuration.rotatable,
             lockScalingFlip: true,
             lockSkewingX: true,
             lockSkewingY: true,
@@ -371,11 +400,11 @@ export class CropController {
             hoverCursor: 'move',
             excludeFromExport: true,
         });
-        preview.setControlVisible('mtr', false);
-        this.applyPreviewPresentation(baseImage, preview, rect);
+        preview.setControlVisible('mtr', this.configuration.rotatable);
+        this.applyPreviewPresentation(baseImage, preview, rect, rotationDegrees);
         return preview;
     }
-    applyPreviewPresentation(baseImage, preview, rect) {
+    applyPreviewPresentation(baseImage, preview, rect, rotationDegrees) {
         var _a;
         const matrix = baseImage.calcTransformMatrix();
         const offsetX = rect.leftPx + rect.widthPx / 2 - Number(baseImage.width) / 2;
@@ -387,7 +416,7 @@ export class CropController {
             height: rect.heightPx,
             scaleX: baseImage.scaleX,
             scaleY: baseImage.scaleY,
-            angle: baseImage.angle,
+            angle: (Number(baseImage.angle) || 0) + rotationDegrees,
             skewX: baseImage.skewX,
             skewY: baseImage.skewY,
             flipX: baseImage.flipX,
@@ -399,7 +428,7 @@ export class CropController {
             mt: freeAspectRatio,
             mr: freeAspectRatio,
             mb: freeAspectRatio,
-            mtr: false,
+            mtr: this.configuration.rotatable,
         });
         preview.setCoords();
     }
@@ -408,9 +437,11 @@ export class CropController {
         const synchronizeFinal = () => this.synchronizePreview(session, true);
         const stopMoving = session.preview.on('moving', synchronizeLive);
         const stopScaling = session.preview.on('scaling', synchronizeLive);
+        const stopRotating = session.preview.on('rotating', synchronizeLive);
         const stopModified = session.preview.on('modified', synchronizeFinal);
         return createDisposable(() => {
             stopModified();
+            stopRotating();
             stopScaling();
             stopMoving();
         });
@@ -420,10 +451,11 @@ export class CropController {
             return;
         session.synchronizingPreview = true;
         try {
-            const rect = this.readPreviewRect(session);
-            const changed = !cropRectsMatch(rect, session.state.rect);
+            const value = this.readPreviewState(session);
+            const changed = !cropRectsMatch(value.rect, session.state.rect) ||
+                !cropRotationsMatch(value.rotationDegrees, session.state.rotationDegrees);
             if (changed)
-                session.state = Object.freeze({ ...session.state, rect });
+                session.state = Object.freeze({ ...session.state, ...value });
             if (finalize) {
                 this.refreshPreview(session);
             }
@@ -441,34 +473,29 @@ export class CropController {
             session.synchronizingPreview = false;
         }
     }
-    readPreviewRect(session) {
+    readPreviewState(session) {
         const baseImage = this.requireBaseImage();
         const relativeMatrix = this.host.fabric.util.multiplyTransformMatrices(this.host.fabric.util.invertTransform(baseImage.calcTransformMatrix()), session.preview.calcTransformMatrix());
-        const halfWidth = Number(session.preview.width) / 2;
-        const halfHeight = Number(session.preview.height) / 2;
-        const corners = [
-            new this.host.fabric.Point(-halfWidth, -halfHeight),
-            new this.host.fabric.Point(halfWidth, -halfHeight),
-            new this.host.fabric.Point(halfWidth, halfHeight),
-            new this.host.fabric.Point(-halfWidth, halfHeight),
-        ].map((point) => point.transform(relativeMatrix));
-        const xCoordinates = corners.map((point) => point.x);
-        const yCoordinates = corners.map((point) => point.y);
-        const left = Math.min(...xCoordinates) + session.state.sourceWidthPx / 2;
-        const top = Math.min(...yCoordinates) + session.state.sourceHeightPx / 2;
-        const width = Math.max(...xCoordinates) - Math.min(...xCoordinates);
-        const height = Math.max(...yCoordinates) - Math.min(...yCoordinates);
-        if (![left, top, width, height].every(Number.isFinite)) {
+        const scaleX = Math.hypot(relativeMatrix[0], relativeMatrix[1]);
+        const determinant = relativeMatrix[0] * relativeMatrix[3] - relativeMatrix[1] * relativeMatrix[2];
+        const scaleY = scaleX > 0 ? Math.abs(determinant / scaleX) : 0;
+        const width = Number(session.preview.width) * scaleX;
+        const height = Number(session.preview.height) * scaleY;
+        const centerX = relativeMatrix[4] + session.state.sourceWidthPx / 2;
+        const centerY = relativeMatrix[5] + session.state.sourceHeightPx / 2;
+        const rotationDegrees = normalizeCropRotation((Math.atan2(relativeMatrix[1], relativeMatrix[0]) * 180) / Math.PI);
+        if (![centerX, centerY, width, height, rotationDegrees].every(Number.isFinite)) {
             throw new CropValidationError('Interactive Crop geometry is invalid.');
         }
-        return this.constrainPreviewRect(session, {
-            leftPx: left,
-            topPx: top,
+        const rect = this.constrainPreviewRect(session, {
+            leftPx: centerX - width / 2,
+            topPx: centerY - height / 2,
             widthPx: width,
             heightPx: height,
-        });
+        }, rotationDegrees);
+        return Object.freeze({ rect, rotationDegrees });
     }
-    constrainPreviewRect(session, value) {
+    constrainPreviewRect(session, value, rotationDegrees) {
         const limits = this.limits(session);
         const width = clamp(Math.abs(value.widthPx), limits.minimumWidthPx, limits.widthPx);
         const height = clamp(Math.abs(value.heightPx), limits.minimumHeightPx, limits.heightPx);
@@ -486,11 +513,11 @@ export class CropController {
                 heightPx: session.state.sourceHeightPx,
             }), limits);
         }
-        return rect;
+        return constrainCropRectToRotation(rect, rotationDegrees, limits);
     }
     refreshPreview(session) {
         const baseImage = this.requireBaseImage();
-        this.applyPreviewPresentation(baseImage, session.preview, session.state.rect);
+        this.applyPreviewPresentation(baseImage, session.preview, session.state.rect, session.state.rotationDegrees);
         const canvas = this.host.requireCanvas('refresh Crop preview');
         placeSessionObject(canvas, session.preview);
         if (session.previewVisibility) {

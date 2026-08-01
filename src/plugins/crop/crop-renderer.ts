@@ -13,7 +13,7 @@ import { base64PayloadByteLength } from '../../utils/base64-payload.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { CropValidationError } from './crop-errors.js';
-import type { CropRect } from './crop-geometry.js';
+import { normalizeCropRotation, type CropRect } from './crop-geometry.js';
 import type { CropApplyOptions } from './crop-session.js';
 
 type SupportedImageMimeType = NonNullable<CoreImageInfo['mimeType']>;
@@ -131,6 +131,7 @@ function applyCropPresentation(
     source: FabricNS.FabricImage,
     target: FabricNS.FabricImage,
     rect: CropRect,
+    rotationDegrees: number,
 ): void {
     const matrix = source.calcTransformMatrix();
     const offsetX = rect.leftPx + rect.widthPx / 2 - Number(source.width) / 2;
@@ -144,7 +145,7 @@ function applyCropPresentation(
         originY: 'center',
         scaleX: source.scaleX,
         scaleY: source.scaleY,
-        angle: source.angle,
+        angle: (Number(source.angle) || 0) + rotationDegrees,
         skewX: source.skewX,
         skewY: source.skewY,
         flipX: source.flipX,
@@ -165,6 +166,7 @@ export async function renderCropImage(
     host: CropRenderHost,
     source: FabricNS.FabricImage,
     rect: CropRect,
+    rotationDegrees: number,
     options: ReturnType<typeof normalizeCropApplyOptions>,
     signal: AbortSignal,
 ): Promise<CropRenderResult> {
@@ -187,16 +189,16 @@ export async function renderCropImage(
     if (!context) throw new CropValidationError('Crop rendering context is unavailable.');
     let dataUrl: string;
     try {
+        const rotation = normalizeCropRotation(rotationDegrees);
+        context.translate(rect.widthPx / 2, rect.heightPx / 2);
+        context.rotate((-rotation * Math.PI) / 180);
+        context.translate(-(rect.leftPx + rect.widthPx / 2), -(rect.topPx + rect.heightPx / 2));
         context.drawImage(
             source.getElement() as CanvasImageSource,
-            rect.leftPx,
-            rect.topPx,
-            rect.widthPx,
-            rect.heightPx,
             0,
             0,
-            rect.widthPx,
-            rect.heightPx,
+            Number(source.width),
+            Number(source.height),
         );
         if (signal.aborted) throw signal.reason;
         dataUrl = surface.toDataURL(
@@ -220,7 +222,7 @@ export async function renderCropImage(
         if (image.width !== rect.widthPx || image.height !== rect.heightPx) {
             throw new CropValidationError('Crop dimensions changed during decode.');
         }
-        applyCropPresentation(source, image, rect);
+        applyCropPresentation(source, image, rect, normalizeCropRotation(rotationDegrees));
         return Object.freeze({ image, mimeType: options.mimeType });
     } catch (error) {
         image.dispose();

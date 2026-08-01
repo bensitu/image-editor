@@ -21,6 +21,8 @@ export interface CropRectLimits extends CropImageBounds {
     readonly minimumWidthPx: number;
     readonly minimumHeightPx: number;
 }
+export declare function normalizeCropRotation(value: unknown): number;
+export declare function constrainCropRectToRotation(value: CropRect, rotationDegrees: number, limits: CropRectLimits): CropRect;
 interface Rectangle {
     readonly left: number;
     readonly top: number;

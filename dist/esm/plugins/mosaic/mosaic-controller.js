@@ -11,6 +11,12 @@ const defaultConfiguration = Object.freeze({
     format: 'source',
     quality: 0.92,
     maxPointCount: 4096,
+    preview: Object.freeze({
+        stroke: '#333333',
+        strokeWidth: 1,
+        strokeDashArray: Object.freeze([4, 4]),
+        fill: 'rgba(0,0,0,0)',
+    }),
 });
 const MAX_INTERPOLATED_POINT_COUNT = 250000;
 function isRecord(value) {
@@ -18,6 +24,47 @@ function isRecord(value) {
         return false;
     const prototype = Object.getPrototypeOf(value);
     return prototype === Object.prototype || prototype === null;
+}
+function normalizePreviewStyle(current, value) {
+    var _a, _b;
+    if (value === undefined)
+        return current;
+    if (!isRecord(value)) {
+        throw new MosaicValidationError('Mosaic preview configuration must be an object.');
+    }
+    const allowedKeys = new Set(['stroke', 'strokeWidth', 'strokeDashArray', 'fill']);
+    if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+        throw new MosaicValidationError('Mosaic preview configuration contains unknown keys.');
+    }
+    const stroke = value.stroke === undefined ? current.stroke : value.stroke;
+    const strokeWidth = (_a = value.strokeWidth) !== null && _a !== void 0 ? _a : current.strokeWidth;
+    const strokeDashArray = value.strokeDashArray === undefined ? current.strokeDashArray : value.strokeDashArray;
+    const fill = (_b = value.fill) !== null && _b !== void 0 ? _b : current.fill;
+    if ((stroke !== null && typeof stroke !== 'string') ||
+        (typeof stroke === 'string' && stroke.length > 256)) {
+        throw new MosaicValidationError('Mosaic preview stroke must be a bounded string or null.');
+    }
+    if (typeof strokeWidth !== 'number' ||
+        !Number.isFinite(strokeWidth) ||
+        strokeWidth < 0 ||
+        strokeWidth > 32) {
+        throw new MosaicValidationError('Mosaic preview strokeWidth must be within [0, 32].');
+    }
+    if (strokeDashArray !== null &&
+        (!Array.isArray(strokeDashArray) ||
+            strokeDashArray.length > 16 ||
+            strokeDashArray.some((entry) => typeof entry !== 'number' || !Number.isFinite(entry) || entry < 0))) {
+        throw new MosaicValidationError('Mosaic preview strokeDashArray must contain bounded non-negative values or be null.');
+    }
+    if (typeof fill !== 'string' || fill.length > 256) {
+        throw new MosaicValidationError('Mosaic preview fill must be a bounded string.');
+    }
+    return Object.freeze({
+        stroke,
+        strokeWidth,
+        strokeDashArray: strokeDashArray === null ? null : Object.freeze([...strokeDashArray]),
+        fill,
+    });
 }
 function normalizeConfiguration(current, patch) {
     var _a, _b, _c, _d, _e;
@@ -30,6 +77,7 @@ function normalizeConfiguration(current, patch) {
         'format',
         'quality',
         'maxPointCount',
+        'preview',
     ]);
     if (Object.keys(patch).some((key) => !allowedKeys.has(key))) {
         throw new MosaicValidationError('Mosaic configuration contains unknown keys.');
@@ -39,6 +87,7 @@ function normalizeConfiguration(current, patch) {
     const format = (_c = patch.format) !== null && _c !== void 0 ? _c : current.format;
     const quality = (_d = patch.quality) !== null && _d !== void 0 ? _d : current.quality;
     const maxPointCount = (_e = patch.maxPointCount) !== null && _e !== void 0 ? _e : current.maxPointCount;
+    const preview = normalizePreviewStyle(current.preview, patch.preview);
     if (typeof brushSizePx !== 'number' ||
         !Number.isFinite(brushSizePx) ||
         brushSizePx < 1 ||
@@ -69,6 +118,7 @@ function normalizeConfiguration(current, patch) {
         format,
         quality,
         maxPointCount,
+        preview,
     });
 }
 export function resolveMosaicConfiguration(options) {
@@ -81,7 +131,15 @@ function cloneSessionState(state) {
     return Object.freeze({
         ...state,
         dirtyRectangle: cloneDirtyRectangle(state.dirtyRectangle),
-        configuration: Object.freeze({ ...state.configuration }),
+        configuration: Object.freeze({
+            ...state.configuration,
+            preview: Object.freeze({
+                ...state.configuration.preview,
+                strokeDashArray: state.configuration.preview.strokeDashArray
+                    ? Object.freeze([...state.configuration.preview.strokeDashArray])
+                    : null,
+            }),
+        }),
     });
 }
 function replayStroke(cache, stroke, configuration, replayBudget) {
@@ -237,10 +295,12 @@ export class MosaicController {
             radius: configuration.brushSizePx / 2,
             originX: 'center',
             originY: 'center',
-            fill: 'rgba(0,0,0,0)',
-            stroke: '#333333',
-            strokeWidth: 1,
-            strokeDashArray: [4, 4],
+            fill: configuration.preview.fill,
+            stroke: configuration.preview.stroke,
+            strokeWidth: configuration.preview.strokeWidth,
+            strokeDashArray: configuration.preview.strokeDashArray
+                ? [...configuration.preview.strokeDashArray]
+                : null,
             strokeUniform: true,
             selectable: false,
             evented: false,
@@ -472,6 +532,12 @@ export class MosaicController {
         const baseImage = this.requireBaseImage();
         session.brushPreview.set({
             radius: session.state.configuration.brushSizePx / 2,
+            fill: session.state.configuration.preview.fill,
+            stroke: session.state.configuration.preview.stroke,
+            strokeWidth: session.state.configuration.preview.strokeWidth,
+            strokeDashArray: session.state.configuration.preview.strokeDashArray
+                ? [...session.state.configuration.preview.strokeDashArray]
+                : null,
             scaleX: baseImage.scaleX,
             scaleY: baseImage.scaleY,
             angle: baseImage.angle,

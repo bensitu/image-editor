@@ -3,6 +3,7 @@ import { base64PayloadByteLength } from '../../utils/base64-payload.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { CropValidationError } from './crop-errors.js';
+import { normalizeCropRotation } from './crop-geometry.js';
 function isRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
         return false;
@@ -81,7 +82,7 @@ async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
         signal.removeEventListener('abort', abort);
     }
 }
-function applyCropPresentation(source, target, rect) {
+function applyCropPresentation(source, target, rect, rotationDegrees) {
     const matrix = source.calcTransformMatrix();
     const offsetX = rect.leftPx + rect.widthPx / 2 - Number(source.width) / 2;
     const offsetY = rect.topPx + rect.heightPx / 2 - Number(source.height) / 2;
@@ -94,7 +95,7 @@ function applyCropPresentation(source, target, rect) {
         originY: 'center',
         scaleX: source.scaleX,
         scaleY: source.scaleY,
-        angle: source.angle,
+        angle: (Number(source.angle) || 0) + rotationDegrees,
         skewX: source.skewX,
         skewY: source.skewY,
         flipX: source.flipX,
@@ -110,7 +111,7 @@ function applyCropPresentation(source, target, rect) {
     });
     target.setCoords();
 }
-export async function renderCropImage(host, source, rect, options, signal) {
+export async function renderCropImage(host, source, rect, rotationDegrees, options, signal) {
     var _a, _b;
     if (signal.aborted)
         throw signal.reason;
@@ -132,7 +133,11 @@ export async function renderCropImage(host, source, rect, options, signal) {
         throw new CropValidationError('Crop rendering context is unavailable.');
     let dataUrl;
     try {
-        context.drawImage(source.getElement(), rect.leftPx, rect.topPx, rect.widthPx, rect.heightPx, 0, 0, rect.widthPx, rect.heightPx);
+        const rotation = normalizeCropRotation(rotationDegrees);
+        context.translate(rect.widthPx / 2, rect.heightPx / 2);
+        context.rotate((-rotation * Math.PI) / 180);
+        context.translate(-(rect.leftPx + rect.widthPx / 2), -(rect.topPx + rect.heightPx / 2));
+        context.drawImage(source.getElement(), 0, 0, Number(source.width), Number(source.height));
         if (signal.aborted)
             throw signal.reason;
         dataUrl = surface.toDataURL(options.mimeType, options.format === 'png' ? undefined : options.quality);
@@ -153,7 +158,7 @@ export async function renderCropImage(host, source, rect, options, signal) {
         if (image.width !== rect.widthPx || image.height !== rect.heightPx) {
             throw new CropValidationError('Crop dimensions changed during decode.');
         }
-        applyCropPresentation(source, image, rect);
+        applyCropPresentation(source, image, rect, normalizeCropRotation(rotationDegrees));
         return Object.freeze({ image, mimeType: options.mimeType });
     }
     catch (error) {

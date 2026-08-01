@@ -121,6 +121,7 @@ export function cropPlugin(
                 'crop:enter',
                 'crop:update-rect',
                 'crop:set-aspect-ratio',
+                'crop:set-rotation',
                 'crop:cancel',
             ]) {
                 context.disposables.add(
@@ -195,6 +196,10 @@ export function cropPlugin(
                 setAspectRatio: (ratio: CropAspectRatio) =>
                     runPreviewOperation('crop:set-aspect-ratio', ratio, (crop, value) =>
                         crop.setAspectRatio(value),
+                    ),
+                setRotation: (degrees: number) =>
+                    runPreviewOperation('crop:set-rotation', degrees, (crop, value) =>
+                        crop.setRotation(value),
                     ),
                 apply: async (applyOptions?: CropApplyOptions) => {
                     try {

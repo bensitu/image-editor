@@ -26,7 +26,7 @@ import type { MosaicImagePoint } from './mosaic-brush.js';
 import { MosaicController, resolveMosaicConfiguration } from './mosaic-controller.js';
 import type {
     MosaicCommitOptions,
-    MosaicConfiguration,
+    MosaicConfigurationPatch,
     MosaicEnterOptions,
     MosaicPluginApi,
     MosaicPluginOptions,
@@ -217,7 +217,7 @@ export function mosaicPlugin(
                             await context.tools.exit('requested');
                         }
                     }),
-                configure: (patch: Partial<MosaicConfiguration>) =>
+                configure: (patch: MosaicConfigurationPatch) =>
                     runPreviewOperation('mosaic:configure', patch, (mosaic, value) =>
                         mosaic.configure(value),
                     ),
@@ -242,8 +242,10 @@ export function mosaicPlugin(
 }
 
 export type {
+    MosaicBrushPreviewStyle,
     MosaicCommitOptions,
     MosaicConfiguration,
+    MosaicConfigurationPatch,
     MosaicEnterOptions,
     MosaicOutputFormat,
     MosaicPluginApi,

@@ -418,13 +418,45 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		pixelBlockSizePx: 8,
 		format: "source",
 		quality: .92,
-		maxPointCount: 4096
+		maxPointCount: 4096,
+		preview: Object.freeze({
+			stroke: "#333333",
+			strokeWidth: 1,
+			strokeDashArray: Object.freeze([4, 4]),
+			fill: "rgba(0,0,0,0)"
+		})
 	});
 	const MAX_INTERPOLATED_POINT_COUNT = 25e4;
 	function isRecord(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
 		return prototype === Object.prototype || prototype === null;
+	}
+	function normalizePreviewStyle(current, value) {
+		var _a, _b;
+		if (value === void 0) return current;
+		if (!isRecord(value)) throw new MosaicValidationError("Mosaic preview configuration must be an object.");
+		const allowedKeys = /* @__PURE__ */ new Set([
+			"stroke",
+			"strokeWidth",
+			"strokeDashArray",
+			"fill"
+		]);
+		if (Object.keys(value).some((key) => !allowedKeys.has(key))) throw new MosaicValidationError("Mosaic preview configuration contains unknown keys.");
+		const stroke = value.stroke === void 0 ? current.stroke : value.stroke;
+		const strokeWidth = (_a = value.strokeWidth) !== null && _a !== void 0 ? _a : current.strokeWidth;
+		const strokeDashArray = value.strokeDashArray === void 0 ? current.strokeDashArray : value.strokeDashArray;
+		const fill = (_b = value.fill) !== null && _b !== void 0 ? _b : current.fill;
+		if (stroke !== null && typeof stroke !== "string" || typeof stroke === "string" && stroke.length > 256) throw new MosaicValidationError("Mosaic preview stroke must be a bounded string or null.");
+		if (typeof strokeWidth !== "number" || !Number.isFinite(strokeWidth) || strokeWidth < 0 || strokeWidth > 32) throw new MosaicValidationError("Mosaic preview strokeWidth must be within [0, 32].");
+		if (strokeDashArray !== null && (!Array.isArray(strokeDashArray) || strokeDashArray.length > 16 || strokeDashArray.some((entry) => typeof entry !== "number" || !Number.isFinite(entry) || entry < 0))) throw new MosaicValidationError("Mosaic preview strokeDashArray must contain bounded non-negative values or be null.");
+		if (typeof fill !== "string" || fill.length > 256) throw new MosaicValidationError("Mosaic preview fill must be a bounded string.");
+		return Object.freeze({
+			stroke,
+			strokeWidth,
+			strokeDashArray: strokeDashArray === null ? null : Object.freeze([...strokeDashArray]),
+			fill
+		});
 	}
 	function normalizeConfiguration(current, patch) {
 		var _a, _b, _c, _d, _e;
@@ -434,7 +466,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			"pixelBlockSizePx",
 			"format",
 			"quality",
-			"maxPointCount"
+			"maxPointCount",
+			"preview"
 		]);
 		if (Object.keys(patch).some((key) => !allowedKeys.has(key))) throw new MosaicValidationError("Mosaic configuration contains unknown keys.");
 		const brushSizePx = (_a = patch.brushSizePx) !== null && _a !== void 0 ? _a : current.brushSizePx;
@@ -442,6 +475,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const format = (_c = patch.format) !== null && _c !== void 0 ? _c : current.format;
 		const quality = (_d = patch.quality) !== null && _d !== void 0 ? _d : current.quality;
 		const maxPointCount = (_e = patch.maxPointCount) !== null && _e !== void 0 ? _e : current.maxPointCount;
+		const preview = normalizePreviewStyle(current.preview, patch.preview);
 		if (typeof brushSizePx !== "number" || !Number.isFinite(brushSizePx) || brushSizePx < 1 || brushSizePx > 4096) throw new MosaicValidationError("Mosaic brushSizePx must be within [1, 4096].");
 		if (typeof pixelBlockSizePx !== "number" || !Number.isSafeInteger(pixelBlockSizePx) || pixelBlockSizePx < 1 || pixelBlockSizePx > 1024) throw new MosaicValidationError("Mosaic pixelBlockSizePx must be within [1, 1024].");
 		if (format !== "source" && format !== "png" && format !== "jpeg" && format !== "webp") throw new MosaicValidationError("Mosaic format is invalid.");
@@ -452,7 +486,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			pixelBlockSizePx,
 			format,
 			quality,
-			maxPointCount
+			maxPointCount,
+			preview
 		});
 	}
 	function resolveMosaicConfiguration(options) {
@@ -465,7 +500,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Object.freeze({
 			...state,
 			dirtyRectangle: cloneDirtyRectangle(state.dirtyRectangle),
-			configuration: Object.freeze({ ...state.configuration })
+			configuration: Object.freeze({
+				...state.configuration,
+				preview: Object.freeze({
+					...state.configuration.preview,
+					strokeDashArray: state.configuration.preview.strokeDashArray ? Object.freeze([...state.configuration.preview.strokeDashArray]) : null
+				})
+			})
 		});
 	}
 	function replayStroke(cache, stroke, configuration, replayBudget) {
@@ -600,10 +641,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				radius: configuration.brushSizePx / 2,
 				originX: "center",
 				originY: "center",
-				fill: "rgba(0,0,0,0)",
-				stroke: "#333333",
-				strokeWidth: 1,
-				strokeDashArray: [4, 4],
+				fill: configuration.preview.fill,
+				stroke: configuration.preview.stroke,
+				strokeWidth: configuration.preview.strokeWidth,
+				strokeDashArray: configuration.preview.strokeDashArray ? [...configuration.preview.strokeDashArray] : null,
 				strokeUniform: true,
 				selectable: false,
 				evented: false,
@@ -809,6 +850,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const baseImage = this.requireBaseImage();
 			session.brushPreview.set({
 				radius: session.state.configuration.brushSizePx / 2,
+				fill: session.state.configuration.preview.fill,
+				stroke: session.state.configuration.preview.stroke,
+				strokeWidth: session.state.configuration.preview.strokeWidth,
+				strokeDashArray: session.state.configuration.preview.strokeDashArray ? [...session.state.configuration.preview.strokeDashArray] : null,
 				scaleX: baseImage.scaleX,
 				scaleY: baseImage.scaleY,
 				angle: baseImage.angle,

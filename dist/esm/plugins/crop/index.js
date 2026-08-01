@@ -78,6 +78,7 @@ export function cropPlugin(options = {}) {
                 'crop:enter',
                 'crop:update-rect',
                 'crop:set-aspect-ratio',
+                'crop:set-rotation',
                 'crop:cancel',
             ]) {
                 context.disposables.add(context.operations.register({
@@ -129,6 +130,7 @@ export function cropPlugin(options = {}) {
                 }),
                 updateRect: (rect) => runPreviewOperation('crop:update-rect', rect, (crop, value) => crop.updateRect(value)),
                 setAspectRatio: (ratio) => runPreviewOperation('crop:set-aspect-ratio', ratio, (crop, value) => crop.setAspectRatio(value)),
+                setRotation: (degrees) => runPreviewOperation('crop:set-rotation', degrees, (crop, value) => crop.setRotation(value)),
                 apply: async (applyOptions) => {
                     try {
                         await requireController().apply(applyOptions);

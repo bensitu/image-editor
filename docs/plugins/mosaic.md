@@ -68,6 +68,24 @@ await mosaic.enter({ configuration: { maxPointCount: 2_000 } });
 await mosaic.configure({ brushSizePx: 48 }); // Applies to the next stroke immediately.
 ```
 
+The transient cursor has a nested presentation policy so applications can adapt it to light,
+dark, or high-contrast surfaces without changing Mosaic raster behavior:
+
+```ts
+await mosaic.configure({
+    preview: {
+        stroke: '#2563eb',
+        strokeWidth: 2,
+        strokeDashArray: [3, 3],
+        fill: 'rgba(37,99,235,0.12)',
+    },
+});
+```
+
+`stroke` may be a string or `null`, `strokeWidth` is from `0` through `32`, the dash array accepts
+up to 16 finite non-negative values or `null`, and `fill` is a string. Active sessions update the
+cursor immediately when no stroke is in progress.
+
 `brushSizePx` must be from `1` to `4096`, `pixelBlockSizePx` an integer from `1` to `1024`, quality
 from `0` to `1`, and `maxPointCount` an integer from `1` to `100000`. Points must be finite and
 within the natural image bounds. Configuration changes reject while a stroke is active; call

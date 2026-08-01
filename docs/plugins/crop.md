@@ -38,6 +38,21 @@ Only one Crop session can be active; a second `enter()` call rejects and leaves 
 unchanged. Starting Mosaic through the shared Tool Coordinator closes an active Crop session
 cleanly.
 
+Rectangle rotation is opt-in. Enable `rotatable`, then set an initial or live angle through the
+typed session API:
+
+```ts
+const crop = editor.use(cropPlugin({ rotatable: true }));
+await crop.enter({ rotationDegrees: 15 });
+await crop.setRotation(30);
+await crop.apply();
+```
+
+The interactive rotation control and `setRotation()` accept finite degrees normalized into one
+turn. The rectangle is resized or repositioned as needed to keep all rotated corners inside the
+source. Apply samples the rotated source region into an upright raster and preserves the rectangle
+angle in the committed Base Image presentation, so the selected region does not jump.
+
 The preview is transient: it is excluded from Snapshot state, normal export, History, and committed
 document events. `getSession()` returns an immutable status snapshot, and `subscribe()` can be used
 by framework or DOM adapters without making the Plugin depend on the DOM.
@@ -96,8 +111,8 @@ failure restores Base Image, Filters, Overlay state, selection, and History exac
 
 ## Configuration, limits, and headless use
 
-`paddingPx`, `minimumWidthPx`, and `minimumHeightPx` may be supplied to `cropPlugin()`. Rectangles
-must be finite, positive, within the natural image bounds, and no smaller than the configured
+`paddingPx`, `minimumWidthPx`, `minimumHeightPx`, and `rotatable` may be supplied to `cropPlugin()`.
+Rectangles must be finite, positive, within the natural image bounds, and no smaller than the configured
 minimums.
 
 Crop uses the active Core image resource policy for input bytes, pixel counts, export dimensions,

@@ -46,6 +46,7 @@ import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { normalizeMosaicCommitOptions, renderMosaicImage } from './mosaic-renderer.js';
 import type {
     MosaicCommitOptions,
+    MosaicConfigurationPatch,
     MosaicConfiguration,
     MosaicEnterOptions,
     MosaicPluginOptions,
@@ -85,6 +86,12 @@ const defaultConfiguration: MosaicConfiguration = Object.freeze({
     format: 'source',
     quality: 0.92,
     maxPointCount: 4096,
+    preview: Object.freeze({
+        stroke: '#333333',
+        strokeWidth: 1,
+        strokeDashArray: Object.freeze([4, 4]),
+        fill: 'rgba(0,0,0,0)',
+    }),
 });
 const MAX_INTERPOLATED_POINT_COUNT = 250_000;
 
@@ -92,6 +99,61 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     const prototype = Object.getPrototypeOf(value);
     return prototype === Object.prototype || prototype === null;
+}
+
+function normalizePreviewStyle(
+    current: MosaicConfiguration['preview'],
+    value: unknown,
+): MosaicConfiguration['preview'] {
+    if (value === undefined) return current;
+    if (!isRecord(value)) {
+        throw new MosaicValidationError('Mosaic preview configuration must be an object.');
+    }
+    const allowedKeys = new Set(['stroke', 'strokeWidth', 'strokeDashArray', 'fill']);
+    if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+        throw new MosaicValidationError('Mosaic preview configuration contains unknown keys.');
+    }
+    const stroke = value.stroke === undefined ? current.stroke : value.stroke;
+    const strokeWidth = value.strokeWidth ?? current.strokeWidth;
+    const strokeDashArray =
+        value.strokeDashArray === undefined ? current.strokeDashArray : value.strokeDashArray;
+    const fill = value.fill ?? current.fill;
+    if (
+        (stroke !== null && typeof stroke !== 'string') ||
+        (typeof stroke === 'string' && stroke.length > 256)
+    ) {
+        throw new MosaicValidationError('Mosaic preview stroke must be a bounded string or null.');
+    }
+    if (
+        typeof strokeWidth !== 'number' ||
+        !Number.isFinite(strokeWidth) ||
+        strokeWidth < 0 ||
+        strokeWidth > 32
+    ) {
+        throw new MosaicValidationError('Mosaic preview strokeWidth must be within [0, 32].');
+    }
+    if (
+        strokeDashArray !== null &&
+        (!Array.isArray(strokeDashArray) ||
+            strokeDashArray.length > 16 ||
+            strokeDashArray.some(
+                (entry) => typeof entry !== 'number' || !Number.isFinite(entry) || entry < 0,
+            ))
+    ) {
+        throw new MosaicValidationError(
+            'Mosaic preview strokeDashArray must contain bounded non-negative values or be null.',
+        );
+    }
+    if (typeof fill !== 'string' || fill.length > 256) {
+        throw new MosaicValidationError('Mosaic preview fill must be a bounded string.');
+    }
+    return Object.freeze({
+        stroke,
+        strokeWidth,
+        strokeDashArray:
+            strokeDashArray === null ? null : Object.freeze([...(strokeDashArray as number[])]),
+        fill,
+    });
 }
 
 function normalizeConfiguration(current: MosaicConfiguration, patch: unknown): MosaicConfiguration {
@@ -104,6 +166,7 @@ function normalizeConfiguration(current: MosaicConfiguration, patch: unknown): M
         'format',
         'quality',
         'maxPointCount',
+        'preview',
     ]);
     if (Object.keys(patch).some((key) => !allowedKeys.has(key))) {
         throw new MosaicValidationError('Mosaic configuration contains unknown keys.');
@@ -113,6 +176,7 @@ function normalizeConfiguration(current: MosaicConfiguration, patch: unknown): M
     const format = patch.format ?? current.format;
     const quality = patch.quality ?? current.quality;
     const maxPointCount = patch.maxPointCount ?? current.maxPointCount;
+    const preview = normalizePreviewStyle(current.preview, patch.preview);
     if (
         typeof brushSizePx !== 'number' ||
         !Number.isFinite(brushSizePx) ||
@@ -149,6 +213,7 @@ function normalizeConfiguration(current: MosaicConfiguration, patch: unknown): M
         format,
         quality,
         maxPointCount,
+        preview,
     });
 }
 
@@ -164,7 +229,15 @@ function cloneSessionState(state: MosaicSessionState): Readonly<MosaicSessionSta
     return Object.freeze({
         ...state,
         dirtyRectangle: cloneDirtyRectangle(state.dirtyRectangle),
-        configuration: Object.freeze({ ...state.configuration }),
+        configuration: Object.freeze({
+            ...state.configuration,
+            preview: Object.freeze({
+                ...state.configuration.preview,
+                strokeDashArray: state.configuration.preview.strokeDashArray
+                    ? Object.freeze([...state.configuration.preview.strokeDashArray])
+                    : null,
+            }),
+        }),
     });
 }
 
@@ -228,7 +301,7 @@ export class MosaicController {
         return this.configuration;
     }
 
-    configure(patch: Partial<MosaicConfiguration>): void {
+    configure(patch: MosaicConfigurationPatch): void {
         this.assertActive('configure Mosaic');
         const session = this.session;
         if (session && session.activeStrokeIndex !== null) {
@@ -294,10 +367,12 @@ export class MosaicController {
                 radius: configuration.brushSizePx / 2,
                 originX: 'center',
                 originY: 'center',
-                fill: 'rgba(0,0,0,0)',
-                stroke: '#333333',
-                strokeWidth: 1,
-                strokeDashArray: [4, 4],
+                fill: configuration.preview.fill,
+                stroke: configuration.preview.stroke,
+                strokeWidth: configuration.preview.strokeWidth,
+                strokeDashArray: configuration.preview.strokeDashArray
+                    ? [...configuration.preview.strokeDashArray]
+                    : null,
                 strokeUniform: true,
                 selectable: false,
                 evented: false,
@@ -571,6 +646,12 @@ export class MosaicController {
         const baseImage = this.requireBaseImage();
         session.brushPreview.set({
             radius: session.state.configuration.brushSizePx / 2,
+            fill: session.state.configuration.preview.fill,
+            stroke: session.state.configuration.preview.stroke,
+            strokeWidth: session.state.configuration.preview.strokeWidth,
+            strokeDashArray: session.state.configuration.preview.strokeDashArray
+                ? [...session.state.configuration.preview.strokeDashArray]
+                : null,
             scaleX: baseImage.scaleX,
             scaleY: baseImage.scaleY,
             angle: baseImage.angle,

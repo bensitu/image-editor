@@ -6,22 +6,31 @@
 import type { Disposable } from '../../sdk/index.js';
 import type { DirtyRectangle, MosaicImagePoint } from './mosaic-brush.js';
 export type MosaicOutputFormat = 'source' | 'png' | 'jpeg' | 'webp';
+export interface MosaicBrushPreviewStyle {
+    readonly stroke: string | null;
+    readonly strokeWidth: number;
+    readonly strokeDashArray: readonly number[] | null;
+    readonly fill: string;
+}
 export interface MosaicConfiguration {
     readonly brushSizePx: number;
     readonly pixelBlockSizePx: number;
     readonly format: MosaicOutputFormat;
     readonly quality: number;
     readonly maxPointCount: number;
+    readonly preview: Readonly<MosaicBrushPreviewStyle>;
 }
-export interface MosaicPluginOptions {
+export interface MosaicConfigurationPatch {
     readonly brushSizePx?: number;
     readonly pixelBlockSizePx?: number;
     readonly format?: MosaicOutputFormat;
     readonly quality?: number;
     readonly maxPointCount?: number;
+    readonly preview?: Partial<MosaicBrushPreviewStyle>;
 }
+export type MosaicPluginOptions = MosaicConfigurationPatch;
 export interface MosaicEnterOptions {
-    readonly configuration?: Partial<MosaicConfiguration>;
+    readonly configuration?: MosaicConfigurationPatch;
 }
 export interface MosaicCommitOptions {
     readonly format?: MosaicOutputFormat;
@@ -51,7 +60,7 @@ export interface MosaicPluginApi {
     endStroke(): Promise<void>;
     commit(options?: MosaicCommitOptions): Promise<void>;
     cancel(): Promise<void>;
-    configure(patch: Partial<MosaicConfiguration>): Promise<void>;
+    configure(patch: MosaicConfigurationPatch): Promise<void>;
     getConfiguration(): Readonly<MosaicConfiguration>;
     getSession(): Readonly<MosaicSessionState> | null;
     subscribe(listener: MosaicStatusListener): Disposable;

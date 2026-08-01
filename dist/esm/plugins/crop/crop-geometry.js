@@ -1,3 +1,48 @@
+export function normalizeCropRotation(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new TypeError('[ImageEditor] Crop rotation must be a finite number.');
+    }
+    const normalized = ((value % 360) + 360) % 360;
+    return Math.abs(normalized - 360) < 1e-9 || Math.abs(normalized) < 1e-9 ? 0 : normalized;
+}
+export function constrainCropRectToRotation(value, rotationDegrees, limits) {
+    let rect = normalizeCropRect(value, limits);
+    const rotation = normalizeCropRotation(rotationDegrees);
+    if (rotation === 0)
+        return rect;
+    const radians = (rotation * Math.PI) / 180;
+    const cosine = Math.abs(Math.cos(radians));
+    const sine = Math.abs(Math.sin(radians));
+    const rotatedWidth = rect.widthPx * cosine + rect.heightPx * sine;
+    const rotatedHeight = rect.widthPx * sine + rect.heightPx * cosine;
+    const scale = Math.min(1, limits.widthPx / Math.max(rotatedWidth, 1), limits.heightPx / Math.max(rotatedHeight, 1));
+    if (scale < 1) {
+        const widthPx = Math.max(limits.minimumWidthPx, Math.floor(rect.widthPx * scale));
+        const heightPx = Math.max(limits.minimumHeightPx, Math.floor(rect.heightPx * scale));
+        if (widthPx * cosine + heightPx * sine > limits.widthPx + 1e-6 ||
+            widthPx * sine + heightPx * cosine > limits.heightPx + 1e-6) {
+            throw new TypeError('[ImageEditor] Rotated Crop rectangle cannot satisfy the configured minimum.');
+        }
+        const centerX = rect.leftPx + rect.widthPx / 2;
+        const centerY = rect.topPx + rect.heightPx / 2;
+        rect = normalizeCropRect({
+            leftPx: Math.max(0, Math.min(limits.widthPx - widthPx, centerX - widthPx / 2)),
+            topPx: Math.max(0, Math.min(limits.heightPx - heightPx, centerY - heightPx / 2)),
+            widthPx,
+            heightPx,
+        }, limits);
+    }
+    const extentX = (rect.widthPx * cosine + rect.heightPx * sine) / 2;
+    const extentY = (rect.widthPx * sine + rect.heightPx * cosine) / 2;
+    const centerX = Math.max(extentX, Math.min(limits.widthPx - extentX, rect.leftPx + rect.widthPx / 2));
+    const centerY = Math.max(extentY, Math.min(limits.heightPx - extentY, rect.topPx + rect.heightPx / 2));
+    return normalizeCropRect({
+        leftPx: Math.max(0, Math.min(limits.widthPx - rect.widthPx, centerX - rect.widthPx / 2)),
+        topPx: Math.max(0, Math.min(limits.heightPx - rect.heightPx, centerY - rect.heightPx / 2)),
+        widthPx: rect.widthPx,
+        heightPx: rect.heightPx,
+    }, limits);
+}
 function isRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
         return false;

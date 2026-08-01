@@ -233,13 +233,29 @@ test('Mosaic session preview remains above committed Filters and persistent over
 test('Mosaic configuration updates active sessions and their brush preview between strokes', async () => {
     const { editor, mosaic } = await createEditor({ id: 'configuration' });
     await load(editor);
-    await mosaic.configure({ brushSizePx: 18, pixelBlockSizePx: 6, quality: 0.7 });
+    await mosaic.configure({
+        brushSizePx: 18,
+        pixelBlockSizePx: 6,
+        quality: 0.7,
+        preview: {
+            stroke: '#2563eb',
+            strokeWidth: 2,
+            strokeDashArray: [2, 3],
+            fill: 'rgba(37,99,235,0.12)',
+        },
+    });
     assert.deepEqual(mosaic.getConfiguration(), {
         brushSizePx: 18,
         pixelBlockSizePx: 6,
         format: 'source',
         quality: 0.7,
         maxPointCount: 4096,
+        preview: {
+            stroke: '#2563eb',
+            strokeWidth: 2,
+            strokeDashArray: [2, 3],
+            fill: 'rgba(37,99,235,0.12)',
+        },
     });
     assert.equal(Object.isFrozen(mosaic.getConfiguration()), true);
     await assert.rejects(mosaic.configure({ brushSizePx: 0 }), /brushSizePx/i);
@@ -253,6 +269,10 @@ test('Mosaic configuration updates active sessions and their brush preview betwe
     assert.ok(brushPreview);
     assert.equal(brushPreview.visible, false);
     assert.equal(brushPreview.radius, 9);
+    assert.equal(brushPreview.stroke, '#2563eb');
+    assert.equal(brushPreview.strokeWidth, 2);
+    assert.deepEqual(brushPreview.strokeDashArray, [2, 3]);
+    assert.equal(brushPreview.fill, 'rgba(37,99,235,0.12)');
 
     const imageCenter = new fabric.Point(0, 0).transform(baseImage.calcTransformMatrix());
     canvas.fire('mouse:move', { scenePoint: imageCenter });
@@ -260,11 +280,21 @@ test('Mosaic configuration updates active sessions and their brush preview betwe
     assert.equal(brushPreview.left, imageCenter.x);
     assert.equal(brushPreview.top, imageCenter.y);
 
-    await mosaic.configure({ brushSizePx: 30, pixelBlockSizePx: 9 });
+    await mosaic.configure({
+        brushSizePx: 30,
+        pixelBlockSizePx: 9,
+        preview: { strokeWidth: 3, strokeDashArray: null },
+    });
     assert.equal(mosaic.getSession().configuration.brushSizePx, 30);
     assert.equal(mosaic.getSession().configuration.pixelBlockSizePx, 9);
     assert.equal(mosaic.getConfiguration().brushSizePx, 30);
     assert.equal(brushPreview.radius, 15);
+    assert.equal(brushPreview.strokeWidth, 3);
+    assert.equal(brushPreview.strokeDashArray, null);
+    await assert.rejects(
+        mosaic.configure({ preview: { strokeDashArray: [2, -1] } }),
+        /strokeDashArray/i,
+    );
 
     await mosaic.beginStroke({ xPx: 60, yPx: 40 });
     await assert.rejects(mosaic.configure({ brushSizePx: 36 }), /end the active mosaic stroke/i);

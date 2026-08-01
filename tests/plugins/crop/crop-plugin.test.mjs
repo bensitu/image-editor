@@ -252,6 +252,54 @@ test('Crop controls synchronize moved and scaled preview geometry before apply',
     await dispose(editor);
 });
 
+test('Crop rotation is explicit, bounded, interactive, and preserved by apply', async () => {
+    const { crop, editor } = await createEditor({
+        cropOptions: { rotatable: true },
+        id: 'rotation',
+    });
+    await load(editor);
+    await crop.enter({
+        rect: { leftPx: 40, topPx: 30, widthPx: 40, heightPx: 20 },
+        rotationDegrees: 90,
+    });
+    const canvas = editor.getCanvas();
+    const baseImage = canvas.getObjects()[0];
+    const preview = canvas.getObjects().find((object) => object.sessionObjectType === 'cropRect');
+    assert.ok(preview);
+    assert.equal(preview.lockRotation, false);
+    assert.equal(preview.isControlVisible('mtr'), true);
+    assert.equal(crop.getSession().rotationDegrees, 90);
+
+    preview.set({ angle: (Number(baseImage.angle) || 0) + 45 });
+    preview.fire('rotating');
+    preview.fire('modified', { target: preview });
+    assert.ok(Math.abs(crop.getSession().rotationDegrees - 45) < 1e-6);
+    await crop.setRotation(90);
+    const appliedRect = crop.getSession().rect;
+
+    await crop.apply();
+    assert.equal(editor.getImageInfo().naturalWidth, appliedRect.widthPx);
+    assert.equal(editor.getImageInfo().naturalHeight, appliedRect.heightPx);
+    assert.ok(Math.abs((Number(editor.getCanvas().getObjects()[0].angle) || 0) - 90) < 1e-6);
+    await dispose(editor);
+});
+
+test('Crop rejects non-zero rotation when rectangle rotation is disabled', async () => {
+    const { crop, editor } = await createEditor({ id: 'rotation-disabled' });
+    await load(editor);
+    await assert.rejects(
+        crop.enter({
+            rect: { leftPx: 40, topPx: 30, widthPx: 40, heightPx: 20 },
+            rotationDegrees: 15,
+        }),
+        /rotation is disabled/i,
+    );
+    await crop.enter({ rect: { leftPx: 40, topPx: 30, widthPx: 40, heightPx: 20 } });
+    await assert.rejects(crop.setRotation(15), /rotation is disabled/i);
+    await crop.cancel();
+    await dispose(editor);
+});
+
 test('Crop session stays above a committed Filters raster visual', async () => {
     const { crop, editor, filtersApi } = await createEditor({
         filters: true,
