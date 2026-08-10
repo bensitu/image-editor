@@ -1350,6 +1350,41 @@ test('downloadImage rejects export failures without duplicate error reporting', 
     assert.deepEqual(errors, []);
 });
 
+test('downloadImage revokes the object URL when DOM setup fails', async () => {
+    const previousCreateObjectURL = URL.createObjectURL;
+    const previousRevokeObjectURL = URL.revokeObjectURL;
+    const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
+    const ownerDocument = ownerDom.window.document;
+    const canvasElement = ownerDocument.getElementById('c');
+    const setupError = new Error('anchor creation failed');
+    const revokedUrls = [];
+
+    try {
+        URL.createObjectURL = () => 'blob:setup-failure';
+        URL.revokeObjectURL = (url) => {
+            revokedUrls.push(url);
+        };
+        ownerDocument.createElement = () => {
+            throw setupError;
+        };
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('download').toString('base64'),
+        );
+        canvas.getElement = () => canvasElement;
+        const ctx = makeContext({ canvas });
+
+        await assert.rejects(
+            () => downloadImage(ctx, { fileName: 'setup-failure.jpg' }),
+            (error) => error === setupError,
+        );
+
+        assert.deepEqual(revokedUrls, ['blob:setup-failure']);
+    } finally {
+        URL.createObjectURL = previousCreateObjectURL;
+        URL.revokeObjectURL = previousRevokeObjectURL;
+    }
+});
+
 test('downloadImage appends the anchor to the canvas ownerDocument', async () => {
     const previousDocument = globalThis.document;
     const previousCreateObjectURL = URL.createObjectURL;

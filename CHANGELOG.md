@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevent overlapping public state restoration from interleaving changes on the live canvas.
 - Prevent timed-out state restoration from applying stale changes after the operation fails.
 - Allow `disposeAsync()` to await Fabric canvas cleanup previously started by `dispose()`.
+- Release download object URLs when DOM setup fails before delayed cleanup is registered.
 
 ## [2.9.0] - 2026-07-11
 
