@@ -75,9 +75,9 @@
             "maximumMinifiedGzipBytes": 6144
         },
         "canvas-interactions": {
-            "baselineMinifiedBytes": 3327,
-            "baselineMinifiedGzipBytes": 1341,
-            "maximumMinifiedGzipBytes": 2048
+            "baselineMinifiedBytes": 26663,
+            "baselineMinifiedGzipBytes": 5972,
+            "maximumMinifiedGzipBytes": 7168
         }
     }
 }

@@ -28,21 +28,22 @@ function mosaicPoint(point: InteractionPoint): MosaicImagePoint {
 export class MosaicInteractionBinding implements CanvasInteractionBinding<MosaicGesture> {
     readonly id = 'mosaic';
     readonly toolId = MOSAIC_TOOL_ID;
-    private readonly api: MosaicPluginApi;
+    private readonly plugin: MosaicCanvasInteractionOptions['plugin'];
+    private apiValue: MosaicPluginApi | null = null;
 
     constructor(options: MosaicCanvasInteractionOptions) {
-        this.api = options.plugin.resolve();
+        this.plugin = options.plugin;
     }
 
     claim(
         context: PointerDownContext,
     ): { readonly gesture: MosaicGesture; readonly started: Promise<void> } | null {
-        const session = this.api.getSession();
+        const session = this.api().getSession();
         const startPoint = context.sample.imagePoint;
         if (!session || session.isStrokeActive || !startPoint) return null;
         const started = Promise.resolve().then(async () => {
             if (!context.gesture.isCurrent()) return;
-            await this.api.beginStroke(mosaicPoint(startPoint));
+            await this.api().beginStroke(mosaicPoint(startPoint));
         });
         const gesture: MosaicGesture = {
             context: context.gesture,
@@ -50,7 +51,7 @@ export class MosaicInteractionBinding implements CanvasInteractionBinding<Mosaic
             samples: new OrderedSampleScheduler(async (point) => {
                 await started;
                 if (!context.gesture.isCurrent()) return;
-                await this.api.appendStroke(mosaicPoint(point));
+                await this.api().appendStroke(mosaicPoint(point));
             }),
         };
         return Object.freeze({ gesture, started });
@@ -64,7 +65,7 @@ export class MosaicInteractionBinding implements CanvasInteractionBinding<Mosaic
         await gesture.started;
         await gesture.samples.flush();
         if (!gesture.context.isCurrent()) return;
-        await this.api.endStroke();
+        await this.api().endStroke();
     }
 
     async cancel(gesture: MosaicGesture, _reason: InteractionCancelReason): Promise<void> {
@@ -74,6 +75,11 @@ export class MosaicInteractionBinding implements CanvasInteractionBinding<Mosaic
         } catch {
             return;
         }
-        if (this.api.getSession()) await this.api.cancel();
+        const api = this.api();
+        if (api.getSession()) await api.cancel();
+    }
+
+    private api(): MosaicPluginApi {
+        return (this.apiValue ??= this.plugin.resolve());
     }
 }

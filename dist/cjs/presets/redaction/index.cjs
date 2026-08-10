@@ -9,7 +9,7 @@ const require_filters = require('../../chunks/filters-C992jBn0.cjs');
 const require_crop = require('../../chunks/crop-ceEMRb4n.cjs');
 const require_mosaic = require('../../chunks/mosaic-8KjFfKM1.cjs');
 const require_overlay_state = require('../../chunks/overlay-state-Cirb44dO.cjs');
-const require_preset_support = require('../../chunks/preset-support-BDSqE4Hg.cjs');
+const require_preset_support = require('../../chunks/preset-support-D2cHniBE.cjs');
 
 //#region dist/esm/presets/redaction/index.js
 function createRedactionPreset(fabric, options = {}) {

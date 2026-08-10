@@ -49,17 +49,20 @@ function textClassification(
 export class TextInteractionBinding implements CanvasInteractionBinding<TextGesture> {
     readonly id = 'text';
     readonly toolId = TEXT_TOOL_ID;
-    private readonly text: TextAnnotationPluginApi;
-    private readonly overlays: OverlayFoundationApi;
-    private readonly annotations: AnnotationPluginApi;
+    private readonly textBinding: TextCanvasInteractionOptions['plugin'];
+    private readonly overlayBinding: TextCanvasInteractionOptions['overlays'];
+    private readonly annotationBinding: TextCanvasInteractionOptions['annotations'];
+    private textValue: TextAnnotationPluginApi | null = null;
+    private overlayValue: OverlayFoundationApi | null = null;
+    private annotationValue: AnnotationPluginApi | null = null;
     private readonly blankClick: 'create' | 'ignore';
     private readonly existingTextClick: 'edit' | 'select';
     private readonly retargetEditing: 'commit' | 'cancel';
 
     constructor(options: TextCanvasInteractionOptions) {
-        this.text = options.plugin.resolve();
-        this.overlays = options.overlays.resolve();
-        this.annotations = options.annotations.resolve();
+        this.textBinding = options.plugin;
+        this.overlayBinding = options.overlays;
+        this.annotationBinding = options.annotations;
         this.blankClick = options.blankClick ?? 'create';
         this.existingTextClick = options.existingTextClick ?? 'edit';
         this.retargetEditing = options.retargetEditing ?? 'commit';
@@ -75,7 +78,7 @@ export class TextInteractionBinding implements CanvasInteractionBinding<TextGest
     }
 
     claim(context: PointerDownContext): { readonly gesture: TextGesture } | null {
-        const classification = textClassification(this.overlays, context.sample);
+        const classification = textClassification(this.overlays(), context.sample);
         let target: TextClickTarget;
         if (classification) {
             target = Object.freeze({ kind: 'text', id: classification.persistentId });
@@ -102,35 +105,48 @@ export class TextInteractionBinding implements CanvasInteractionBinding<TextGest
             return;
         }
         if (!(await this.finishCurrentEditing(gesture, null))) return;
-        const id = await this.text.create({
+        const id = await this.text().create({
             left: gesture.point.x,
             top: gesture.point.y,
         });
         if (!gesture.context.isCurrent()) return;
-        await this.text.beginEditing(id);
+        await this.text().beginEditing(id);
     }
 
     cancel(_gesture: TextGesture, _reason: InteractionCancelReason): void {}
 
     private async activateExisting(gesture: TextGesture, id: string): Promise<void> {
-        const current = this.text.getEditingSession();
+        const current = this.text().getEditingSession();
         if (current?.annotationId === id) return;
         if (!(await this.finishCurrentEditing(gesture, id))) return;
         if (this.existingTextClick === 'select') {
-            await this.annotations.select([id]);
+            await this.annotations().select([id]);
             return;
         }
-        await this.text.beginEditing(id);
+        await this.text().beginEditing(id);
     }
 
     private async finishCurrentEditing(
         gesture: TextGesture,
         nextId: string | null,
     ): Promise<boolean> {
-        const current = this.text.getEditingSession();
+        const text = this.text();
+        const current = text.getEditingSession();
         if (!current || current.annotationId === nextId) return true;
-        if (this.retargetEditing === 'commit') await this.text.commitEditing();
-        else await this.text.cancelEditing();
+        if (this.retargetEditing === 'commit') await text.commitEditing();
+        else await text.cancelEditing();
         return gesture.context.canResume(this.toolId);
+    }
+
+    private text(): TextAnnotationPluginApi {
+        return (this.textValue ??= this.textBinding.resolve());
+    }
+
+    private overlays(): OverlayFoundationApi {
+        return (this.overlayValue ??= this.overlayBinding.resolve());
+    }
+
+    private annotations(): AnnotationPluginApi {
+        return (this.annotationValue ??= this.annotationBinding.resolve());
     }
 }

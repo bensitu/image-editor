@@ -1,5 +1,6 @@
 import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { CanvasInteractionsController } from './canvas-interactions-controller.js';
+import { createCanvasInteractionBindings } from './bindings/create-bindings.js';
 export const canvasInteractionsPluginRef = definePluginRef('plugin:canvas-interactions', '1.0.0');
 function collectPluginDependencies(options) {
     const bindings = [
@@ -47,16 +48,22 @@ export function canvasInteractionsPlugin(options = {}) {
         setup(context) {
             controller = new CanvasInteractionsController(Object.freeze({
                 ...context.capabilities.require(CANVAS_READ_CAPABILITY),
+                ...context.capabilities.require(BASE_IMAGE_READ_CAPABILITY),
                 ...context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY),
-            }));
+            }), context.tools, options, createCanvasInteractionBindings(options));
             context.disposables.add(controller);
+            context.disposables.add(context.events.on('state:loaded', () => controller === null || controller === void 0 ? void 0 : controller.invalidateLifecycle('state-loaded')));
             return controller;
         },
         onInit() {
             controller === null || controller === void 0 ? void 0 : controller.refresh();
         },
         onImageLoaded() {
+            controller === null || controller === void 0 ? void 0 : controller.invalidateLifecycle('image-replaced');
             controller === null || controller === void 0 ? void 0 : controller.refresh();
+        },
+        onImageCleared() {
+            controller === null || controller === void 0 ? void 0 : controller.invalidateLifecycle('image-cleared');
         },
         onDispose() {
             controller === null || controller === void 0 ? void 0 : controller.dispose();

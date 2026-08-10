@@ -35,6 +35,7 @@ const expectedFixtures = [
     'preset-annotation',
     'preset-full',
     'preset-full-dom',
+    'preset-full-interactions',
 ];
 const runtimeFixtures = expectedFixtures.filter((name) => name !== 'sdk/testing');
 const applicationRuntimeFixtures = runtimeFixtures.filter((name) => name !== 'sdk/migrate-v2');
@@ -53,6 +54,7 @@ const featureCategories = new Set([
     'ANNOTATION_DRAW',
     'OVERLAY_STATE',
     'DOM_CONTROLS',
+    'CANVAS_INTERACTIONS',
 ]);
 
 function classifyModule(moduleName) {
@@ -75,6 +77,9 @@ function classifyModule(moduleName) {
     if (moduleName.startsWith('dist/esm/plugins/annotation-draw/')) return 'ANNOTATION_DRAW';
     if (moduleName.startsWith('dist/esm/plugins/overlay-state/')) return 'OVERLAY_STATE';
     if (moduleName.startsWith('dist/esm/plugins/dom-controls/')) return 'DOM_CONTROLS';
+    if (moduleName.startsWith('dist/esm/plugins/canvas-interactions/')) {
+        return 'CANVAS_INTERACTIONS';
+    }
     if (moduleName === 'dist/esm/presets/preset-support.js') return 'PRESET_SUPPORT';
     if (moduleName.startsWith('dist/esm/presets/minimal/')) return 'PRESET_MINIMAL';
     if (moduleName.startsWith('dist/esm/presets/redaction/')) return 'PRESET_REDACTION';
@@ -362,7 +367,7 @@ export async function inspectPublicBundleIsolation(measurement) {
         'ANNOTATION_DRAW',
         'OVERLAY_STATE',
     ];
-    for (const name of ['preset-full', 'preset-full-dom']) {
+    for (const name of ['preset-full', 'preset-full-dom', 'preset-full-interactions']) {
         assertCondition(
             fixtures[name].categories.includes('PRESET_FULL'),
             `${name} is missing its Preset.`,
@@ -379,8 +384,20 @@ export async function inspectPublicBundleIsolation(measurement) {
         'Full Preset contains DOM Controls by default.',
     );
     assertCondition(
+        fixtures['preset-full'].categories.includes('CANVAS_INTERACTIONS') === false,
+        'Full Preset contains Canvas Interactions by default.',
+    );
+    assertCondition(
         fixtures['preset-full-dom'].categories.includes('DOM_CONTROLS'),
         'DOM-enabled Full Preset is missing DOM Controls.',
+    );
+    assertCondition(
+        fixtures['preset-full-dom'].categories.includes('CANVAS_INTERACTIONS') === false,
+        'DOM-enabled Full Preset contains Canvas Interactions without a factory.',
+    );
+    assertCondition(
+        fixtures['preset-full-interactions'].categories.includes('CANVAS_INTERACTIONS'),
+        'Interaction-enabled Full Preset is missing Canvas Interactions.',
     );
     assertCondition(
         fixtures['sdk/core-annotation'].categories.includes('ANNOTATION_FOUNDATION'),

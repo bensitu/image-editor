@@ -7,6 +7,10 @@ import { drawAnnotationPluginRef } from '../../src/plugins/annotation-draw/index
 import { shapeAnnotationPluginRef } from '../../src/plugins/annotation-shape/index.js';
 import { textAnnotationPluginRef } from '../../src/plugins/annotation-text/index.js';
 import { cropPluginRef } from '../../src/plugins/crop/index.js';
+import {
+    canvasInteractionsPlugin,
+    canvasInteractionsPluginRef,
+} from '../../src/plugins/canvas-interactions/index.js';
 import { domControlsPluginRef } from '../../src/plugins/dom-controls/index.js';
 import { filtersPluginRef } from '../../src/plugins/filters/index.js';
 import { historyPluginRef } from '../../src/plugins/history/index.js';
@@ -105,6 +109,28 @@ test('Redaction installs one Overlay Foundation and excludes Annotation features
     await dispose(preset);
 });
 
+test('Full optionally installs Canvas interactions from typed public bindings', async () => {
+    const preset = createFullPreset(fabric, {
+        canvasInteractions: (bindings) =>
+            canvasInteractionsPlugin({
+                text: {
+                    plugin: bindings.text,
+                    overlays: bindings.overlays,
+                    annotations: bindings.annotations,
+                },
+                shape: { plugin: bindings.shape },
+                draw: { plugin: bindings.draw },
+                mosaic: { plugin: bindings.mosaic },
+            }),
+    });
+
+    assert.equal(
+        preset.editor.requirePlugin(canvasInteractionsPluginRef),
+        preset.canvasInteractions,
+    );
+    await dispose(preset);
+});
+
 test('Annotation installs each Foundation once and excludes raster editing features', async () => {
     const preset = createAnnotationPreset(fabric);
     assert.equal(preset.editor.requirePlugin(overlayFoundationRef), preset.overlays);
@@ -122,6 +148,7 @@ test('Annotation installs each Foundation once and excludes raster editing featu
 test('Full returns every official Plugin API and initializes without duplicate Foundations', async () => {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
     const preset = createFullPreset(fabric, { transform: { animationDuration: 0 } });
+    assert.equal(preset.canvasInteractions, null);
     const expected: readonly (readonly [PluginRef<unknown>, unknown])[] = [
         [transformPluginRef, preset.transform],
         [historyPluginRef, preset.history],

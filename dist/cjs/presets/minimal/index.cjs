@@ -3,7 +3,7 @@ const require_core_capabilities = require('../../chunks/core-capabilities-DPdoMg
 const require_core = require('../../chunks/core-DoQz4N42.cjs');
 const require_transform = require('../../chunks/transform-BRbeAqOU.cjs');
 const require_history = require('../../chunks/history-BZAG5k5E.cjs');
-const require_preset_support = require('../../chunks/preset-support-BDSqE4Hg.cjs');
+const require_preset_support = require('../../chunks/preset-support-D2cHniBE.cjs');
 
 //#region dist/esm/presets/minimal/index.js
 function createMinimalPreset(fabric, options = {}) {

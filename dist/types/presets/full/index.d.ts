@@ -11,13 +11,14 @@ import { type ShapeAnnotationPluginApi, type ShapeAnnotationPluginOptions } from
 import { type TextAnnotationPluginApi, type TextAnnotationPluginOptions } from '../../plugins/annotation-text/index.js';
 import { type CropPluginApi, type CropPluginOptions } from '../../plugins/crop/index.js';
 import type { DomControlsPluginApi, DomPluginBinding } from '../../plugins/dom-controls/index.js';
+import type { CanvasInteractionsPluginApi, CanvasPluginBinding } from '../../plugins/canvas-interactions/index.js';
 import { type FiltersPluginApi, type FiltersPluginOptions } from '../../plugins/filters/index.js';
 import { type HistoryPluginOptions, type HistoryPort } from '../../plugins/history/index.js';
 import { type MaskPluginApi, type MaskPluginOptions } from '../../plugins/mask/index.js';
 import { type MosaicPluginApi, type MosaicPluginOptions } from '../../plugins/mosaic/index.js';
 import { type OverlayStatePluginApi, type OverlayStatePluginOptions } from '../../plugins/overlay-state/index.js';
 import { type TransformPluginApi, type TransformPluginOptions } from '../../plugins/transform/index.js';
-import { type PresetDomApi, type PresetDomControlsFactory } from '../preset-support.js';
+import { type PresetCanvasInteractionsApi, type PresetCanvasInteractionsFactory, type PresetDomApi, type PresetDomControlsFactory } from '../preset-support.js';
 export interface FullPresetDomBindings {
     readonly transform: DomPluginBinding<TransformPluginApi>;
     readonly history: DomPluginBinding<HistoryPort>;
@@ -31,6 +32,14 @@ export interface FullPresetDomBindings {
     readonly shape: DomPluginBinding<ShapeAnnotationPluginApi>;
     readonly draw: DomPluginBinding<DrawAnnotationPluginApi>;
     readonly overlayState: DomPluginBinding<OverlayStatePluginApi>;
+}
+export interface FullPresetCanvasBindings {
+    readonly overlays: CanvasPluginBinding<OverlayFoundationApi>;
+    readonly mosaic: CanvasPluginBinding<MosaicPluginApi>;
+    readonly annotations: CanvasPluginBinding<AnnotationPluginApi>;
+    readonly text: CanvasPluginBinding<TextAnnotationPluginApi>;
+    readonly shape: CanvasPluginBinding<ShapeAnnotationPluginApi>;
+    readonly draw: CanvasPluginBinding<DrawAnnotationPluginApi>;
 }
 export interface FullPresetOptions {
     readonly core?: ImageEditorCoreOptions;
@@ -46,8 +55,9 @@ export interface FullPresetOptions {
     readonly draw?: DrawAnnotationPluginOptions;
     readonly overlayState?: OverlayStatePluginOptions;
     readonly domControls?: PresetDomControlsFactory<FullPresetDomBindings>;
+    readonly canvasInteractions?: PresetCanvasInteractionsFactory<FullPresetCanvasBindings>;
 }
-export interface FullPresetResult<TDomControls extends DomControlsPluginApi | null = DomControlsPluginApi | null> {
+export interface FullPresetResult<TDomControls extends DomControlsPluginApi | null = DomControlsPluginApi | null, TCanvasInteractions extends CanvasInteractionsPluginApi | null = CanvasInteractionsPluginApi | null> {
     readonly editor: ImageEditorCore;
     readonly transform: TransformPluginApi;
     readonly history: HistoryPort;
@@ -62,6 +72,7 @@ export interface FullPresetResult<TDomControls extends DomControlsPluginApi | nu
     readonly draw: DrawAnnotationPluginApi;
     readonly overlayState: OverlayStatePluginApi;
     readonly domControls: TDomControls;
+    readonly canvasInteractions: TCanvasInteractions;
 }
-export declare function createFullPreset<const TOptions extends FullPresetOptions = Record<never, never>>(fabric: FabricModule, options?: TOptions & FullPresetOptions): FullPresetResult<PresetDomApi<TOptions>>;
+export declare function createFullPreset<const TOptions extends FullPresetOptions = Record<never, never>>(fabric: FabricModule, options?: TOptions & FullPresetOptions): FullPresetResult<PresetDomApi<TOptions>, PresetCanvasInteractionsApi<TOptions>>;
 export default createFullPreset;

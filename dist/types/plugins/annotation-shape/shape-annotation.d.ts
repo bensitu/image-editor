@@ -75,6 +75,7 @@ export interface ShapeAnnotationUpdate {
 export interface ShapeSessionState {
     readonly kind: ShapeAnnotationKind;
     readonly geometry: ShapeGeometryInput | null;
+    readonly options: Readonly<ShapeSessionOptions>;
 }
 export interface ShapeAnnotationPluginApi {
     enter(options: ShapeSessionOptions): Promise<void>;

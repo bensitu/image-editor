@@ -57,12 +57,12 @@ function validFinalGeometry(value: ShapeGeometryInput): boolean {
 export class ShapeInteractionBinding implements CanvasInteractionBinding<ShapeGesture> {
     readonly id = 'shape';
     readonly toolId = SHAPE_TOOL_ID;
-    private readonly api: ShapeAnnotationPluginApi;
+    private apiValue: ShapeAnnotationPluginApi | null = null;
     private readonly minimumDragDistance: number;
     private readonly continuous: boolean;
 
     constructor(options: ShapeCanvasInteractionOptions) {
-        this.api = options.plugin.resolve();
+        this.plugin = options.plugin;
         this.minimumDragDistance = options.minimumDragDistance ?? DEFAULT_MINIMUM_DRAG_DISTANCE;
         if (!Number.isFinite(this.minimumDragDistance) || this.minimumDragDistance < 0) {
             throw new TypeError(
@@ -73,7 +73,7 @@ export class ShapeInteractionBinding implements CanvasInteractionBinding<ShapeGe
     }
 
     claim(context: PointerDownContext): { readonly gesture: ShapeGesture } | null {
-        const session = this.api.getSession();
+        const session = this.api().getSession();
         if (!session) return null;
         const gesture: ShapeGesture = {
             start: context.sample.canvasPoint,
@@ -82,7 +82,7 @@ export class ShapeInteractionBinding implements CanvasInteractionBinding<ShapeGe
             context: context.gesture,
             previews: new LatestValueScheduler((value) => {
                 if (!context.gesture.isCurrent()) return;
-                return this.api.updatePreview(value);
+                return this.api().updatePreview(value);
             }),
         };
         return Object.freeze({ gesture });
@@ -102,20 +102,27 @@ export class ShapeInteractionBinding implements CanvasInteractionBinding<ShapeGe
         const finalGeometry = geometry(gesture.kind, gesture.start, sample.canvasPoint);
         if (distance < this.minimumDragDistance || !validFinalGeometry(finalGeometry)) {
             gesture.previews.cancel();
-            await this.api.cancel();
+            await this.api().cancel();
             return;
         }
         await gesture.previews.pushLatest(finalGeometry);
         await gesture.previews.flush();
         if (!gesture.context.isCurrent()) return;
-        await this.api.commit();
+        await this.api().commit();
         if (this.continuous && gesture.context.canResume(this.toolId)) {
-            await this.api.enter(gesture.sessionOptions);
+            await this.api().enter(gesture.sessionOptions);
         }
     }
 
     async cancel(gesture: ShapeGesture, _reason: InteractionCancelReason): Promise<void> {
         gesture.previews.cancel();
-        if (this.api.getSession()) await this.api.cancel();
+        const api = this.api();
+        if (api.getSession()) await api.cancel();
+    }
+
+    private readonly plugin: ShapeCanvasInteractionOptions['plugin'];
+
+    private api(): ShapeAnnotationPluginApi {
+        return (this.apiValue ??= this.plugin.resolve());
     }
 }

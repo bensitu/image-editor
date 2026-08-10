@@ -1951,6 +1951,12 @@
                     ]
                 },
                 {
+                    "name": "PluginToolAccess",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "PluginToolStatus",
                     "kinds": [
                         "TypeAliasDeclaration"
@@ -4409,6 +4415,12 @@
                     ]
                 },
                 {
+                    "name": "FullPresetCanvasBindings",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "FullPresetDomBindings",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -4552,7 +4564,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "147c2420765fe4a8e1b1116faed502c445113532cb3dbb1dc0b453df2f4608ae",
+        "graphSha256": "d5575988c4ea0adc7e452eb86479e80241e4da563047f9000b2f8421d2dd27d9",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4764,7 +4776,7 @@
             },
             {
                 "file": "dist/types/plugins/annotation-shape/shape-annotation.d.ts",
-                "sha256": "aedff83bf46416a6c5d438455d24ecaf2b9964317c6895fec547d82404982e4c"
+                "sha256": "5b0faca4ee0c1b3e35ddde7b9b2e24b8c07a1f84a6ee7baf174f2bbcd201609d"
             },
             {
                 "file": "dist/types/plugins/annotation-text/index.d.ts",
@@ -4892,7 +4904,7 @@
             },
             {
                 "file": "dist/types/presets/full/index.d.ts",
-                "sha256": "5abacaf8a9c77753a7849e74162cce46891124457e487dc9a726456b8b4e8da6"
+                "sha256": "dd0d3c244941684f287957f2895624f40f4debaa91bbdc685f176c3996f173ce"
             },
             {
                 "file": "dist/types/presets/minimal/index.d.ts",
@@ -4900,7 +4912,7 @@
             },
             {
                 "file": "dist/types/presets/preset-support.d.ts",
-                "sha256": "9bed9a01ecda975f10ab85c5666c0f73d6fe394ce2f15cecffc9ec6938777ce1"
+                "sha256": "c4b3f805b89a08c4b9e3e967a0e49a5c5756c8ed1a54acbf46c0dd729fea15e8"
             },
             {
                 "file": "dist/types/presets/redaction/index.d.ts",
@@ -4912,7 +4924,7 @@
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "a888c0972a09b24f7dfcf24d2e7309e3ff4285e550bb6dd173a66d534a6a858c"
+                "sha256": "8fe234bce616f31b11e89011353b5064e0891df5a3bb64a989a8e98c5f7b16a9"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",
@@ -6200,6 +6212,12 @@
                 ]
             },
             {
+                "name": "FullPresetCanvasBindings",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
                 "name": "FullPresetDomBindings",
                 "kinds": [
                     "InterfaceDeclaration"
@@ -7037,6 +7055,12 @@
                 "name": "PluginSetupError",
                 "kinds": [
                     "ClassDeclaration"
+                ]
+            },
+            {
+                "name": "PluginToolAccess",
+                "kinds": [
+                    "InterfaceDeclaration"
                 ]
             },
             {

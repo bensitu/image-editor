@@ -7,6 +7,11 @@ import type { ShapeAnnotationPluginApi } from '../../../src/plugins/annotation-s
 import type { TextAnnotationPluginApi } from '../../../src/plugins/annotation-text/index.js';
 import type { CropPluginApi } from '../../../src/plugins/crop/index.js';
 import {
+    canvasInteractionsPlugin,
+    type CanvasInteractionsPluginApi,
+    type CanvasPluginBinding,
+} from '../../../src/plugins/canvas-interactions/index.js';
+import {
     domControlsPlugin,
     type DomControlsPluginApi,
     type DomPluginBinding,
@@ -61,3 +66,12 @@ const full = createFullPreset(fabric, {
 expectTypeOf(full.domControls).toEqualTypeOf<DomControlsPluginApi>();
 expectTypeOf(full.annotations).toEqualTypeOf<AnnotationPluginApi>();
 expectTypeOf(full.overlayState).toEqualTypeOf<OverlayStatePluginApi>();
+
+const interactiveFull = createFullPreset(fabric, {
+    canvasInteractions: (bindings) => {
+        expectTypeOf(bindings.overlays).toEqualTypeOf<CanvasPluginBinding<OverlayFoundationApi>>();
+        expectTypeOf(bindings.text).toEqualTypeOf<CanvasPluginBinding<TextAnnotationPluginApi>>();
+        return canvasInteractionsPlugin({ shape: { plugin: bindings.shape } });
+    },
+});
+expectTypeOf(interactiveFull.canvasInteractions).toEqualTypeOf<CanvasInteractionsPluginApi>();

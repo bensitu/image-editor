@@ -24,20 +24,21 @@ interface DrawGesture {
 export class DrawInteractionBinding implements CanvasInteractionBinding<DrawGesture> {
     readonly id = 'draw';
     readonly toolId = DRAW_TOOL_ID;
-    private readonly api: DrawAnnotationPluginApi;
+    private readonly plugin: DrawCanvasInteractionOptions['plugin'];
+    private apiValue: DrawAnnotationPluginApi | null = null;
 
     constructor(options: DrawCanvasInteractionOptions) {
-        this.api = options.plugin.resolve();
+        this.plugin = options.plugin;
     }
 
     claim(
         context: PointerDownContext,
     ): { readonly gesture: DrawGesture; readonly started: Promise<void> } | null {
-        const session = this.api.getSession();
+        const session = this.api().getSession();
         if (!session || session.isStrokeActive) return null;
         const started = Promise.resolve().then(async () => {
             if (!context.gesture.isCurrent()) return;
-            await this.api.beginStroke(context.sample.canvasPoint);
+            await this.api().beginStroke(context.sample.canvasPoint);
         });
         const gesture: DrawGesture = {
             context: context.gesture,
@@ -45,7 +46,7 @@ export class DrawInteractionBinding implements CanvasInteractionBinding<DrawGest
             samples: new OrderedSampleScheduler(async (point) => {
                 await started;
                 if (!context.gesture.isCurrent()) return;
-                await this.api.appendStroke(point);
+                await this.api().appendStroke(point);
             }),
         };
         return Object.freeze({ gesture, started });
@@ -59,7 +60,7 @@ export class DrawInteractionBinding implements CanvasInteractionBinding<DrawGest
         await gesture.started;
         await gesture.samples.flush();
         if (!gesture.context.isCurrent()) return;
-        await this.api.endStroke();
+        await this.api().endStroke();
     }
 
     async cancel(gesture: DrawGesture, _reason: InteractionCancelReason): Promise<void> {
@@ -69,6 +70,11 @@ export class DrawInteractionBinding implements CanvasInteractionBinding<DrawGest
         } catch {
             return;
         }
-        if (this.api.getSession()?.isStrokeActive) await this.api.cancelStroke();
+        const api = this.api();
+        if (api.getSession()?.isStrokeActive) await api.cancelStroke();
+    }
+
+    private api(): DrawAnnotationPluginApi {
+        return (this.apiValue ??= this.plugin.resolve());
     }
 }

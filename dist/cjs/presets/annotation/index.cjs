@@ -6,10 +6,10 @@ const require_annotation = require('../../chunks/annotation-CzJy5jdC.cjs');
 const require_transform = require('../../chunks/transform-BRbeAqOU.cjs');
 const require_history = require('../../chunks/history-BZAG5k5E.cjs');
 const require_annotation_text = require('../../chunks/annotation-text-CIflhB-y.cjs');
-const require_annotation_shape = require('../../chunks/annotation-shape-CgZPMDAQ.cjs');
+const require_annotation_shape = require('../../chunks/annotation-shape-qLcj81ul.cjs');
 const require_annotation_draw = require('../../chunks/annotation-draw-8-WP-toE.cjs');
 const require_overlay_state = require('../../chunks/overlay-state-Cirb44dO.cjs');
-const require_preset_support = require('../../chunks/preset-support-BDSqE4Hg.cjs');
+const require_preset_support = require('../../chunks/preset-support-D2cHniBE.cjs');
 
 //#region dist/esm/presets/annotation/index.js
 function createAnnotationPreset(fabric, options = {}) {
