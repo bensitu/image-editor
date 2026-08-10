@@ -35,6 +35,14 @@ function sample(target: PointerSample['target'] = null): PointerSample {
     });
 }
 
+function deferred(): { readonly promise: Promise<void>; resolve(): void } {
+    let resolve = (): void => undefined;
+    const promise = new Promise<void>((complete) => {
+        resolve = complete;
+    });
+    return { promise, resolve };
+}
+
 const gestureContext: InteractionGestureContext = Object.freeze({
     epoch: 1,
     isCurrent: () => true,
@@ -53,13 +61,26 @@ function bindingOptions(
     } as const;
 }
 
-test('Blank Text clicks await creation before editing the new Annotation', async () => {
+test('Blank Text clicks preserve ready mode and await creation before editing', async () => {
     const calls: Array<readonly [string, unknown?]> = [];
+    let editing = true;
+    let interactionCurrent = true;
+    const createStarted = deferred();
     let finishCreate = (_id: string): void => undefined;
     const text = {
-        getEditingSession: () => null,
+        getEditingSession: () =>
+            editing ? { annotationId: 'text-current', text: 'Current' } : null,
+        commitEditing: async () => {
+            calls.push(['commit']);
+            editing = false;
+            interactionCurrent = false;
+        },
+        enter: async () => {
+            calls.push(['enter']);
+        },
         create: async (options: TextAnnotationCreateOptions) => {
             calls.push(['create', options]);
+            createStarted.resolve();
             return new Promise<string>((resolve) => {
                 finishCreate = resolve;
             });
@@ -74,16 +95,22 @@ test('Blank Text clicks await creation before editing the new Annotation', async
     const claim = binding.claim({
         sample: sample(),
         activeToolId: binding.toolId,
-        gesture: gestureContext,
+        gesture: Object.freeze({
+            epoch: 1,
+            isCurrent: () => interactionCurrent,
+            canResume: () => true,
+        }),
     });
     assert.ok(claim);
     const ended = binding.end(claim.gesture, sample());
-    await Promise.resolve();
-    assert.deepEqual(calls, [['create', { left: 42, top: 64 }]]);
+    await createStarted.promise;
+    assert.deepEqual(calls, [['commit'], ['enter'], ['create', { left: 42, top: 64 }]]);
 
     finishCreate('text-1');
     await ended;
     assert.deepEqual(calls, [
+        ['commit'],
+        ['enter'],
         ['create', { left: 42, top: 64 }],
         ['edit', 'text-1'],
     ]);
@@ -96,6 +123,9 @@ test('Existing Text clicks use public classification and explicit retarget polic
         getEditingSession: () => ({ annotationId: 'text-1', text: 'First' }),
         cancelEditing: async () => {
             calls.push(['cancel']);
+        },
+        enter: async () => {
+            calls.push(['enter']);
         },
         beginEditing: async (id: string) => {
             calls.push(['edit', id]);
@@ -122,5 +152,5 @@ test('Existing Text clicks use public classification and explicit retarget polic
     assert.ok(claim);
     await binding.end(claim.gesture, sample(target));
 
-    assert.deepEqual(calls, [['cancel'], ['edit', 'text-2']]);
+    assert.deepEqual(calls, [['cancel'], ['enter'], ['edit', 'text-2']]);
 });

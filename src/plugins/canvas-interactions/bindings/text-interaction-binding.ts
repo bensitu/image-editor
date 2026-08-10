@@ -109,7 +109,7 @@ export class TextInteractionBinding implements CanvasInteractionBinding<TextGest
             left: gesture.point.x,
             top: gesture.point.y,
         });
-        if (!gesture.context.isCurrent()) return;
+        if (!gesture.context.canResume(this.toolId)) return;
         await this.text().beginEditing(id);
     }
 
@@ -135,6 +135,8 @@ export class TextInteractionBinding implements CanvasInteractionBinding<TextGest
         if (!current || current.annotationId === nextId) return true;
         if (this.retargetEditing === 'commit') await text.commitEditing();
         else await text.cancelEditing();
+        if (!gesture.context.canResume(this.toolId)) return false;
+        await text.enter();
         return gesture.context.canResume(this.toolId);
     }
 
