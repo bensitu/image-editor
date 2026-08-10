@@ -295,6 +295,12 @@ export class EditorRuntime {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "disposePromise", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "shouldSuppressSaveState", {
             enumerable: true,
             configurable: true,

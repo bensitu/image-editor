@@ -73,6 +73,7 @@ export class EditorActionAccessFactory {
             isDisposed: () => runtime.isDisposed,
             canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             getActiveStateRestoreOperation: () => runtime.activeStateRestoreOperation,
+            registerStateRestoreAborter: (abort) => runtime.operationGuard.registerDisposeAborter(abort),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
             getOriginalImage: () => runtime.originalImage,
             setOriginalImage: (image) => {

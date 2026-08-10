@@ -8,9 +8,7 @@ export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_
 export function isSupportedImageDataUrl(value) {
     if (typeof value !== 'string')
         return false;
-    if (!value.toLowerCase().startsWith('data:image/'))
-        return false;
-    const match = /^data:(image\/[^;,]+)(?:[;,])/i.exec(value);
+    const match = /^data:(image\/[^;,]+);base64,/i.exec(value);
     if (!match)
         return false;
     return SUPPORTED_IMAGE_MIME_TYPES.has(match[1].toLowerCase());

@@ -29,16 +29,17 @@
 export declare const SUPPORTED_IMAGE_EXTENSIONS: Record<string, string>;
 export declare const SUPPORTED_IMAGE_MIME_TYPES: Set<string>;
 /**
- * Return true only for image data URLs whose MIME type is accepted by the
- * upload path. This keeps public `loadImage(dataUrl)` validation aligned
+ * Return true only for Base64 image data URLs whose MIME type is accepted by
+ * the upload path. This keeps public `loadImage(dataUrl)` validation aligned
  * with file-input validation and rejects unsupported image containers such as
  * SVG before any canvas or lifecycle state is touched.
  *
  * The data URL scheme and MIME type are matched case-insensitively, matching
- * browser URL parsing behavior for equivalent `data:image/...` prefixes.
+ * browser URL parsing behavior for equivalent `data:image/...;base64,` prefixes.
  *
  * @param value - Candidate data URL.
- * @returns True when the data URL carries a supported image MIME type.
+ * @returns True when the data URL carries a supported image MIME type and
+ *          explicitly uses Base64 encoding.
  */
 export declare function isSupportedImageDataUrl(value: unknown): value is string;
 /**

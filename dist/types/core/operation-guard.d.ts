@@ -66,7 +66,7 @@ export declare class OperationGuard {
     private isLoadingActive;
     private currentOperationName;
     private currentOperationToken;
-    private readonly animationAborters;
+    private readonly disposeAborters;
     /**
      * Returns `true` while an animation block is open (between
      * {@link beginAnimation} and {@link endAnimation}).
@@ -118,7 +118,8 @@ export declare class OperationGuard {
      * Idempotent: calling twice is a no-op.
      */
     markDisposed(): void;
-    registerAnimationAborter(abort: () => void): () => void;
+    /** Register in-flight work that must be cancelled when the editor is disposed. */
+    registerDisposeAborter(abort: () => void): () => void;
     /**
      * Mark a transactional image load as active.
      */

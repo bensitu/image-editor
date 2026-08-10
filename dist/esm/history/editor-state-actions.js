@@ -6,6 +6,7 @@ import { syncAnnotationRuntimeStates } from '../annotation/annotation-style.js';
 import { attachTextEditingHandlersToAnnotations, } from '../annotation/text-controller.js';
 import { Command } from './history-manager.js';
 export const TRUSTED_STATE_RESTORE = Symbol('ImageEditorTrustedStateRestore');
+const SILENT_STATE_RESTORE = Symbol('ImageEditorSilentStateRestore');
 export async function loadFromStateAction(access, jsonString, options) {
     var _a, _b, _c, _d;
     const canvas = access.getCanvas();
@@ -15,11 +16,16 @@ export async function loadFromStateAction(access, jsonString, options) {
         return;
     if (!access.canRunIdleOperation('loadFromState', options))
         return;
+    const isTrustedRestore = isTrustedStateRestoreOptions(options);
+    const isSilentRestore = isSilentStateRestoreOptions(options);
     const activeRestoreOperation = access.getActiveStateRestoreOperation();
     const context = access.buildCallbackContext(activeRestoreOperation !== null && activeRestoreOperation !== void 0 ? activeRestoreOperation : 'loadFromState', activeRestoreOperation === 'undo' || activeRestoreOperation === 'redo');
     const previousImage = access.getOriginalImage();
     const previousMaskSignature = access.getMaskCollectionSignature();
     const previousAnnotationSignature = access.getAnnotationCollectionSignature();
+    const previousLastSnapshot = access.getLastSnapshot();
+    let beforeSnapshot = null;
+    let mutationStarted = false;
     try {
         const restoredState = await loadFromStateImpl({
             canvas,
@@ -27,7 +33,16 @@ export async function loadFromStateAction(access, jsonString, options) {
             setCanvasSize: (widthPx, heightPx) => access.setCanvasSize(widthPx, heightPx),
             maxCanvasPixels: access.getOptions().maxExportPixels,
             maxRestoreCanvasDimension: access.getOptions().maxExportDimension,
-            restoreTrustLevel: isTrustedStateRestoreOptions(options) ? 'trusted' : 'public',
+            maxInputBytes: access.getOptions().maxInputBytes,
+            maxInputPixels: access.getOptions().maxInputPixels,
+            restoreTrustLevel: isTrustedRestore ? 'trusted' : 'public',
+            registerAborter: (abort) => access.registerStateRestoreAborter(abort),
+            beforeMutation: isTrustedRestore
+                ? undefined
+                : () => {
+                    beforeSnapshot = captureSnapshotAction(access);
+                    mutationStarted = true;
+                },
         });
         if (access.isDisposed() || !access.getCanvas())
             return;
@@ -84,25 +99,50 @@ export async function loadFromStateAction(access, jsonString, options) {
         access.updateMaskList();
         access.updateAnnotationList();
         access.updateUi();
-        if (previousImage && previousImage !== access.getOriginalImage()) {
-            access.emitImageCleared(previousImage, context);
+        if (!isSilentRestore) {
+            if (previousImage && previousImage !== access.getOriginalImage()) {
+                access.emitImageCleared(previousImage, context);
+            }
+            if (previousMaskSignature !== access.getMaskCollectionSignature()) {
+                access.emitMasksChanged(context);
+            }
+            if (previousAnnotationSignature !== access.getAnnotationCollectionSignature()) {
+                access.emitAnnotationsChanged(context);
+            }
+            access.emitImageChanged(context);
         }
-        if (previousMaskSignature !== access.getMaskCollectionSignature()) {
-            access.emitMasksChanged(context);
-        }
-        if (previousAnnotationSignature !== access.getAnnotationCollectionSignature()) {
-            access.emitAnnotationsChanged(context);
-        }
-        access.emitImageChanged(context);
-        restoreActiveSelection(access, restoredState, editorState, context);
+        restoreActiveSelection(access, restoredState, editorState, context, !isSilentRestore);
     }
     catch (error) {
-        reportError(access.getOptions(), error, 'Failed to restore canvas state.');
+        if (!isTrustedRestore &&
+            !access.isDisposed() &&
+            access.getCanvas() &&
+            mutationStarted &&
+            beforeSnapshot) {
+            try {
+                await loadFromStateAction(access, beforeSnapshot, {
+                    ...(options !== null && options !== void 0 ? options : {}),
+                    [TRUSTED_STATE_RESTORE]: true,
+                    [SILENT_STATE_RESTORE]: true,
+                });
+                access.setLastSnapshot(previousLastSnapshot);
+                access.updateUi();
+            }
+            catch (rollbackError) {
+                reportWarning(access.getOptions(), rollbackError, 'Failed to roll back canvas state restoration.');
+            }
+        }
+        if (!isSilentRestore) {
+            reportError(access.getOptions(), error, 'Failed to restore canvas state.');
+        }
         throw error;
     }
 }
 function isTrustedStateRestoreOptions(options) {
     return !!(options === null || options === void 0 ? void 0 : options[TRUSTED_STATE_RESTORE]);
+}
+function isSilentStateRestoreOptions(options) {
+    return !!(options === null || options === void 0 ? void 0 : options[SILENT_STATE_RESTORE]);
 }
 export function saveStateAction(access, options) {
     var _a, _b, _c;
@@ -165,27 +205,38 @@ export function captureSnapshotAction(access) {
         imageFilterConfig: access.getCurrentImageFilterConfig(),
     });
 }
-function restoreActiveSelection(access, restoredState, editorState, context) {
+function restoreActiveSelection(access, restoredState, editorState, context, notifySelectionChange) {
     const canvas = access.getLiveCanvas('loadFromState');
     const activeMaskId = editorState === null || editorState === void 0 ? void 0 : editorState.activeMaskId;
     const activeAnnotationId = editorState === null || editorState === void 0 ? void 0 : editorState.activeAnnotationId;
     if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'mask' && typeof activeMaskId === 'number') {
         const activeMask = restoredState.masks.find((maskObject) => maskObject.maskId === activeMaskId);
         if (activeMask) {
-            access.withSelectionChangeContext(context, () => {
-                canvas.setActiveObject(activeMask);
-                access.handleSelectionChanged([activeMask]);
-            });
+            canvas.setActiveObject(activeMask);
+            if (notifySelectionChange) {
+                access.withSelectionChangeContext(context, () => {
+                    access.handleSelectionChanged([activeMask]);
+                });
+            }
+            else {
+                access.showLabelForMask(activeMask);
+                access.updateMaskListSelection(activeMask);
+            }
         }
     }
     else if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'annotation' &&
         typeof activeAnnotationId === 'number') {
         const activeAnnotation = restoredState.annotations.find((annotation) => annotation.annotationId === activeAnnotationId);
         if (activeAnnotation) {
-            access.withSelectionChangeContext(context, () => {
-                canvas.setActiveObject(activeAnnotation);
-                access.handleSelectionChanged([activeAnnotation]);
-            });
+            canvas.setActiveObject(activeAnnotation);
+            if (notifySelectionChange) {
+                access.withSelectionChangeContext(context, () => {
+                    access.handleSelectionChanged([activeAnnotation]);
+                });
+            }
+            else {
+                access.updateAnnotationListSelection(activeAnnotation);
+            }
         }
     }
 }

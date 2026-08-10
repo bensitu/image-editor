@@ -280,6 +280,14 @@ export interface LoadFromStateInput {
     maxSnapshotObjects?: number;
     /** Upper bound for a public snapshot canvas width or height. */
     maxRestoreCanvasDimension?: number;
+    /** Upper bound for each Base64 image payload in a public snapshot. */
+    maxInputBytes?: number;
+    /** Upper bound for each parseable source image in a public snapshot. */
+    maxInputPixels?: number;
+    /** Called after validation and immediately before live canvas mutation begins. */
+    beforeMutation?: () => void;
+    /** Registers cancellation for disposal and returns an unregister callback. */
+    registerAborter?: (abort: () => void) => () => void;
 }
 /**
  * Output of {@link loadFromState}. The state serializer performs the

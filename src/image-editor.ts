@@ -2103,7 +2103,8 @@ export class ImageEditor {
         await runBusyOperation(
             this.actionAccessFactory.buildBusyOperationAccess(),
             'loadFromState',
-            async (_context, token) => {
+            async (context, token) => {
+                void context;
                 await this.loadFromStateInternal(jsonString, this.withOperationTokenOptions(token));
             },
         );

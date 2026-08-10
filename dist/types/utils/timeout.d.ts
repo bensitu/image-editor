@@ -38,9 +38,10 @@
  *
  * ## Non-goals
  *
- * - The helper does NOT cancel the wrapped promise. JavaScript promises
- *   have no built-in cancellation; the caller is responsible for any
- *   cleanup of the underlying work (e.g. clearing an `<img>.src`).
+ * - The helper does not inherently cancel the wrapped promise. JavaScript
+ *   promises have no built-in cancellation; callers may supply `onTimeout`
+ *   to cancel or clean up the underlying work (for example, aborting a
+ *   signal or clearing an `<img>.src`).
  * - The helper does NOT validate `ms`. Callers pass the resolved
  *   `imageLoadTimeoutMs` from `default-options.ts`, which is already
  *   coerced to a finite non-negative number.
@@ -75,6 +76,9 @@
  *   responsible for coercion.
  * @param label - Human-readable step label embedded in the timeout error message
  *   (e.g. `'image decode'`, `'FabricImage.fromURL'`).
+ * @param onTimeout - Optional cancellation or cleanup callback invoked before
+ *   the timeout error rejects the returned promise. Callback errors are ignored
+ *   so cleanup cannot replace the timeout failure.
  *
  * @returns A promise that resolves to the wrapped promise's value, or
  *   rejects with the wrapped promise's reason, or rejects with

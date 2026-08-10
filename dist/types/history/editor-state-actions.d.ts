@@ -20,6 +20,7 @@ export interface EditorStateActionAccess {
     isDisposed(): boolean;
     canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     getActiveStateRestoreOperation(): ImageEditorOperation | null;
+    registerStateRestoreAborter(abort: () => void): () => void;
     buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
     getOriginalImage(): BaseImageObject | null;
     setOriginalImage(image: BaseImageObject | null): void;
