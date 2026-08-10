@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Roll back failed public state restoration instead of leaving partially restored canvas state.
 - Prevent overlapping public state restoration from interleaving changes on the live canvas.
 - Prevent timed-out state restoration from applying stale changes after the operation fails.
+- Allow `disposeAsync()` to await Fabric canvas cleanup previously started by `dispose()`.
 
 ## [2.9.0] - 2026-07-11
 

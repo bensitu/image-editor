@@ -49,7 +49,8 @@ new ImageEditor(options?: ImageEditorOptions) // UMD: reads globalThis.fabric
 `dispose()` is synchronous and starts Fabric canvas teardown. If an integration
 must immediately create another editor on the same `<canvas>` element, wait for
 the next microtask or animation frame before reusing that element, or call
-`await disposeAsync()`.
+`await disposeAsync()`. A later `disposeAsync()` waits for the same pending
+teardown even when `dispose()` was called first.
 
 ## Image Loading and Layout
 

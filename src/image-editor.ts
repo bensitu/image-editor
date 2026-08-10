@@ -2864,12 +2864,20 @@ export class ImageEditor {
     }
 
     private disposeInternal(waitForCanvasDispose: boolean): Promise<void> | void {
-        // (1) Idempotent: a second `dispose` is a no-op.
+        // (1) Repeated synchronous disposal is a no-op. Async callers reuse
+        // the Promise for the cleanup that the first call started.
         if (this.runtime.isDisposed) {
-            return waitForCanvasDispose ? Promise.resolve() : undefined;
+            return waitForCanvasDispose
+                ? (this.runtime.disposePromise ?? Promise.resolve())
+                : undefined;
         }
         const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.runtime.originalImage;
+        let resolveCanvasDispose = (): void => undefined;
+        const canvasDispose = new Promise<void>((resolve) => {
+            resolveCanvasDispose = resolve;
+        });
+        this.runtime.disposePromise = canvasDispose;
 
         // (2) Signal in-flight animations and bound handlers to stop
         //     touching the canvas. Set BEFORE draining the queue so the
@@ -2938,9 +2946,7 @@ export class ImageEditor {
             },
         );
 
-        const canvasDispose = this.runtime.canvas
-            ? safelyDisposeCanvas(this.runtime.canvas)
-            : Promise.resolve();
+        void safelyDisposeCanvas(this.runtime.canvas).then(resolveCanvasDispose);
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);

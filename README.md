@@ -287,6 +287,8 @@ directly.
   as read-only from integration code.
 - `loadImage()`, `loadFromState()`, crop, merge, and overlay import are
   transactional: failures restore the previous canvas state where applicable.
+- `dispose()` starts teardown synchronously; `disposeAsync()` waits for that
+  same teardown even when called after `dispose()`.
 - Lifecycle callback exceptions are caught and logged so host callback failures
   do not replace the editor operation.
 
