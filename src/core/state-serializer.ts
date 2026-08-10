@@ -63,6 +63,7 @@ import {
 } from './image-filter-config.js';
 import { isSupportedImageDataUrl } from '../utils/file.js';
 import { withTimeout } from '../utils/timeout.js';
+import { assertImageDataUrlInputBudget } from '../image/image-input-budget.js';
 
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
@@ -70,6 +71,8 @@ const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
 const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
 const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
 const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
+const DEFAULT_MAX_RESTORE_IMAGE_BYTES = 50000000;
+const DEFAULT_MAX_RESTORE_IMAGE_PIXELS = 50000000;
 const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
@@ -697,6 +700,10 @@ export interface LoadFromStateInput {
     maxSnapshotObjects?: number;
     /** Upper bound for a public snapshot canvas width or height. */
     maxRestoreCanvasDimension?: number;
+    /** Upper bound for each Base64 image payload in a public snapshot. */
+    maxInputBytes?: number;
+    /** Upper bound for each parseable source image in a public snapshot. */
+    maxInputPixels?: number;
 }
 
 /**
@@ -818,6 +825,8 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     if (isPublicRestore) {
         validatePublicSnapshot(json, {
             maxSnapshotObjects: input.maxSnapshotObjects ?? DEFAULT_MAX_SNAPSHOT_OBJECTS,
+            maxInputBytes: input.maxInputBytes ?? DEFAULT_MAX_RESTORE_IMAGE_BYTES,
+            maxInputPixels: input.maxInputPixels ?? DEFAULT_MAX_RESTORE_IMAGE_PIXELS,
         });
     }
 
@@ -1007,6 +1016,8 @@ function assertSnapshotByteSizeAllowed(jsonString: string, maxSnapshotBytes: num
 
 interface PublicSnapshotValidationContext {
     maxSnapshotObjects: number;
+    maxInputBytes: number;
+    maxInputPixels: number;
     objectCount: number;
     seen: WeakSet<object>;
     countedFabricObjects: WeakSet<object>;
@@ -1018,7 +1029,14 @@ interface PublicSnapshotValueValidationOptions {
     arrayEntriesAreFabricObjects: boolean;
 }
 
-function validatePublicSnapshot(json: CanvasJson, options: { maxSnapshotObjects: number }): void {
+function validatePublicSnapshot(
+    json: CanvasJson,
+    options: {
+        maxSnapshotObjects: number;
+        maxInputBytes: number;
+        maxInputPixels: number;
+    },
+): void {
     if (json.objects !== undefined && !Array.isArray(json.objects)) {
         throw new StateRestoreError('loadFromState: snapshot objects must be an array.');
     }
@@ -1036,6 +1054,14 @@ function validatePublicSnapshot(json: CanvasJson, options: { maxSnapshotObjects:
 
     const context: PublicSnapshotValidationContext = {
         maxSnapshotObjects: safeMaxSnapshotObjects,
+        maxInputBytes: toPositiveIntegerLimit(
+            options.maxInputBytes,
+            DEFAULT_MAX_RESTORE_IMAGE_BYTES,
+        ),
+        maxInputPixels: toPositiveIntegerLimit(
+            options.maxInputPixels,
+            DEFAULT_MAX_RESTORE_IMAGE_PIXELS,
+        ),
         objectCount: 0,
         seen: new WeakSet(),
         countedFabricObjects: new WeakSet(),
@@ -1119,15 +1145,8 @@ function validatePublicSnapshotValue(
 
     for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
         const nestedPath = path ? `${path}.${key}` : key;
-        if (
-            typeof nestedValue === 'string' &&
-            nestedValue.trim() !== '' &&
-            isPublicRestoreImageSourceKey(key) &&
-            !isSupportedImageDataUrl(nestedValue)
-        ) {
-            throw new StateRestoreError(
-                `loadFromState: snapshot field "${nestedPath}" must use a supported data URL source.`,
-            );
+        if (typeof nestedValue === 'string' && isPublicRestoreImageSourceKey(key)) {
+            assertPublicRestoreImageSourceAllowed(nestedValue, nestedPath, context);
         }
         validatePublicSnapshotValue(
             nestedValue,
@@ -1142,6 +1161,28 @@ function validatePublicSnapshotValue(
             },
             context,
             depth + 1,
+        );
+    }
+}
+
+function assertPublicRestoreImageSourceAllowed(
+    source: string,
+    path: string,
+    context: PublicSnapshotValidationContext,
+): void {
+    if (!isSupportedImageDataUrl(source)) {
+        throw new StateRestoreError(
+            `loadFromState: snapshot field "${path}" must use a supported data URL source.`,
+        );
+    }
+
+    try {
+        assertImageDataUrlInputBudget(source, context);
+    } catch (error) {
+        const reason = error instanceof Error ? ` ${error.message}` : '';
+        throw new StateRestoreError(
+            `loadFromState: snapshot field "${path}" exceeds configured image input limits.${reason}`,
+            error,
         );
     }
 }

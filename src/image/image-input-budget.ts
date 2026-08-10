@@ -9,7 +9,6 @@
  */
 
 import { ImageDecodeError } from '../core/errors.js';
-import type { ResolvedOptions } from '../core/public-types.js';
 
 const HEADER_PROBE_BYTES = 256 * 1024;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
@@ -18,6 +17,11 @@ const JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH = 7;
 export interface ImageHeaderDimensions {
     readonly width: number;
     readonly height: number;
+}
+
+export interface ImageInputBudgetOptions {
+    readonly maxInputBytes: number;
+    readonly maxInputPixels: number;
 }
 
 function hasPositiveDimensions(width: number, height: number): boolean {
@@ -326,7 +330,10 @@ function assertInputPixelBudget(
     }
 }
 
-export function assertImageDataUrlInputBudget(dataUrl: string, options: ResolvedOptions): void {
+export function assertImageDataUrlInputBudget(
+    dataUrl: string,
+    options: ImageInputBudgetOptions,
+): void {
     assertInputByteBudget(estimateBase64PayloadBytes(dataUrl), options.maxInputBytes);
 
     const headerBytes = decodeBase64Prefix(dataUrl, HEADER_PROBE_BYTES);
@@ -338,7 +345,7 @@ export function assertImageDataUrlInputBudget(dataUrl: string, options: Resolved
 
 export async function assertImageFileInputBudget(
     file: File,
-    options: ResolvedOptions,
+    options: ImageInputBudgetOptions,
 ): Promise<void> {
     assertInputByteBudget(file.size, options.maxInputBytes);
     const probeBlob = typeof file.slice === 'function' ? file.slice(0, HEADER_PROBE_BYTES) : file;

@@ -127,6 +127,8 @@ export async function loadFromStateAction(
             setCanvasSize: (widthPx, heightPx) => access.setCanvasSize(widthPx, heightPx),
             maxCanvasPixels: access.getOptions().maxExportPixels,
             maxRestoreCanvasDimension: access.getOptions().maxExportDimension,
+            maxInputBytes: access.getOptions().maxInputBytes,
+            maxInputPixels: access.getOptions().maxInputPixels,
             restoreTrustLevel: isTrustedStateRestoreOptions(options) ? 'trusted' : 'public',
         });
 

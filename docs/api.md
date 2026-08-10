@@ -319,9 +319,10 @@ State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
 | `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed. |
 | `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed. |
 
-`loadFromState()` is designed for snapshots produced by this editor's
-`saveState()`. If snapshots come from external storage or user-controlled input,
-validate or reject untrusted JSON before passing it to the editor.
+`loadFromState()` applies structural and resource validation before Fabric
+deserialization, including `maxInputBytes` and `maxInputPixels` for embedded
+image resources. It remains intended for compatible editor snapshots; parsing
+arbitrary external JSON successfully does not make it a valid editor state.
 
 ## Overlay Persistence
 

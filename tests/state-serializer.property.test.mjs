@@ -48,6 +48,16 @@ const { StateRestoreError } = await import('../src/core/errors.ts');
 
 const VALID_IMAGE_SRC = 'data:image/png;base64,AAAA';
 
+function pngDataUrl(width, height) {
+    const bytes = new Uint8Array(24);
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+    bytes.set([0x00, 0x00, 0x00, 0x0d], 8);
+    bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+    new DataView(bytes.buffer).setUint32(16, width, false);
+    new DataView(bytes.buffer).setUint32(20, height, false);
+    return `data:image/png;base64,${Buffer.from(bytes).toString('base64')}`;
+}
+
 // ─── Mock Fabric canvas ─────────────────────────────────────────────────────
 
 /**
@@ -736,6 +746,48 @@ test('public loadFromState accepts supported data URL image sources', async () =
 
     assert.ok(result.originalImage);
     assert.equal(result.originalImage.src, VALID_IMAGE_SRC);
+});
+
+test('public loadFromState enforces configured limits for embedded images', async () => {
+    const cases = [
+        {
+            source: VALID_IMAGE_SRC,
+            limits: { maxInputBytes: 2, maxInputPixels: 50000000 },
+            expected: /maxInputBytes/,
+        },
+        {
+            source: pngDataUrl(100, 100),
+            limits: { maxInputBytes: 1024, maxInputPixels: 9999 },
+            expected: /maxInputPixels/,
+        },
+    ];
+
+    for (const { source, limits, expected } of cases) {
+        const canvas = new MockCanvas();
+        let loadCount = 0;
+        canvas.loadFromJSON = async () => {
+            loadCount += 1;
+            return canvas;
+        };
+
+        await assert.rejects(
+            () =>
+                loadFromState(
+                    makePublicRestoreInput(
+                        canvas,
+                        {
+                            version: '7.0.0',
+                            width: 320,
+                            height: 240,
+                            objects: [{ type: 'image', src: source }],
+                        },
+                        limits,
+                    ),
+                ),
+            (error) => error instanceof StateRestoreError && expected.test(error.message),
+        );
+        assert.equal(loadCount, 0);
+    }
 });
 
 test('trusted loadFromState keeps internal restores working with unvalidated sources', async () => {
