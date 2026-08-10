@@ -6,6 +6,10 @@
 
 import type { Disposable } from '../../sdk/index.js';
 
+interface SynchronousDisposable {
+    dispose(): void;
+}
+
 export class CanvasPropertyLease<
     TObject extends object,
     TKey extends keyof TObject,
@@ -32,10 +36,10 @@ export class CanvasPropertyLease<
 }
 
 export class CanvasPropertyLeaseGroup implements Disposable {
-    private readonly leases: Disposable[] = [];
+    private readonly leases: SynchronousDisposable[] = [];
     private active = true;
 
-    add<TDisposable extends Disposable>(lease: TDisposable): TDisposable {
+    add<TDisposable extends SynchronousDisposable>(lease: TDisposable): TDisposable {
         if (!this.active) {
             lease.dispose();
             throw new Error('[ImageEditor] Cannot add a Canvas property lease after release.');
