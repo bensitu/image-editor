@@ -570,6 +570,120 @@ test('history and state APIs are guarded while another operation is active', asy
     }
 });
 
+test('overlapping public state restores cannot interleave canvas changes', async () => {
+    const busyEvents = [];
+    const editor = makeEditor({
+        onBusyChange: (isBusy, context) => busyEvents.push([isBusy, context.operation]),
+    });
+    const canvas = requireEditorCanvas(editor);
+
+    setCurrentRotation(editor, 45);
+    const firstSnapshot = editor.captureSnapshotInternal();
+    setCurrentRotation(editor, 90);
+    const secondSnapshot = editor.captureSnapshotInternal();
+    setCurrentRotation(editor, 0);
+
+    const originalLoadFromJSON = canvas.loadFromJSON.bind(canvas);
+    let releaseFirstRestore;
+    const firstRestoreGate = new Promise((resolve) => {
+        releaseFirstRestore = resolve;
+    });
+    let loadCount = 0;
+    canvas.loadFromJSON = async (json) => {
+        loadCount += 1;
+        if (loadCount === 1) await firstRestoreGate;
+        return originalLoadFromJSON(json);
+    };
+
+    const firstRestore = editor.loadFromState(firstSnapshot);
+    await Promise.resolve();
+
+    assert.equal(editor.isBusy(), true);
+    assert.equal(editor.isProcessing(), true);
+    await editor.loadFromState(secondSnapshot);
+    assert.equal(loadCount, 1);
+
+    releaseFirstRestore();
+    await firstRestore;
+
+    assert.equal(getCurrentRotation(editor), 45);
+    assert.equal(editor.isBusy(), false);
+    assert.equal(editor.isProcessing(), false);
+    assert.deepEqual(busyEvents, [
+        [true, 'loadFromState'],
+        [false, 'loadFromState'],
+    ]);
+});
+
+test('a timed-out state restore cannot overwrite a newer successful state', async () => {
+    const editor = makeEditor();
+    const canvas = requireEditorCanvas(editor);
+
+    setCurrentRotation(editor, 45);
+    const staleSnapshot = editor.captureSnapshotInternal();
+    setCurrentRotation(editor, 90);
+    const newerSnapshot = editor.captureSnapshotInternal();
+    setCurrentRotation(editor, 0);
+
+    const originalLoadFromJSON = canvas.loadFromJSON.bind(canvas);
+    let releaseStaleDeserialize;
+    let staleSignal;
+    let loadCount = 0;
+    canvas.loadFromJSON = (json, _reviver, options = {}) => {
+        loadCount += 1;
+        if (loadCount !== 1) return originalLoadFromJSON(json);
+
+        staleSignal = options.signal;
+        const pendingDeserialize = new Promise((resolve) => {
+            releaseStaleDeserialize = resolve;
+        });
+        return pendingDeserialize.then(() => {
+            if (staleSignal?.aborted) {
+                throw staleSignal.reason ?? new Error('State restoration was aborted.');
+            }
+            return originalLoadFromJSON(json);
+        });
+    };
+
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const timers = [];
+    globalThis.setTimeout = (callback, ms) => {
+        const timer = { callback, ms, cleared: false };
+        timers.push(timer);
+        return timer;
+    };
+    globalThis.clearTimeout = (timer) => {
+        if (timer) timer.cleared = true;
+    };
+
+    try {
+        const staleRestore = editor.loadFromState(staleSnapshot);
+        assert.equal(timers.length, 1);
+        assert.equal(timers[0].ms, 30000);
+
+        timers[0].callback();
+        await assert.rejects(staleRestore, /canvas\.loadFromJSON timed out/);
+
+        assert.equal(staleSignal?.aborted, true);
+        assert.equal(getCurrentRotation(editor), 0);
+        assert.equal(editor.isProcessing(), false);
+
+        await editor.loadFromState(newerSnapshot);
+        assert.equal(getCurrentRotation(editor), 90);
+
+        releaseStaleDeserialize();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.equal(getCurrentRotation(editor), 90);
+        assert.equal(editor.isProcessing(), false);
+    } finally {
+        globalThis.setTimeout = originalSetTimeout;
+        globalThis.clearTimeout = originalClearTimeout;
+    }
+});
+
 test('merge load preserves the pre-merge displayed image geometry as the new baseline', async () => {
     const editor = makeEditor(
         {

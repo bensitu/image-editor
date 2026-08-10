@@ -618,19 +618,28 @@ function triggerFileDownload(context, file) {
     var _a;
     const ownerDocument = getCanvasDocument(context.canvas);
     const objectUrl = URL.createObjectURL(file);
-    const link = ownerDocument.createElement('a');
-    link.download = file.name;
-    link.href = objectUrl;
-    const body = (_a = ownerDocument.body) !== null && _a !== void 0 ? _a : ownerDocument.documentElement;
-    if (!body)
-        throw new Error('Document body is unavailable for download trigger.');
-    body.appendChild(link);
+    let downloadSetupCompleted = false;
     try {
-        link.click();
+        const link = ownerDocument.createElement('a');
+        link.download = file.name;
+        link.href = objectUrl;
+        const body = (_a = ownerDocument.body) !== null && _a !== void 0 ? _a : ownerDocument.documentElement;
+        if (!body)
+            throw new Error('Document body is unavailable for download trigger.');
+        body.appendChild(link);
+        try {
+            link.click();
+        }
+        finally {
+            body.removeChild(link);
+        }
+        scheduleObjectUrlRevoke(objectUrl);
+        downloadSetupCompleted = true;
     }
     finally {
-        body.removeChild(link);
-        scheduleObjectUrlRevoke(objectUrl);
+        if (!downloadSetupCompleted) {
+            safeRevokeObjectUrl(objectUrl);
+        }
     }
 }
 function scheduleObjectUrlRevoke(objectUrl) {

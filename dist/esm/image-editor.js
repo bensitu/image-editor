@@ -26,6 +26,7 @@ import { applyCanvasDimensions } from './image/layout-manager.js';
 import { TransformController } from './image/transform-controller.js';
 import { flipHorizontalAction, flipVerticalAction, resetImageTransformAction, rotateImageAction, scaleImageAction, } from './image/transform-actions.js';
 import { createEditorRuntimeWiring, } from './runtime/editor-facade-wiring.js';
+import { runBusyOperation } from './runtime/editor-operation-runner.js';
 import { EditorRuntime } from './runtime/editor-runtime.js';
 import { handleObjectModified as handleObjectModifiedImpl, handleObjectMovingScalingRotating as handleObjectMovingScalingRotatingImpl, handleSelectionChanged as handleSelectionChangedImpl, } from './selection/editor-selection-controller.js';
 import { deleteSelectedEditableObjects, moveSelectedEditableObject as moveSelectedEditableObjectImpl, removeAllAnnotationsAction, removeSelectedAnnotationAction, updateAnnotationAction, updateSelectedAnnotationAction, } from './overlay/editable-object-actions.js';
@@ -628,9 +629,14 @@ export class ImageEditor {
     }
     withInternalOperationOptions(token, options = {}) {
         return {
+            ...this.withOperationTokenOptions(token, options),
+            [TRUSTED_STATE_RESTORE]: true,
+        };
+    }
+    withOperationTokenOptions(token, options = {}) {
+        return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
-            [TRUSTED_STATE_RESTORE]: true,
         };
     }
     withAnimationQueueBypass(options = {}) {
@@ -1285,7 +1291,14 @@ export class ImageEditor {
         this.updateUi();
     }
     async loadFromState(jsonString) {
-        return this.loadFromStateInternal(jsonString);
+        if (!jsonString || !this.runtime.canvas || this.runtime.isDisposed)
+            return;
+        if (!this.canRunIdleOperation('loadFromState'))
+            return;
+        await runBusyOperation(this.actionAccessFactory.buildBusyOperationAccess(), 'loadFromState', async (context, token) => {
+            void context;
+            await this.loadFromStateInternal(jsonString, this.withOperationTokenOptions(token));
+        });
     }
     async loadFromStateInternal(jsonString, options) {
         await loadFromStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), jsonString, options);
@@ -1757,16 +1770,23 @@ export class ImageEditor {
         await this.disposeInternal(true);
     }
     disposeInternal(waitForCanvasDispose) {
-        var _a;
+        var _a, _b;
         if (this.runtime.isDisposed) {
-            return waitForCanvasDispose ? Promise.resolve() : undefined;
+            return waitForCanvasDispose
+                ? ((_a = this.runtime.disposePromise) !== null && _a !== void 0 ? _a : Promise.resolve())
+                : undefined;
         }
         const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.runtime.originalImage;
+        let resolveCanvasDispose = () => undefined;
+        const canvasDispose = new Promise((resolve) => {
+            resolveCanvasDispose = resolve;
+        });
+        this.runtime.disposePromise = canvasDispose;
         this.runtime.isDisposed = true;
         this.runtime.operationGuard.markDisposed();
         this.runtime.animQueue.clear();
-        (_a = this.runtime.domBindings) === null || _a === void 0 ? void 0 : _a.removeAll();
+        (_b = this.runtime.domBindings) === null || _b === void 0 ? void 0 : _b.removeAll();
         safelyRemoveKeyboardListener(this.runtime.keyboardDocument, this.runtime.keyboardHandler);
         this.runtime.keyboardHandler = null;
         this.runtime.keyboardDocument = null;
@@ -1786,9 +1806,7 @@ export class ImageEditor {
         safelyExitActiveSession(this.runtime.shapeSession !== null, this.runtime.canvas, () => exitShapeModeImpl(this.buildShapeControllerContext()), () => {
             this.runtime.shapeSession = null;
         });
-        const canvasDispose = this.runtime.canvas
-            ? safelyDisposeCanvas(this.runtime.canvas)
-            : Promise.resolve();
+        void safelyDisposeCanvas(this.runtime.canvas).then(resolveCanvasDispose);
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);

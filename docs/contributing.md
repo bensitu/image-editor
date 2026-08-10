@@ -16,7 +16,13 @@ build:umd` in order, emitting:
 - `dist/esm/index.js` and the rest of the decomposed source tree
 - `dist/cjs/index.cjs`
 - `dist/types/index.d.ts`
-- `dist/umd/image-editor.umd.js`
+- `dist/umd/image-editor.umd.js` and its source map for readable debugging
+- `dist/umd/image-editor.umd.min.js` and its source map for production/CDN use
+
+Published JavaScript source maps embed their source content so package
+debugging does not depend on the repository `src/` tree. Declaration maps
+remain disabled; the package publishes its declaration files directly under
+`dist/types/`.
 
 ## Node Tests
 
@@ -81,10 +87,11 @@ npm run test:e2e:all
 npm audit --audit-level=high
 ```
 
-`npm run release:gate` validates generated artifacts, bundle shape, declaration
-output, and package export metadata. Run it only after `npm run build`; the
-convenience command `npm run release:check` runs build, package linting, the
-release gate, and `npm pack --dry-run` in order.
+`npm run release:gate` validates generated artifacts, both UMD bundles and
+their source maps, bundle shape, declaration output, package entry points, and
+the minified UMD targets used by the CDN metadata. Run it only after
+`npm run build`; the convenience command `npm run release:check` runs build,
+package linting, the release gate, and `npm pack --dry-run` in order.
 
 `npm run ci` combines format, lint, typecheck, tests, and `release:check`.
 Playwright visual tests are kept outside the default CI command until they are

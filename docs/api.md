@@ -46,23 +46,30 @@ new ImageEditor(options?: ImageEditorOptions) // UMD: reads globalThis.fabric
 | `dispose()`         | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent.                           |
 | `disposeAsync()`    | Same teardown as `dispose()`, resolving after Fabric canvas disposal settles. Idempotent.                      |
 
+`init()` binds the DOM and initializes the Fabric canvas synchronously. When
+`initialImageBase64` is configured, `init()` starts its image load
+asynchronously and returns before that load necessarily completes. Use
+`onImageLoaded` for image-ready work; `onBusyChange` and `isProcessing()` expose
+the in-progress lifecycle state.
+
 `dispose()` is synchronous and starts Fabric canvas teardown. If an integration
 must immediately create another editor on the same `<canvas>` element, wait for
 the next microtask or animation frame before reusing that element, or call
-`await disposeAsync()`.
+`await disposeAsync()`. A later `disposeAsync()` waits for the same pending
+teardown even when `dispose()` was called first.
 
 ## Image Loading and Layout
 
-| Method                         | Description                                                                                                                                                                             |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadImage(base64, options?)`  | Load a supported raster image data URL (`png`, `jpeg`, or `webp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
-| `isImageLoaded()`              | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                      |
-| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, Shape, or Draw mode.                                                                                   |
-| `isProcessing()`               | Returns `true` while an async load, export/merge transaction, or animation is active, excluding tool modes.                                                                             |
-| `setLayoutMode(mode)`          | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                         |
-| `setCanvasSize(width, height)` | Resize the Fabric canvas to explicit positive pixel dimensions. Invalid values warn and no-op.                                                                                          |
-| `resizeToContainer(options?)`  | Resize the canvas to `canvasContainer.clientWidth/clientHeight`, optionally using fallback dimensions for hidden containers.                                                            |
-| `relayout(options?)`           | Re-measure the host layout and refresh canvas geometry without reloading the current image or dropping overlays.                                                                        |
+| Method                         | Description                                                                                                                                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadImage(base64, options?)`  | Load a Base64-encoded raster image data URL (`png`, `jpeg`, or `webp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
+| `isImageLoaded()`              | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                           |
+| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, Shape, or Draw mode.                                                                                        |
+| `isProcessing()`               | Returns `true` while an async image/state load, export/merge transaction, or animation is active, excluding tool modes.                                                                      |
+| `setLayoutMode(mode)`          | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                              |
+| `setCanvasSize(width, height)` | Resize the Fabric canvas to explicit positive pixel dimensions. Invalid values warn and no-op.                                                                                               |
+| `resizeToContainer(options?)`  | Resize the canvas to `canvasContainer.clientWidth/clientHeight`, optionally using fallback dimensions for hidden containers.                                                                 |
+| `relayout(options?)`           | Re-measure the host layout and refresh canvas geometry without reloading the current image or dropping overlays.                                                                             |
 
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for preserving
 the container's scroll position across both successful loads and rollback paths.
@@ -312,16 +319,31 @@ State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
 
 ## State and History
 
-| Method                    | Description                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------- |
-| `saveState()`             | Capture a snapshot of the canvas plus editor metadata into the history stack.         |
-| `loadFromState(snapshot)` | Restore canvas, masks, and editor metadata from a snapshot. Returns `Promise<void>`.  |
-| `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed. |
-| `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed. |
+| Method                    | Description                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `saveState()`             | Record the canvas and editor metadata in undo/redo history. Returns `void`.                                  |
+| `loadFromState(snapshot)` | Restore canvas, masks, and editor metadata from compatible serialized editor state. Returns `Promise<void>`. |
+| `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed.                        |
+| `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed.                        |
 
-`loadFromState()` is designed for snapshots produced by this editor's
-`saveState()`. If snapshots come from external storage or user-controlled input,
-validate or reject untrusted JSON before passing it to the editor.
+`saveState()` does not return a serializable string; complete snapshot capture
+is an internal history/transaction mechanism. `loadFromState()` accepts a
+compatible serialized state that an integration already holds, but it is not
+paired with a public full-state export method. Applications that need
+independent long-term mask and annotation persistence should use
+`exportOverlayState()` and `importOverlayState()`.
+
+`loadFromState()` applies structural and resource validation before Fabric
+deserialization, including `maxInputBytes` and `maxInputPixels` for embedded
+image resources and rejection of unsafe structural keys. It remains intended
+for compatible editor snapshots; parsing arbitrary external JSON successfully
+does not make it a valid editor state. If a public restore fails after mutation
+begins, the editor rolls back to the complete pre-call state and rejects with
+the original restoration error. Public restores participate in the editor's
+busy-operation lifecycle, so another conflicting stateful operation follows the
+normal idle-operation policy until restoration settles. If Fabric
+deserialization reaches the state-restore timeout, the operation rejects and
+rolls back; its cancelled work cannot later replace a newer editor state.
 
 ## Overlay Persistence
 

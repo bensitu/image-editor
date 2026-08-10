@@ -105,7 +105,7 @@ crop controls, mosaic controls, lists, and layer actions.
 
 ### Image and Layout
 
-- Load PNG, JPEG, and WebP data URLs or files.
+- Load Base64-encoded PNG, JPEG, and WebP data URLs or supported image files.
 - Normalize supported JPEG EXIF orientation during file-input loading.
 - Choose `fit`, `cover`, or `expand` layout strategies.
 - Resize to explicit dimensions, hidden-container fallbacks, or current
@@ -130,7 +130,8 @@ crop controls, mosaic controls, lists, and layer actions.
 - Choose image-bounds or full-canvas export areas.
 - Render masks and annotations independently during export without mutating
   editor state.
-- Save/load editor snapshots with `saveState()` and `loadFromState()`.
+- Record undo/redo history with `saveState()` and restore compatible serialized
+  editor state with `loadFromState()`.
 - Store editable overlays separately from image pixels with overlay-state JSON.
 
 ### Integration
@@ -244,13 +245,14 @@ Older runtime targets must be transpiled by the consumer.
 
 The package ships one public entry resolved through the `exports` map:
 
-| Consumer                              | Resolves to                    |
-| ------------------------------------- | ------------------------------ |
-| ESM (`import`)                        | `dist/esm/index.js`            |
-| CommonJS (`require`)                  | `dist/cjs/index.cjs`           |
-| TypeScript (`types`)                  | `dist/types/index.d.ts`        |
-| UMD (`<script>`, `unpkg`, `jsdelivr`) | `dist/umd/image-editor.umd.js` |
-| `default` fallback                    | `dist/esm/index.js`            |
+| Consumer                               | Resolves to                        |
+| -------------------------------------- | ---------------------------------- |
+| ESM (`import`)                         | `dist/esm/index.js`                |
+| CommonJS (`require`)                   | `dist/cjs/index.cjs`               |
+| TypeScript (`types`)                   | `dist/types/index.d.ts`            |
+| UMD (readable development/debug build) | `dist/umd/image-editor.umd.js`     |
+| UMD (`<script>`, `unpkg`, `jsdelivr`)  | `dist/umd/image-editor.umd.min.js` |
+| `default` fallback                     | `dist/esm/index.js`                |
 
 The constructor accepts Fabric explicitly in bundled apps:
 
@@ -265,7 +267,7 @@ UMD consumers can load Fabric and the editor as globals:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.min.js"></script>
 <script>
     const editor = new ImageEditor.ImageEditor({ canvasWidth: 800, canvasHeight: 600 });
 </script>
@@ -285,8 +287,15 @@ directly.
   Fabric objects, such as `getMasks()`, `getAnnotations()`, selection callbacks,
   and lifecycle callbacks, expose live editor-owned objects. Treat those objects
   as read-only from integration code.
-- `loadImage()`, crop, merge, and overlay import are transactional: failures
-  restore the previous canvas state where applicable.
+- `loadImage()`, `loadFromState()`, crop, merge, and overlay import are
+  transactional: failures restore the previous canvas state where applicable.
+- `saveState()` records the current editor state in undo/redo history and
+  returns `void`; it does not export a snapshot string. Use the overlay-state
+  APIs for independent long-term mask and annotation persistence.
+- `init()` is synchronous. When `initialImageBase64` is configured, it starts
+  an asynchronous load; use `onImageLoaded` before running image-ready work.
+- `dispose()` starts teardown synchronously; `disposeAsync()` waits for that
+  same teardown even when called after `dispose()`.
 - Lifecycle callback exceptions are caught and logged so host callback failures
   do not replace the editor operation.
 
@@ -300,6 +309,12 @@ npm test
 
 See [Contributing and local checks](docs/contributing.md) for browser tests,
 visual tests, release checks, and CI-equivalent commands.
+
+## Buy Me A Coffee
+
+<a href="https://www.buymeacoffee.com/bensitu">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" width="200" />
+</a>
 
 ## License
 

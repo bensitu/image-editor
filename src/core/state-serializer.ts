@@ -63,6 +63,7 @@ import {
 } from './image-filter-config.js';
 import { isSupportedImageDataUrl } from '../utils/file.js';
 import { withTimeout } from '../utils/timeout.js';
+import { assertImageDataUrlInputBudget } from '../image/image-input-budget.js';
 
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
@@ -70,9 +71,11 @@ const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
 const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
 const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
 const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
-const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
+const DEFAULT_MAX_RESTORE_IMAGE_BYTES = 50000000;
+const DEFAULT_MAX_RESTORE_IMAGE_PIXELS = 50000000;
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
+const UNSAFE_PUBLIC_RESTORE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
     'circle',
     'ellipse',
@@ -697,6 +700,14 @@ export interface LoadFromStateInput {
     maxSnapshotObjects?: number;
     /** Upper bound for a public snapshot canvas width or height. */
     maxRestoreCanvasDimension?: number;
+    /** Upper bound for each Base64 image payload in a public snapshot. */
+    maxInputBytes?: number;
+    /** Upper bound for each parseable source image in a public snapshot. */
+    maxInputPixels?: number;
+    /** Called after validation and immediately before live canvas mutation begins. */
+    beforeMutation?: () => void;
+    /** Registers cancellation for disposal and returns an unregister callback. */
+    registerAborter?: (abort: () => void) => () => void;
 }
 
 /**
@@ -818,42 +829,60 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     if (isPublicRestore) {
         validatePublicSnapshot(json, {
             maxSnapshotObjects: input.maxSnapshotObjects ?? DEFAULT_MAX_SNAPSHOT_OBJECTS,
+            maxInputBytes: input.maxInputBytes ?? DEFAULT_MAX_RESTORE_IMAGE_BYTES,
+            maxInputPixels: input.maxInputPixels ?? DEFAULT_MAX_RESTORE_IMAGE_PIXELS,
         });
     }
 
-    // 2. restore canvas pixel dimensions before
-    //    Fabric touches the canvas. Guard against malformed payloads
-    //    (missing or non-positive width/height) by skipping the resize.
-    if (
+    // 2. validate canvas pixel dimensions before any live mutation. Guard
+    //    against malformed payloads by skipping the resize.
+    const restorableCanvasSize =
         typeof json.width === 'number' &&
         json.width > 0 &&
         typeof json.height === 'number' &&
         json.height > 0
-    ) {
+            ? { width: json.width, height: json.height }
+            : null;
+    if (restorableCanvasSize) {
         assertRestoredCanvasSizeAllowed(
-            json.width,
-            json.height,
+            restorableCanvasSize.width,
+            restorableCanvasSize.height,
             input.maxCanvasPixels ?? DEFAULT_MAX_RESTORE_CANVAS_PIXELS,
             isPublicRestore
                 ? (input.maxRestoreCanvasDimension ?? DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
                 : null,
         );
-        setCanvasSize(json.width, json.height);
     }
 
-    // 3. Fabric v7 `loadFromJSON` returns a Promise.
-    const loadFromJsonPromise = (
-        canvas as unknown as {
-            loadFromJSON(json: CanvasJson): Promise<FabricNS.Canvas>;
-        }
-    ).loadFromJSON(json);
+    input.beforeMutation?.();
+    if (restorableCanvasSize) {
+        setCanvasSize(restorableCanvasSize.width, restorableCanvasSize.height);
+    }
+
+    // 3. Fabric v7 `loadFromJSON` returns a Promise. Fabric temporarily
+    // disables render-on-add/remove while loading, but does not restore the
+    // flag when deserialization rejects.
+    const previousRenderOnAddRemove = canvas.renderOnAddRemove;
+    const abortController = new AbortController();
+    const unregisterAborter = input.registerAborter?.(() => abortController.abort());
     try {
+        const loadFromJsonPromise = (
+            canvas as unknown as {
+                loadFromJSON(
+                    json: CanvasJson,
+                    reviver?: undefined,
+                    options?: { signal?: AbortSignal },
+                ): Promise<FabricNS.Canvas>;
+            }
+        ).loadFromJSON(json, undefined, { signal: abortController.signal });
         await withTimeout(
             loadFromJsonPromise,
             DEFAULT_STATE_RESTORE_TIMEOUT_MS,
             'canvas.loadFromJSON',
+            () => abortController.abort(),
         );
     } catch (error) {
+        canvas.renderOnAddRemove = previousRenderOnAddRemove;
         if (error instanceof ImageLoadTimeoutError) {
             throw new StateRestoreError(
                 'loadFromState: canvas.loadFromJSON timed out while restoring editor state.',
@@ -861,6 +890,8 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
             );
         }
         throw error;
+    } finally {
+        unregisterAborter?.();
     }
 
     // 4. re-apply mask metadata by position-based
@@ -1007,6 +1038,8 @@ function assertSnapshotByteSizeAllowed(jsonString: string, maxSnapshotBytes: num
 
 interface PublicSnapshotValidationContext {
     maxSnapshotObjects: number;
+    maxInputBytes: number;
+    maxInputPixels: number;
     objectCount: number;
     seen: WeakSet<object>;
     countedFabricObjects: WeakSet<object>;
@@ -1014,11 +1047,20 @@ interface PublicSnapshotValidationContext {
 
 interface PublicSnapshotValueValidationOptions {
     validateFabricObject: boolean;
+    validatePatternSource: boolean;
     allowEditorOwnedCustomMask: boolean;
     arrayEntriesAreFabricObjects: boolean;
 }
 
-function validatePublicSnapshot(json: CanvasJson, options: { maxSnapshotObjects: number }): void {
+function validatePublicSnapshot(
+    json: CanvasJson,
+    options: {
+        maxSnapshotObjects: number;
+        maxInputBytes: number;
+        maxInputPixels: number;
+    },
+): void {
+    assertPublicSnapshotObjectKeysAllowed(json, 'snapshot');
     if (json.objects !== undefined && !Array.isArray(json.objects)) {
         throw new StateRestoreError('loadFromState: snapshot objects must be an array.');
     }
@@ -1036,6 +1078,14 @@ function validatePublicSnapshot(json: CanvasJson, options: { maxSnapshotObjects:
 
     const context: PublicSnapshotValidationContext = {
         maxSnapshotObjects: safeMaxSnapshotObjects,
+        maxInputBytes: toPositiveIntegerLimit(
+            options.maxInputBytes,
+            DEFAULT_MAX_RESTORE_IMAGE_BYTES,
+        ),
+        maxInputPixels: toPositiveIntegerLimit(
+            options.maxInputPixels,
+            DEFAULT_MAX_RESTORE_IMAGE_PIXELS,
+        ),
         objectCount: 0,
         seen: new WeakSet(),
         countedFabricObjects: new WeakSet(),
@@ -1047,6 +1097,7 @@ function validatePublicSnapshot(json: CanvasJson, options: { maxSnapshotObjects:
             `objects[${index}]`,
             {
                 validateFabricObject: true,
+                validatePatternSource: false,
                 allowEditorOwnedCustomMask: true,
                 arrayEntriesAreFabricObjects: false,
             },
@@ -1062,6 +1113,7 @@ function validatePublicSnapshot(json: CanvasJson, options: { maxSnapshotObjects:
             key,
             {
                 validateFabricObject: PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key),
+                validatePatternSource: false,
                 allowEditorOwnedCustomMask: false,
                 arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
             },
@@ -1086,6 +1138,10 @@ function validatePublicSnapshotValue(
 
     if (!value || typeof value !== 'object') return;
 
+    if (!Array.isArray(value)) {
+        assertPublicSnapshotObjectKeysAllowed(value as Record<string, unknown>, path);
+    }
+
     const alreadySeen = context.seen.has(value);
     if (!alreadySeen) context.seen.add(value);
 
@@ -1097,6 +1153,7 @@ function validatePublicSnapshotValue(
             context,
         );
     }
+    validatePublicSnapshotImageResource(value, path, options, context);
 
     if (alreadySeen) return;
 
@@ -1107,6 +1164,7 @@ function validatePublicSnapshotValue(
                 `${path}[${entryIndex}]`,
                 {
                     validateFabricObject: options.arrayEntriesAreFabricObjects,
+                    validatePatternSource: false,
                     allowEditorOwnedCustomMask: false,
                     arrayEntriesAreFabricObjects: false,
                 },
@@ -1119,29 +1177,68 @@ function validatePublicSnapshotValue(
 
     for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
         const nestedPath = path ? `${path}.${key}` : key;
-        if (
-            typeof nestedValue === 'string' &&
-            nestedValue.trim() !== '' &&
-            isPublicRestoreImageSourceKey(key) &&
-            !isSupportedImageDataUrl(nestedValue)
-        ) {
-            throw new StateRestoreError(
-                `loadFromState: snapshot field "${nestedPath}" must use a supported data URL source.`,
-            );
-        }
         validatePublicSnapshotValue(
             nestedValue,
             nestedPath,
             {
-                validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(
-                    key,
-                    nestedValue,
-                ),
+                validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key),
+                validatePatternSource:
+                    options.validateFabricObject && (key === 'fill' || key === 'stroke'),
                 allowEditorOwnedCustomMask: false,
                 arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
             },
             context,
             depth + 1,
+        );
+    }
+}
+
+function assertPublicSnapshotObjectKeysAllowed(value: Record<string, unknown>, path: string): void {
+    for (const key of Object.keys(value)) {
+        if (!UNSAFE_PUBLIC_RESTORE_KEYS.has(key)) continue;
+        const keyPath = path ? `${path}.${key}` : key;
+        throw new StateRestoreError(
+            `loadFromState: snapshot field "${keyPath}" uses an unsafe structural key.`,
+        );
+    }
+}
+
+function validatePublicSnapshotImageResource(
+    value: unknown,
+    path: string,
+    options: PublicSnapshotValueValidationOptions,
+    context: PublicSnapshotValidationContext,
+): void {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+
+    const object = value as Record<string, unknown>;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (options.validateFabricObject && type === 'image' && typeof object.src === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.src, `${path}.src`, context);
+    }
+    if (options.validatePatternSource && type === 'pattern' && typeof object.source === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.source, `${path}.source`, context);
+    }
+}
+
+function assertPublicRestoreImageSourceAllowed(
+    source: string,
+    path: string,
+    context: PublicSnapshotValidationContext,
+): void {
+    if (!isSupportedImageDataUrl(source)) {
+        throw new StateRestoreError(
+            `loadFromState: snapshot field "${path}" must use a supported data URL source.`,
+        );
+    }
+
+    try {
+        assertImageDataUrlInputBudget(source, context);
+    } catch (error) {
+        const reason = error instanceof Error ? ` ${error.message}` : '';
+        throw new StateRestoreError(
+            `loadFromState: snapshot field "${path}" exceeds configured image input limits.${reason}`,
+            error,
         );
     }
 }
@@ -1183,15 +1280,8 @@ function validatePublicSnapshotFabricObjectPayload(
     );
 }
 
-function shouldValidatePublicRestoreNestedFabricObject(key: string, value: unknown): boolean {
-    if (PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key)) return true;
-    return isPublicRestoreImageSourceKey(key) && hasFabricObjectType(value);
-}
-
-function hasFabricObjectType(value: unknown): boolean {
-    return (
-        !!value && typeof value === 'object' && typeof (value as CanvasJsonObject).type === 'string'
-    );
+function shouldValidatePublicRestoreNestedFabricObject(key: string): boolean {
+    return PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key);
 }
 
 function isPublicRestoreEditorOwnedCustomMaskPayload(value: unknown): boolean {
@@ -1210,15 +1300,6 @@ function isPublicRestoreEditorOwnedCustomMaskPayload(value: unknown): boolean {
         candidate.maskName.trim() !== '' &&
         typeof candidate.originalAlpha === 'number' &&
         Number.isFinite(candidate.originalAlpha)
-    );
-}
-
-function isPublicRestoreImageSourceKey(key: string): boolean {
-    const normalized = key.toLowerCase();
-    return (
-        PUBLIC_RESTORE_IMAGE_SOURCE_KEYS.has(normalized) ||
-        normalized.endsWith('src') ||
-        normalized.endsWith('source')
     );
 }
 

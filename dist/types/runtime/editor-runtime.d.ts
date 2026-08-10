@@ -67,6 +67,8 @@ export declare class EditorRuntime {
     keyboardDocument: Document | null;
     keyboardHandler: ((event: KeyboardEvent) => void) | null;
     isDisposed: boolean;
+    /** Completion signal retained for repeated disposeAsync() calls. */
+    disposePromise: Promise<void> | null;
     shouldSuppressSaveState: boolean;
     shouldSuppressSelectionChange: boolean;
     lastEmittedIsBusy: boolean | null;

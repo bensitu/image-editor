@@ -2,12 +2,13 @@
  * rollup.config.mjs
  *
  * Builds the CJS and UMD bundles for `@bensitu/image-editor` from the
- * already-emitted ESM tree under `dist/esm/`. Both passes share the same
+ * already-emitted ESM tree under `dist/esm/`. All outputs share the same
  * input so TypeScript is compiled exactly once (by `tsc -p
  * tsconfig.build.json`) and Rollup only re-bundles the resulting JS.
  *
  *   FORMAT=cjs  →  dist/cjs/index.cjs              (CommonJS, unminified)
- *   FORMAT=umd  →  dist/umd/image-editor.umd.js    (UMD, minified)
+ *   FORMAT=umd  →  dist/umd/image-editor.umd.js      (UMD, readable)
+ *                  dist/umd/image-editor.umd.min.js  (UMD, minified)
  *
  * Build pipeline (npm run build):
  *
@@ -45,6 +46,14 @@ const INPUT = 'dist/esm/index.js';
  */
 const EXTERNAL = ['fabric'];
 
+const UMD_OUTPUT = {
+    format: 'umd',
+    name: 'ImageEditor',
+    exports: 'named',
+    globals: { fabric: 'fabric' },
+    sourcemap: true,
+};
+
 const configs = {
     cjs: {
         input: INPUT,
@@ -57,19 +66,26 @@ const configs = {
         },
         plugins: [resolve()],
     },
-    umd: {
-        input: INPUT,
-        external: EXTERNAL,
-        output: {
-            file: 'dist/umd/image-editor.umd.js',
-            format: 'umd',
-            name: 'ImageEditor',
-            exports: 'named',
-            globals: { fabric: 'fabric' },
-            sourcemap: true,
+    umd: [
+        {
+            input: INPUT,
+            external: EXTERNAL,
+            output: {
+                ...UMD_OUTPUT,
+                file: 'dist/umd/image-editor.umd.js',
+            },
+            plugins: [resolve()],
         },
-        plugins: [resolve(), terser()],
-    },
+        {
+            input: INPUT,
+            external: EXTERNAL,
+            output: {
+                ...UMD_OUTPUT,
+                file: 'dist/umd/image-editor.umd.min.js',
+            },
+            plugins: [resolve(), terser()],
+        },
+    ],
 };
 
 if (!(FORMAT in configs)) {

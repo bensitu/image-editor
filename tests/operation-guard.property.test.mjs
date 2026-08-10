@@ -249,6 +249,10 @@ test('markDisposed forces a quiescent state mid-animation', async () => {
     await fc.assert(
         fc.asyncProperty(delayArb, fc.boolean(), async (ms, callTwice) => {
             const guard = new OperationGuard();
+            let disposeAbortCalls = 0;
+            guard.registerDisposeAborter(() => {
+                disposeAbortCalls += 1;
+            });
 
             // Fresh state — both flags false.
             assert.equal(guard.isDisposed(), false);
@@ -295,6 +299,7 @@ test('markDisposed forces a quiescent state mid-animation', async () => {
             // After the animation settles, both flags remain quiescent.
             assert.equal(guard.isDisposed(), true);
             assert.equal(guard.isAnimating(), false);
+            assert.equal(disposeAbortCalls, 1);
         }),
         { numRuns: 100 },
     );

@@ -1938,9 +1938,7 @@ const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSI
 function isSupportedImageDataUrl(value) {
     if (typeof value !== 'string')
         return false;
-    if (!value.toLowerCase().startsWith('data:image/'))
-        return false;
-    const match = /^data:(image\/[^;,]+)(?:[;,])/i.exec(value);
+    const match = /^data:(image\/[^;,]+);base64,/i.exec(value);
     if (!match)
         return false;
     return SUPPORTED_IMAGE_MIME_TYPES.has(match[1].toLowerCase());
@@ -2035,15 +2033,310 @@ function withTimeout(promise, ms, label, onTimeout) {
     });
 }
 
+const HEADER_PROBE_BYTES = 256 * 1024;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH = 7;
+function hasPositiveDimensions$1(width, height) {
+    return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+}
+function readUint16BE(bytes, offset) {
+    if (offset < 0 || offset + 2 > bytes.length)
+        return null;
+    return (bytes[offset] << 8) | bytes[offset + 1];
+}
+function readUint32BE(bytes, offset) {
+    if (offset < 0 || offset + 4 > bytes.length)
+        return null;
+    return (bytes[offset] * 0x1000000 +
+        ((bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]));
+}
+function readUint16LE(bytes, offset) {
+    if (offset < 0 || offset + 2 > bytes.length)
+        return null;
+    return bytes[offset] | (bytes[offset + 1] << 8);
+}
+function readUint24LE(bytes, offset) {
+    if (offset < 0 || offset + 3 > bytes.length)
+        return null;
+    return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+}
+function matchesAscii(bytes, offset, value) {
+    if (offset < 0 || offset + value.length > bytes.length)
+        return false;
+    for (let index = 0; index < value.length; index += 1) {
+        if (bytes[offset + index] !== value.charCodeAt(index))
+            return false;
+    }
+    return true;
+}
+function readPngDimensions(bytes) {
+    if (bytes.length < 24)
+        return null;
+    if (!PNG_SIGNATURE.every((byte, index) => bytes[index] === byte))
+        return null;
+    if (!matchesAscii(bytes, 12, 'IHDR'))
+        return null;
+    const width = readUint32BE(bytes, 16);
+    const height = readUint32BE(bytes, 20);
+    return width !== null && height !== null && hasPositiveDimensions$1(width, height)
+        ? { width, height }
+        : null;
+}
+function isJpegStartOfFrame(marker) {
+    return ((marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf));
+}
+function isStandaloneJpegMarker(marker) {
+    return marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7);
+}
+function readJpegDimensions(bytes) {
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8)
+        return null;
+    let offset = 2;
+    while (offset + 1 < bytes.length) {
+        while (offset < bytes.length && bytes[offset] === 0xff)
+            offset += 1;
+        if (offset >= bytes.length)
+            return null;
+        const marker = bytes[offset];
+        offset += 1;
+        if (marker === 0xda || marker === 0xd9)
+            return null;
+        if (isStandaloneJpegMarker(marker))
+            continue;
+        const segmentLength = readUint16BE(bytes, offset);
+        if (segmentLength === null || segmentLength < 2)
+            return null;
+        const segmentStart = offset + 2;
+        const segmentEnd = offset + segmentLength;
+        if (segmentEnd > bytes.length)
+            return null;
+        if (isJpegStartOfFrame(marker)) {
+            if (segmentLength < JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH ||
+                segmentStart + 5 > segmentEnd) {
+                return null;
+            }
+            const height = readUint16BE(bytes, segmentStart + 1);
+            const width = readUint16BE(bytes, segmentStart + 3);
+            return width !== null && height !== null && hasPositiveDimensions$1(width, height)
+                ? { width, height }
+                : null;
+        }
+        offset = segmentEnd;
+    }
+    return null;
+}
+function readWebpDimensions(bytes) {
+    if (bytes.length < 20 || !matchesAscii(bytes, 0, 'RIFF') || !matchesAscii(bytes, 8, 'WEBP')) {
+        return null;
+    }
+    if (matchesAscii(bytes, 12, 'VP8X') && bytes.length >= 30) {
+        const rawWidth = readUint24LE(bytes, 24);
+        const rawHeight = readUint24LE(bytes, 27);
+        if (rawWidth === null || rawHeight === null)
+            return null;
+        return { width: rawWidth + 1, height: rawHeight + 1 };
+    }
+    if (matchesAscii(bytes, 12, 'VP8 ') && bytes.length >= 30) {
+        if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a)
+            return null;
+        const rawWidth = readUint16LE(bytes, 26);
+        const rawHeight = readUint16LE(bytes, 28);
+        if (rawWidth === null || rawHeight === null)
+            return null;
+        return { width: rawWidth & 0x3fff, height: rawHeight & 0x3fff };
+    }
+    if (matchesAscii(bytes, 12, 'VP8L') && bytes.length >= 25 && bytes[20] === 0x2f) {
+        const byte1 = bytes[21];
+        const byte2 = bytes[22];
+        const byte3 = bytes[23];
+        const byte4 = bytes[24];
+        return {
+            width: 1 + byte1 + ((byte2 & 0x3f) << 8),
+            height: 1 + (byte2 >> 6) + (byte3 << 2) + ((byte4 & 0x0f) << 10),
+        };
+    }
+    return null;
+}
+function readImageHeaderDimensions(bytes) {
+    var _a, _b;
+    return (_b = (_a = readPngDimensions(bytes)) !== null && _a !== void 0 ? _a : readJpegDimensions(bytes)) !== null && _b !== void 0 ? _b : readWebpDimensions(bytes);
+}
+function estimateBase64PayloadBytes(dataUrl) {
+    const commaIndex = dataUrl.indexOf(',');
+    if (commaIndex < 0)
+        return null;
+    const header = dataUrl.slice(0, commaIndex).toLowerCase();
+    if (!header.endsWith(';base64'))
+        return null;
+    const base64 = dataUrl.slice(commaIndex + 1).replace(/\s+/g, '');
+    if (!base64)
+        return 0;
+    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+    return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+function decodeBase64Prefix(dataUrl, maxBytes) {
+    const commaIndex = dataUrl.indexOf(',');
+    if (commaIndex < 0)
+        return null;
+    const header = dataUrl.slice(0, commaIndex).toLowerCase();
+    if (!header.endsWith(';base64'))
+        return null;
+    const encodedLength = Math.ceil(maxBytes / 3) * 4;
+    const base64 = dataUrl
+        .slice(commaIndex + 1, commaIndex + 1 + encodedLength)
+        .replace(/\s+/g, '');
+    if (!base64)
+        return new Uint8Array(0);
+    const paddedBase64 = padBase64(base64);
+    if (paddedBase64 === null)
+        return null;
+    const bufferCtor = globalThis.Buffer;
+    if (bufferCtor && typeof bufferCtor.from === 'function') {
+        return bufferCtor.from(paddedBase64, 'base64');
+    }
+    if (typeof globalThis.atob === 'function') {
+        const binary = globalThis.atob(paddedBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes;
+    }
+    return null;
+}
+function padBase64(base64) {
+    const remainder = base64.length % 4;
+    if (remainder === 0)
+        return base64;
+    if (remainder === 1)
+        return null;
+    return `${base64}${'='.repeat(4 - remainder)}`;
+}
+async function readBlobAsArrayBuffer(blob) {
+    if (typeof blob.arrayBuffer === 'function') {
+        return blob.arrayBuffer();
+    }
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result;
+            if (result instanceof ArrayBuffer) {
+                resolve(result);
+            }
+            else {
+                reject(new Error('FileReader returned a non-ArrayBuffer result'));
+            }
+        };
+        reader.onerror = () => {
+            var _a;
+            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
+        reader.readAsArrayBuffer(blob);
+    });
+}
+async function readBlobBytes(blob, start, end) {
+    const boundedStart = Math.max(0, Math.min(blob.size, Math.floor(start)));
+    const boundedEnd = Math.max(boundedStart, Math.min(blob.size, Math.floor(end)));
+    const buffer = await readBlobAsArrayBuffer(blob.slice(boundedStart, boundedEnd));
+    return new Uint8Array(buffer);
+}
+async function readJpegDimensionsFromBlob(blob) {
+    const signature = await readBlobBytes(blob, 0, 2);
+    if (signature.length < 2 || signature[0] !== 0xff || signature[1] !== 0xd8)
+        return null;
+    let offset = 2;
+    while (offset < blob.size) {
+        let marker = null;
+        while (offset < blob.size && marker === null) {
+            const markerBytes = await readBlobBytes(blob, offset, offset + 64);
+            if (markerBytes.length === 0 || markerBytes[0] !== 0xff)
+                return null;
+            let markerOffset = 0;
+            while (markerOffset < markerBytes.length && markerBytes[markerOffset] === 0xff) {
+                markerOffset += 1;
+            }
+            offset += markerOffset;
+            if (markerOffset < markerBytes.length) {
+                marker = markerBytes[markerOffset];
+                offset += 1;
+            }
+        }
+        if (marker === null || marker === 0x00 || marker === 0xda || marker === 0xd9)
+            return null;
+        if (isStandaloneJpegMarker(marker))
+            continue;
+        const lengthBytes = await readBlobBytes(blob, offset, offset + 2);
+        const segmentLength = readUint16BE(lengthBytes, 0);
+        if (segmentLength === null || segmentLength < 2)
+            return null;
+        const segmentStart = offset + 2;
+        const segmentEnd = offset + segmentLength;
+        if (segmentEnd > blob.size)
+            return null;
+        if (isJpegStartOfFrame(marker)) {
+            if (segmentLength < JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH ||
+                segmentStart + 5 > segmentEnd) {
+                return null;
+            }
+            const dimensions = await readBlobBytes(blob, segmentStart, segmentStart + 5);
+            const height = readUint16BE(dimensions, 1);
+            const width = readUint16BE(dimensions, 3);
+            return width !== null && height !== null && hasPositiveDimensions$1(width, height)
+                ? { width, height }
+                : null;
+        }
+        offset = segmentEnd;
+    }
+    return null;
+}
+function assertInputByteBudget(bytes, maxInputBytes) {
+    if (bytes === null)
+        return;
+    if (bytes > maxInputBytes) {
+        throw new ImageDecodeError(`Image input byte length ${bytes} exceeds maxInputBytes (${maxInputBytes}).`);
+    }
+}
+function assertInputPixelBudget(dimensions, maxInputPixels) {
+    if (!dimensions)
+        return;
+    const pixels = dimensions.width * dimensions.height;
+    if (pixels > maxInputPixels) {
+        throw new ImageDecodeError(`Image input dimensions ${dimensions.width}x${dimensions.height} exceed maxInputPixels (${maxInputPixels}).`);
+    }
+}
+function assertImageDataUrlInputBudget(dataUrl, options) {
+    assertInputByteBudget(estimateBase64PayloadBytes(dataUrl), options.maxInputBytes);
+    const headerBytes = decodeBase64Prefix(dataUrl, HEADER_PROBE_BYTES);
+    assertInputPixelBudget(headerBytes ? readImageHeaderDimensions(headerBytes) : null, options.maxInputPixels);
+}
+async function assertImageFileInputBudget(file, options) {
+    assertInputByteBudget(file.size, options.maxInputBytes);
+    const probeBlob = typeof file.slice === 'function' ? file.slice(0, HEADER_PROBE_BYTES) : file;
+    const probeBuffer = await readBlobAsArrayBuffer(probeBlob);
+    const probeBytes = new Uint8Array(probeBuffer);
+    const dimensions = probeBytes[0] === 0xff && probeBytes[1] === 0xd8
+        ? await readJpegDimensionsFromBlob(file)
+        : readImageHeaderDimensions(probeBytes);
+    assertInputPixelBudget(dimensions, options.maxInputPixels);
+}
+
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
 const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
 const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
 const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
 const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
-const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
+const DEFAULT_MAX_RESTORE_IMAGE_BYTES = 50000000;
+const DEFAULT_MAX_RESTORE_IMAGE_PIXELS = 50000000;
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
+const UNSAFE_PUBLIC_RESTORE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
     'circle',
     'ellipse',
@@ -2321,7 +2614,7 @@ function saveState(input) {
     return JSON.stringify(jsonObj);
 }
 async function loadFromState(input) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
     const restoreTrustLevel = (_a = input.restoreTrustLevel) !== null && _a !== void 0 ? _a : 'public';
     const isPublicRestore = restoreTrustLevel === 'public';
@@ -2346,29 +2639,44 @@ async function loadFromState(input) {
     if (isPublicRestore) {
         validatePublicSnapshot(json, {
             maxSnapshotObjects: (_c = input.maxSnapshotObjects) !== null && _c !== void 0 ? _c : DEFAULT_MAX_SNAPSHOT_OBJECTS,
+            maxInputBytes: (_d = input.maxInputBytes) !== null && _d !== void 0 ? _d : DEFAULT_MAX_RESTORE_IMAGE_BYTES,
+            maxInputPixels: (_e = input.maxInputPixels) !== null && _e !== void 0 ? _e : DEFAULT_MAX_RESTORE_IMAGE_PIXELS,
         });
     }
-    if (typeof json.width === 'number' &&
+    const restorableCanvasSize = typeof json.width === 'number' &&
         json.width > 0 &&
         typeof json.height === 'number' &&
-        json.height > 0) {
-        assertRestoredCanvasSizeAllowed(json.width, json.height, (_d = input.maxCanvasPixels) !== null && _d !== void 0 ? _d : DEFAULT_MAX_RESTORE_CANVAS_PIXELS, isPublicRestore
-            ? ((_e = input.maxRestoreCanvasDimension) !== null && _e !== void 0 ? _e : DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
+        json.height > 0
+        ? { width: json.width, height: json.height }
+        : null;
+    if (restorableCanvasSize) {
+        assertRestoredCanvasSizeAllowed(restorableCanvasSize.width, restorableCanvasSize.height, (_f = input.maxCanvasPixels) !== null && _f !== void 0 ? _f : DEFAULT_MAX_RESTORE_CANVAS_PIXELS, isPublicRestore
+            ? ((_g = input.maxRestoreCanvasDimension) !== null && _g !== void 0 ? _g : DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
             : null);
-        setCanvasSize(json.width, json.height);
     }
-    const loadFromJsonPromise = canvas.loadFromJSON(json);
+    (_h = input.beforeMutation) === null || _h === void 0 ? void 0 : _h.call(input);
+    if (restorableCanvasSize) {
+        setCanvasSize(restorableCanvasSize.width, restorableCanvasSize.height);
+    }
+    const previousRenderOnAddRemove = canvas.renderOnAddRemove;
+    const abortController = new AbortController();
+    const unregisterAborter = (_j = input.registerAborter) === null || _j === void 0 ? void 0 : _j.call(input, () => abortController.abort());
     try {
-        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON');
+        const loadFromJsonPromise = canvas.loadFromJSON(json, undefined, { signal: abortController.signal });
+        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON', () => abortController.abort());
     }
     catch (error) {
+        canvas.renderOnAddRemove = previousRenderOnAddRemove;
         if (error instanceof ImageLoadTimeoutError) {
             throw new StateRestoreError('loadFromState: canvas.loadFromJSON timed out while restoring editor state.', error);
         }
         throw error;
     }
+    finally {
+        unregisterAborter === null || unregisterAborter === void 0 ? void 0 : unregisterAborter();
+    }
     const objects = canvas.getObjects();
-    restoreEditorObjectPropsFromJson(objects, (_f = json.objects) !== null && _f !== void 0 ? _f : []);
+    restoreEditorObjectPropsFromJson(objects, (_k = json.objects) !== null && _k !== void 0 ? _k : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -2413,7 +2721,7 @@ async function loadFromState(input) {
         .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
     const masks = objects.filter(isMaskObject);
     const annotations = objects.filter(isAnnotationObject);
-    const originalImage = (_g = objects.find(isBaseImageObject)) !== null && _g !== void 0 ? _g : null;
+    const originalImage = (_l = objects.find(isBaseImageObject)) !== null && _l !== void 0 ? _l : null;
     return {
         editorState,
         maxMaskId,
@@ -2465,6 +2773,7 @@ function assertSnapshotByteSizeAllowed(jsonString, maxSnapshotBytes) {
 }
 function validatePublicSnapshot(json, options) {
     var _a;
+    assertPublicSnapshotObjectKeysAllowed(json, 'snapshot');
     if (json.objects !== undefined && !Array.isArray(json.objects)) {
         throw new StateRestoreError('loadFromState: snapshot objects must be an array.');
     }
@@ -2475,12 +2784,15 @@ function validatePublicSnapshot(json, options) {
     }
     const context = {
         maxSnapshotObjects: safeMaxSnapshotObjects,
+        maxInputBytes: toPositiveIntegerLimit(options.maxInputBytes, DEFAULT_MAX_RESTORE_IMAGE_BYTES),
+        maxInputPixels: toPositiveIntegerLimit(options.maxInputPixels, DEFAULT_MAX_RESTORE_IMAGE_PIXELS),
         objectCount: 0,
         seen: new WeakSet(),
         countedFabricObjects: new WeakSet(),
     };
     objects.forEach((object, index) => validatePublicSnapshotValue(object, `objects[${index}]`, {
         validateFabricObject: true,
+        validatePatternSource: false,
         allowEditorOwnedCustomMask: true,
         arrayEntriesAreFabricObjects: false,
     }, context, 0));
@@ -2489,6 +2801,7 @@ function validatePublicSnapshot(json, options) {
             continue;
         validatePublicSnapshotValue(value, key, {
             validateFabricObject: PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key),
+            validatePatternSource: false,
             allowEditorOwnedCustomMask: false,
             arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
         }, context, 0);
@@ -2500,17 +2813,22 @@ function validatePublicSnapshotValue(value, path, options, context, depth) {
     }
     if (!value || typeof value !== 'object')
         return;
+    if (!Array.isArray(value)) {
+        assertPublicSnapshotObjectKeysAllowed(value, path);
+    }
     const alreadySeen = context.seen.has(value);
     if (!alreadySeen)
         context.seen.add(value);
     if (options.validateFabricObject) {
         validatePublicSnapshotFabricObjectPayload(value, path, options.allowEditorOwnedCustomMask, context);
     }
+    validatePublicSnapshotImageResource(value, path, options, context);
     if (alreadySeen)
         return;
     if (Array.isArray(value)) {
         value.forEach((entry, entryIndex) => validatePublicSnapshotValue(entry, `${path}[${entryIndex}]`, {
             validateFabricObject: options.arrayEntriesAreFabricObjects,
+            validatePatternSource: false,
             allowEditorOwnedCustomMask: false,
             arrayEntriesAreFabricObjects: false,
         }, context, depth + 1));
@@ -2518,17 +2836,44 @@ function validatePublicSnapshotValue(value, path, options, context, depth) {
     }
     for (const [key, nestedValue] of Object.entries(value)) {
         const nestedPath = path ? `${path}.${key}` : key;
-        if (typeof nestedValue === 'string' &&
-            nestedValue.trim() !== '' &&
-            isPublicRestoreImageSourceKey(key) &&
-            !isSupportedImageDataUrl(nestedValue)) {
-            throw new StateRestoreError(`loadFromState: snapshot field "${nestedPath}" must use a supported data URL source.`);
-        }
         validatePublicSnapshotValue(nestedValue, nestedPath, {
-            validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key, nestedValue),
+            validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key),
+            validatePatternSource: options.validateFabricObject && (key === 'fill' || key === 'stroke'),
             allowEditorOwnedCustomMask: false,
             arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
         }, context, depth + 1);
+    }
+}
+function assertPublicSnapshotObjectKeysAllowed(value, path) {
+    for (const key of Object.keys(value)) {
+        if (!UNSAFE_PUBLIC_RESTORE_KEYS.has(key))
+            continue;
+        const keyPath = path ? `${path}.${key}` : key;
+        throw new StateRestoreError(`loadFromState: snapshot field "${keyPath}" uses an unsafe structural key.`);
+    }
+}
+function validatePublicSnapshotImageResource(value, path, options, context) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return;
+    const object = value;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (options.validateFabricObject && type === 'image' && typeof object.src === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.src, `${path}.src`, context);
+    }
+    if (options.validatePatternSource && type === 'pattern' && typeof object.source === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.source, `${path}.source`, context);
+    }
+}
+function assertPublicRestoreImageSourceAllowed(source, path, context) {
+    if (!isSupportedImageDataUrl(source)) {
+        throw new StateRestoreError(`loadFromState: snapshot field "${path}" must use a supported data URL source.`);
+    }
+    try {
+        assertImageDataUrlInputBudget(source, context);
+    }
+    catch (error) {
+        const reason = error instanceof Error ? ` ${error.message}` : '';
+        throw new StateRestoreError(`loadFromState: snapshot field "${path}" exceeds configured image input limits.${reason}`, error);
     }
 }
 function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwnedCustomMask, context) {
@@ -2554,13 +2899,8 @@ function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwned
     }
     throw new StateRestoreError(`loadFromState: snapshot field "${typePath}" has unsupported Fabric type "${String(object.type)}".`);
 }
-function shouldValidatePublicRestoreNestedFabricObject(key, value) {
-    if (PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key))
-        return true;
-    return isPublicRestoreImageSourceKey(key) && hasFabricObjectType(value);
-}
-function hasFabricObjectType(value) {
-    return (!!value && typeof value === 'object' && typeof value.type === 'string');
+function shouldValidatePublicRestoreNestedFabricObject(key) {
+    return PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key);
 }
 function isPublicRestoreEditorOwnedCustomMaskPayload(value) {
     if (!isMaskObject(value))
@@ -2576,12 +2916,6 @@ function isPublicRestoreEditorOwnedCustomMaskPayload(value) {
         candidate.maskName.trim() !== '' &&
         typeof candidate.originalAlpha === 'number' &&
         Number.isFinite(candidate.originalAlpha));
-}
-function isPublicRestoreImageSourceKey(key) {
-    const normalized = key.toLowerCase();
-    return (PUBLIC_RESTORE_IMAGE_SOURCE_KEYS.has(normalized) ||
-        normalized.endsWith('src') ||
-        normalized.endsWith('source'));
 }
 function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d;
@@ -3597,6 +3931,7 @@ class HistoryManager {
 }
 
 const TRUSTED_STATE_RESTORE = Symbol('ImageEditorTrustedStateRestore');
+const SILENT_STATE_RESTORE = Symbol('ImageEditorSilentStateRestore');
 async function loadFromStateAction(access, jsonString, options) {
     var _a, _b, _c, _d;
     const canvas = access.getCanvas();
@@ -3606,11 +3941,16 @@ async function loadFromStateAction(access, jsonString, options) {
         return;
     if (!access.canRunIdleOperation('loadFromState', options))
         return;
+    const isTrustedRestore = isTrustedStateRestoreOptions(options);
+    const isSilentRestore = isSilentStateRestoreOptions(options);
     const activeRestoreOperation = access.getActiveStateRestoreOperation();
     const context = access.buildCallbackContext(activeRestoreOperation !== null && activeRestoreOperation !== void 0 ? activeRestoreOperation : 'loadFromState', activeRestoreOperation === 'undo' || activeRestoreOperation === 'redo');
     const previousImage = access.getOriginalImage();
     const previousMaskSignature = access.getMaskCollectionSignature();
     const previousAnnotationSignature = access.getAnnotationCollectionSignature();
+    const previousLastSnapshot = access.getLastSnapshot();
+    let beforeSnapshot = null;
+    let mutationStarted = false;
     try {
         const restoredState = await loadFromState({
             canvas,
@@ -3618,7 +3958,16 @@ async function loadFromStateAction(access, jsonString, options) {
             setCanvasSize: (widthPx, heightPx) => access.setCanvasSize(widthPx, heightPx),
             maxCanvasPixels: access.getOptions().maxExportPixels,
             maxRestoreCanvasDimension: access.getOptions().maxExportDimension,
-            restoreTrustLevel: isTrustedStateRestoreOptions(options) ? 'trusted' : 'public',
+            maxInputBytes: access.getOptions().maxInputBytes,
+            maxInputPixels: access.getOptions().maxInputPixels,
+            restoreTrustLevel: isTrustedRestore ? 'trusted' : 'public',
+            registerAborter: (abort) => access.registerStateRestoreAborter(abort),
+            beforeMutation: isTrustedRestore
+                ? undefined
+                : () => {
+                    beforeSnapshot = captureSnapshotAction(access);
+                    mutationStarted = true;
+                },
         });
         if (access.isDisposed() || !access.getCanvas())
             return;
@@ -3675,25 +4024,50 @@ async function loadFromStateAction(access, jsonString, options) {
         access.updateMaskList();
         access.updateAnnotationList();
         access.updateUi();
-        if (previousImage && previousImage !== access.getOriginalImage()) {
-            access.emitImageCleared(previousImage, context);
+        if (!isSilentRestore) {
+            if (previousImage && previousImage !== access.getOriginalImage()) {
+                access.emitImageCleared(previousImage, context);
+            }
+            if (previousMaskSignature !== access.getMaskCollectionSignature()) {
+                access.emitMasksChanged(context);
+            }
+            if (previousAnnotationSignature !== access.getAnnotationCollectionSignature()) {
+                access.emitAnnotationsChanged(context);
+            }
+            access.emitImageChanged(context);
         }
-        if (previousMaskSignature !== access.getMaskCollectionSignature()) {
-            access.emitMasksChanged(context);
-        }
-        if (previousAnnotationSignature !== access.getAnnotationCollectionSignature()) {
-            access.emitAnnotationsChanged(context);
-        }
-        access.emitImageChanged(context);
-        restoreActiveSelection(access, restoredState, editorState, context);
+        restoreActiveSelection(access, restoredState, editorState, context, !isSilentRestore);
     }
     catch (error) {
-        reportError(access.getOptions(), error, 'Failed to restore canvas state.');
+        if (!isTrustedRestore &&
+            !access.isDisposed() &&
+            access.getCanvas() &&
+            mutationStarted &&
+            beforeSnapshot) {
+            try {
+                await loadFromStateAction(access, beforeSnapshot, {
+                    ...(options !== null && options !== void 0 ? options : {}),
+                    [TRUSTED_STATE_RESTORE]: true,
+                    [SILENT_STATE_RESTORE]: true,
+                });
+                access.setLastSnapshot(previousLastSnapshot);
+                access.updateUi();
+            }
+            catch (rollbackError) {
+                reportWarning(access.getOptions(), rollbackError, 'Failed to roll back canvas state restoration.');
+            }
+        }
+        if (!isSilentRestore) {
+            reportError(access.getOptions(), error, 'Failed to restore canvas state.');
+        }
         throw error;
     }
 }
 function isTrustedStateRestoreOptions(options) {
     return !!(options === null || options === void 0 ? void 0 : options[TRUSTED_STATE_RESTORE]);
+}
+function isSilentStateRestoreOptions(options) {
+    return !!(options === null || options === void 0 ? void 0 : options[SILENT_STATE_RESTORE]);
 }
 function saveStateAction(access, options) {
     var _a, _b, _c;
@@ -3756,27 +4130,38 @@ function captureSnapshotAction(access) {
         imageFilterConfig: access.getCurrentImageFilterConfig(),
     });
 }
-function restoreActiveSelection(access, restoredState, editorState, context) {
+function restoreActiveSelection(access, restoredState, editorState, context, notifySelectionChange) {
     const canvas = access.getLiveCanvas('loadFromState');
     const activeMaskId = editorState === null || editorState === void 0 ? void 0 : editorState.activeMaskId;
     const activeAnnotationId = editorState === null || editorState === void 0 ? void 0 : editorState.activeAnnotationId;
     if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'mask' && typeof activeMaskId === 'number') {
         const activeMask = restoredState.masks.find((maskObject) => maskObject.maskId === activeMaskId);
         if (activeMask) {
-            access.withSelectionChangeContext(context, () => {
-                canvas.setActiveObject(activeMask);
-                access.handleSelectionChanged([activeMask]);
-            });
+            canvas.setActiveObject(activeMask);
+            if (notifySelectionChange) {
+                access.withSelectionChangeContext(context, () => {
+                    access.handleSelectionChanged([activeMask]);
+                });
+            }
+            else {
+                access.showLabelForMask(activeMask);
+                access.updateMaskListSelection(activeMask);
+            }
         }
     }
     else if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'annotation' &&
         typeof activeAnnotationId === 'number') {
         const activeAnnotation = restoredState.annotations.find((annotation) => annotation.annotationId === activeAnnotationId);
         if (activeAnnotation) {
-            access.withSelectionChangeContext(context, () => {
-                canvas.setActiveObject(activeAnnotation);
-                access.handleSelectionChanged([activeAnnotation]);
-            });
+            canvas.setActiveObject(activeAnnotation);
+            if (notifySelectionChange) {
+                access.withSelectionChangeContext(context, () => {
+                    access.handleSelectionChanged([activeAnnotation]);
+                });
+            }
+            else {
+                access.updateAnnotationListSelection(activeAnnotation);
+            }
         }
     }
 }
@@ -7603,19 +7988,28 @@ function triggerFileDownload(context, file) {
     var _a;
     const ownerDocument = getCanvasDocument$2(context.canvas);
     const objectUrl = URL.createObjectURL(file);
-    const link = ownerDocument.createElement('a');
-    link.download = file.name;
-    link.href = objectUrl;
-    const body = (_a = ownerDocument.body) !== null && _a !== void 0 ? _a : ownerDocument.documentElement;
-    if (!body)
-        throw new Error('Document body is unavailable for download trigger.');
-    body.appendChild(link);
+    let downloadSetupCompleted = false;
     try {
-        link.click();
+        const link = ownerDocument.createElement('a');
+        link.download = file.name;
+        link.href = objectUrl;
+        const body = (_a = ownerDocument.body) !== null && _a !== void 0 ? _a : ownerDocument.documentElement;
+        if (!body)
+            throw new Error('Document body is unavailable for download trigger.');
+        body.appendChild(link);
+        try {
+            link.click();
+        }
+        finally {
+            body.removeChild(link);
+        }
+        scheduleObjectUrlRevoke(objectUrl);
+        downloadSetupCompleted = true;
     }
     finally {
-        body.removeChild(link);
-        scheduleObjectUrlRevoke(objectUrl);
+        if (!downloadSetupCompleted) {
+            safeRevokeObjectUrl(objectUrl);
+        }
     }
 }
 function scheduleObjectUrlRevoke(objectUrl) {
@@ -7953,240 +8347,6 @@ function applyCanvasDimensions(canvas, width, height, containerElement) {
     const integerHeight = Math.max(1, Math.round(Number(height) || 1));
     canvas.setDimensions({ width: integerWidth, height: integerHeight });
     forceReflow(containerElement);
-}
-
-const HEADER_PROBE_BYTES = 256 * 1024;
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-const JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH = 7;
-function hasPositiveDimensions$1(width, height) {
-    return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
-}
-function readUint16BE(bytes, offset) {
-    if (offset < 0 || offset + 2 > bytes.length)
-        return null;
-    return (bytes[offset] << 8) | bytes[offset + 1];
-}
-function readUint32BE(bytes, offset) {
-    if (offset < 0 || offset + 4 > bytes.length)
-        return null;
-    return (bytes[offset] * 0x1000000 +
-        ((bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]));
-}
-function readUint16LE(bytes, offset) {
-    if (offset < 0 || offset + 2 > bytes.length)
-        return null;
-    return bytes[offset] | (bytes[offset + 1] << 8);
-}
-function readUint24LE(bytes, offset) {
-    if (offset < 0 || offset + 3 > bytes.length)
-        return null;
-    return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
-}
-function matchesAscii(bytes, offset, value) {
-    if (offset < 0 || offset + value.length > bytes.length)
-        return false;
-    for (let index = 0; index < value.length; index += 1) {
-        if (bytes[offset + index] !== value.charCodeAt(index))
-            return false;
-    }
-    return true;
-}
-function readPngDimensions(bytes) {
-    if (bytes.length < 24)
-        return null;
-    if (!PNG_SIGNATURE.every((byte, index) => bytes[index] === byte))
-        return null;
-    if (!matchesAscii(bytes, 12, 'IHDR'))
-        return null;
-    const width = readUint32BE(bytes, 16);
-    const height = readUint32BE(bytes, 20);
-    return width !== null && height !== null && hasPositiveDimensions$1(width, height)
-        ? { width, height }
-        : null;
-}
-function isJpegStartOfFrame(marker) {
-    return ((marker >= 0xc0 && marker <= 0xc3) ||
-        (marker >= 0xc5 && marker <= 0xc7) ||
-        (marker >= 0xc9 && marker <= 0xcb) ||
-        (marker >= 0xcd && marker <= 0xcf));
-}
-function isStandaloneJpegMarker(marker) {
-    return marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7);
-}
-function readJpegDimensions(bytes) {
-    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8)
-        return null;
-    let offset = 2;
-    while (offset + 1 < bytes.length) {
-        while (offset < bytes.length && bytes[offset] === 0xff)
-            offset += 1;
-        if (offset >= bytes.length)
-            return null;
-        const marker = bytes[offset];
-        offset += 1;
-        if (marker === 0xda || marker === 0xd9)
-            return null;
-        if (isStandaloneJpegMarker(marker))
-            continue;
-        const segmentLength = readUint16BE(bytes, offset);
-        if (segmentLength === null || segmentLength < 2)
-            return null;
-        const segmentStart = offset + 2;
-        const segmentEnd = offset + segmentLength;
-        if (segmentEnd > bytes.length)
-            return null;
-        if (isJpegStartOfFrame(marker)) {
-            if (segmentLength < JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH ||
-                segmentStart + 5 > segmentEnd) {
-                return null;
-            }
-            const height = readUint16BE(bytes, segmentStart + 1);
-            const width = readUint16BE(bytes, segmentStart + 3);
-            return width !== null && height !== null && hasPositiveDimensions$1(width, height)
-                ? { width, height }
-                : null;
-        }
-        offset = segmentEnd;
-    }
-    return null;
-}
-function readWebpDimensions(bytes) {
-    if (bytes.length < 20 || !matchesAscii(bytes, 0, 'RIFF') || !matchesAscii(bytes, 8, 'WEBP')) {
-        return null;
-    }
-    if (matchesAscii(bytes, 12, 'VP8X') && bytes.length >= 30) {
-        const rawWidth = readUint24LE(bytes, 24);
-        const rawHeight = readUint24LE(bytes, 27);
-        if (rawWidth === null || rawHeight === null)
-            return null;
-        return { width: rawWidth + 1, height: rawHeight + 1 };
-    }
-    if (matchesAscii(bytes, 12, 'VP8 ') && bytes.length >= 30) {
-        if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a)
-            return null;
-        const rawWidth = readUint16LE(bytes, 26);
-        const rawHeight = readUint16LE(bytes, 28);
-        if (rawWidth === null || rawHeight === null)
-            return null;
-        return { width: rawWidth & 0x3fff, height: rawHeight & 0x3fff };
-    }
-    if (matchesAscii(bytes, 12, 'VP8L') && bytes.length >= 25 && bytes[20] === 0x2f) {
-        const byte1 = bytes[21];
-        const byte2 = bytes[22];
-        const byte3 = bytes[23];
-        const byte4 = bytes[24];
-        return {
-            width: 1 + byte1 + ((byte2 & 0x3f) << 8),
-            height: 1 + (byte2 >> 6) + (byte3 << 2) + ((byte4 & 0x0f) << 10),
-        };
-    }
-    return null;
-}
-function readImageHeaderDimensions(bytes) {
-    var _a, _b;
-    return (_b = (_a = readPngDimensions(bytes)) !== null && _a !== void 0 ? _a : readJpegDimensions(bytes)) !== null && _b !== void 0 ? _b : readWebpDimensions(bytes);
-}
-function estimateBase64PayloadBytes(dataUrl) {
-    const commaIndex = dataUrl.indexOf(',');
-    if (commaIndex < 0)
-        return null;
-    const header = dataUrl.slice(0, commaIndex).toLowerCase();
-    if (!header.endsWith(';base64'))
-        return null;
-    const base64 = dataUrl.slice(commaIndex + 1).replace(/\s+/g, '');
-    if (!base64)
-        return 0;
-    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-    return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-}
-function decodeBase64Prefix(dataUrl, maxBytes) {
-    const commaIndex = dataUrl.indexOf(',');
-    if (commaIndex < 0)
-        return null;
-    const header = dataUrl.slice(0, commaIndex).toLowerCase();
-    if (!header.endsWith(';base64'))
-        return null;
-    const encodedLength = Math.ceil(maxBytes / 3) * 4;
-    const base64 = dataUrl
-        .slice(commaIndex + 1, commaIndex + 1 + encodedLength)
-        .replace(/\s+/g, '');
-    if (!base64)
-        return new Uint8Array(0);
-    const paddedBase64 = padBase64(base64);
-    if (paddedBase64 === null)
-        return null;
-    const bufferCtor = globalThis.Buffer;
-    if (bufferCtor && typeof bufferCtor.from === 'function') {
-        return bufferCtor.from(paddedBase64, 'base64');
-    }
-    if (typeof globalThis.atob === 'function') {
-        const binary = globalThis.atob(paddedBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let index = 0; index < binary.length; index += 1) {
-            bytes[index] = binary.charCodeAt(index);
-        }
-        return bytes;
-    }
-    return null;
-}
-function padBase64(base64) {
-    const remainder = base64.length % 4;
-    if (remainder === 0)
-        return base64;
-    if (remainder === 1)
-        return null;
-    return `${base64}${'='.repeat(4 - remainder)}`;
-}
-async function readBlobAsArrayBuffer(blob) {
-    if (typeof blob.arrayBuffer === 'function') {
-        return blob.arrayBuffer();
-    }
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const result = reader.result;
-            if (result instanceof ArrayBuffer) {
-                resolve(result);
-            }
-            else {
-                reject(new Error('FileReader returned a non-ArrayBuffer result'));
-            }
-        };
-        reader.onerror = () => {
-            var _a;
-            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
-        };
-        reader.onabort = () => {
-            reject(new Error('FileReader read aborted'));
-        };
-        reader.readAsArrayBuffer(blob);
-    });
-}
-function assertInputByteBudget(bytes, maxInputBytes) {
-    if (bytes === null)
-        return;
-    if (bytes > maxInputBytes) {
-        throw new ImageDecodeError(`Image input byte length ${bytes} exceeds maxInputBytes (${maxInputBytes}).`);
-    }
-}
-function assertInputPixelBudget(dimensions, maxInputPixels) {
-    if (!dimensions)
-        return;
-    const pixels = dimensions.width * dimensions.height;
-    if (pixels > maxInputPixels) {
-        throw new ImageDecodeError(`Image input dimensions ${dimensions.width}x${dimensions.height} exceed maxInputPixels (${maxInputPixels}).`);
-    }
-}
-function assertImageDataUrlInputBudget(dataUrl, options) {
-    assertInputByteBudget(estimateBase64PayloadBytes(dataUrl), options.maxInputBytes);
-    const headerBytes = decodeBase64Prefix(dataUrl, HEADER_PROBE_BYTES);
-    assertInputPixelBudget(headerBytes ? readImageHeaderDimensions(headerBytes) : null, options.maxInputPixels);
-}
-async function assertImageFileInputBudget(file, options) {
-    assertInputByteBudget(file.size, options.maxInputBytes);
-    const probeBlob = typeof file.slice === 'function' ? file.slice(0, HEADER_PROBE_BYTES) : file;
-    const probeBuffer = await readBlobAsArrayBuffer(probeBlob);
-    assertInputPixelBudget(readImageHeaderDimensions(new Uint8Array(probeBuffer)), options.maxInputPixels);
 }
 
 const MIN_FABRIC_IMAGE_LOAD_BUDGET_MS = 10;
@@ -8899,7 +9059,7 @@ function animateProps(object, props, options, guard) {
         };
         const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
         timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
-        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
+        unregisterAborter = guard.registerDisposeAborter(abortAndSettle);
         try {
             const animationResult = object.animate(props, {
                 duration,
@@ -9311,6 +9471,7 @@ class EditorActionAccessFactory {
             isDisposed: () => runtime.isDisposed,
             canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             getActiveStateRestoreOperation: () => runtime.activeStateRestoreOperation,
+            registerStateRestoreAborter: (abort) => runtime.operationGuard.registerDisposeAborter(abort),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
             getOriginalImage: () => runtime.originalImage,
             setOriginalImage: (image) => {
@@ -11290,7 +11451,7 @@ class OperationGuard {
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "animationAborters", {
+        Object.defineProperty(this, "disposeAborters", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -11324,16 +11485,16 @@ class OperationGuard {
         this.isLoadingActive = false;
         this.currentOperationName = null;
         this.currentOperationToken = null;
-        for (const abort of this.animationAborters) {
+        for (const abort of this.disposeAborters) {
             try {
                 abort();
             }
             catch {
             }
         }
-        this.animationAborters.clear();
+        this.disposeAborters.clear();
     }
-    registerAnimationAborter(abort) {
+    registerDisposeAborter(abort) {
         if (this.isDisposedFlag) {
             try {
                 abort();
@@ -11342,9 +11503,9 @@ class OperationGuard {
             }
             return () => undefined;
         }
-        this.animationAborters.add(abort);
+        this.disposeAborters.add(abort);
         return () => {
-            this.animationAborters.delete(abort);
+            this.disposeAborters.delete(abort);
         };
     }
     beginLoading() {
@@ -11706,6 +11867,12 @@ class EditorRuntime {
             configurable: true,
             writable: true,
             value: false
+        });
+        Object.defineProperty(this, "disposePromise", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
         });
         Object.defineProperty(this, "shouldSuppressSaveState", {
             enumerable: true,
@@ -15979,9 +16146,14 @@ class ImageEditor {
     }
     withInternalOperationOptions(token, options = {}) {
         return {
+            ...this.withOperationTokenOptions(token, options),
+            [TRUSTED_STATE_RESTORE]: true,
+        };
+    }
+    withOperationTokenOptions(token, options = {}) {
+        return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
-            [TRUSTED_STATE_RESTORE]: true,
         };
     }
     withAnimationQueueBypass(options = {}) {
@@ -16636,7 +16808,14 @@ class ImageEditor {
         this.updateUi();
     }
     async loadFromState(jsonString) {
-        return this.loadFromStateInternal(jsonString);
+        if (!jsonString || !this.runtime.canvas || this.runtime.isDisposed)
+            return;
+        if (!this.canRunIdleOperation('loadFromState'))
+            return;
+        await runBusyOperation(this.actionAccessFactory.buildBusyOperationAccess(), 'loadFromState', async (context, token) => {
+            void context;
+            await this.loadFromStateInternal(jsonString, this.withOperationTokenOptions(token));
+        });
     }
     async loadFromStateInternal(jsonString, options) {
         await loadFromStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), jsonString, options);
@@ -17108,16 +17287,23 @@ class ImageEditor {
         await this.disposeInternal(true);
     }
     disposeInternal(waitForCanvasDispose) {
-        var _a;
+        var _a, _b;
         if (this.runtime.isDisposed) {
-            return waitForCanvasDispose ? Promise.resolve() : undefined;
+            return waitForCanvasDispose
+                ? ((_a = this.runtime.disposePromise) !== null && _a !== void 0 ? _a : Promise.resolve())
+                : undefined;
         }
         const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.runtime.originalImage;
+        let resolveCanvasDispose = () => undefined;
+        const canvasDispose = new Promise((resolve) => {
+            resolveCanvasDispose = resolve;
+        });
+        this.runtime.disposePromise = canvasDispose;
         this.runtime.isDisposed = true;
         this.runtime.operationGuard.markDisposed();
         this.runtime.animQueue.clear();
-        (_a = this.runtime.domBindings) === null || _a === void 0 ? void 0 : _a.removeAll();
+        (_b = this.runtime.domBindings) === null || _b === void 0 ? void 0 : _b.removeAll();
         safelyRemoveKeyboardListener(this.runtime.keyboardDocument, this.runtime.keyboardHandler);
         this.runtime.keyboardHandler = null;
         this.runtime.keyboardDocument = null;
@@ -17137,9 +17323,7 @@ class ImageEditor {
         safelyExitActiveSession(this.runtime.shapeSession !== null, this.runtime.canvas, () => exitShapeMode(this.buildShapeControllerContext()), () => {
             this.runtime.shapeSession = null;
         });
-        const canvasDispose = this.runtime.canvas
-            ? safelyDisposeCanvas(this.runtime.canvas)
-            : Promise.resolve();
+        void safelyDisposeCanvas(this.runtime.canvas).then(resolveCanvasDispose);
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);

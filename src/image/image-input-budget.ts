@@ -9,7 +9,6 @@
  */
 
 import { ImageDecodeError } from '../core/errors.js';
-import type { ResolvedOptions } from '../core/public-types.js';
 
 const HEADER_PROBE_BYTES = 256 * 1024;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
@@ -18,6 +17,11 @@ const JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH = 7;
 export interface ImageHeaderDimensions {
     readonly width: number;
     readonly height: number;
+}
+
+export interface ImageInputBudgetOptions {
+    readonly maxInputBytes: number;
+    readonly maxInputPixels: number;
 }
 
 function hasPositiveDimensions(width: number, height: number): boolean {
@@ -238,6 +242,72 @@ async function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
     });
 }
 
+async function readBlobBytes(blob: Blob, start: number, end: number): Promise<Uint8Array> {
+    const boundedStart = Math.max(0, Math.min(blob.size, Math.floor(start)));
+    const boundedEnd = Math.max(boundedStart, Math.min(blob.size, Math.floor(end)));
+    const buffer = await readBlobAsArrayBuffer(blob.slice(boundedStart, boundedEnd));
+    return new Uint8Array(buffer);
+}
+
+/**
+ * Traverse JPEG segment headers without reading metadata payloads into memory.
+ * A valid SOF marker must appear before scan data, so reaching SOS or EOI means
+ * dimensions are unavailable from the JPEG structure.
+ */
+async function readJpegDimensionsFromBlob(blob: Blob): Promise<ImageHeaderDimensions | null> {
+    const signature = await readBlobBytes(blob, 0, 2);
+    if (signature.length < 2 || signature[0] !== 0xff || signature[1] !== 0xd8) return null;
+
+    let offset = 2;
+    while (offset < blob.size) {
+        let marker: number | null = null;
+        while (offset < blob.size && marker === null) {
+            const markerBytes = await readBlobBytes(blob, offset, offset + 64);
+            if (markerBytes.length === 0 || markerBytes[0] !== 0xff) return null;
+
+            let markerOffset = 0;
+            while (markerOffset < markerBytes.length && markerBytes[markerOffset] === 0xff) {
+                markerOffset += 1;
+            }
+            offset += markerOffset;
+            if (markerOffset < markerBytes.length) {
+                marker = markerBytes[markerOffset]!;
+                offset += 1;
+            }
+        }
+
+        if (marker === null || marker === 0x00 || marker === 0xda || marker === 0xd9) return null;
+        if (isStandaloneJpegMarker(marker)) continue;
+
+        const lengthBytes = await readBlobBytes(blob, offset, offset + 2);
+        const segmentLength = readUint16BE(lengthBytes, 0);
+        if (segmentLength === null || segmentLength < 2) return null;
+
+        const segmentStart = offset + 2;
+        const segmentEnd = offset + segmentLength;
+        if (segmentEnd > blob.size) return null;
+
+        if (isJpegStartOfFrame(marker)) {
+            if (
+                segmentLength < JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH ||
+                segmentStart + 5 > segmentEnd
+            ) {
+                return null;
+            }
+            const dimensions = await readBlobBytes(blob, segmentStart, segmentStart + 5);
+            const height = readUint16BE(dimensions, 1);
+            const width = readUint16BE(dimensions, 3);
+            return width !== null && height !== null && hasPositiveDimensions(width, height)
+                ? { width, height }
+                : null;
+        }
+
+        offset = segmentEnd;
+    }
+
+    return null;
+}
+
 function assertInputByteBudget(bytes: number | null, maxInputBytes: number): void {
     if (bytes === null) return;
     if (bytes > maxInputBytes) {
@@ -260,7 +330,10 @@ function assertInputPixelBudget(
     }
 }
 
-export function assertImageDataUrlInputBudget(dataUrl: string, options: ResolvedOptions): void {
+export function assertImageDataUrlInputBudget(
+    dataUrl: string,
+    options: ImageInputBudgetOptions,
+): void {
     assertInputByteBudget(estimateBase64PayloadBytes(dataUrl), options.maxInputBytes);
 
     const headerBytes = decodeBase64Prefix(dataUrl, HEADER_PROBE_BYTES);
@@ -272,13 +345,15 @@ export function assertImageDataUrlInputBudget(dataUrl: string, options: Resolved
 
 export async function assertImageFileInputBudget(
     file: File,
-    options: ResolvedOptions,
+    options: ImageInputBudgetOptions,
 ): Promise<void> {
     assertInputByteBudget(file.size, options.maxInputBytes);
     const probeBlob = typeof file.slice === 'function' ? file.slice(0, HEADER_PROBE_BYTES) : file;
     const probeBuffer = await readBlobAsArrayBuffer(probeBlob);
-    assertInputPixelBudget(
-        readImageHeaderDimensions(new Uint8Array(probeBuffer)),
-        options.maxInputPixels,
-    );
+    const probeBytes = new Uint8Array(probeBuffer);
+    const dimensions =
+        probeBytes[0] === 0xff && probeBytes[1] === 0xd8
+            ? await readJpegDimensionsFromBlob(file)
+            : readImageHeaderDimensions(probeBytes);
+    assertInputPixelBudget(dimensions, options.maxInputPixels);
 }

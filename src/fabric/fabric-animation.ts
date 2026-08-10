@@ -173,7 +173,7 @@ export function animateProps<T extends FabricNS.FabricObject>(
 
         const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
         timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
-        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
+        unregisterAborter = guard.registerDisposeAborter(abortAndSettle);
 
         try {
             // v7: `animate` returns `Record<string, TAnimation>` (one

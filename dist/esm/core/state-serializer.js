@@ -4,15 +4,18 @@ import { ImageLoadTimeoutError, StateRestoreError } from './errors.js';
 import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, hasActiveImageFilters, normalizeImageFilterConfigSnapshot, } from './image-filter-config.js';
 import { isSupportedImageDataUrl } from '../utils/file.js';
 import { withTimeout } from '../utils/timeout.js';
+import { assertImageDataUrlInputBudget } from '../image/image-input-budget.js';
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
 const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
 const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
 const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
 const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
-const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
+const DEFAULT_MAX_RESTORE_IMAGE_BYTES = 50000000;
+const DEFAULT_MAX_RESTORE_IMAGE_PIXELS = 50000000;
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
+const UNSAFE_PUBLIC_RESTORE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
     'circle',
     'ellipse',
@@ -290,7 +293,7 @@ export function saveState(input) {
     return JSON.stringify(jsonObj);
 }
 export async function loadFromState(input) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
     const restoreTrustLevel = (_a = input.restoreTrustLevel) !== null && _a !== void 0 ? _a : 'public';
     const isPublicRestore = restoreTrustLevel === 'public';
@@ -315,29 +318,44 @@ export async function loadFromState(input) {
     if (isPublicRestore) {
         validatePublicSnapshot(json, {
             maxSnapshotObjects: (_c = input.maxSnapshotObjects) !== null && _c !== void 0 ? _c : DEFAULT_MAX_SNAPSHOT_OBJECTS,
+            maxInputBytes: (_d = input.maxInputBytes) !== null && _d !== void 0 ? _d : DEFAULT_MAX_RESTORE_IMAGE_BYTES,
+            maxInputPixels: (_e = input.maxInputPixels) !== null && _e !== void 0 ? _e : DEFAULT_MAX_RESTORE_IMAGE_PIXELS,
         });
     }
-    if (typeof json.width === 'number' &&
+    const restorableCanvasSize = typeof json.width === 'number' &&
         json.width > 0 &&
         typeof json.height === 'number' &&
-        json.height > 0) {
-        assertRestoredCanvasSizeAllowed(json.width, json.height, (_d = input.maxCanvasPixels) !== null && _d !== void 0 ? _d : DEFAULT_MAX_RESTORE_CANVAS_PIXELS, isPublicRestore
-            ? ((_e = input.maxRestoreCanvasDimension) !== null && _e !== void 0 ? _e : DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
+        json.height > 0
+        ? { width: json.width, height: json.height }
+        : null;
+    if (restorableCanvasSize) {
+        assertRestoredCanvasSizeAllowed(restorableCanvasSize.width, restorableCanvasSize.height, (_f = input.maxCanvasPixels) !== null && _f !== void 0 ? _f : DEFAULT_MAX_RESTORE_CANVAS_PIXELS, isPublicRestore
+            ? ((_g = input.maxRestoreCanvasDimension) !== null && _g !== void 0 ? _g : DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
             : null);
-        setCanvasSize(json.width, json.height);
     }
-    const loadFromJsonPromise = canvas.loadFromJSON(json);
+    (_h = input.beforeMutation) === null || _h === void 0 ? void 0 : _h.call(input);
+    if (restorableCanvasSize) {
+        setCanvasSize(restorableCanvasSize.width, restorableCanvasSize.height);
+    }
+    const previousRenderOnAddRemove = canvas.renderOnAddRemove;
+    const abortController = new AbortController();
+    const unregisterAborter = (_j = input.registerAborter) === null || _j === void 0 ? void 0 : _j.call(input, () => abortController.abort());
     try {
-        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON');
+        const loadFromJsonPromise = canvas.loadFromJSON(json, undefined, { signal: abortController.signal });
+        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON', () => abortController.abort());
     }
     catch (error) {
+        canvas.renderOnAddRemove = previousRenderOnAddRemove;
         if (error instanceof ImageLoadTimeoutError) {
             throw new StateRestoreError('loadFromState: canvas.loadFromJSON timed out while restoring editor state.', error);
         }
         throw error;
     }
+    finally {
+        unregisterAborter === null || unregisterAborter === void 0 ? void 0 : unregisterAborter();
+    }
     const objects = canvas.getObjects();
-    restoreEditorObjectPropsFromJson(objects, (_f = json.objects) !== null && _f !== void 0 ? _f : []);
+    restoreEditorObjectPropsFromJson(objects, (_k = json.objects) !== null && _k !== void 0 ? _k : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -382,7 +400,7 @@ export async function loadFromState(input) {
         .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
     const masks = objects.filter(isMaskObject);
     const annotations = objects.filter(isAnnotationObject);
-    const originalImage = (_g = objects.find(isBaseImageObject)) !== null && _g !== void 0 ? _g : null;
+    const originalImage = (_l = objects.find(isBaseImageObject)) !== null && _l !== void 0 ? _l : null;
     return {
         editorState,
         maxMaskId,
@@ -434,6 +452,7 @@ function assertSnapshotByteSizeAllowed(jsonString, maxSnapshotBytes) {
 }
 function validatePublicSnapshot(json, options) {
     var _a;
+    assertPublicSnapshotObjectKeysAllowed(json, 'snapshot');
     if (json.objects !== undefined && !Array.isArray(json.objects)) {
         throw new StateRestoreError('loadFromState: snapshot objects must be an array.');
     }
@@ -444,12 +463,15 @@ function validatePublicSnapshot(json, options) {
     }
     const context = {
         maxSnapshotObjects: safeMaxSnapshotObjects,
+        maxInputBytes: toPositiveIntegerLimit(options.maxInputBytes, DEFAULT_MAX_RESTORE_IMAGE_BYTES),
+        maxInputPixels: toPositiveIntegerLimit(options.maxInputPixels, DEFAULT_MAX_RESTORE_IMAGE_PIXELS),
         objectCount: 0,
         seen: new WeakSet(),
         countedFabricObjects: new WeakSet(),
     };
     objects.forEach((object, index) => validatePublicSnapshotValue(object, `objects[${index}]`, {
         validateFabricObject: true,
+        validatePatternSource: false,
         allowEditorOwnedCustomMask: true,
         arrayEntriesAreFabricObjects: false,
     }, context, 0));
@@ -458,6 +480,7 @@ function validatePublicSnapshot(json, options) {
             continue;
         validatePublicSnapshotValue(value, key, {
             validateFabricObject: PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key),
+            validatePatternSource: false,
             allowEditorOwnedCustomMask: false,
             arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
         }, context, 0);
@@ -469,17 +492,22 @@ function validatePublicSnapshotValue(value, path, options, context, depth) {
     }
     if (!value || typeof value !== 'object')
         return;
+    if (!Array.isArray(value)) {
+        assertPublicSnapshotObjectKeysAllowed(value, path);
+    }
     const alreadySeen = context.seen.has(value);
     if (!alreadySeen)
         context.seen.add(value);
     if (options.validateFabricObject) {
         validatePublicSnapshotFabricObjectPayload(value, path, options.allowEditorOwnedCustomMask, context);
     }
+    validatePublicSnapshotImageResource(value, path, options, context);
     if (alreadySeen)
         return;
     if (Array.isArray(value)) {
         value.forEach((entry, entryIndex) => validatePublicSnapshotValue(entry, `${path}[${entryIndex}]`, {
             validateFabricObject: options.arrayEntriesAreFabricObjects,
+            validatePatternSource: false,
             allowEditorOwnedCustomMask: false,
             arrayEntriesAreFabricObjects: false,
         }, context, depth + 1));
@@ -487,17 +515,44 @@ function validatePublicSnapshotValue(value, path, options, context, depth) {
     }
     for (const [key, nestedValue] of Object.entries(value)) {
         const nestedPath = path ? `${path}.${key}` : key;
-        if (typeof nestedValue === 'string' &&
-            nestedValue.trim() !== '' &&
-            isPublicRestoreImageSourceKey(key) &&
-            !isSupportedImageDataUrl(nestedValue)) {
-            throw new StateRestoreError(`loadFromState: snapshot field "${nestedPath}" must use a supported data URL source.`);
-        }
         validatePublicSnapshotValue(nestedValue, nestedPath, {
-            validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key, nestedValue),
+            validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key),
+            validatePatternSource: options.validateFabricObject && (key === 'fill' || key === 'stroke'),
             allowEditorOwnedCustomMask: false,
             arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
         }, context, depth + 1);
+    }
+}
+function assertPublicSnapshotObjectKeysAllowed(value, path) {
+    for (const key of Object.keys(value)) {
+        if (!UNSAFE_PUBLIC_RESTORE_KEYS.has(key))
+            continue;
+        const keyPath = path ? `${path}.${key}` : key;
+        throw new StateRestoreError(`loadFromState: snapshot field "${keyPath}" uses an unsafe structural key.`);
+    }
+}
+function validatePublicSnapshotImageResource(value, path, options, context) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return;
+    const object = value;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (options.validateFabricObject && type === 'image' && typeof object.src === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.src, `${path}.src`, context);
+    }
+    if (options.validatePatternSource && type === 'pattern' && typeof object.source === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.source, `${path}.source`, context);
+    }
+}
+function assertPublicRestoreImageSourceAllowed(source, path, context) {
+    if (!isSupportedImageDataUrl(source)) {
+        throw new StateRestoreError(`loadFromState: snapshot field "${path}" must use a supported data URL source.`);
+    }
+    try {
+        assertImageDataUrlInputBudget(source, context);
+    }
+    catch (error) {
+        const reason = error instanceof Error ? ` ${error.message}` : '';
+        throw new StateRestoreError(`loadFromState: snapshot field "${path}" exceeds configured image input limits.${reason}`, error);
     }
 }
 function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwnedCustomMask, context) {
@@ -523,13 +578,8 @@ function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwned
     }
     throw new StateRestoreError(`loadFromState: snapshot field "${typePath}" has unsupported Fabric type "${String(object.type)}".`);
 }
-function shouldValidatePublicRestoreNestedFabricObject(key, value) {
-    if (PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key))
-        return true;
-    return isPublicRestoreImageSourceKey(key) && hasFabricObjectType(value);
-}
-function hasFabricObjectType(value) {
-    return (!!value && typeof value === 'object' && typeof value.type === 'string');
+function shouldValidatePublicRestoreNestedFabricObject(key) {
+    return PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key);
 }
 function isPublicRestoreEditorOwnedCustomMaskPayload(value) {
     if (!isMaskObject(value))
@@ -545,12 +595,6 @@ function isPublicRestoreEditorOwnedCustomMaskPayload(value) {
         candidate.maskName.trim() !== '' &&
         typeof candidate.originalAlpha === 'number' &&
         Number.isFinite(candidate.originalAlpha));
-}
-function isPublicRestoreImageSourceKey(key) {
-    const normalized = key.toLowerCase();
-    return (PUBLIC_RESTORE_IMAGE_SOURCE_KEYS.has(normalized) ||
-        normalized.endsWith('src') ||
-        normalized.endsWith('source'));
 }
 function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d;

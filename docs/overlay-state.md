@@ -6,8 +6,9 @@ CDN, or a database, then store the overlay JSON beside it. Re-open the same
 image later, import the overlay JSON, continue editing masks and annotations,
 and export a final raster only when needed.
 
-This API is not Fabric.js JSON and is not the editor's `saveState()` snapshot.
-It is a stable, versioned wire format with `schema:
+This API is not Fabric.js JSON and is separate from the internal full-canvas
+history snapshots recorded by `saveState()`, which returns `void`. It is a
+stable, versioned wire format with `schema:
 'image-editor.overlay-state'`, `version: 1`, `coordinateSpace:
 'image-normalized'`, one ordered `overlays[]` array, and optional
 `baseImageTransform` metadata. Here `version: 1` means overlay-state schema

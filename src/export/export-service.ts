@@ -1205,20 +1205,30 @@ export async function downloadImage(
 function triggerFileDownload(context: ExportServiceContext, file: File): void {
     const ownerDocument = getCanvasDocument(context.canvas);
     const objectUrl = URL.createObjectURL(file);
-    const link = ownerDocument.createElement('a');
-
-    link.download = file.name;
-    link.href = objectUrl;
-
-    const body = ownerDocument.body ?? ownerDocument.documentElement;
-    if (!body) throw new Error('Document body is unavailable for download trigger.');
-    body.appendChild(link);
+    let downloadSetupCompleted = false;
 
     try {
-        link.click();
-    } finally {
-        body.removeChild(link);
+        const link = ownerDocument.createElement('a');
+
+        link.download = file.name;
+        link.href = objectUrl;
+
+        const body = ownerDocument.body ?? ownerDocument.documentElement;
+        if (!body) throw new Error('Document body is unavailable for download trigger.');
+        body.appendChild(link);
+
+        try {
+            link.click();
+        } finally {
+            body.removeChild(link);
+        }
+
         scheduleObjectUrlRevoke(objectUrl);
+        downloadSetupCompleted = true;
+    } finally {
+        if (!downloadSetupCompleted) {
+            safeRevokeObjectUrl(objectUrl);
+        }
     }
 }
 

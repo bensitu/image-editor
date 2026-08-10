@@ -48,6 +48,16 @@ const { StateRestoreError } = await import('../src/core/errors.ts');
 
 const VALID_IMAGE_SRC = 'data:image/png;base64,AAAA';
 
+function pngDataUrl(width, height) {
+    const bytes = new Uint8Array(24);
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+    bytes.set([0x00, 0x00, 0x00, 0x0d], 8);
+    bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+    new DataView(bytes.buffer).setUint32(16, width, false);
+    new DataView(bytes.buffer).setUint32(20, height, false);
+    return `data:image/png;base64,${Buffer.from(bytes).toString('base64')}`;
+}
+
 // ─── Mock Fabric canvas ─────────────────────────────────────────────────────
 
 /**
@@ -223,7 +233,11 @@ test('loadFromState rejects with StateRestoreError when canvas.loadFromJSON time
     ]) {
         await withMockedTimers(async (timers) => {
             const canvas = new MockCanvas();
-            canvas.loadFromJSON = () => new Promise(() => undefined);
+            let restoreSignal;
+            canvas.loadFromJSON = (_json, _reviver, options) => {
+                restoreSignal = options?.signal;
+                return new Promise(() => undefined);
+            };
 
             const restorePromise = loadFromState(
                 makeInput(canvas, {
@@ -237,6 +251,7 @@ test('loadFromState rejects with StateRestoreError when canvas.loadFromJSON time
             assert.equal(timers.length, 1, `${label} restore must schedule one timeout`);
             assert.equal(timers[0].ms, 30000);
             timers[0].callback();
+            assert.equal(restoreSignal?.aborted, true);
 
             await assert.rejects(
                 () => restorePromise,
@@ -588,49 +603,48 @@ test('public loadFromState rejects unsafe remote image sources', async () => {
     );
 });
 
-test('public loadFromState rejects unsafe nested source-like fields', async () => {
-    const cases = [
-        [
-            'objects[0].fill.source',
-            {
-                type: 'rect',
-                fill: {
-                    type: 'pattern',
-                    source: 'https://example.com/pattern.png',
-                },
-            },
-        ],
-        [
-            'objects[0].fill.gradientSource',
-            {
-                type: 'rect',
-                fill: {
-                    type: 'gradient',
-                    gradientSource: 'https://example.com/gradient.svg',
-                },
-            },
-        ],
-    ];
+test('public loadFromState rejects unsafe Fabric Pattern image sources', async () => {
+    const canvas = new MockCanvas();
 
-    for (const [fieldPath, object] of cases) {
-        const canvas = new MockCanvas();
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, {
+                    version: '7.0.0',
+                    width: 320,
+                    height: 240,
+                    objects: [
+                        {
+                            type: 'rect',
+                            fill: {
+                                type: 'pattern',
+                                source: 'https://example.com/pattern.png',
+                            },
+                        },
+                    ],
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError &&
+            error.message.includes('field "objects[0].fill.source"') &&
+            /supported data URL source/.test(error.message),
+    );
+});
 
-        await assert.rejects(
-            () =>
-                loadFromState(
-                    makePublicRestoreInput(canvas, {
-                        version: '7.0.0',
-                        width: 320,
-                        height: 240,
-                        objects: [object],
-                    }),
-                ),
-            (error) =>
-                error instanceof StateRestoreError &&
-                error.message.includes(`field "${fieldPath}"`) &&
-                /supported data URL source/.test(error.message),
-        );
-    }
+test('public loadFromState preserves ordinary metadata fields named source', async () => {
+    const canvas = new MockCanvas();
+    const metadata = { 'app.audit': { source: 'crm' } };
+
+    await loadFromState(
+        makePublicRestoreInput(canvas, {
+            version: '7.0.0',
+            width: 320,
+            height: 240,
+            objects: [{ type: 'rect', overlayMetadata: metadata }],
+        }),
+    );
+
+    assert.deepEqual(canvas.objects[0].overlayMetadata, metadata);
 });
 
 test('public loadFromState rejects unsupported nested Fabric object types', async () => {
@@ -736,6 +750,69 @@ test('public loadFromState accepts supported data URL image sources', async () =
 
     assert.ok(result.originalImage);
     assert.equal(result.originalImage.src, VALID_IMAGE_SRC);
+});
+
+test('public loadFromState enforces configured limits for embedded images', async () => {
+    const cases = [
+        {
+            source: VALID_IMAGE_SRC,
+            limits: { maxInputBytes: 2, maxInputPixels: 50000000 },
+            expected: /maxInputBytes/,
+        },
+        {
+            source: pngDataUrl(100, 100),
+            limits: { maxInputBytes: 1024, maxInputPixels: 9999 },
+            expected: /maxInputPixels/,
+        },
+    ];
+
+    for (const { source, limits, expected } of cases) {
+        const canvas = new MockCanvas();
+        let loadCount = 0;
+        canvas.loadFromJSON = async () => {
+            loadCount += 1;
+            return canvas;
+        };
+
+        await assert.rejects(
+            () =>
+                loadFromState(
+                    makePublicRestoreInput(
+                        canvas,
+                        {
+                            version: '7.0.0',
+                            width: 320,
+                            height: 240,
+                            objects: [{ type: 'image', src: source }],
+                        },
+                        limits,
+                    ),
+                ),
+            (error) => error instanceof StateRestoreError && expected.test(error.message),
+        );
+        assert.equal(loadCount, 0);
+    }
+});
+
+test('public loadFromState rejects unsafe structural keys before deserialization', async () => {
+    for (const key of ['__proto__', 'prototype', 'constructor']) {
+        const canvas = new MockCanvas();
+        let loadCount = 0;
+        canvas.loadFromJSON = async () => {
+            loadCount += 1;
+            return canvas;
+        };
+        const snapshot = `{"version":"7.0.0","width":320,"height":240,"objects":[{"type":"rect","overlayMetadata":{"app.audit":{"${key}":{}}}}]}`;
+
+        await assert.rejects(
+            () => loadFromState(makePublicRestoreInput(canvas, snapshot)),
+            (error) =>
+                error instanceof StateRestoreError &&
+                error.message.includes(key) &&
+                /unsafe structural key/.test(error.message),
+        );
+        assert.equal(loadCount, 0);
+    }
 });
 
 test('trusted loadFromState keeps internal restores working with unvalidated sources', async () => {

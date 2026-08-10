@@ -7,12 +7,15 @@
  *
  * @module
  */
-import type { ResolvedOptions } from '../core/public-types.js';
 export interface ImageHeaderDimensions {
     readonly width: number;
     readonly height: number;
 }
+export interface ImageInputBudgetOptions {
+    readonly maxInputBytes: number;
+    readonly maxInputPixels: number;
+}
 export declare function readImageHeaderDimensions(bytes: Uint8Array): ImageHeaderDimensions | null;
 export declare function estimateBase64PayloadBytes(dataUrl: string): number | null;
-export declare function assertImageDataUrlInputBudget(dataUrl: string, options: ResolvedOptions): void;
-export declare function assertImageFileInputBudget(file: File, options: ResolvedOptions): Promise<void>;
+export declare function assertImageDataUrlInputBudget(dataUrl: string, options: ImageInputBudgetOptions): void;
+export declare function assertImageFileInputBudget(file: File, options: ImageInputBudgetOptions): Promise<void>;

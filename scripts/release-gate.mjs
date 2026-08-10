@@ -18,8 +18,13 @@ const failures = [];
 
 const requiredArtifacts = [
     'dist/esm/index.js',
+    'dist/esm/index.js.map',
     'dist/cjs/index.cjs',
+    'dist/cjs/index.cjs.map',
     'dist/umd/image-editor.umd.js',
+    'dist/umd/image-editor.umd.js.map',
+    'dist/umd/image-editor.umd.min.js',
+    'dist/umd/image-editor.umd.min.js.map',
     'dist/types/index.d.ts',
     'dist/types/index.d.cts',
     'dist/types/image-editor.d.ts',
@@ -86,6 +91,13 @@ function assertContains(text, pattern, label, message) {
     }
 }
 
+function assertSourceMapReference(text, label, expectedMapFile) {
+    const sourceMapReference = text.match(/\/\/# sourceMappingURL=([^\s]+)/)?.[1];
+    if (sourceMapReference !== expectedMapFile) {
+        addFailure(`${label}: expected sourceMappingURL=${expectedMapFile}.`);
+    }
+}
+
 async function checkBuildArtifacts() {
     await Promise.all(requiredArtifacts.map((artifact) => assertNonEmptyFile(artifact)));
 }
@@ -120,6 +132,49 @@ async function checkBundleShapes() {
         'dist/umd/image-editor.umd.js',
         'expected documented UMD global name "ImageEditor".',
     );
+    assertSourceMapReference(umd, 'dist/umd/image-editor.umd.js', 'image-editor.umd.js.map');
+
+    const minifiedUmd = await readText('dist/umd/image-editor.umd.min.js');
+    assertContains(
+        minifiedUmd,
+        /\bImageEditor\b/,
+        'dist/umd/image-editor.umd.min.js',
+        'expected documented UMD global name "ImageEditor".',
+    );
+    assertSourceMapReference(
+        minifiedUmd,
+        'dist/umd/image-editor.umd.min.js',
+        'image-editor.umd.min.js.map',
+    );
+}
+
+async function checkSourceMapContent() {
+    for (const relativePath of [
+        'dist/esm/index.js.map',
+        'dist/cjs/index.cjs.map',
+        'dist/umd/image-editor.umd.js.map',
+        'dist/umd/image-editor.umd.min.js.map',
+    ]) {
+        let sourceMap;
+        try {
+            sourceMap = JSON.parse(await readText(relativePath));
+        } catch (error) {
+            addFailure(`${relativePath}: unable to parse source map JSON (${error.message}).`);
+            continue;
+        }
+
+        const sources = Array.isArray(sourceMap.sources) ? sourceMap.sources : [];
+        const sourcesContent = Array.isArray(sourceMap.sourcesContent)
+            ? sourceMap.sourcesContent
+            : [];
+        if (
+            sources.length === 0 ||
+            sourcesContent.length !== sources.length ||
+            sourcesContent.some((content) => typeof content !== 'string' || content.length === 0)
+        ) {
+            addFailure(`${relativePath}: expected embedded source content for every source.`);
+        }
+    }
 }
 
 async function checkDeclarationShape() {
@@ -150,11 +205,13 @@ async function checkPackageMetadata() {
     await assertPackagePathExists('main', packageJson.main);
     await assertPackagePathExists('module', packageJson.module);
     await assertPackagePathExists('types', packageJson.types);
-    if (packageJson.unpkg !== undefined) {
-        await assertPackagePathExists('unpkg', packageJson.unpkg);
-    }
-    if (packageJson.jsdelivr !== undefined) {
-        await assertPackagePathExists('jsdelivr', packageJson.jsdelivr);
+    const expectedCdnBundle = 'dist/umd/image-editor.umd.min.js';
+    for (const field of ['unpkg', 'jsdelivr']) {
+        const value = packageJson[field];
+        await assertPackagePathExists(field, value);
+        if (typeof value === 'string' && normalizePackagePath(value) !== expectedCdnBundle) {
+            addFailure(`package.json ${field}: expected ${expectedCdnBundle}.`);
+        }
     }
 
     if (rootExport?.import?.default !== undefined) {
@@ -176,6 +233,7 @@ async function checkPackageMetadata() {
 
 await checkBuildArtifacts();
 await checkBundleShapes();
+await checkSourceMapContent();
 await checkDeclarationShape();
 await checkPackageMetadata();
 

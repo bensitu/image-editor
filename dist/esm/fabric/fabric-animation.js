@@ -45,7 +45,7 @@ export function animateProps(object, props, options, guard) {
         };
         const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
         timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
-        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
+        unregisterAborter = guard.registerDisposeAborter(abortAndSettle);
         try {
             const animationResult = object.animate(props, {
                 duration,

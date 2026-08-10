@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.1] - 2026-08-11
+
+### Security
+
+- Require supported public image Data URLs to use Base64 encoding so configured input limits are applied consistently.
+- Enforce source image pixel limits for JPEG files even when metadata segments precede the image dimension segment.
+- Apply configured image input limits to image resources in public state restoration before Fabric deserialization.
+- Reject unsafe structural keys in public state payloads before deserialization.
+
+### Changed
+
+- Publish separate readable and minified UMD bundles, with CDN package metadata targeting the minified build.
+- Embed source content in published JavaScript source maps for package debugging.
+- Clarify that `saveState()` records undo/redo history and does not export serialized state.
+- Clarify that `initialImageBase64` begins asynchronous loading during synchronous `init()`.
+
+### Fixed
+
+- Preserve ordinary application metadata fields named `source` while continuing to validate actual Fabric image sources.
+- Roll back failed public state restoration instead of leaving partially restored canvas state.
+- Prevent overlapping public state restoration from interleaving changes on the live canvas.
+- Prevent timed-out state restoration from applying stale changes after the operation fails.
+- Allow `disposeAsync()` to await Fabric canvas cleanup previously started by `dispose()`.
+- Release download object URLs when DOM setup fails before delayed cleanup is registered.
+
 ## [2.9.0] - 2026-07-11
 
 ### Added

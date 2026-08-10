@@ -191,6 +191,7 @@ import {
     type EditorRuntimeWiring,
 } from './runtime/editor-facade-wiring.js';
 import type { EditorContextFactory } from './runtime/editor-contexts.js';
+import { runBusyOperation } from './runtime/editor-operation-runner.js';
 import { EditorRuntime } from './runtime/editor-runtime.js';
 import {
     handleObjectModified as handleObjectModifiedImpl,
@@ -577,7 +578,7 @@ export class ImageEditor {
     // PUBLIC — init
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** Initializes DOM bindings, canvas state, and the optional initial image. */
+    /** Initializes DOM and canvas state synchronously, then starts any initial image load. */
     init(elementMap: ElementMap = {}): void {
         if (!this.runtime.isFabricLoaded) {
             const globalFabric = (globalThis as unknown as { fabric?: unknown }).fabric;
@@ -1100,9 +1101,18 @@ export class ImageEditor {
         options: T = {} as T,
     ): T & InternalOperationOptions {
         return {
+            ...this.withOperationTokenOptions(token, options),
+            [TRUSTED_STATE_RESTORE]: true,
+        } as T & InternalOperationOptions;
+    }
+
+    private withOperationTokenOptions<T extends object>(
+        token: OperationToken | null | undefined,
+        options: T = {} as T,
+    ): T & InternalOperationOptions {
+        return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
-            [TRUSTED_STATE_RESTORE]: true,
         } as T & InternalOperationOptions;
     }
 
@@ -2080,14 +2090,24 @@ export class ImageEditor {
      * promise rejects with the original error so the history manager
      * leaves `currentIndex` untouched on a failed undo/redo restore.
      *
-     * `loadFromState` is intended for snapshots produced by this editor's
-     * `saveState()`. Validate or reject untrusted external JSON before
-     * passing it here.
+     * `loadFromState` accepts compatible serialized editor snapshots.
+     * The public `saveState()` method records undo/redo history and returns
+     * `void`; it is not a serialized-state export API.
      *
-     * @param jsonString - JSON string returned by `saveState` (or parsed object).
+     * @param jsonString - Compatible serialized editor state as JSON text or a parsed object.
      */
     async loadFromState(jsonString: string | CanvasJson): Promise<void> {
-        return this.loadFromStateInternal(jsonString);
+        if (!jsonString || !this.runtime.canvas || this.runtime.isDisposed) return;
+        if (!this.canRunIdleOperation('loadFromState')) return;
+
+        await runBusyOperation(
+            this.actionAccessFactory.buildBusyOperationAccess(),
+            'loadFromState',
+            async (context, token) => {
+                void context;
+                await this.loadFromStateInternal(jsonString, this.withOperationTokenOptions(token));
+            },
+        );
     }
 
     private async loadFromStateInternal(
@@ -2845,12 +2865,20 @@ export class ImageEditor {
     }
 
     private disposeInternal(waitForCanvasDispose: boolean): Promise<void> | void {
-        // (1) Idempotent: a second `dispose` is a no-op.
+        // (1) Repeated synchronous disposal is a no-op. Async callers reuse
+        // the Promise for the cleanup that the first call started.
         if (this.runtime.isDisposed) {
-            return waitForCanvasDispose ? Promise.resolve() : undefined;
+            return waitForCanvasDispose
+                ? (this.runtime.disposePromise ?? Promise.resolve())
+                : undefined;
         }
         const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.runtime.originalImage;
+        let resolveCanvasDispose = (): void => undefined;
+        const canvasDispose = new Promise<void>((resolve) => {
+            resolveCanvasDispose = resolve;
+        });
+        this.runtime.disposePromise = canvasDispose;
 
         // (2) Signal in-flight animations and bound handlers to stop
         //     touching the canvas. Set BEFORE draining the queue so the
@@ -2919,9 +2947,7 @@ export class ImageEditor {
             },
         );
 
-        const canvasDispose = this.runtime.canvas
-            ? safelyDisposeCanvas(this.runtime.canvas)
-            : Promise.resolve();
+        void safelyDisposeCanvas(this.runtime.canvas).then(resolveCanvasDispose);
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);

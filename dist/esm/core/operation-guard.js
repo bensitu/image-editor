@@ -31,7 +31,7 @@ export class OperationGuard {
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "animationAborters", {
+        Object.defineProperty(this, "disposeAborters", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -65,16 +65,16 @@ export class OperationGuard {
         this.isLoadingActive = false;
         this.currentOperationName = null;
         this.currentOperationToken = null;
-        for (const abort of this.animationAborters) {
+        for (const abort of this.disposeAborters) {
             try {
                 abort();
             }
             catch {
             }
         }
-        this.animationAborters.clear();
+        this.disposeAborters.clear();
     }
-    registerAnimationAborter(abort) {
+    registerDisposeAborter(abort) {
         if (this.isDisposedFlag) {
             try {
                 abort();
@@ -83,9 +83,9 @@ export class OperationGuard {
             }
             return () => undefined;
         }
-        this.animationAborters.add(abort);
+        this.disposeAborters.add(abort);
         return () => {
-            this.animationAborters.delete(abort);
+            this.disposeAborters.delete(abort);
         };
     }
     beginLoading() {

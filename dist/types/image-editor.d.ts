@@ -43,7 +43,7 @@ export declare class ImageEditor {
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
     private createRuntimeWiring;
-    /** Initializes DOM bindings, canvas state, and the optional initial image. */
+    /** Initializes DOM and canvas state synchronously, then starts any initial image load. */
     init(elementMap?: ElementMap): void;
     private initCanvas;
     private resolveElement;
@@ -99,6 +99,7 @@ export declare class ImageEditor {
     private getInternalOperationToken;
     private canRunDuringAnimationQueue;
     private withInternalOperationOptions;
+    private withOperationTokenOptions;
     private withAnimationQueueBypass;
     private assertIdleForOperation;
     private canRunIdleOperation;
@@ -285,11 +286,11 @@ export declare class ImageEditor {
      * promise rejects with the original error so the history manager
      * leaves `currentIndex` untouched on a failed undo/redo restore.
      *
-     * `loadFromState` is intended for snapshots produced by this editor's
-     * `saveState()`. Validate or reject untrusted external JSON before
-     * passing it here.
+     * `loadFromState` accepts compatible serialized editor snapshots.
+     * The public `saveState()` method records undo/redo history and returns
+     * `void`; it is not a serialized-state export API.
      *
-     * @param jsonString - JSON string returned by `saveState` (or parsed object).
+     * @param jsonString - Compatible serialized editor state as JSON text or a parsed object.
      */
     loadFromState(jsonString: string | CanvasJson): Promise<void>;
     private loadFromStateInternal;
