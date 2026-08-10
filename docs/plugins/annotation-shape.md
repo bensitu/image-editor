@@ -70,9 +70,11 @@ enter a new session to switch between `rect`, `line`, and `arrow`.
 await shape.configure({ stroke: '#2563eb', strokeWidth: 6 });
 ```
 
-`commit()` closes the low-level transient session. A persistent UI mode can immediately call
-`enter()` again after each commit, as the documentation demos do, so users can draw consecutive
-Shapes until they explicitly exit Shape mode.
+`commit()` closes the transient session. A host can call `enter()` again to
+create another Shape. The optional [Canvas Interactions Plugin](./canvas-interactions.md)
+automates drag geometry, latest-preview completion, minimum drag distance, and
+continuous session re-entry while leaving Shape mutation and History ownership
+in this Plugin.
 
 ## Transform, export, and limits
 

@@ -50,6 +50,12 @@ status. `subscribe()` supports UI adapters without introducing a DOM dependency.
 through the shared Tool Coordinator closes an active Mosaic session cleanly. A second `enter()`
 call rejects and leaves the active session unchanged.
 
+The optional [Canvas Interactions Plugin](./canvas-interactions.md) converts
+canvas drags into natural-pixel stroke calls. It uses the complete Base Image
+transform, ignores movement outside the image, preserves accepted points in
+order, and waits for pending appends before ending the stroke. Mosaic commit and
+session cancellation remain explicit Feature operations.
+
 ## Dirty rectangles and configuration
 
 Preview updates write only the merged, image-clamped dirty rectangle instead of replacing the full

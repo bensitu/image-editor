@@ -41,6 +41,11 @@ committed state. Multiple strokes remain separate Annotation objects with stable
 active. `bindToImageTransform` is false by default; enabling it makes committed paths follow the
 shared Overlay geometry transaction.
 
+The optional [Canvas Interactions Plugin](./canvas-interactions.md) converts
+canvas drags to this stroke API. It preserves every accepted point in order and
+waits for pending `appendStroke()` calls before `endStroke()`. Draw remains
+usable without the adapter for programmatic and custom input integrations.
+
 ## Eraser behavior and limitation
 
 Eraser is a sub-mode of the Draw Tool. There is no separate Eraser Plugin, package entry, or

@@ -163,6 +163,7 @@ Preset options mirror their installed Feature set:
 - `draw`: `DrawAnnotationPluginOptions`
 - `overlayState`: `OverlayStatePluginOptions`
 - `domControls`: an explicit DOM Controls factory
+- `canvasInteractions`: an explicit Canvas Interactions factory on the Full Preset
 
 Only namespaces supported by the selected Preset are accepted. See
 [Typed Presets](./presets.md) for the Minimal, Redaction, Annotation, and Full
@@ -199,6 +200,34 @@ const file = await editor.exportImageFile({
 `exportDefaults.fileName` is the default name used by `exportImageFile()`. Separate aliases are not
 needed because per-call export values already override these defaults predictably.
 
+### Canvas interaction options
+
+Direct composition passes `CanvasInteractionsPluginOptions` to
+`canvasInteractionsPlugin()`. Each of `text`, `shape`, `draw`, and `mosaic` is
+optional and requires a typed Plugin binding. Omitted interactions create no
+Feature behavior.
+
+`text` accepts `blankClick`, `existingTextClick`, and `retargetEditing` policies.
+`shape` accepts a non-negative `minimumDragDistance` and a `continuous` flag.
+`cursors` can override the CSS cursor for each configured interaction.
+`onInteractionError` observes failures after they have also been routed through
+Core diagnostics.
+
+The Full Preset accepts a factory instead of a plain options object:
+
+```ts
+const preset = createFullPreset(fabric, {
+    canvasInteractions: (bindings) =>
+        canvasInteractionsPlugin({
+            shape: { plugin: bindings.shape, continuous: true },
+            draw: { plugin: bindings.draw },
+        }),
+});
+```
+
+Feature-owned settings such as font size, Shape style, Draw brush width, and
+Mosaic block size remain in their Feature option namespaces.
+
 ## Feature references
 
 - [Transform and Core API](./api.md)
@@ -213,6 +242,7 @@ needed because per-call export values already override these defaults predictabl
 - [Draw and Eraser](../plugins/annotation-draw.md)
 - [Overlay State](../plugins/overlay-state.md)
 - [DOM Controls](../plugins/dom-controls.md)
+- [Canvas Interactions](../plugins/canvas-interactions.md)
 
 All public import paths above correspond to `package.json#exports`. For Facade
 constructor options and methods, use the

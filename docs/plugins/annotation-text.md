@@ -53,6 +53,11 @@ History.
 
 ## Editing lifecycle
 
+`enter()` activates the Text Tool without creating an Annotation or starting an
+editing session. This ready state is useful for interfaces that wait for a
+canvas click. `exit()` closes either the ready state or the current edit session
+through the shared Tool lifecycle.
+
 `beginEditing()` creates a private transient Textbox, hides the committed source temporarily, and
 enters the shared Text Tool. Browser keyboard editing operates on that transient object. The
 committed Annotation, Snapshot, export, and History remain unchanged until `commitEditing()`.
@@ -77,6 +82,11 @@ await text.cancelEditing(); // exact original state, zero History records
 Locked Text cannot enter editing. Starting a conflicting Tool, replacing the image, or disposing
 the editor closes the edit session deterministically. For programmatic, headless text changes, use
 `update()` instead of an interactive edit session.
+
+Use the optional [Canvas Interactions Plugin](./canvas-interactions.md) to map
+blank and existing-Text clicks to this public lifecycle. The adapter supports
+explicit placement, selection, and edit-retarget policies without adding
+pointer listeners to the Text Plugin.
 
 ## Readable and mirrored reflection
 

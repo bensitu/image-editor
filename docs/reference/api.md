@@ -121,6 +121,12 @@ belong in `context.disposables`. Operations coordinate conflict domains and
 reentrancy. Tools coordinate exclusive sessions. Committed events run only after
 a successful transaction.
 
+`context.tools.subscribe(listener, { emitCurrent? })` gives Plugins a
+synchronous, read-only view of active Tool changes. Listener return values do
+not participate in Tool transitions, and listener exceptions are isolated
+through Core diagnostics. Dispose the returned handle with the Plugin's owned
+resources.
+
 See the [Plugin Author Guide](../guides/plugin-authoring.md) for lifecycle, State
 Slices, Overlays, History, geometry/raster authority, errors, and packaging.
 
@@ -247,8 +253,9 @@ export participation.
 
 ### Text
 
-`TextAnnotationPluginApi` creates/updates text and owns begin/commit/cancel edit
-sessions, configuration, status, and subscriptions. Font fallback and transform
+`TextAnnotationPluginApi` creates/updates text and owns ready, begin,
+commit, and cancel editing states. `enter()` activates the Text Tool without an
+editing target; `exit()` closes the Tool cleanly. Font fallback and transform
 reflection behavior are explicit. See [Text](../plugins/annotation-text.md).
 
 ### Shape
@@ -279,13 +286,27 @@ commands, status renderers, and async error routing. It adds no Feature logic an
 is absent from all Presets unless `domControls` is explicitly supplied. See
 [DOM Controls](../plugins/dom-controls.md).
 
+### Canvas Interactions
+
+Canvas Interactions is an optional pointer adapter for Text, Shape, Draw, and
+Mosaic. `CanvasInteractionsPluginApi` exposes `refresh`, `cancel`, immutable
+status, and status subscription. Configured bindings resolve exact public
+Feature APIs; the adapter does not own Feature sessions, document mutations,
+History, or persistence.
+
+Text and Shape use captured scene coordinates. Draw preserves accepted samples
+in order. Mosaic maps through the complete Base Image transform to natural
+image pixels and ignores outside-image movement. The Plugin temporarily leases
+canvas cursor and target-finding properties and restores only values it still
+owns. See [Canvas Interactions](../plugins/canvas-interactions.md).
+
 ## Presets
 
 Preset factories create one Core, install a fixed Plugin plan, and return
-`{ editor, ...featureApis, domControls }`. They do not initialize the canvas or
+`{ editor, ...featureApis, domControls, canvasInteractions }`. They do not initialize the canvas or
 forward Feature methods. Minimal, Redaction, Annotation, and Full compositions
-are described in [Typed Presets](./presets.md). Optional DOM factories preserve
-nullability in the inferred result type.
+are described in [Typed Presets](./presets.md). Optional adapter factories
+preserve nullability in the inferred result type.
 
 ## Snapshot migration entry
 
@@ -319,13 +340,14 @@ callbacks are contained and cannot replace the operation result.
 ## Bundle and environment policy
 
 The root remains Core-only and tree-shakeable. Migration, Testing, Features,
-Presets, DOM Controls, and Codemod code are absent unless their entry is
+Presets, DOM Controls, Canvas Interactions, and Codemod code are absent unless their entry is
 selected. Fabric is a peer/global and is not bundled.
 
 Bundled applications should prefer ESM subpaths. Script-tag applications choose
 either Full UMD or the on-demand Core plus selected Plugin UMD files; the two
 modes must not be loaded together. Full UMD exposes the public
 composition/factories through `ImageEditorFull`, does not emulate the Facade,
-and installs DOM Controls only through an explicit option. See
+and installs DOM Controls or Canvas Interactions only through explicit factory
+options. See
 [Modular UMD loading](./modular-umd.md) for globals, dependency order, and
 version rules.

@@ -53,22 +53,23 @@ dependency change cannot silently drift from this table.
 
 <!-- modular-umd-registry:start -->
 
-| Module             | Global                               | Load after                      |
-| ------------------ | ------------------------------------ | ------------------------------- |
-| `core`             | `ImageEditor`                        | `fabric`                        |
-| `overlay`          | `ImageEditorPlugins.Overlay`         | `core`                          |
-| `annotation`       | `ImageEditorPlugins.Annotation`      | `core`, `overlay`               |
-| `transform`        | `ImageEditorPlugins.Transform`       | `core`                          |
-| `history`          | `ImageEditorPlugins.History`         | `core`                          |
-| `mask`             | `ImageEditorPlugins.Mask`            | `core`, `overlay`               |
-| `filters`          | `ImageEditorPlugins.Filters`         | `core`                          |
-| `crop`             | `ImageEditorPlugins.Crop`            | `core`, `overlay`               |
-| `mosaic`           | `ImageEditorPlugins.Mosaic`          | `core`                          |
-| `annotation-text`  | `ImageEditorPlugins.AnnotationText`  | `core`, `overlay`, `annotation` |
-| `annotation-shape` | `ImageEditorPlugins.AnnotationShape` | `core`, `overlay`, `annotation` |
-| `annotation-draw`  | `ImageEditorPlugins.AnnotationDraw`  | `core`, `overlay`, `annotation` |
-| `overlay-state`    | `ImageEditorPlugins.OverlayState`    | `core`, `overlay`               |
-| `dom-controls`     | `ImageEditorPlugins.DomControls`     | `core`                          |
+| Module                | Global                                  | Load after                      |
+| --------------------- | --------------------------------------- | ------------------------------- |
+| `core`                | `ImageEditor`                           | `fabric`                        |
+| `overlay`             | `ImageEditorPlugins.Overlay`            | `core`                          |
+| `annotation`          | `ImageEditorPlugins.Annotation`         | `core`, `overlay`               |
+| `transform`           | `ImageEditorPlugins.Transform`          | `core`                          |
+| `history`             | `ImageEditorPlugins.History`            | `core`                          |
+| `mask`                | `ImageEditorPlugins.Mask`               | `core`, `overlay`               |
+| `filters`             | `ImageEditorPlugins.Filters`            | `core`                          |
+| `crop`                | `ImageEditorPlugins.Crop`               | `core`, `overlay`               |
+| `mosaic`              | `ImageEditorPlugins.Mosaic`             | `core`                          |
+| `annotation-text`     | `ImageEditorPlugins.AnnotationText`     | `core`, `overlay`, `annotation` |
+| `annotation-shape`    | `ImageEditorPlugins.AnnotationShape`    | `core`, `overlay`, `annotation` |
+| `annotation-draw`     | `ImageEditorPlugins.AnnotationDraw`     | `core`, `overlay`, `annotation` |
+| `overlay-state`       | `ImageEditorPlugins.OverlayState`       | `core`, `overlay`               |
+| `dom-controls`        | `ImageEditorPlugins.DomControls`        | `core`                          |
+| `canvas-interactions` | `ImageEditorPlugins.CanvasInteractions` | `core`                          |
 
 <!-- modular-umd-registry:end -->
 
@@ -166,6 +167,49 @@ prerequisites before the selected Feature:
 Shape and Draw use the same prerequisite order and replace the final script and
 factory with `annotation-shape`/`shapeAnnotationPlugin` or
 `annotation-draw`/`drawAnnotationPlugin`.
+
+## Canvas interaction adapter
+
+Load Canvas Interactions with the selected Feature files. This Text-only
+composition maps canvas clicks to Text placement and editing without loading
+Shape, Draw, or Mosaic:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/image-editor.core.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/plugins/image-editor.plugin.annotation.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/plugins/image-editor.plugin.annotation-text.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@VERSION/dist/umd/plugins/image-editor.plugin.canvas-interactions.umd.min.js"></script>
+
+<script>
+    (async () => {
+        const editor = new ImageEditor.ImageEditorCore(fabric);
+        const bind = (ref) => ({ ref, resolve: () => editor.requirePlugin(ref) });
+        const plugins = editor.install(
+            ImageEditor.composePlugins({
+                overlays: ImageEditorPlugins.Overlay.overlayFoundationPlugin(),
+                annotations: ImageEditorPlugins.Annotation.annotationFoundationPlugin(),
+                text: ImageEditorPlugins.AnnotationText.textAnnotationPlugin(),
+                canvasInteractions: ImageEditorPlugins.CanvasInteractions.canvasInteractionsPlugin({
+                    text: {
+                        plugin: bind(ImageEditorPlugins.AnnotationText.textAnnotationPluginRef),
+                        overlays: bind(ImageEditorPlugins.Overlay.overlayFoundationRef),
+                        annotations: bind(ImageEditorPlugins.Annotation.annotationFoundationRef),
+                    },
+                }),
+            }),
+        );
+
+        await editor.init({ canvas: 'editor-canvas', canvasContainer: 'canvas-container' });
+        await editor.loadImage(source);
+        await plugins.text.enter();
+    })().catch(console.error);
+</script>
+```
+
+The adapter UMD contains no Feature implementation. Load and configure only the
+Feature bindings the page uses.
 
 ## Full versus modular size
 

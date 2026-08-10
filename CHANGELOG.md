@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `ImageEditorCore` with explicit lifecycle, document transactions, Mementos, Snapshot validation, Plugin installation, and rollback-safe image/export APIs.
 - Add the public Plugin SDK with typed Plugin references, validated manifests, dependency-aware plans, versioned Capabilities, permissions, Operations, Tools, State Slices, disposable ownership, and committed events.
-- Add public Overlay and Annotation Foundations plus official Transform, History, Mask, Filters, Crop, Mosaic, Text, Shape, Draw/Eraser, Overlay State, and DOM Controls Plugins.
-- Add typed Minimal, Redaction, Annotation, and Full Presets with optional DOM Controls factories and method-level result inference.
+- Add public Overlay and Annotation Foundations plus official Transform, History, Mask, Filters, Crop, Mosaic, Text, Shape, Draw/Eraser, Overlay State, DOM Controls, and Canvas Interactions Plugins.
+- Add typed Minimal, Redaction, Annotation, and Full Presets with optional adapter factories and method-level result inference.
+- Add synchronous Tool status subscriptions for Plugins and a ready Text Tool state without an active editing session.
 - Add the isolated public Testing entry, conformance profile `3.0`, deterministic host fixtures, package/bundle assertions, and independently packable Watermark, Metadata, Grid/Guide, and Blur Region reference Plugins.
 - Add explicit unsupported-Snapshot detection and generic Snapshot migration handlers that revalidate migrated output before mutation.
 - Add the isolated `@bensitu/image-editor/migrate-v2` entry for strict detection, conversion, explicit loading, lossy-warning opt-in, and bounded frozen fixtures.

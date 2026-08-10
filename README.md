@@ -7,7 +7,7 @@
 A TypeScript-first Core Framework and public Plugin SDK built on
 [Fabric.js](https://fabricjs.com/) v7. The modular architecture separates canvas
 lifecycle from typed Feature Plugins for transforms, history, redaction,
-annotations, persistence, and optional DOM controls. Applications moving from
+annotations, persistence, optional canvas interactions, and optional DOM controls. Applications moving from
 the Facade API should follow the [migration guide](docs/guides/migration-from-v2.md).
 
 Fabric `>=7.4.0 <8` is a peer dependency and is never bundled. Core composition
@@ -178,6 +178,8 @@ run the public [Conformance Kit](docs/reference/api.md#testing-and-conformance).
 - Fabric.js v7 is a peer dependency; the package does not bundle Fabric.
 - Core, Plugin, and Preset entries publish ESM, CommonJS, and TypeScript declarations.
 - Optional DOM Controls accept selectors or element instances in section-based options.
+- Optional Canvas Interactions adapt Fabric pointer input to the public Text,
+  Shape, Draw, and Mosaic APIs without moving session or History ownership.
 - `disposeAsync()` is the authoritative framework cleanup path. The deprecated
   `dispose()` method only starts best-effort cleanup and may return before
   asynchronous resources are released.
@@ -205,6 +207,7 @@ run the public [Conformance Kit](docs/reference/api.md#testing-and-conformance).
   [Annotation Foundation](docs/plugins/annotations.md),
   [Text](docs/plugins/annotation-text.md), [Shape](docs/plugins/annotation-shape.md),
   [Draw/Eraser](docs/plugins/annotation-draw.md),
+  [Canvas Interactions](docs/plugins/canvas-interactions.md),
   [Overlay State](docs/plugins/overlay-state.md),
   [transform binding](docs/plugins/overlay-transform-binding.md), and
   [DOM Controls](docs/plugins/dom-controls.md).
@@ -243,6 +246,7 @@ Feature behavior is provided by typed Plugin APIs:
 | `./plugins/mask`, `./plugins/filters` | Redaction overlays and raster filters                      |
 | `./plugins/crop`, `./plugins/mosaic`  | Crop and mosaic sessions                                   |
 | `./plugins/annotation-*`              | Text, Shape, and Draw/Eraser annotations                   |
+| `./plugins/canvas-interactions`       | Optional canvas pointer-to-Feature adapter                 |
 | `./plugins/overlay-state`             | Renderer-independent overlay persistence                   |
 | `./plugins/dom-controls`              | Optional DOM event and status binding                      |
 | `./presets/*`                         | Typed Plugin compositions                                  |
@@ -305,7 +309,7 @@ Script-tag consumers choose one of two mutually exclusive modes:
 
 Do not load Full UMD together with Core or Plugin UMD files on one page. Fabric
 remains a separate script in both modes. The Full Preset does not install DOM
-Controls unless requested.
+Controls or Canvas Interactions unless the corresponding factory is supplied.
 
 Replace `VERSION` in the CDN examples with one exact published package version.
 

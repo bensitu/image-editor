@@ -9,6 +9,11 @@ button/input state, list render adapters, guarded keyboard shortcuts, and
 centralized asynchronous error routing. React, Vue, and similar frameworks can
 usually call the same Plugin APIs directly through their own event systems.
 
+DOM Controls does not translate Fabric canvas pointer input. Use the separate
+[Canvas Interactions Plugin](./canvas-interactions.md) when Text placement,
+Shape drags, Draw strokes, or Mosaic strokes should be driven by the canvas.
+Either adapter can be installed without the other.
+
 ## Configure sections
 
 Each configured section supplies an exact `PluginRef`, a lazy API resolver, and

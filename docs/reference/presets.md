@@ -12,7 +12,7 @@ methods and do not call `editor.init()`.
 | `@bensitu/image-editor/presets/minimal`    | Transform; optional History                                               |
 | `@bensitu/image-editor/presets/redaction`  | Transform, History, Overlay, Mask, Filters, Crop, Mosaic, Overlay State   |
 | `@bensitu/image-editor/presets/annotation` | Transform, History, Overlay, Annotation, Text, Shape, Draw, Overlay State |
-| `@bensitu/image-editor/presets/full`       | Every official Feature Plugin and both Foundations                        |
+| `@bensitu/image-editor/presets/full`       | Every official Feature and both Foundations; optional adapters            |
 
 Redaction does not install Annotation Features. Annotation does not install
 Mask, Filters, Crop, or Mosaic. Full installs one Overlay Foundation and one
@@ -64,7 +64,40 @@ await crop.enter();
 ```
 
 The Annotation Preset returns `annotations`, `text`, `shape`, and `draw` APIs.
-The Full Preset returns every API listed in both profiles.
+The Full Preset returns every Feature API listed in both profiles. Optional
+adapter properties are `null` unless their factory is supplied.
+
+## Optional Canvas Interactions
+
+The Full Preset can install Canvas Interactions through a typed factory. The
+factory receives bindings for the Feature and Foundation APIs used by the
+adapter:
+
+```ts
+import { canvasInteractionsPlugin } from '@bensitu/image-editor/plugins/canvas-interactions';
+import { createFullPreset } from '@bensitu/image-editor/presets/full';
+
+const preset = createFullPreset(fabric, {
+    canvasInteractions: (bindings) =>
+        canvasInteractionsPlugin({
+            text: {
+                plugin: bindings.text,
+                overlays: bindings.overlays,
+                annotations: bindings.annotations,
+            },
+            shape: { plugin: bindings.shape, continuous: true },
+            draw: { plugin: bindings.draw },
+            mosaic: { plugin: bindings.mosaic },
+        }),
+});
+
+preset.canvasInteractions.getStatus(); // inferred as CanvasInteractionsPluginApi
+```
+
+Without `canvasInteractions`, the returned property is `null` and the adapter
+implementation is absent from ordinary Full Preset module output. See
+[Canvas Interactions](../plugins/canvas-interactions.md) for policies,
+coordinates, lifecycle behavior, and direct composition.
 
 ## Optional DOM Controls
 
@@ -121,5 +154,6 @@ with another editor instance.
 Import a specific Preset subpath. The package root does not export Presets, and
 the root bundle remains Core-only. Minimal excludes Overlay editing Features;
 Redaction excludes Annotation code; Annotation excludes raster editing
-Features; Full contains all official Features. DOM Controls appears only when
-the optional factory imports and returns it.
+Features; Full contains all official Features. DOM Controls and Canvas
+Interactions appear only when the corresponding factory imports and returns
+them.

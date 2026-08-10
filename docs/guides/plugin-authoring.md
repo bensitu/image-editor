@@ -144,6 +144,13 @@ A Tool registration owns `enter`, `exit`, and its operation allow-list. A sessio
 keeps previews and pointer state transient; cancel and Tool exit must remove
 every preview and handler without committing History or Snapshot state.
 
+Plugins can observe active Tool changes with
+`context.tools.subscribe(listener, { emitCurrent? })`. Notifications are
+synchronous and read-only: observers cannot delay a Tool transition and should
+schedule any asynchronous follow-up independently. Listener failures are
+reported without interrupting Tool ownership changes. Add the returned
+disposable to `context.disposables`.
+
 The [Blur Region reference Plugin](../../examples/reference-plugins/blur-region)
 demonstrates a Tool, transient Overlay region, scoped raster transaction,
 failure injection, rollback, and one compound History commit.
@@ -208,18 +215,20 @@ to the immutable descriptor but cannot retroactively veto the commit.
 
 Privileged boundaries require matching manifest permissions:
 
-| Permission                  | Authority                                            |
-| --------------------------- | ---------------------------------------------------- |
-| `fabric:objects`            | Construct or inspect scoped Fabric objects           |
-| `fabric:canvas-read`        | Read the live canvas through a declared Capability   |
-| `fabric:custom-class`       | Register persistent kinds, Codecs, or renderers      |
-| `fabric:global-mutation`    | Intentionally change Fabric globals                  |
-| `core:raster-mutation`      | Replace the Base Image inside a coordinated mutation |
-| `core:geometry-participant` | Participate in coordinated geometry changes          |
-| `core:export-contributor`   | Add an isolated export contributor                   |
+| Permission                  | Authority                                                  |
+| --------------------------- | ---------------------------------------------------------- |
+| `fabric:objects`            | Construct or inspect scoped Fabric objects                 |
+| `fabric:canvas-read`        | Read the live canvas through a declared Capability         |
+| `fabric:custom-class`       | Register persistent kinds, Codecs, or renderers            |
+| `fabric:global-mutation`    | Intentionally change shared or canvas-wide Fabric behavior |
+| `core:raster-mutation`      | Replace the Base Image inside a coordinated mutation       |
+| `core:geometry-participant` | Participate in coordinated geometry changes                |
+| `core:export-contributor`   | Add an isolated export contributor                         |
 
-Fabric global mutation downgrades the strong multi-instance guarantee. Declare
-it, restore the previous global state on disposal, and test two editors. The SDK
+Shared Fabric mutation downgrades the strong multi-instance guarantee. Declare
+it, restore the previous value through ownership-safe cleanup, and test two
+editors. Instance-specific canvas property changes should also use leases so a
+later host change is not overwritten during cleanup. The SDK
 permission model is an auditable integration boundary, not process isolation:
 install only trusted Plugin code.
 
