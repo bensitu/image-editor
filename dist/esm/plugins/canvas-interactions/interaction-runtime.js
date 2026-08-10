@@ -179,7 +179,12 @@ export class InteractionRuntime {
         this.lifecycleEpoch += 1;
         this.invalidateLocal('dispose');
         this.disposed = true;
-        this.toolSubscription.dispose();
+        const cleanup = this.toolSubscription.dispose();
+        if (isPromiseLike(cleanup)) {
+            observePromise(cleanup, (error) => {
+                this.diagnostics.reportWarning(error, 'Canvas interaction Tool subscription cleanup failed.');
+            });
+        }
     }
     invoke(owner, operation, task, complete = false) {
         try {

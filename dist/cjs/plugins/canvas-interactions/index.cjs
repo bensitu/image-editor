@@ -306,7 +306,10 @@ var InteractionRuntime = class {
 		this.lifecycleEpoch += 1;
 		this.invalidateLocal("dispose");
 		this.disposed = true;
-		this.toolSubscription.dispose();
+		const cleanup = this.toolSubscription.dispose();
+		if (isPromiseLike(cleanup)) require_core_capabilities.observePromise(cleanup, (error) => {
+			this.diagnostics.reportWarning(error, "Canvas interaction Tool subscription cleanup failed.");
+		});
 	}
 	invoke(owner, operation, task, complete = false) {
 		try {
@@ -1243,7 +1246,7 @@ var TextInteractionBinding = class {
 			left: gesture.point.x,
 			top: gesture.point.y
 		});
-		if (!gesture.context.isCurrent()) return;
+		if (!gesture.context.canResume(this.toolId)) return;
 		await this.text().beginEditing(id);
 	}
 	cancel(_gesture, _reason) {}
@@ -1263,6 +1266,8 @@ var TextInteractionBinding = class {
 		if (!current || current.annotationId === nextId) return true;
 		if (this.retargetEditing === "commit") await text.commitEditing();
 		else await text.cancelEditing();
+		if (!gesture.context.canResume(this.toolId)) return false;
+		await text.enter();
 		return gesture.context.canResume(this.toolId);
 	}
 	text() {

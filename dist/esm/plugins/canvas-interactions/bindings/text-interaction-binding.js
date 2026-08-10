@@ -131,7 +131,7 @@ export class TextInteractionBinding {
             left: gesture.point.x,
             top: gesture.point.y,
         });
-        if (!gesture.context.isCurrent())
+        if (!gesture.context.canResume(this.toolId))
             return;
         await this.text().beginEditing(id);
     }
@@ -157,6 +157,9 @@ export class TextInteractionBinding {
             await text.commitEditing();
         else
             await text.cancelEditing();
+        if (!gesture.context.canResume(this.toolId))
+            return false;
+        await text.enter();
         return gesture.context.canResume(this.toolId);
     }
     text() {
