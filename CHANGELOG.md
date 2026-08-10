@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enforce source image pixel limits for JPEG files even when metadata segments precede the image dimension segment.
 - Apply configured image input limits to image resources in public state restoration before Fabric deserialization.
 
+### Fixed
+
+- Preserve ordinary application metadata fields named `source` while continuing to validate actual Fabric image sources.
+
 ## [2.9.0] - 2026-07-11
 
 ### Added

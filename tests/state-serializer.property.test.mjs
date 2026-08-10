@@ -598,49 +598,48 @@ test('public loadFromState rejects unsafe remote image sources', async () => {
     );
 });
 
-test('public loadFromState rejects unsafe nested source-like fields', async () => {
-    const cases = [
-        [
-            'objects[0].fill.source',
-            {
-                type: 'rect',
-                fill: {
-                    type: 'pattern',
-                    source: 'https://example.com/pattern.png',
-                },
-            },
-        ],
-        [
-            'objects[0].fill.gradientSource',
-            {
-                type: 'rect',
-                fill: {
-                    type: 'gradient',
-                    gradientSource: 'https://example.com/gradient.svg',
-                },
-            },
-        ],
-    ];
+test('public loadFromState rejects unsafe Fabric Pattern image sources', async () => {
+    const canvas = new MockCanvas();
 
-    for (const [fieldPath, object] of cases) {
-        const canvas = new MockCanvas();
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, {
+                    version: '7.0.0',
+                    width: 320,
+                    height: 240,
+                    objects: [
+                        {
+                            type: 'rect',
+                            fill: {
+                                type: 'pattern',
+                                source: 'https://example.com/pattern.png',
+                            },
+                        },
+                    ],
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError &&
+            error.message.includes('field "objects[0].fill.source"') &&
+            /supported data URL source/.test(error.message),
+    );
+});
 
-        await assert.rejects(
-            () =>
-                loadFromState(
-                    makePublicRestoreInput(canvas, {
-                        version: '7.0.0',
-                        width: 320,
-                        height: 240,
-                        objects: [object],
-                    }),
-                ),
-            (error) =>
-                error instanceof StateRestoreError &&
-                error.message.includes(`field "${fieldPath}"`) &&
-                /supported data URL source/.test(error.message),
-        );
-    }
+test('public loadFromState preserves ordinary metadata fields named source', async () => {
+    const canvas = new MockCanvas();
+    const metadata = { 'app.audit': { source: 'crm' } };
+
+    await loadFromState(
+        makePublicRestoreInput(canvas, {
+            version: '7.0.0',
+            width: 320,
+            height: 240,
+            objects: [{ type: 'rect', overlayMetadata: metadata }],
+        }),
+    );
+
+    assert.deepEqual(canvas.objects[0].overlayMetadata, metadata);
 });
 
 test('public loadFromState rejects unsupported nested Fabric object types', async () => {

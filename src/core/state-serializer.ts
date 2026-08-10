@@ -73,7 +73,6 @@ const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
 const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_RESTORE_IMAGE_BYTES = 50000000;
 const DEFAULT_MAX_RESTORE_IMAGE_PIXELS = 50000000;
-const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
 const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
@@ -1025,6 +1024,7 @@ interface PublicSnapshotValidationContext {
 
 interface PublicSnapshotValueValidationOptions {
     validateFabricObject: boolean;
+    validatePatternSource: boolean;
     allowEditorOwnedCustomMask: boolean;
     arrayEntriesAreFabricObjects: boolean;
 }
@@ -1073,6 +1073,7 @@ function validatePublicSnapshot(
             `objects[${index}]`,
             {
                 validateFabricObject: true,
+                validatePatternSource: false,
                 allowEditorOwnedCustomMask: true,
                 arrayEntriesAreFabricObjects: false,
             },
@@ -1088,6 +1089,7 @@ function validatePublicSnapshot(
             key,
             {
                 validateFabricObject: PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key),
+                validatePatternSource: false,
                 allowEditorOwnedCustomMask: false,
                 arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
             },
@@ -1123,6 +1125,7 @@ function validatePublicSnapshotValue(
             context,
         );
     }
+    validatePublicSnapshotImageResource(value, path, options, context);
 
     if (alreadySeen) return;
 
@@ -1133,6 +1136,7 @@ function validatePublicSnapshotValue(
                 `${path}[${entryIndex}]`,
                 {
                     validateFabricObject: options.arrayEntriesAreFabricObjects,
+                    validatePatternSource: false,
                     allowEditorOwnedCustomMask: false,
                     arrayEntriesAreFabricObjects: false,
                 },
@@ -1145,23 +1149,37 @@ function validatePublicSnapshotValue(
 
     for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
         const nestedPath = path ? `${path}.${key}` : key;
-        if (typeof nestedValue === 'string' && isPublicRestoreImageSourceKey(key)) {
-            assertPublicRestoreImageSourceAllowed(nestedValue, nestedPath, context);
-        }
         validatePublicSnapshotValue(
             nestedValue,
             nestedPath,
             {
-                validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(
-                    key,
-                    nestedValue,
-                ),
+                validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key),
+                validatePatternSource:
+                    options.validateFabricObject && (key === 'fill' || key === 'stroke'),
                 allowEditorOwnedCustomMask: false,
                 arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
             },
             context,
             depth + 1,
         );
+    }
+}
+
+function validatePublicSnapshotImageResource(
+    value: unknown,
+    path: string,
+    options: PublicSnapshotValueValidationOptions,
+    context: PublicSnapshotValidationContext,
+): void {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+
+    const object = value as Record<string, unknown>;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (options.validateFabricObject && type === 'image' && typeof object.src === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.src, `${path}.src`, context);
+    }
+    if (options.validatePatternSource && type === 'pattern' && typeof object.source === 'string') {
+        assertPublicRestoreImageSourceAllowed(object.source, `${path}.source`, context);
     }
 }
 
@@ -1224,15 +1242,8 @@ function validatePublicSnapshotFabricObjectPayload(
     );
 }
 
-function shouldValidatePublicRestoreNestedFabricObject(key: string, value: unknown): boolean {
-    if (PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key)) return true;
-    return isPublicRestoreImageSourceKey(key) && hasFabricObjectType(value);
-}
-
-function hasFabricObjectType(value: unknown): boolean {
-    return (
-        !!value && typeof value === 'object' && typeof (value as CanvasJsonObject).type === 'string'
-    );
+function shouldValidatePublicRestoreNestedFabricObject(key: string): boolean {
+    return PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key);
 }
 
 function isPublicRestoreEditorOwnedCustomMaskPayload(value: unknown): boolean {
@@ -1251,15 +1262,6 @@ function isPublicRestoreEditorOwnedCustomMaskPayload(value: unknown): boolean {
         candidate.maskName.trim() !== '' &&
         typeof candidate.originalAlpha === 'number' &&
         Number.isFinite(candidate.originalAlpha)
-    );
-}
-
-function isPublicRestoreImageSourceKey(key: string): boolean {
-    const normalized = key.toLowerCase();
-    return (
-        PUBLIC_RESTORE_IMAGE_SOURCE_KEYS.has(normalized) ||
-        normalized.endsWith('src') ||
-        normalized.endsWith('source')
     );
 }
 
