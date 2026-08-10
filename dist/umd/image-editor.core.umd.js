@@ -5708,19 +5708,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const captured = slice.capture(context);
 				let capturePolicy = (_a = slice.capturePolicy) !== null && _a !== void 0 ? _a : "always";
 				let data;
-				if (capturePolicy === "reference") if (validateReferenceIdentity) {
-					const validation = slice.validate(captured, {
-						sliceId: slice.id,
-						version: slice.version
-					});
-					if (!validation.valid || validation.value !== captured) throw new Error(validation.valid ? "Reference validation must preserve the captured identity." : validation.message);
-					assertSafeImmutableReference(captured);
-					data = captured;
-				} else {
-					data = cloneStateValue(captured);
-					capturePolicy = "always";
-				}
-				else data = cloneStateValue(captured);
+				if (capturePolicy === "reference") {
+					if (validateReferenceIdentity) {
+						const validation = slice.validate(captured, {
+							sliceId: slice.id,
+							version: slice.version
+						});
+						if (!validation.valid || validation.value !== captured) throw new Error(validation.valid ? "Reference validation must preserve the captured identity." : validation.message);
+						assertSafeImmutableReference(captured);
+						data = captured;
+					} else {
+						data = cloneStateValue(captured);
+						capturePolicy = "always";
+					}
+				} else data = cloneStateValue(captured);
 				assertSafeImmutableReference(data);
 				plugins[slice.id] = Object.freeze({
 					version: slice.version,

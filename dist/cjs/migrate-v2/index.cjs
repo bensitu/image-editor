@@ -760,8 +760,10 @@ function maskRecord(object, index, context) {
 	const originalAlpha = isFiniteNumber(object.originalAlpha) ? object.originalAlpha : isFiniteNumber(object.opacity) ? object.opacity : .5;
 	const serialized = sanitizedFabricObject(object);
 	let overlayMetadata;
-	if (object.overlayMetadata !== void 0) if (isRecord(object.overlayMetadata)) overlayMetadata = Object.freeze({ ...object.overlayMetadata });
-	else issue(context, "mask.metadata", `${path}.overlayMetadata`, "Mask metadata was skipped because it is not an object.");
+	if (object.overlayMetadata !== void 0) {
+		if (isRecord(object.overlayMetadata)) overlayMetadata = Object.freeze({ ...object.overlayMetadata });
+		else issue(context, "mask.metadata", `${path}.overlayMetadata`, "Mask metadata was skipped because it is not an object.");
+	}
 	const data = Object.freeze({
 		object: serialized,
 		maskId: Number(object.maskId),
@@ -864,8 +866,10 @@ function annotationRecord(object, index, context) {
 	const persistentId = overlayId(object.overlayPersistentId) ? object.overlayPersistentId : generatedId;
 	if (!overlayId(persistentId)) return rejectObject(context, "annotation.persistentId", path, "Annotation persistent identifier is invalid.");
 	let metadata = Object.freeze({});
-	if (object.overlayMetadata !== void 0) if (isRecord(object.overlayMetadata)) metadata = Object.freeze({ ...object.overlayMetadata });
-	else issue(context, "annotation.metadata", `${path}.overlayMetadata`, "Annotation metadata was skipped because it is not an object.");
+	if (object.overlayMetadata !== void 0) {
+		if (isRecord(object.overlayMetadata)) metadata = Object.freeze({ ...object.overlayMetadata });
+		else issue(context, "annotation.metadata", `${path}.overlayMetadata`, "Annotation metadata was skipped because it is not an object.");
+	}
 	const interaction = Object.freeze({
 		selectable: interactionValue(object, "annotationSelectable", object.selectable !== false, path, context),
 		evented: interactionValue(object, "annotationEvented", object.evented !== false, path, context),
