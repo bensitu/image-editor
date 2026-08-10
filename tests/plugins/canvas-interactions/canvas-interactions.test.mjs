@@ -213,7 +213,10 @@ test('Shape pointer interaction commits through the public Feature API and resto
         () => preset.annotations.list({ kinds: ['annotation:shape'] }).length === 1,
         'Shape interaction did not commit.',
     );
-    await waitFor(() => !interactions.getStatus().gestureActive, 'Pointer interaction did not settle.');
+    await waitFor(
+        () => !interactions.getStatus().gestureActive,
+        'Pointer interaction did not settle.',
+    );
 
     assert.deepEqual(
         {
