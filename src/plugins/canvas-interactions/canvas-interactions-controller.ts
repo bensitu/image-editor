@@ -4,24 +4,52 @@
  * @module
  */
 
-import type { CanvasReadPort, CoreDiagnosticsPort, Disposable } from '../../sdk/index.js';
+import type {
+    BaseImageReadPort,
+    CanvasReadPort,
+    CoreDiagnosticsPort,
+    Disposable,
+} from '../../sdk/index.js';
 import type {
     CanvasInteractionsPluginApi,
     CanvasInteractionsStatus,
     CanvasInteractionsStatusListener,
     InteractionCancelReason,
 } from './canvas-interactions-types.js';
+import { FabricPointerSource } from './fabric-pointer-source.js';
+import type { PointerSample, PointerSourceSink } from './interaction-types.js';
+import { PointerCoordinateMapper } from './pointer-coordinate-mapper.js';
 
-interface CanvasInteractionsHost extends CanvasReadPort, CoreDiagnosticsPort {}
+interface CanvasInteractionsHost extends CanvasReadPort, BaseImageReadPort, CoreDiagnosticsPort {}
 
 export class CanvasInteractionsController implements CanvasInteractionsPluginApi {
     private readonly listeners = new Set<CanvasInteractionsStatusListener>();
+    private canvas: ReturnType<CanvasReadPort['getCanvas']> = null;
+    private pointerSource: FabricPointerSource | null = null;
     private disposed = false;
 
     constructor(private readonly host: CanvasInteractionsHost) {}
 
     refresh(): void {
         this.assertActive('refresh Canvas interactions');
+        const canvas = this.host.getCanvas();
+        if (canvas === this.canvas && this.pointerSource) return;
+        this.releasePointerSource();
+        this.canvas = canvas;
+        if (canvas) {
+            const sink: PointerSourceSink = {
+                down: (sample) => this.handlePointerDown(sample),
+                move: (sample) => this.handlePointerMove(sample),
+                up: (sample) => this.handlePointerUp(sample),
+                cancel: () => this.handlePointerCancel(),
+            };
+            this.pointerSource = new FabricPointerSource(
+                canvas,
+                new PointerCoordinateMapper(this.host),
+                sink,
+            );
+        }
+        this.publishStatus();
     }
 
     async cancel(_reason: InteractionCancelReason = 'requested'): Promise<void> {
@@ -53,19 +81,38 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
 
     dispose(): void {
         if (this.disposed) return;
+        this.releasePointerSource();
         this.disposed = true;
-        const status = this.status();
-        for (const listener of [...this.listeners]) this.invokeListener(listener, status);
+        this.publishStatus();
         this.listeners.clear();
     }
 
     private status(): Readonly<CanvasInteractionsStatus> {
         return Object.freeze({
-            isBound: false,
+            isBound: this.pointerSource !== null,
             isDisposed: this.disposed,
             activeBindingId: null,
             gestureActive: false,
         });
+    }
+
+    private releasePointerSource(): void {
+        this.pointerSource?.dispose();
+        this.pointerSource = null;
+        this.canvas = null;
+    }
+
+    private handlePointerDown(_sample: PointerSample): void {}
+
+    private handlePointerMove(_sample: PointerSample): void {}
+
+    private handlePointerUp(_sample: PointerSample): void {}
+
+    private handlePointerCancel(): void {}
+
+    private publishStatus(): void {
+        const status = this.status();
+        for (const listener of [...this.listeners]) this.invokeListener(listener, status);
     }
 
     private invokeListener(

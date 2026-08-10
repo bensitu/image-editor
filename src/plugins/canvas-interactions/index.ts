@@ -82,6 +82,7 @@ export function canvasInteractionsPlugin(
             controller = new CanvasInteractionsController(
                 Object.freeze({
                     ...context.capabilities.require(CANVAS_READ_CAPABILITY),
+                    ...context.capabilities.require(BASE_IMAGE_READ_CAPABILITY),
                     ...context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY),
                 }),
             );
