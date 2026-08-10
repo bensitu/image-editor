@@ -13,6 +13,7 @@ import type * as OverlayUmd from '../../../src/foundations/overlay/index.js';
 import type * as AnnotationDrawUmd from '../../../src/plugins/annotation-draw/index.js';
 import type * as AnnotationShapeUmd from '../../../src/plugins/annotation-shape/index.js';
 import type * as AnnotationTextUmd from '../../../src/plugins/annotation-text/index.js';
+import type * as CanvasInteractionsUmd from '../../../src/plugins/canvas-interactions/index.js';
 import type * as CropUmd from '../../../src/plugins/crop/index.js';
 import type * as DomControlsUmd from '../../../src/plugins/dom-controls/index.js';
 import type * as FiltersUmd from '../../../src/plugins/filters/index.js';
@@ -44,6 +45,7 @@ interface ModularPluginGlobals {
     readonly AnnotationDraw: typeof AnnotationDrawUmd;
     readonly OverlayState: typeof OverlayStateUmd;
     readonly DomControls: typeof DomControlsUmd;
+    readonly CanvasInteractions: typeof CanvasInteractionsUmd;
 }
 
 type ModularBrowser = typeof window & {
@@ -264,7 +266,7 @@ test('Annotation Foundation and Feature modules coexist without namespace replac
     });
 });
 
-test('all thirteen modules install as one explicit plan', async ({ page }) => {
+test('selected modular Plugins install as one explicit composition', async ({ page }) => {
     await prepareEditorPage(page);
     await loadCore(page);
     await loadPlugins(page, [
@@ -281,6 +283,7 @@ test('all thirteen modules install as one explicit plan', async ({ page }) => {
         'annotation-draw',
         'overlay-state',
         'dom-controls',
+        'canvas-interactions',
     ]);
 
     const result = await page.evaluate(async () => {
@@ -288,6 +291,10 @@ test('all thirteen modules install as one explicit plan', async ({ page }) => {
         const core = browser.ImageEditor;
         const plugins = browser.ImageEditorPlugins;
         const editor = new core.ImageEditorCore(browser.fabric);
+        const bind = <TApi>(ref: CoreUmd.PluginRef<TApi>) => ({
+            ref,
+            resolve: () => editor.requirePlugin(ref),
+        });
         const apis = editor.install(
             core.composePlugins({
                 transform: plugins.Transform.transformPlugin({ animationDuration: 0 }),
@@ -303,6 +310,13 @@ test('all thirteen modules install as one explicit plan', async ({ page }) => {
                 draw: plugins.AnnotationDraw.drawAnnotationPlugin(),
                 overlayState: plugins.OverlayState.overlayStatePlugin(),
                 domControls: plugins.DomControls.domControlsPlugin(),
+                canvasInteractions: plugins.CanvasInteractions.canvasInteractionsPlugin({
+                    text: {
+                        plugin: bind(plugins.AnnotationText.textAnnotationPluginRef),
+                        overlays: bind(plugins.Overlay.overlayFoundationRef),
+                        annotations: bind(plugins.Annotation.annotationFoundationRef),
+                    },
+                }),
             }),
         );
         await editor.init({
@@ -324,24 +338,25 @@ test('all thirteen modules install as one explicit plan', async ({ page }) => {
             editor.getPlugin(plugins.Mask.maskPluginRef) === apis.mask,
             editor.getPlugin(plugins.Annotation.annotationFoundationRef) === apis.annotation,
             editor.getPlugin(plugins.OverlayState.overlayStatePluginRef) === apis.overlayState,
+            editor.getPlugin(plugins.CanvasInteractions.canvasInteractionsPluginRef) ===
+                apis.canvasInteractions,
         ];
         const domStatus = apis.domControls.getStatus();
+        const canvasStatus = apis.canvasInteractions.getStatus();
         await editor.disposeAsync();
         return {
-            moduleCount: Object.keys(plugins).length,
-            apiCount: Object.keys(apis).length,
             identityChecks,
             exported: exported.startsWith('data:image/png;base64,'),
             domReady: typeof domStatus === 'object' && domStatus !== null,
+            canvasBound: canvasStatus.isBound,
         };
     });
 
     expect(result).toEqual({
-        moduleCount: 13,
-        apiCount: 13,
-        identityChecks: [true, true, true, true, true, true],
+        identityChecks: [true, true, true, true, true, true, true],
         exported: true,
         domReady: true,
+        canvasBound: true,
     });
 });
 
