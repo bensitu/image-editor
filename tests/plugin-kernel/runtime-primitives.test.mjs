@@ -150,6 +150,62 @@ test('ToolCoordinator switches tools in order and applies operation policy', asy
     assert.deepEqual(calls.at(-1), 'second:exit:requested');
 });
 
+test('ToolCoordinator publishes synchronous active-tool state with isolated observers', async () => {
+    const errors = [];
+    const statuses = [];
+    const coordinator = new ToolCoordinator({ errorSink: (error) => errors.push(error) });
+    const first = coordinator.register(
+        {
+            id: 'third-party-example:first',
+            enter: () => undefined,
+            exit: () => undefined,
+        },
+        'plugin:first',
+    );
+    coordinator.register(
+        {
+            id: 'third-party-example:second',
+            enter: () => undefined,
+            exit: () => undefined,
+        },
+        'plugin:second',
+    );
+
+    const subscription = coordinator.subscribe((status) => statuses.push(status));
+    coordinator.subscribe(
+        () => {
+            throw new Error('observer failed');
+        },
+        { emitCurrent: false },
+    );
+    coordinator.subscribe(
+        async () => {
+            await Promise.resolve();
+            throw new Error('async observer failed');
+        },
+        { emitCurrent: false },
+    );
+
+    await coordinator.enter('third-party-example:first', 'plugin:first');
+    await coordinator.enter('third-party-example:second', 'plugin:second');
+    subscription.dispose();
+    await coordinator.exit();
+    await Promise.resolve();
+
+    assert.deepEqual(
+        statuses.map((status) => status.activeToolId),
+        [null, 'third-party-example:first', null, 'third-party-example:second'],
+    );
+    assert.equal(Object.isFrozen(statuses[0]), true);
+    assert.equal(errors.length, 8);
+
+    await coordinator.enter('third-party-example:first', 'plugin:first');
+    await first.dispose();
+    assert.equal(coordinator.getActiveToolId(), null);
+    await coordinator.dispose();
+    assert.throws(() => coordinator.subscribe(() => undefined), PluginKernelDisposedError);
+});
+
 test('ToolCoordinator rejects duplicates and failed enter never leaves active state', async () => {
     const coordinator = new ToolCoordinator();
     coordinator.register(

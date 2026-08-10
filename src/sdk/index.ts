@@ -49,6 +49,9 @@ export type {
     OptionalCapabilityStatus,
     PluginPermission,
     PluginSetupContext,
+    PluginToolStatus,
+    PluginToolStatusListener,
+    PluginToolStatusSubscriptionOptions,
     SynchronousEditorPlugin,
 } from '../plugin-kernel/plugin-types.js';
 export { definePlugin } from './plugin-definition.js';

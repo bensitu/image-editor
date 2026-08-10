@@ -97,6 +97,9 @@ export type {
     PluginSetupContext,
     PluginToolAccess,
     PluginToolSetupAccess,
+    PluginToolStatus,
+    PluginToolStatusListener,
+    PluginToolStatusSubscriptionOptions,
     SynchronousEditorPlugin,
 } from './plugin-types.js';
 export { RegistrationScope, type RegistrationScopeOptions } from './registration-scope.js';
@@ -108,4 +111,7 @@ export {
     type ToolDefinition,
     type ToolExitReason,
     type ToolId,
+    type ToolStatus,
+    type ToolStatusListener,
+    type ToolStatusSubscriptionOptions,
 } from './tool-coordinator.js';

@@ -15,7 +15,13 @@ import type {
 } from './operation-registry.js';
 import type { PluginIdentity, PluginRef } from './plugin-ref.js';
 import type { ScopedPluginStateStore } from './plugin-state-store.js';
-import type { ToolDefinition, ToolExitReason } from './tool-coordinator.js';
+import type {
+    ToolDefinition,
+    ToolExitReason,
+    ToolStatus,
+    ToolStatusListener,
+    ToolStatusSubscriptionOptions,
+} from './tool-coordinator.js';
 
 /** Privileged integration boundaries that a Plugin can declare in its manifest. */
 export type PluginPermission =
@@ -102,7 +108,15 @@ export interface PluginToolAccess {
     exit(reason?: ToolExitReason): Promise<void>;
     getActiveToolId(): string | null;
     canRunOperation(operationId: string): boolean;
+    subscribe(
+        listener: PluginToolStatusListener,
+        options?: PluginToolStatusSubscriptionOptions,
+    ): Disposable;
 }
+
+export type PluginToolStatus = ToolStatus;
+export type PluginToolStatusListener = ToolStatusListener;
+export type PluginToolStatusSubscriptionOptions = Readonly<ToolStatusSubscriptionOptions>;
 
 export interface PluginToolSetupAccess extends PluginToolAccess {
     register(definition: ToolDefinition): Disposable;

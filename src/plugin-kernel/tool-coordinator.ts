@@ -19,6 +19,16 @@ export type ToolId = string;
 export type ToolExitReason =
     'requested' | 'switch' | 'operation' | 'plugin-dispose' | 'host-dispose';
 
+export interface ToolStatus {
+    readonly activeToolId: ToolId | null;
+}
+
+export type ToolStatusListener = (status: Readonly<ToolStatus>) => void;
+
+export interface ToolStatusSubscriptionOptions {
+    readonly emitCurrent?: boolean;
+}
+
 export interface ToolContext {
     readonly toolId: ToolId;
     readonly ownerPluginId: string;
@@ -44,7 +54,9 @@ export interface ToolCoordinatorOptions {
 
 export class ToolCoordinator implements Disposable {
     private readonly tools = new Map<ToolId, RegisteredTool>();
+    private readonly statusListeners = new Set<ToolStatusListener>();
     private active: RegisteredTool | null = null;
+    private lastPublishedActiveToolId: ToolId | null = null;
     private transitioning = false;
     private transitionCompletion: Promise<void> | null = null;
     private disposed = false;
@@ -104,6 +116,7 @@ export class ToolCoordinator implements Disposable {
         } finally {
             this.active = null;
             this.tools.clear();
+            this.statusListeners.clear();
             this.disposed = true;
         }
         if (exitError) throw exitError;
@@ -170,6 +183,21 @@ export class ToolCoordinator implements Disposable {
         }
     }
 
+    subscribe(
+        listener: ToolStatusListener,
+        options: ToolStatusSubscriptionOptions = {},
+    ): Disposable {
+        this.assertActive('subscribe to tool state');
+        if (typeof listener !== 'function') {
+            throw new TypeError('[ImageEditor] Tool status listener must be a function.');
+        }
+        this.statusListeners.add(listener);
+        if (options.emitCurrent !== false) this.invokeStatusListener(listener, this.status());
+        return createDisposable(() => {
+            this.statusListeners.delete(listener);
+        });
+    }
+
     async dispose(): Promise<void> {
         if (this.disposed) return;
         let exitError: Error | null = null;
@@ -184,6 +212,7 @@ export class ToolCoordinator implements Disposable {
         } finally {
             this.active = null;
             this.tools.clear();
+            this.statusListeners.clear();
             this.disposed = true;
         }
         if (exitError) throw exitError;
@@ -249,10 +278,35 @@ export class ToolCoordinator implements Disposable {
     }
 
     private notifyActivityChange(): void {
+        const activeToolId = this.active?.definition.id ?? null;
+        if (activeToolId !== this.lastPublishedActiveToolId) {
+            this.lastPublishedActiveToolId = activeToolId;
+            const status = this.status();
+            for (const listener of [...this.statusListeners]) {
+                this.invokeStatusListener(listener, status);
+            }
+        }
         try {
             this.options.activitySink?.();
         } catch {
             // Host observation must not change Tool transition behavior.
+        }
+    }
+
+    private status(): Readonly<ToolStatus> {
+        return Object.freeze({ activeToolId: this.active?.definition.id ?? null });
+    }
+
+    private invokeStatusListener(listener: ToolStatusListener, status: Readonly<ToolStatus>): void {
+        try {
+            const result = listener(status);
+            if (isPromiseLike(result)) {
+                void Promise.resolve(result).catch((error: unknown) => {
+                    reportErrorSafely(this.options.errorSink, error);
+                });
+            }
+        } catch (error) {
+            reportErrorSafely(this.options.errorSink, error);
         }
     }
 

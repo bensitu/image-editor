@@ -1063,6 +1063,8 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             getActiveToolId: () => this.toolCoordinator.getActiveToolId(),
             canRunOperation: (operationId: string) =>
                 this.toolCoordinator.canRunOperation(operationId),
+            subscribe: (...args: Parameters<ToolCoordinator['subscribe']>) =>
+                this.toolCoordinator.subscribe(...args),
         });
         const events: PluginCommittedEventAccess<TEvents> = Object.freeze({
             emitCommitted: <TKey extends keyof TEvents & string>(
