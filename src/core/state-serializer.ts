@@ -75,6 +75,7 @@ const DEFAULT_MAX_RESTORE_IMAGE_BYTES = 50000000;
 const DEFAULT_MAX_RESTORE_IMAGE_PIXELS = 50000000;
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
+const UNSAFE_PUBLIC_RESTORE_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
     'circle',
     'ellipse',
@@ -1037,6 +1038,7 @@ function validatePublicSnapshot(
         maxInputPixels: number;
     },
 ): void {
+    assertPublicSnapshotObjectKeysAllowed(json, 'snapshot');
     if (json.objects !== undefined && !Array.isArray(json.objects)) {
         throw new StateRestoreError('loadFromState: snapshot objects must be an array.');
     }
@@ -1114,6 +1116,10 @@ function validatePublicSnapshotValue(
 
     if (!value || typeof value !== 'object') return;
 
+    if (!Array.isArray(value)) {
+        assertPublicSnapshotObjectKeysAllowed(value as Record<string, unknown>, path);
+    }
+
     const alreadySeen = context.seen.has(value);
     if (!alreadySeen) context.seen.add(value);
 
@@ -1161,6 +1167,16 @@ function validatePublicSnapshotValue(
             },
             context,
             depth + 1,
+        );
+    }
+}
+
+function assertPublicSnapshotObjectKeysAllowed(value: Record<string, unknown>, path: string): void {
+    for (const key of Object.keys(value)) {
+        if (!UNSAFE_PUBLIC_RESTORE_KEYS.has(key)) continue;
+        const keyPath = path ? `${path}.${key}` : key;
+        throw new StateRestoreError(
+            `loadFromState: snapshot field "${keyPath}" uses an unsafe structural key.`,
         );
     }
 }

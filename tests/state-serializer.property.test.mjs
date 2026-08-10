@@ -789,6 +789,27 @@ test('public loadFromState enforces configured limits for embedded images', asyn
     }
 });
 
+test('public loadFromState rejects unsafe structural keys before deserialization', async () => {
+    for (const key of ['__proto__', 'prototype', 'constructor']) {
+        const canvas = new MockCanvas();
+        let loadCount = 0;
+        canvas.loadFromJSON = async () => {
+            loadCount += 1;
+            return canvas;
+        };
+        const snapshot = `{"version":"7.0.0","width":320,"height":240,"objects":[{"type":"rect","overlayMetadata":{"app.audit":{"${key}":{}}}}]}`;
+
+        await assert.rejects(
+            () => loadFromState(makePublicRestoreInput(canvas, snapshot)),
+            (error) =>
+                error instanceof StateRestoreError &&
+                error.message.includes(key) &&
+                /unsafe structural key/.test(error.message),
+        );
+        assert.equal(loadCount, 0);
+    }
+});
+
 test('trusted loadFromState keeps internal restores working with unvalidated sources', async () => {
     const canvas = new MockCanvas();
 

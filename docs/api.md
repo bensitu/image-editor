@@ -321,8 +321,9 @@ State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
 
 `loadFromState()` applies structural and resource validation before Fabric
 deserialization, including `maxInputBytes` and `maxInputPixels` for embedded
-image resources. It remains intended for compatible editor snapshots; parsing
-arbitrary external JSON successfully does not make it a valid editor state.
+image resources and rejection of unsafe structural keys. It remains intended
+for compatible editor snapshots; parsing arbitrary external JSON successfully
+does not make it a valid editor state.
 
 ## Overlay Persistence
 
