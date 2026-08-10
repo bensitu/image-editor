@@ -313,12 +313,19 @@ State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
 
 ## State and History
 
-| Method                    | Description                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------- |
-| `saveState()`             | Capture a snapshot of the canvas plus editor metadata into the history stack.         |
-| `loadFromState(snapshot)` | Restore canvas, masks, and editor metadata from a snapshot. Returns `Promise<void>`.  |
-| `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed. |
-| `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed. |
+| Method                    | Description                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `saveState()`             | Record the canvas and editor metadata in undo/redo history. Returns `void`.                                  |
+| `loadFromState(snapshot)` | Restore canvas, masks, and editor metadata from compatible serialized editor state. Returns `Promise<void>`. |
+| `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed.                        |
+| `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed.                        |
+
+`saveState()` does not return a serializable string; complete snapshot capture
+is an internal history/transaction mechanism. `loadFromState()` accepts a
+compatible serialized state that an integration already holds, but it is not
+paired with a public full-state export method. Applications that need
+independent long-term mask and annotation persistence should use
+`exportOverlayState()` and `importOverlayState()`.
 
 `loadFromState()` applies structural and resource validation before Fabric
 deserialization, including `maxInputBytes` and `maxInputPixels` for embedded

@@ -130,7 +130,8 @@ crop controls, mosaic controls, lists, and layer actions.
 - Choose image-bounds or full-canvas export areas.
 - Render masks and annotations independently during export without mutating
   editor state.
-- Save/load editor snapshots with `saveState()` and `loadFromState()`.
+- Record undo/redo history with `saveState()` and restore compatible serialized
+  editor state with `loadFromState()`.
 - Store editable overlays separately from image pixels with overlay-state JSON.
 
 ### Integration
@@ -288,6 +289,9 @@ directly.
   as read-only from integration code.
 - `loadImage()`, `loadFromState()`, crop, merge, and overlay import are
   transactional: failures restore the previous canvas state where applicable.
+- `saveState()` records the current editor state in undo/redo history and
+  returns `void`; it does not export a snapshot string. Use the overlay-state
+  APIs for independent long-term mask and annotation persistence.
 - `dispose()` starts teardown synchronously; `disposeAsync()` waits for that
   same teardown even when called after `dispose()`.
 - Lifecycle callback exceptions are caught and logged so host callback failures

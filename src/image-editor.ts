@@ -2090,11 +2090,11 @@ export class ImageEditor {
      * promise rejects with the original error so the history manager
      * leaves `currentIndex` untouched on a failed undo/redo restore.
      *
-     * `loadFromState` is intended for snapshots produced by this editor's
-     * `saveState()`. Validate or reject untrusted external JSON before
-     * passing it here.
+     * `loadFromState` accepts compatible serialized editor snapshots.
+     * The public `saveState()` method records undo/redo history and returns
+     * `void`; it is not a serialized-state export API.
      *
-     * @param jsonString - JSON string returned by `saveState` (or parsed object).
+     * @param jsonString - Compatible serialized editor state as JSON text or a parsed object.
      */
     async loadFromState(jsonString: string | CanvasJson): Promise<void> {
         if (!jsonString || !this.runtime.canvas || this.runtime.isDisposed) return;
