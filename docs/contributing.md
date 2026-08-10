@@ -16,7 +16,8 @@ build:umd` in order, emitting:
 - `dist/esm/index.js` and the rest of the decomposed source tree
 - `dist/cjs/index.cjs`
 - `dist/types/index.d.ts`
-- `dist/umd/image-editor.umd.js`
+- `dist/umd/image-editor.umd.js` and its source map for readable debugging
+- `dist/umd/image-editor.umd.min.js` and its source map for production/CDN use
 
 ## Node Tests
 

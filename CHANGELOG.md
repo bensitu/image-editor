@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apply configured image input limits to image resources in public state restoration before Fabric deserialization.
 - Reject unsafe structural keys in public state payloads before deserialization.
 
+### Changed
+
+- Publish separate readable and minified UMD bundles, with CDN package metadata targeting the minified build.
+
 ### Fixed
 
 - Preserve ordinary application metadata fields named `source` while continuing to validate actual Fabric image sources.

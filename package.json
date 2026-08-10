@@ -16,8 +16,8 @@
     "main": "./dist/cjs/index.cjs",
     "module": "./dist/esm/index.js",
     "types": "./dist/types/index.d.ts",
-    "unpkg": "./dist/umd/image-editor.umd.js",
-    "jsdelivr": "./dist/umd/image-editor.umd.js",
+    "unpkg": "./dist/umd/image-editor.umd.min.js",
+    "jsdelivr": "./dist/umd/image-editor.umd.min.js",
     "exports": {
         ".": {
             "import": {

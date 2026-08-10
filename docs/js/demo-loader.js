@@ -49,7 +49,7 @@
         ? 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'
         : '../node_modules/fabric/dist/index.min.js';
     const imageEditorSrc = isGitHubPages
-        ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.umd.js'
+        ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.umd.min.js'
         : '../dist/umd/image-editor.umd.js';
 
     try {

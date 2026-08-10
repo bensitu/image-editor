@@ -244,13 +244,14 @@ Older runtime targets must be transpiled by the consumer.
 
 The package ships one public entry resolved through the `exports` map:
 
-| Consumer                              | Resolves to                    |
-| ------------------------------------- | ------------------------------ |
-| ESM (`import`)                        | `dist/esm/index.js`            |
-| CommonJS (`require`)                  | `dist/cjs/index.cjs`           |
-| TypeScript (`types`)                  | `dist/types/index.d.ts`        |
-| UMD (`<script>`, `unpkg`, `jsdelivr`) | `dist/umd/image-editor.umd.js` |
-| `default` fallback                    | `dist/esm/index.js`            |
+| Consumer                               | Resolves to                        |
+| -------------------------------------- | ---------------------------------- |
+| ESM (`import`)                         | `dist/esm/index.js`                |
+| CommonJS (`require`)                   | `dist/cjs/index.cjs`               |
+| TypeScript (`types`)                   | `dist/types/index.d.ts`            |
+| UMD (readable development/debug build) | `dist/umd/image-editor.umd.js`     |
+| UMD (`<script>`, `unpkg`, `jsdelivr`)  | `dist/umd/image-editor.umd.min.js` |
+| `default` fallback                     | `dist/esm/index.js`                |
 
 The constructor accepts Fabric explicitly in bundled apps:
 
@@ -265,7 +266,7 @@ UMD consumers can load Fabric and the editor as globals:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.min.js"></script>
 <script>
     const editor = new ImageEditor.ImageEditor({ canvasWidth: 800, canvasHeight: 600 });
 </script>
