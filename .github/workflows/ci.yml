@@ -33,10 +33,7 @@ jobs:
               working-directory: ${{ runner.temp }}
               run: |
                   npm install --global corepack@0.35.0
-                  mkdir -p "$RUNNER_TEMP/corepack-bin"
-                  corepack enable npm --install-directory "$RUNNER_TEMP/corepack-bin"
-                  echo "$RUNNER_TEMP/corepack-bin" >> "$GITHUB_PATH"
-                  export PATH="$RUNNER_TEMP/corepack-bin:$PATH"
+                  corepack enable npm
                   cd "$GITHUB_WORKSPACE"
                   corepack install
                   npm --version
@@ -86,10 +83,7 @@ jobs:
               working-directory: ${{ runner.temp }}
               run: |
                   npm install --global corepack@0.35.0
-                  mkdir -p "$RUNNER_TEMP/corepack-bin"
-                  corepack enable npm --install-directory "$RUNNER_TEMP/corepack-bin"
-                  echo "$RUNNER_TEMP/corepack-bin" >> "$GITHUB_PATH"
-                  export PATH="$RUNNER_TEMP/corepack-bin:$PATH"
+                  corepack enable npm
                   cd "$GITHUB_WORKSPACE"
                   corepack install
                   npm --version
@@ -142,10 +136,7 @@ jobs:
               working-directory: ${{ runner.temp }}
               run: |
                   npm install --global corepack@0.35.0
-                  mkdir -p "$RUNNER_TEMP/corepack-bin"
-                  corepack enable npm --install-directory "$RUNNER_TEMP/corepack-bin"
-                  echo "$RUNNER_TEMP/corepack-bin" >> "$GITHUB_PATH"
-                  export PATH="$RUNNER_TEMP/corepack-bin:$PATH"
+                  corepack enable npm
                   cd "$GITHUB_WORKSPACE"
                   corepack install
                   npm --version
@@ -201,10 +192,7 @@ jobs:
               working-directory: ${{ runner.temp }}
               run: |
                   npm install --global corepack@0.35.0
-                  mkdir -p "$RUNNER_TEMP/corepack-bin"
-                  corepack enable npm --install-directory "$RUNNER_TEMP/corepack-bin"
-                  echo "$RUNNER_TEMP/corepack-bin" >> "$GITHUB_PATH"
-                  export PATH="$RUNNER_TEMP/corepack-bin:$PATH"
+                  corepack enable npm
                   cd "$GITHUB_WORKSPACE"
                   corepack install
                   npm --version
