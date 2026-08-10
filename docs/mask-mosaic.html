@@ -31,8 +31,8 @@
                 <div>
                     <h1>Mask &amp; Mosaic Demo</h1>
                     <p>
-                        Compose the Overlay Foundation with only Mask and Mosaic to demonstrate
-                        editable overlays and destructive pixel redaction.
+                        Compose the Overlay Foundation with Mask, Mosaic, and Canvas Interactions to
+                        demonstrate editable overlays and pointer-driven pixel redaction.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -256,6 +256,9 @@
                             <code>ImageEditorPlugins.Overlay.overlayFoundationPlugin()</code>
                             <code>ImageEditorPlugins.Mask.maskPlugin()</code>
                             <code>ImageEditorPlugins.Mosaic.mosaicPlugin()</code>
+                            <code
+                                >ImageEditorPlugins.CanvasInteractions.canvasInteractionsPlugin()</code
+                            >
                             <code>editor.loadImageFile()</code>
                             <code>editor.observeContainer()</code>
                             <code>editor.subscribeStatus()</code>
@@ -265,6 +268,7 @@
                             <code>plugins.mosaic.enter()</code>
                             <code>plugins.mosaic.configure()</code>
                             <code>plugins.mosaic.commit()</code>
+                            <code>plugins.canvasInteractions.cancel()</code>
                             <code>editor.exportImageBase64()</code>
                         </div>
                     </section>
@@ -278,6 +282,7 @@
         <script src="../dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>
         <script src="../dist/umd/plugins/image-editor.plugin.mask.umd.min.js"></script>
         <script src="../dist/umd/plugins/image-editor.plugin.mosaic.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.canvas-interactions.umd.min.js"></script>
         <script src="js/mask-mosaic-demo.js"></script>
         <script src="js/demo-pages.js"></script>
     </body>

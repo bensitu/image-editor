@@ -76,12 +76,7 @@
         isBusy: false,
         lastOperation: null,
         filterPreviewSequence: 0,
-        textMode: false,
-        pointer: {
-            active: false,
-            start: null,
-            queue: Promise.resolve(),
-        },
+        operationQueue: Promise.resolve(),
         bindingOptions: {
             masksFollowTransform: false,
             annotationsFollowTransform: false,
@@ -334,23 +329,39 @@
         trackCleanup(kit.annotations?.subscribe(refresh));
         trackCleanup(kit.text?.subscribe(refresh));
         trackCleanup(kit.overlays?.onSelectionChange(refresh));
+        let interactionStatus = kit.canvasInteractions?.getStatus() || null;
+        trackCleanup(
+            kit.canvasInteractions?.subscribe((status) => {
+                if (
+                    interactionStatus?.gestureActive &&
+                    !status.gestureActive &&
+                    interactionStatus.activeBindingId
+                ) {
+                    const completedOperations = {
+                        draw: 'annotation-draw:end-stroke',
+                        mosaic: 'mosaic:end-stroke',
+                        shape: 'annotation-shape:commit',
+                        text: 'annotation-text:place',
+                    };
+                    recordOperation(completedOperations[interactionStatus.activeBindingId]);
+                }
+                interactionStatus = status;
+                refresh();
+            }),
+        );
     }
 
     function getActiveToolMode() {
         const kit = getKit();
         if (!kit) return null;
-        if (kit.crop?.isActive) return 'crop';
-        if (kit.mosaic?.isActive) return 'mosaic';
-        if (demoState.textMode || kit.text?.getEditingSession()) return 'text';
-        if (kit.shape?.getSession()) return 'shape';
-        if (kit.draw?.getSession()) return 'draw';
-        return null;
-    }
-
-    function getScenePoint(canvas, event) {
-        const point = event?.scenePoint || (event?.e ? canvas.getScenePoint(event.e) : null);
-        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
-        return { x: point.x, y: point.y };
+        const toolModes = {
+            'plugin:crop': 'crop',
+            'plugin:mosaic': 'mosaic',
+            'annotation:text': 'text',
+            'annotation:shape': 'shape',
+            'annotation:draw': 'draw',
+        };
+        return toolModes[kit.editor.getRuntimeStatus().activeToolId] || null;
     }
 
     function getBaseImage() {
@@ -362,227 +373,11 @@
         );
     }
 
-    function toImagePixelPoint(scenePoint) {
-        const image = getBaseImage();
-        const fabricApi = window.fabric;
-        if (!image || !fabricApi?.util?.invertTransform || !fabricApi?.util?.transformPoint) {
-            return null;
-        }
-        const inverse = fabricApi.util.invertTransform(image.calcTransformMatrix());
-        const local = fabricApi.util.transformPoint(
-            new fabricApi.Point(scenePoint.x, scenePoint.y),
-            inverse,
-        );
-        const width = Number(image.width) || 0;
-        const height = Number(image.height) || 0;
-        return {
-            xPx: Math.max(0, Math.min(width - 1, local.x + width / 2)),
-            yPx: Math.max(0, Math.min(height - 1, local.y + height / 2)),
-        };
-    }
-
-    function isScenePointOnBaseImage(scenePoint) {
-        const image = getBaseImage();
-        const fabricApi = window.fabric;
-        if (!image || !fabricApi?.util?.invertTransform || !fabricApi?.util?.transformPoint) {
-            return false;
-        }
-        const inverse = fabricApi.util.invertTransform(image.calcTransformMatrix());
-        const local = fabricApi.util.transformPoint(
-            new fabricApi.Point(scenePoint.x, scenePoint.y),
-            inverse,
-        );
-        const halfWidth = (Number(image.width) || 0) / 2;
-        const halfHeight = (Number(image.height) || 0) / 2;
-        return (
-            local.x >= -halfWidth &&
-            local.x <= halfWidth &&
-            local.y >= -halfHeight &&
-            local.y <= halfHeight
-        );
-    }
-
-    function shapeGeometryFromPoints(kind, start, end) {
-        if (kind === 'rect') {
-            return {
-                kind,
-                left: Math.min(start.x, end.x),
-                top: Math.min(start.y, end.y),
-                width: Math.max(2, Math.abs(end.x - start.x)),
-                height: Math.max(2, Math.abs(end.y - start.y)),
-            };
-        }
-        return {
-            kind,
-            start,
-            end:
-                Math.hypot(end.x - start.x, end.y - start.y) >= 2
-                    ? end
-                    : { x: start.x + 2, y: start.y },
-        };
-    }
-
-    function isMeaningfulShapeDrag(kind, start, end) {
-        const width = Math.abs(end.x - start.x);
-        const height = Math.abs(end.y - start.y);
-        return kind === 'rect' ? width >= 2 && height >= 2 : Math.hypot(width, height) >= 2;
-    }
-
-    function queuePointerOperation(operation) {
+    function queueEditorOperation(operation) {
         const run = async () => operation();
-        demoState.pointer.queue = demoState.pointer.queue.then(run, run).catch((error) => {
-            demoState.pointer.active = false;
+        demoState.operationQueue = demoState.operationQueue.then(run, run).catch((error) => {
             showMessage(error, 'error');
             updateDemoUi();
-        });
-    }
-
-    function setCanvasToolInteraction(mode) {
-        const canvas = getEditor()?.getCanvas();
-        if (!canvas) return;
-        const isTextMode = mode === 'text';
-        const isDrawingMode = mode !== null && !isTextMode;
-        canvas.selection = isTextMode;
-        canvas.skipTargetFind = isDrawingMode;
-        canvas.defaultCursor = isTextMode ? 'text' : isDrawingMode ? 'crosshair' : 'default';
-        if (isDrawingMode) canvas.discardActiveObject();
-        canvas.requestRenderAll();
-    }
-
-    function syncTextControlsFromObject(object) {
-        const textInput = getOptionalElement('textValueInput');
-        const colorInput = getOptionalElement('textColorInput');
-        const sizeInput = getOptionalElement('textFontSizeInput');
-        if (textInput && typeof object?.text === 'string') textInput.value = object.text;
-        if (colorInput && /^#[\da-f]{6}$/iu.test(String(object?.fill || ''))) {
-            colorInput.value = String(object.fill);
-        }
-        if (sizeInput && Number.isFinite(object?.fontSize)) {
-            sizeInput.value = String(object.fontSize);
-        }
-    }
-
-    async function handleTextModePointer(kit, target, point) {
-        const activeSession = kit.text.getEditingSession();
-        if (activeSession && target?.editorAnnotationPreviewOwner === 'annotation:text') {
-            return;
-        }
-        const targetId =
-            typeof target?.editorOverlayId === 'string' ? target.editorOverlayId : null;
-        const targetAnnotation = targetId ? kit.annotations.get(targetId) : null;
-        if (targetAnnotation?.kind === 'annotation:text') {
-            if (activeSession?.annotationId === targetId) return;
-            if (activeSession) await kit.text.commitEditing();
-            syncTextControlsFromObject(target);
-            await kit.text.beginEditing(targetId);
-            recordOperation('annotation-text:begin-editing');
-            updateDemoUi();
-            return;
-        }
-        if (!isScenePointOnBaseImage(point)) return;
-        if (activeSession) await kit.text.commitEditing();
-        const id = await kit.text.create(readTextCreateOptions(point));
-        await kit.text.beginEditing(id);
-        recordOperation('annotation-text:begin-editing');
-        updateDemoUi();
-    }
-
-    function registerCanvasPointerBridge(kit) {
-        const canvas = kit.editor.getCanvas();
-        if (!canvas) return;
-
-        const onPointerDown = (event) => {
-            const mode = getActiveToolMode();
-            if (mode !== 'text' && mode !== 'shape' && mode !== 'draw' && mode !== 'mosaic') {
-                return;
-            }
-            const point = getScenePoint(canvas, event);
-            if (!point) return;
-            if (mode === 'text') {
-                queuePointerOperation(() =>
-                    handleTextModePointer(kit, event?.target || null, point),
-                );
-                return;
-            }
-            demoState.pointer.active = true;
-            demoState.pointer.start = point;
-            if (mode === 'shape') {
-                canvas.discardActiveObject();
-                canvas.requestRenderAll();
-            } else if (mode === 'draw') {
-                queuePointerOperation(() => kit.draw.beginStroke(point));
-            } else if (mode === 'mosaic') {
-                const imagePoint = toImagePixelPoint(point);
-                if (imagePoint) queuePointerOperation(() => kit.mosaic.beginStroke(imagePoint));
-            }
-        };
-        const onPointerMove = (event) => {
-            if (!demoState.pointer.active) return;
-            const point = getScenePoint(canvas, event);
-            const mode = getActiveToolMode();
-            if (!point || (mode !== 'shape' && mode !== 'draw' && mode !== 'mosaic')) return;
-            if (mode === 'shape' && demoState.pointer.start) {
-                const start = { ...demoState.pointer.start };
-                queuePointerOperation(() => {
-                    const session = kit.shape.getSession();
-                    if (!session) return undefined;
-                    return kit.shape.updatePreview(
-                        shapeGeometryFromPoints(session.kind, start, point),
-                    );
-                });
-            } else if (mode === 'draw') {
-                queuePointerOperation(() => kit.draw.appendStroke(point));
-            } else {
-                const imagePoint = toImagePixelPoint(point);
-                if (imagePoint) queuePointerOperation(() => kit.mosaic.appendStroke(imagePoint));
-            }
-        };
-        const onPointerUp = (event) => {
-            if (!demoState.pointer.active) return;
-            demoState.pointer.active = false;
-            const mode = getActiveToolMode();
-            const point = getScenePoint(canvas, event) || demoState.pointer.start;
-            if (mode === 'shape' && demoState.pointer.start && point) {
-                const start = { ...demoState.pointer.start };
-                queuePointerOperation(async () => {
-                    const session = kit.shape.getSession();
-                    if (!session) return;
-                    const kind = session.kind;
-                    if (!isMeaningfulShapeDrag(kind, start, point)) {
-                        await kit.shape.cancel();
-                        await kit.shape.enter({ kind: readShapeKind() });
-                        updateDemoUi();
-                        return;
-                    }
-                    await kit.shape.updatePreview(shapeGeometryFromPoints(kind, start, point));
-                    await kit.shape.commit();
-                    recordOperation('annotation-shape:commit');
-                    await kit.shape.enter({ kind: readShapeKind() });
-                    updateDemoUi();
-                });
-            } else if (mode === 'draw') {
-                queuePointerOperation(async () => {
-                    await kit.draw.endStroke();
-                    recordOperation('annotation-draw:end-stroke');
-                    updateDemoUi();
-                });
-            } else if (mode === 'mosaic') {
-                queuePointerOperation(async () => {
-                    await kit.mosaic.endStroke();
-                    recordOperation('mosaic:end-stroke');
-                    updateDemoUi();
-                });
-            }
-            demoState.pointer.start = null;
-        };
-
-        canvas.on('mouse:down', onPointerDown);
-        canvas.on('mouse:move', onPointerMove);
-        canvas.on('mouse:up', onPointerUp);
-        trackCleanup(() => {
-            canvas.off('mouse:down', onPointerDown);
-            canvas.off('mouse:move', onPointerMove);
-            canvas.off('mouse:up', onPointerUp);
         });
     }
 
@@ -603,7 +398,6 @@
             });
             trackCleanup(kit.editor.observeContainer());
             registerPluginObservers(kit);
-            registerCanvasPointerBridge(kit);
             updateDemoUi();
         } catch (error) {
             demoState.kit = null;
@@ -616,10 +410,7 @@
         const kit = getKit();
         demoState.kit = null;
         releaseCleanups();
-        demoState.textMode = false;
-        demoState.pointer.active = false;
-        demoState.pointer.start = null;
-        demoState.pointer.queue = Promise.resolve();
+        demoState.operationQueue = Promise.resolve();
         if (kit) await kit.editor.disposeAsync();
     }
 
@@ -1239,7 +1030,7 @@
         const selected = activeToolMode === null ? getPrimarySelection() : null;
         const selectedTextId =
             selected?.annotation?.kind === 'annotation:text' ? selected.primaryId : null;
-        queuePointerOperation(async () => {
+        queueEditorOperation(async () => {
             await kit.text.configure(configuration);
             const session = kit.text.getEditingSession();
             if (session) await kit.text.update(session.annotationId, activePatch);
@@ -1255,8 +1046,7 @@
             'annotation-text:enter-mode',
             async () => {
                 await kit.text.configure(readTextConfiguration());
-                demoState.textMode = true;
-                setCanvasToolInteraction('text');
+                await kit.text.enter();
             },
             'Text mode active. Click the image to add Text or click existing Text to edit it.',
         );
@@ -1264,15 +1054,14 @@
 
     function exitTextMode() {
         const kit = getKit();
-        if (!kit || !demoState.textMode || isDemoBusy()) return;
+        if (!kit || getActiveToolMode() !== 'text' || isDemoBusy()) return;
         void runDemoAction(
             'annotation-text:exit-mode',
             async () => {
-                await demoState.pointer.queue;
+                await demoState.operationQueue;
+                await kit.canvasInteractions?.cancel();
                 if (kit.text.getEditingSession()) await kit.text.commitEditing();
-                else await kit.text.cancelEditing();
-                demoState.textMode = false;
-                setCanvasToolInteraction(null);
+                else await kit.text.exit();
             },
             'Text mode exited.',
         );
@@ -1368,11 +1157,10 @@
                                   : 'rgba(0,0,0,0)',
                       }
                     : null;
-        queuePointerOperation(async () => {
+        queueEditorOperation(async () => {
             const session = kit.shape.getSession();
             if (session && session.kind !== kind) {
-                demoState.pointer.active = false;
-                demoState.pointer.start = null;
+                await kit.canvasInteractions?.cancel();
                 await kit.shape.cancel();
                 await kit.shape.configure(style);
                 await kit.shape.enter({ kind });
@@ -1404,7 +1192,6 @@
             async () => {
                 await kit.shape.configure(readShapeStyleConfig());
                 await kit.shape.enter({ kind: readShapeKind() });
-                setCanvasToolInteraction('shape');
             },
             'Shape mode active. Drag on the canvas to create a shape.',
         );
@@ -1416,9 +1203,9 @@
         void runDemoAction(
             'annotation-shape:cancel',
             async () => {
-                await demoState.pointer.queue;
+                await demoState.operationQueue;
+                await kit.canvasInteractions?.cancel();
                 if (kit.shape.getSession()) await kit.shape.cancel();
-                setCanvasToolInteraction(null);
             },
             'Shape mode exited.',
         );
@@ -1438,7 +1225,6 @@
                     radius: Math.max(1, readNumberControl('eraserBrushSizeInput', 18)),
                 });
                 await kit.draw.enter({ subMode: 'brush' });
-                setCanvasToolInteraction('draw');
             },
             'Draw mode active. Drag on the canvas to draw.',
         );
@@ -1450,8 +1236,8 @@
         void runDemoAction(
             'annotation-draw:exit',
             async () => {
-                await kit.draw.exit();
-                setCanvasToolInteraction(null);
+                await kit.canvasInteractions?.cancel();
+                if (kit.draw.getSession()) await kit.draw.exit();
             },
             'Draw mode exited.',
         );
@@ -1754,7 +1540,6 @@
             async () => {
                 await kit.mosaic.configure(readMosaicConfiguration());
                 await kit.mosaic.enter();
-                setCanvasToolInteraction('mosaic');
             },
             'Mosaic mode active. Drag on the canvas, then exit to commit.',
         );
@@ -1766,11 +1551,11 @@
         void runDemoAction(
             'mosaic:finish',
             async () => {
-                await demoState.pointer.queue;
+                await demoState.operationQueue;
+                await kit.canvasInteractions?.cancel();
                 const session = kit.mosaic.getSession();
                 if (session?.strokeCount) await kit.mosaic.commit();
                 else await kit.mosaic.cancel();
-                setCanvasToolInteraction(null);
             },
             'Mosaic mode exited.',
         );
@@ -1798,11 +1583,13 @@
         void runDemoAction(
             'annotation:remove',
             async () => {
+                const resumeTextMode = getActiveToolMode() === 'text';
                 const editing = kit.text?.getEditingSession();
                 if (editing && ids.includes(editing.annotationId)) {
                     await kit.text.cancelEditing();
                 }
                 for (const id of ids) await kit.annotations.remove(id);
+                if (resumeTextMode) await kit.text.enter();
             },
             'Annotation removed.',
         );
@@ -1814,8 +1601,10 @@
         void runDemoAction(
             'annotation:remove-all',
             async () => {
+                const resumeTextMode = getActiveToolMode() === 'text';
                 if (kit.text?.getEditingSession()) await kit.text.cancelEditing();
                 await kit.annotations.removeAll();
+                if (resumeTextMode) await kit.text.enter();
             },
             'All annotations removed.',
         );

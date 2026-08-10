@@ -31,8 +31,9 @@
                 <div>
                     <h1>Integrated Editor Demo</h1>
                     <p>
-                        Compose the selected Transform, History, Mask, and Annotation modules for
-                        one workspace without loading Filters, Crop, Mosaic, or Full UMD.
+                        Compose the selected Transform, History, Mask, Annotation, and Canvas
+                        Interactions modules for one workspace without loading Filters, Crop,
+                        Mosaic, or Full UMD.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -524,6 +525,9 @@
                             <code>ImageEditorPlugins.AnnotationText.textAnnotationPlugin()</code>
                             <code>ImageEditorPlugins.AnnotationShape.shapeAnnotationPlugin()</code>
                             <code>ImageEditorPlugins.AnnotationDraw.drawAnnotationPlugin()</code>
+                            <code
+                                >ImageEditorPlugins.CanvasInteractions.canvasInteractionsPlugin()</code
+                            >
                             <code>editor.loadImageFile()</code>
                             <code>editor.observeContainer()</code>
                             <code>editor.subscribeStatus()</code>
@@ -532,13 +536,12 @@
                             <code>plugins.transform.flipHorizontal()</code>
                             <code>plugins.masks.create()</code>
                             <code>plugins.text.create()</code>
-                            <code>plugins.text.beginEditing()</code>
                             <code>plugins.text.update()</code>
                             <code>plugins.shape.create()</code>
                             <code>plugins.shape.enter()</code>
-                            <code>plugins.shape.updatePreview()</code>
                             <code>plugins.shape.configure()</code>
                             <code>plugins.draw.enter()</code>
+                            <code>plugins.canvasInteractions.cancel()</code>
                             <code>plugins.history.undo()</code>
                             <code>plugins.overlays.bringForward()</code>
                             <code>editor.saveState()</code>
@@ -561,6 +564,7 @@
         <script src="../dist/umd/plugins/image-editor.plugin.annotation-text.umd.min.js"></script>
         <script src="../dist/umd/plugins/image-editor.plugin.annotation-shape.umd.min.js"></script>
         <script src="../dist/umd/plugins/image-editor.plugin.annotation-draw.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.canvas-interactions.umd.min.js"></script>
         <script src="js/integrated-editor-demo.js"></script>
         <script src="js/demo-pages.js"></script>
     </body>

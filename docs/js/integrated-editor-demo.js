@@ -20,6 +20,7 @@
             }
 
             const editor = new ImageEditorCore(window.fabric, options.core);
+            const bind = (ref) => Object.freeze({ ref, resolve: () => editor.requirePlugin(ref) });
             const installedPlugins = editor.install(
                 composePlugins({
                     transform: plugins.Transform.transformPlugin(options.transform),
@@ -30,6 +31,20 @@
                     text: plugins.AnnotationText.textAnnotationPlugin(options.text),
                     shape: plugins.AnnotationShape.shapeAnnotationPlugin(options.shape),
                     draw: plugins.AnnotationDraw.drawAnnotationPlugin(options.draw),
+                    canvasInteractions: plugins.CanvasInteractions.canvasInteractionsPlugin({
+                        text: {
+                            plugin: bind(plugins.AnnotationText.textAnnotationPluginRef),
+                            overlays: bind(plugins.Overlay.overlayFoundationRef),
+                            annotations: bind(plugins.Annotation.annotationFoundationRef),
+                        },
+                        shape: {
+                            plugin: bind(plugins.AnnotationShape.shapeAnnotationPluginRef),
+                            continuous: true,
+                        },
+                        draw: {
+                            plugin: bind(plugins.AnnotationDraw.drawAnnotationPluginRef),
+                        },
+                    }),
                 }),
             );
 

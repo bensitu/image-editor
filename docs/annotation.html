@@ -32,7 +32,8 @@
                     <h1>Annotation Demo</h1>
                     <p>
                         Compose the Overlay and Annotation Foundations with focused Text, Shape,
-                        Draw, and History Plugins for screenshot and document review.
+                        Draw, History, and Canvas Interactions Plugins for screenshot and document
+                        review.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -396,19 +397,21 @@
                             <code>ImageEditorPlugins.AnnotationShape.shapeAnnotationPlugin()</code>
                             <code>ImageEditorPlugins.AnnotationDraw.drawAnnotationPlugin()</code>
                             <code>ImageEditorPlugins.History.historyPlugin()</code>
+                            <code
+                                >ImageEditorPlugins.CanvasInteractions.canvasInteractionsPlugin()</code
+                            >
                             <code>editor.loadImageFile()</code>
                             <code>editor.observeContainer()</code>
                             <code>editor.subscribeStatus()</code>
                             <code>plugins.text.create()</code>
-                            <code>plugins.text.beginEditing()</code>
                             <code>plugins.text.update()</code>
                             <code>plugins.shape.create()</code>
                             <code>plugins.shape.enter()</code>
-                            <code>plugins.shape.updatePreview()</code>
                             <code>plugins.shape.configure()</code>
                             <code>plugins.draw.enter()</code>
                             <code>plugins.draw.setSubMode()</code>
                             <code>plugins.draw.configureEraser()</code>
+                            <code>plugins.canvasInteractions.cancel()</code>
                             <code>plugins.annotations.update()</code>
                             <code>plugins.annotations.remove()</code>
                             <code>plugins.overlays.bringForward()</code>
@@ -429,6 +432,7 @@
         <script src="../dist/umd/plugins/image-editor.plugin.annotation-text.umd.min.js"></script>
         <script src="../dist/umd/plugins/image-editor.plugin.annotation-shape.umd.min.js"></script>
         <script src="../dist/umd/plugins/image-editor.plugin.annotation-draw.umd.min.js"></script>
+        <script src="../dist/umd/plugins/image-editor.plugin.canvas-interactions.umd.min.js"></script>
         <script src="js/annotation-demo.js"></script>
         <script src="js/demo-pages.js"></script>
     </body>

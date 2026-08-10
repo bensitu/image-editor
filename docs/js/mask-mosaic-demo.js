@@ -20,11 +20,15 @@
             }
 
             const editor = new ImageEditorCore(window.fabric, options.core);
+            const bind = (ref) => Object.freeze({ ref, resolve: () => editor.requirePlugin(ref) });
             const installedPlugins = editor.install(
                 composePlugins({
                     overlays: plugins.Overlay.overlayFoundationPlugin(),
                     masks: plugins.Mask.maskPlugin(options.masks),
                     mosaic: plugins.Mosaic.mosaicPlugin(options.mosaic),
+                    canvasInteractions: plugins.CanvasInteractions.canvasInteractionsPlugin({
+                        mosaic: { plugin: bind(plugins.Mosaic.mosaicPluginRef) },
+                    }),
                 }),
             );
 
