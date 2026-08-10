@@ -18,6 +18,7 @@ const failures = [];
 
 const requiredArtifacts = [
     'dist/esm/index.js',
+    'dist/esm/index.js.map',
     'dist/cjs/index.cjs',
     'dist/cjs/index.cjs.map',
     'dist/umd/image-editor.umd.js',
@@ -147,6 +148,35 @@ async function checkBundleShapes() {
     );
 }
 
+async function checkSourceMapContent() {
+    for (const relativePath of [
+        'dist/esm/index.js.map',
+        'dist/cjs/index.cjs.map',
+        'dist/umd/image-editor.umd.js.map',
+        'dist/umd/image-editor.umd.min.js.map',
+    ]) {
+        let sourceMap;
+        try {
+            sourceMap = JSON.parse(await readText(relativePath));
+        } catch (error) {
+            addFailure(`${relativePath}: unable to parse source map JSON (${error.message}).`);
+            continue;
+        }
+
+        const sources = Array.isArray(sourceMap.sources) ? sourceMap.sources : [];
+        const sourcesContent = Array.isArray(sourceMap.sourcesContent)
+            ? sourceMap.sourcesContent
+            : [];
+        if (
+            sources.length === 0 ||
+            sourcesContent.length !== sources.length ||
+            sourcesContent.some((content) => typeof content !== 'string' || content.length === 0)
+        ) {
+            addFailure(`${relativePath}: expected embedded source content for every source.`);
+        }
+    }
+}
+
 async function checkDeclarationShape() {
     const entryTypes = await readText('dist/types/index.d.ts');
     const publicTypes = await readText('dist/types/core/public-types.d.ts');
@@ -203,6 +233,7 @@ async function checkPackageMetadata() {
 
 await checkBuildArtifacts();
 await checkBundleShapes();
+await checkSourceMapContent();
 await checkDeclarationShape();
 await checkPackageMetadata();
 

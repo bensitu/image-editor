@@ -23,7 +23,7 @@
         "moduleResolution": "bundler",
         /* -- Source maps ----------------------------------------------- */
         "sourceMap": true,
-        "inlineSources": false,
+        "inlineSources": true,
         /* -- Declarations ---------------------------------------------- */
         /* Declarations are the responsibility of tsconfig.types.json,
          * which emits the canonical bundle to `dist/types/`. Disabling

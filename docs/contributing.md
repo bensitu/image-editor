@@ -19,6 +19,11 @@ build:umd` in order, emitting:
 - `dist/umd/image-editor.umd.js` and its source map for readable debugging
 - `dist/umd/image-editor.umd.min.js` and its source map for production/CDN use
 
+Published JavaScript source maps embed their source content so package
+debugging does not depend on the repository `src/` tree. Declaration maps
+remain disabled; the package publishes its declaration files directly under
+`dist/types/`.
+
 ## Node Tests
 
 ```bash

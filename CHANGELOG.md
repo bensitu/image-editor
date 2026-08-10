@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Publish separate readable and minified UMD bundles, with CDN package metadata targeting the minified build.
+- Embed source content in published JavaScript source maps for package debugging.
 
 ### Fixed
 
