@@ -12,6 +12,7 @@ import {
 import {
     textAnnotationPluginRef,
     type TextAnnotationPluginApi,
+    type TextAnnotationCreateOptions,
 } from '../../../src/plugins/annotation-text/index.js';
 import { TextInteractionBinding } from '../../../src/plugins/canvas-interactions/bindings/text-interaction-binding.js';
 import type { InteractionGestureContext } from '../../../src/plugins/canvas-interactions/interaction-binding.js';
@@ -57,13 +58,13 @@ test('Blank Text clicks await creation before editing the new Annotation', async
     let finishCreate = (_id: string): void => undefined;
     const text = {
         getEditingSession: () => null,
-        create: async (options) => {
+        create: async (options: TextAnnotationCreateOptions) => {
             calls.push(['create', options]);
             return new Promise<string>((resolve) => {
                 finishCreate = resolve;
             });
         },
-        beginEditing: async (id) => {
+        beginEditing: async (id: string) => {
             calls.push(['edit', id]);
         },
     } as unknown as TextAnnotationPluginApi;
@@ -96,7 +97,7 @@ test('Existing Text clicks use public classification and explicit retarget polic
         cancelEditing: async () => {
             calls.push(['cancel']);
         },
-        beginEditing: async (id) => {
+        beginEditing: async (id: string) => {
             calls.push(['edit', id]);
         },
     } as unknown as TextAnnotationPluginApi;

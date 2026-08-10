@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    type AnnotationPoint,
     drawAnnotationPluginRef,
     type DrawAnnotationPluginApi,
 } from '../../../src/plugins/annotation-draw/index.js';
@@ -41,18 +42,18 @@ const gestureContext: InteractionGestureContext = Object.freeze({
 });
 
 test('Draw interaction completes every accepted append before ending the stroke', async () => {
-    const beginGate = deferred();
-    const appendGate = deferred();
+    const releaseBegin = deferred();
+    const releaseAppend = deferred();
     const calls: string[] = [];
     const api = {
         getSession: () => ({ subMode: 'brush', isStrokeActive: false, pointCount: 0 }),
-        beginStroke: async (point) => {
+        beginStroke: async (point: AnnotationPoint) => {
             calls.push(`begin:${point.x}`);
-            await beginGate.promise;
+            await releaseBegin.promise;
         },
-        appendStroke: async (point) => {
+        appendStroke: async (point: AnnotationPoint) => {
             calls.push(`append:${point.x}`);
-            if (point.x === 2) await appendGate.promise;
+            if (point.x === 2) await releaseAppend.promise;
         },
         endStroke: async () => {
             calls.push('end');
@@ -73,11 +74,11 @@ test('Draw interaction completes every accepted append before ending the stroke'
     await Promise.resolve();
     assert.deepEqual(calls, ['begin:1']);
 
-    beginGate.resolve();
+    releaseBegin.resolve();
     await claim.started;
     await Promise.resolve();
     assert.deepEqual(calls, ['begin:1', 'append:2']);
-    appendGate.resolve();
+    releaseAppend.resolve();
     await Promise.all([...moves, ended]);
 
     assert.deepEqual(calls, ['begin:1', 'append:2', 'append:3', 'end']);

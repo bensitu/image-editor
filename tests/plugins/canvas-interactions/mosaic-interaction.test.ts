@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { mosaicPluginRef, type MosaicPluginApi } from '../../../src/plugins/mosaic/index.js';
+import {
+    type MosaicImagePoint,
+    mosaicPluginRef,
+    type MosaicPluginApi,
+} from '../../../src/plugins/mosaic/index.js';
 import { MosaicInteractionBinding } from '../../../src/plugins/canvas-interactions/bindings/mosaic-interaction-binding.js';
 import type { InteractionGestureContext } from '../../../src/plugins/canvas-interactions/interaction-binding.js';
 import type { PointerSample } from '../../../src/plugins/canvas-interactions/interaction-types.js';
@@ -33,10 +37,10 @@ test('Mosaic interaction uses natural pixels, skips outside movement, and ends a
     const calls: Array<readonly [string, unknown?]> = [];
     const api = {
         getSession: () => ({ isStrokeActive: false }),
-        beginStroke: async (point) => {
+        beginStroke: async (point: MosaicImagePoint) => {
             calls.push(['begin', point]);
         },
-        appendStroke: async (point) => {
+        appendStroke: async (point: MosaicImagePoint) => {
             calls.push(['append', point]);
         },
         endStroke: async () => {

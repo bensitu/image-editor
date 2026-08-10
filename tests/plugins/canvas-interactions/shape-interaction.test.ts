@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
     shapeAnnotationPluginRef,
     type ShapeAnnotationPluginApi,
+    type ShapeGeometryInput,
     type ShapeSessionOptions,
 } from '../../../src/plugins/annotation-shape/index.js';
 import { ShapeInteractionBinding } from '../../../src/plugins/canvas-interactions/bindings/shape-interaction-binding.js';
@@ -58,7 +59,7 @@ test('Shape interaction flushes the newest preview before commit and preserves c
     });
     const api = {
         getSession: () => ({ kind: 'rect', geometry: null, options }),
-        updatePreview: async (value) => {
+        updatePreview: async (value: ShapeGeometryInput) => {
             calls.push(['preview', value]);
             if (calls.length === 1) await releasePreview.promise;
         },
@@ -69,7 +70,7 @@ test('Shape interaction flushes the newest preview before commit and preserves c
         cancel: async () => {
             calls.push(['cancel']);
         },
-        enter: async (value) => {
+        enter: async (value: ShapeSessionOptions) => {
             calls.push(['enter', value]);
         },
     } as unknown as ShapeAnnotationPluginApi;
