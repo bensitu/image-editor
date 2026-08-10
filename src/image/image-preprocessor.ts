@@ -37,7 +37,6 @@ interface DecodedSource {
     readonly image: CanvasImageSource;
     readonly width: number;
     readonly height: number;
-    readonly rawOrientation: boolean;
     dispose(): void;
 }
 
@@ -268,7 +267,6 @@ async function decodeWithImageBitmap(
         image: bitmap,
         width: bitmap.width,
         height: bitmap.height,
-        rawOrientation: true,
         dispose: () => bitmap.close(),
     });
 }
@@ -324,7 +322,6 @@ function decodeWithImage(
                         image,
                         width: dimensions.width,
                         height: dimensions.height,
-                        rawOrientation: true,
                         dispose: () => {
                             image.src = '';
                         },
@@ -432,10 +429,9 @@ export async function preprocessImageDataUrl(
         if (!context) throw new TypeError('[ImageEditor] Canvas 2D context is unavailable.');
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = 'high';
-        const appliedOrientation = decoded.rawOrientation ? orientation : 1;
         setOrientationTransform(
             context,
-            appliedOrientation,
+            orientation,
             decoded.width,
             decoded.height,
             target.width,

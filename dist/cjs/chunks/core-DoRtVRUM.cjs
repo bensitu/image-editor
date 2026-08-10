@@ -389,7 +389,6 @@ async function decodeWithImageBitmap(bytes, mimeType, signal) {
 		image: bitmap,
 		width: bitmap.width,
 		height: bitmap.height,
-		rawOrientation: true,
 		dispose: () => bitmap.close()
 	});
 }
@@ -433,7 +432,6 @@ function decodeWithImage(source, ownerDocument, signal) {
 					image,
 					width: dimensions.width,
 					height: dimensions.height,
-					rawOrientation: true,
 					dispose: () => {
 						image.src = "";
 					}
@@ -560,7 +558,7 @@ async function preprocessImageDataUrl(request) {
 		if (!context) throw new TypeError("[ImageEditor] Canvas 2D context is unavailable.");
 		context.imageSmoothingEnabled = true;
 		context.imageSmoothingQuality = "high";
-		setOrientationTransform(context, decoded.rawOrientation ? orientation : 1, decoded.width, decoded.height, target.width, target.height);
+		setOrientationTransform(context, orientation, decoded.width, decoded.height, target.width, target.height);
 		context.drawImage(decoded.image, 0, 0, decoded.width, decoded.height);
 		request.signal.throwIfAborted();
 		const source = canvas.toDataURL(requestedMimeType, request.options.quality);
@@ -5522,4 +5520,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-DCTijpP6.cjs.map
+//# sourceMappingURL=core-DoRtVRUM.cjs.map

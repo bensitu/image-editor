@@ -34,6 +34,15 @@ jobs:
                       package-lock.json
                       examples/next-client-only/package-lock.json
 
+            - name: Activate repository package manager
+              working-directory: ${{ runner.temp }}
+              run: |
+                  npm install --global corepack@0.35.0
+                  corepack enable
+                  cd "$GITHUB_WORKSPACE"
+                  corepack install
+                  npm --version
+
             - name: Install native canvas dependencies
               run: |
                   sudo apt-get update
@@ -80,6 +89,15 @@ jobs:
                   cache-dependency-path: |
                       package-lock.json
                       examples/next-client-only/package-lock.json
+
+            - name: Activate repository package manager
+              working-directory: ${{ runner.temp }}
+              run: |
+                  npm install --global corepack@0.35.0
+                  corepack enable
+                  cd "$GITHUB_WORKSPACE"
+                  corepack install
+                  npm --version
 
             - name: Install native canvas dependencies
               run: |

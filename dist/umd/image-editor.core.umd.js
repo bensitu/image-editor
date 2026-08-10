@@ -3329,7 +3329,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			image: bitmap,
 			width: bitmap.width,
 			height: bitmap.height,
-			rawOrientation: true,
 			dispose: () => bitmap.close()
 		});
 	}
@@ -3373,7 +3372,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						image,
 						width: dimensions.width,
 						height: dimensions.height,
-						rawOrientation: true,
 						dispose: () => {
 							image.src = "";
 						}
@@ -3500,7 +3498,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!context) throw new TypeError("[ImageEditor] Canvas 2D context is unavailable.");
 			context.imageSmoothingEnabled = true;
 			context.imageSmoothingQuality = "high";
-			setOrientationTransform(context, decoded.rawOrientation ? orientation : 1, decoded.width, decoded.height, target.width, target.height);
+			setOrientationTransform(context, orientation, decoded.width, decoded.height, target.width, target.height);
 			context.drawImage(decoded.image, 0, 0, decoded.width, decoded.height);
 			request.signal.throwIfAborted();
 			const source = canvas.toDataURL(requestedMimeType, request.options.quality);

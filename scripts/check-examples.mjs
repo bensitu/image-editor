@@ -199,15 +199,8 @@ await Promise.all([verifySources(), verifyFabricRanges()]);
 for (const workspace of buildWorkspaces) {
     const isolatedRoot = isolatedExampleRoots.get(workspace);
     if (isolatedRoot) {
-        const lockPath = path.join(isolatedRoot, 'package-lock.json');
-        const lockBefore = await readFile(lockPath, 'utf8');
         console.log(`Installing ${workspace} from its audited lockfile.`);
-        await npm(['install', '--ignore-scripts', '--no-audit', '--no-fund'], isolatedRoot);
-        const lockAfter = await readFile(lockPath, 'utf8');
-        assertCondition(
-            lockAfter === lockBefore,
-            `${workspace} installation changed its committed lockfile.`,
-        );
+        await npm(['ci', '--ignore-scripts', '--no-audit', '--no-fund'], isolatedRoot);
         console.log(`Building ${workspace}.`);
         await npm(['run', 'build'], isolatedRoot);
         continue;
