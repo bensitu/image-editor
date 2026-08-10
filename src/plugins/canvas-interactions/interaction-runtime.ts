@@ -172,8 +172,6 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
                     (error) => {
                         if (this.activeGesture === owner) {
                             this.handleError(error, owner.binding.id, operation);
-                        } else {
-                            this.reportError(error, owner.binding.id, operation);
                         }
                     },
                 );
