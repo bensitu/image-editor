@@ -85,6 +85,8 @@ export interface TextAnnotationStatus {
 export type TextAnnotationStatusListener = (status: TextAnnotationStatus) => void;
 
 export interface TextAnnotationPluginApi {
+    enter(): Promise<void>;
+    exit(): Promise<void>;
     create(options?: TextAnnotationCreateOptions): Promise<AnnotationId>;
     beginEditing(id: AnnotationId): Promise<void>;
     commitEditing(): Promise<void>;

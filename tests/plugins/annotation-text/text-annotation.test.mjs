@@ -107,6 +107,35 @@ test('editing preview is transient and commit or cancel uses exact History bound
     await dispose(editor);
 });
 
+test('Text Tool supports ready interaction before editing and exits cleanly', async () => {
+    const { editor, text } = await createEditor();
+    await assert.rejects(text.enter(), /loaded image/i);
+    await load(editor);
+
+    await text.enter();
+    assert.equal(editor.getRuntimeStatus().activeToolId, 'annotation:text');
+    assert.equal(text.getEditingSession(), null);
+
+    const id = await text.create({ text: 'Ready' });
+    await text.beginEditing(id);
+    assert.equal(text.getEditingSession().annotationId, id);
+    await text.commitEditing();
+    assert.equal(editor.getRuntimeStatus().activeToolId, null);
+
+    await text.enter();
+    await text.beginEditing(id);
+    const preview = editor
+        .getCanvas()
+        .getObjects()
+        .find((object) => object.editorAnnotationPreviewOwner === 'annotation:text');
+    preview.set({ text: 'Discarded' });
+    await text.exit();
+    assert.equal(editor.getRuntimeStatus().activeToolId, null);
+    assert.equal(text.getEditingSession(), null);
+    assert.equal(textObject(editor, id).text, 'Ready');
+    await dispose(editor);
+});
+
 test('editing feature updates stay live and transient until one commit', async () => {
     const { editor, history, text } = await createEditor();
     await load(editor);

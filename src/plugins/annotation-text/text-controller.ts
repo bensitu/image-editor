@@ -567,6 +567,11 @@ export class TextAnnotationController implements Disposable {
         });
     }
 
+    enter(): void {
+        this.assertActive('enter the Text tool');
+        this.assertImageLoaded();
+    }
+
     async beginEditing(id: AnnotationId): Promise<void> {
         this.assertActive('begin Text editing');
         this.assertImageLoaded();
