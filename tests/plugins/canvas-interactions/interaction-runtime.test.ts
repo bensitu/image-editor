@@ -131,10 +131,10 @@ test('Interaction runtime keeps one owner through move and completion', async ()
     runtime.dispose();
 });
 
-test('Tool changes synchronously invalidate stale asynchronous Gesture work', async () => {
+test('Tool changes synchronously invalidate stale asynchronous gesture work', async () => {
     const tools = new TestToolAccess();
     tools.setActive('annotation:draw');
-    const gate = deferred();
+    const releaseCompletion = deferred();
     const calls: string[] = [];
     let context: InteractionGestureContext | null = null;
     const binding: CanvasInteractionBinding<object> = {
@@ -146,7 +146,7 @@ test('Tool changes synchronously invalidate stale asynchronous Gesture work', as
         },
         move: () => undefined,
         end: async () => {
-            await gate.promise;
+            await releaseCompletion.promise;
             if (context?.isCurrent()) calls.push('continued');
         },
         cancel: () => {
@@ -159,8 +159,8 @@ test('Tool changes synchronously invalidate stale asynchronous Gesture work', as
     runtime.up(sample(2));
     tools.setActive('annotation:text');
     assert.equal(runtime.status().gestureActive, false);
-    gate.resolve();
-    await gate.promise;
+    releaseCompletion.resolve();
+    await releaseCompletion.promise;
     await Promise.resolve();
 
     assert.deepEqual(calls, []);

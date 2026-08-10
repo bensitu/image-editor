@@ -1,5 +1,5 @@
 /**
- * Owns pointer Gesture selection, lifetime invalidation, and asynchronous error isolation.
+ * Owns pointer gesture selection, lifetime invalidation, and asynchronous error isolation.
  *
  * @module
  */

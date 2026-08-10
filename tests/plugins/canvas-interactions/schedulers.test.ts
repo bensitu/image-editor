@@ -13,11 +13,11 @@ function deferred(): { readonly promise: Promise<void>; resolve(): void } {
 }
 
 test('Latest-value scheduling retains one running value and the newest pending value', async () => {
-    const gate = deferred();
+    const releaseFirst = deferred();
     const calls: number[] = [];
     const scheduler = new LatestValueScheduler<number>(async (value) => {
         calls.push(value);
-        if (value === 1) await gate.promise;
+        if (value === 1) await releaseFirst.promise;
     });
 
     const first = scheduler.pushLatest(1);
@@ -26,17 +26,17 @@ test('Latest-value scheduling retains one running value and the newest pending v
     const third = scheduler.pushLatest(3);
     const flushed = scheduler.flush();
     assert.deepEqual(calls, [1]);
-    gate.resolve();
+    releaseFirst.resolve();
     await Promise.all([first, second, third, flushed]);
 
     assert.deepEqual(calls, [1, 3]);
 });
 
 test('Ordered scheduling preserves every sample and flushes before later work continues', async () => {
-    const gate = deferred();
+    const releaseFirst = deferred();
     const calls: number[] = [];
     const scheduler = new OrderedSampleScheduler<number>(async (value) => {
-        if (value === 1) await gate.promise;
+        if (value === 1) await releaseFirst.promise;
         calls.push(value);
     });
 
@@ -44,18 +44,18 @@ test('Ordered scheduling preserves every sample and flushes before later work co
     const flushed = scheduler.flush().then(() => calls.push(4));
     await Promise.resolve();
     assert.deepEqual(calls, []);
-    gate.resolve();
+    releaseFirst.resolve();
     await Promise.all([...pending, flushed]);
 
     assert.deepEqual(calls, [1, 2, 3, 4]);
 });
 
 test('Cancelling a scheduler drops pending work without waiting for the active task', async () => {
-    const gate = deferred();
+    const releaseActive = deferred();
     const calls: number[] = [];
     const scheduler = new OrderedSampleScheduler<number>(async (value) => {
         calls.push(value);
-        if (value === 1) await gate.promise;
+        if (value === 1) await releaseActive.promise;
     });
 
     const first = scheduler.push(1);
@@ -64,6 +64,6 @@ test('Cancelling a scheduler drops pending work without waiting for the active t
     scheduler.cancel();
     await scheduler.flush();
     assert.deepEqual(calls, [1]);
-    gate.resolve();
+    releaseActive.resolve();
     await Promise.all([first, second]);
 });

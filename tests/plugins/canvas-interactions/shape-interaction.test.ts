@@ -48,7 +48,7 @@ function pluginBinding(api: ShapeAnnotationPluginApi) {
 }
 
 test('Shape interaction flushes the newest preview before commit and preserves continuous options', async () => {
-    const gate = deferred();
+    const releasePreview = deferred();
     const calls: Array<readonly [string, unknown?]> = [];
     const options: ShapeSessionOptions = Object.freeze({
         kind: 'rect',
@@ -60,7 +60,7 @@ test('Shape interaction flushes the newest preview before commit and preserves c
         getSession: () => ({ kind: 'rect', geometry: null, options }),
         updatePreview: async (value) => {
             calls.push(['preview', value]);
-            if (calls.length === 1) await gate.promise;
+            if (calls.length === 1) await releasePreview.promise;
         },
         commit: async () => {
             calls.push(['commit']);
@@ -88,7 +88,7 @@ test('Shape interaction flushes the newest preview before commit and preserves c
     await Promise.resolve();
     const skippedMove = binding.move(claim.gesture, sample(30, 35));
     const ended = binding.end(claim.gesture, sample(40, 50));
-    gate.resolve();
+    releasePreview.resolve();
     await Promise.all([firstMove, skippedMove, ended]);
 
     assert.equal(calls[0]?.[0], 'preview');
