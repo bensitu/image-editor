@@ -176,6 +176,7 @@ test('loadFromStateAction restores the pre-call state after Fabric mutates and r
         isDisposed: () => false,
         canRunIdleOperation: () => true,
         getActiveStateRestoreOperation: () => null,
+        registerStateRestoreAborter: () => () => {},
         buildCallbackContext: (operation, isInternalOperation) => ({
             operation,
             isInternalOperation,

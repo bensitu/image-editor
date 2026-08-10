@@ -51,6 +51,7 @@ export interface EditorStateActionAccess {
     isDisposed(): boolean;
     canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     getActiveStateRestoreOperation(): ImageEditorOperation | null;
+    registerStateRestoreAborter(abort: () => void): () => void;
     buildCallbackContext(
         operation: ImageEditorOperation,
         isInternalOperation: boolean,
@@ -141,6 +142,7 @@ export async function loadFromStateAction(
             maxInputBytes: access.getOptions().maxInputBytes,
             maxInputPixels: access.getOptions().maxInputPixels,
             restoreTrustLevel: isTrustedRestore ? 'trusted' : 'public',
+            registerAborter: (abort) => access.registerStateRestoreAborter(abort),
             beforeMutation: isTrustedRestore
                 ? undefined
                 : () => {
@@ -233,7 +235,13 @@ export async function loadFromStateAction(
 
         restoreActiveSelection(access, restoredState, editorState, context, !isSilentRestore);
     } catch (error) {
-        if (!isTrustedRestore && mutationStarted && beforeSnapshot) {
+        if (
+            !isTrustedRestore &&
+            !access.isDisposed() &&
+            access.getCanvas() &&
+            mutationStarted &&
+            beforeSnapshot
+        ) {
             try {
                 await loadFromStateAction(access, beforeSnapshot, {
                     ...(options ?? {}),

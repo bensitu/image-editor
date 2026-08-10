@@ -71,7 +71,7 @@ export class OperationGuard {
     private isLoadingActive = false;
     private currentOperationName: string | null = null;
     private currentOperationToken: OperationToken | null = null;
-    private readonly animationAborters = new Set<() => void>();
+    private readonly disposeAborters = new Set<() => void>();
 
     /**
      * Returns `true` while an animation block is open (between
@@ -152,17 +152,18 @@ export class OperationGuard {
         this.isLoadingActive = false;
         this.currentOperationName = null;
         this.currentOperationToken = null;
-        for (const abort of this.animationAborters) {
+        for (const abort of this.disposeAborters) {
             try {
                 abort();
             } catch {
                 /* ignore */
             }
         }
-        this.animationAborters.clear();
+        this.disposeAborters.clear();
     }
 
-    registerAnimationAborter(abort: () => void): () => void {
+    /** Register in-flight work that must be cancelled when the editor is disposed. */
+    registerDisposeAborter(abort: () => void): () => void {
         if (this.isDisposedFlag) {
             try {
                 abort();
@@ -172,9 +173,9 @@ export class OperationGuard {
             return () => undefined;
         }
 
-        this.animationAborters.add(abort);
+        this.disposeAborters.add(abort);
         return () => {
-            this.animationAborters.delete(abort);
+            this.disposeAborters.delete(abort);
         };
     }
 

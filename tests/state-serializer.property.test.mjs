@@ -233,7 +233,11 @@ test('loadFromState rejects with StateRestoreError when canvas.loadFromJSON time
     ]) {
         await withMockedTimers(async (timers) => {
             const canvas = new MockCanvas();
-            canvas.loadFromJSON = () => new Promise(() => undefined);
+            let restoreSignal;
+            canvas.loadFromJSON = (_json, _reviver, options) => {
+                restoreSignal = options?.signal;
+                return new Promise(() => undefined);
+            };
 
             const restorePromise = loadFromState(
                 makeInput(canvas, {
@@ -247,6 +251,7 @@ test('loadFromState rejects with StateRestoreError when canvas.loadFromJSON time
             assert.equal(timers.length, 1, `${label} restore must schedule one timeout`);
             assert.equal(timers[0].ms, 30000);
             timers[0].callback();
+            assert.equal(restoreSignal?.aborted, true);
 
             await assert.rejects(
                 () => restorePromise,

@@ -706,6 +706,8 @@ export interface LoadFromStateInput {
     maxInputPixels?: number;
     /** Called after validation and immediately before live canvas mutation begins. */
     beforeMutation?: () => void;
+    /** Registers cancellation for disposal and returns an unregister callback. */
+    registerAborter?: (abort: () => void) => () => void;
 }
 
 /**
@@ -861,16 +863,23 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     // disables render-on-add/remove while loading, but does not restore the
     // flag when deserialization rejects.
     const previousRenderOnAddRemove = canvas.renderOnAddRemove;
+    const abortController = new AbortController();
+    const unregisterAborter = input.registerAborter?.(() => abortController.abort());
     try {
         const loadFromJsonPromise = (
             canvas as unknown as {
-                loadFromJSON(json: CanvasJson): Promise<FabricNS.Canvas>;
+                loadFromJSON(
+                    json: CanvasJson,
+                    reviver?: undefined,
+                    options?: { signal?: AbortSignal },
+                ): Promise<FabricNS.Canvas>;
             }
-        ).loadFromJSON(json);
+        ).loadFromJSON(json, undefined, { signal: abortController.signal });
         await withTimeout(
             loadFromJsonPromise,
             DEFAULT_STATE_RESTORE_TIMEOUT_MS,
             'canvas.loadFromJSON',
+            () => abortController.abort(),
         );
     } catch (error) {
         canvas.renderOnAddRemove = previousRenderOnAddRemove;
@@ -881,6 +890,8 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
             );
         }
         throw error;
+    } finally {
+        unregisterAborter?.();
     }
 
     // 4. re-apply mask metadata by position-based

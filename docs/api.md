@@ -327,7 +327,9 @@ does not make it a valid editor state. If a public restore fails after mutation
 begins, the editor rolls back to the complete pre-call state and rejects with
 the original restoration error. Public restores participate in the editor's
 busy-operation lifecycle, so another conflicting stateful operation follows the
-normal idle-operation policy until restoration settles.
+normal idle-operation policy until restoration settles. If Fabric
+deserialization reaches the state-restore timeout, the operation rejects and
+rolls back; its cancelled work cannot later replace a newer editor state.
 
 ## Overlay Persistence
 
