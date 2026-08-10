@@ -105,7 +105,7 @@ crop controls, mosaic controls, lists, and layer actions.
 
 ### Image and Layout
 
-- Load PNG, JPEG, and WebP data URLs or files.
+- Load Base64-encoded PNG, JPEG, and WebP data URLs or supported image files.
 - Normalize supported JPEG EXIF orientation during file-input loading.
 - Choose `fit`, `cover`, or `expand` layout strategies.
 - Resize to explicit dimensions, hidden-container fallbacks, or current

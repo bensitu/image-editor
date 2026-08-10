@@ -72,16 +72,17 @@ test('inferImageMimeType falls back to supported file extensions when MIME is em
     }
 });
 
-test('isSupportedImageDataUrl rejects unsupported image MIME types', () => {
+test('isSupportedImageDataUrl accepts supported Base64 images and rejects other forms', () => {
     assert.equal(isSupportedImageDataUrl('data:image/png;base64,AAAA'), true);
     assert.equal(isSupportedImageDataUrl('data:image/jpeg;base64,AAAA'), true);
     assert.equal(isSupportedImageDataUrl('data:image/webp;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('data:image/png,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:image/gif;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:image/bmp;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:image/svg+xml;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:image/avif;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:text/plain;base64,AAAA'), false);
-    assert.equal(isSupportedImageDataUrl('DATA:IMAGE/PNG;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('DATA:IMAGE/PNG;BASE64,AAAA'), true);
 });
 
 test('readFileAsDataUrl rejects when FileReader aborts', async () => {
