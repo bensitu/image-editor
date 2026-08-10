@@ -82,10 +82,11 @@ npm run test:e2e:all
 npm audit --audit-level=high
 ```
 
-`npm run release:gate` validates generated artifacts, bundle shape, declaration
-output, and package export metadata. Run it only after `npm run build`; the
-convenience command `npm run release:check` runs build, package linting, the
-release gate, and `npm pack --dry-run` in order.
+`npm run release:gate` validates generated artifacts, both UMD bundles and
+their source maps, bundle shape, declaration output, package entry points, and
+the minified UMD targets used by the CDN metadata. Run it only after
+`npm run build`; the convenience command `npm run release:check` runs build,
+package linting, the release gate, and `npm pack --dry-run` in order.
 
 `npm run ci` combines format, lint, typecheck, tests, and `release:check`.
 Playwright visual tests are kept outside the default CI command until they are
