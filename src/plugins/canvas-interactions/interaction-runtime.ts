@@ -102,6 +102,13 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
                 ending: false,
             };
             this.onStatusChange();
+            if (isPromiseLike(claim.started)) {
+                observePromise(claim.started, (error) => {
+                    if (this.activeGesture?.epoch === epoch) {
+                        this.handleError(error, binding.id, 'claim');
+                    }
+                });
+            }
         } catch (error) {
             this.handleError(error, binding.id, 'claim');
         }

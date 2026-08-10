@@ -24,6 +24,7 @@ export interface PointerDownContext {
 
 export interface InteractionClaim<TGesture> {
     readonly gesture: TGesture;
+    readonly started?: Promise<void> | void;
 }
 
 export interface CanvasInteractionBinding<TGesture = unknown> {
