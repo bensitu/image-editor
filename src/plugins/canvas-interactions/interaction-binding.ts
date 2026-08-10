@@ -13,6 +13,7 @@ import type { PointerSample } from './interaction-types.js';
 export interface InteractionGestureContext {
     readonly epoch: number;
     isCurrent(): boolean;
+    canResume(toolId: string): boolean;
 }
 
 export interface PointerDownContext {

@@ -667,6 +667,16 @@ export class ShapeAnnotationController {
             ? Object.freeze({
                   kind: this.session.options.kind,
                   geometry: this.session.geometry,
+                  options: Object.freeze({
+                      ...this.session.options,
+                      ...(this.session.options.strokeDashArray
+                          ? {
+                                strokeDashArray: Object.freeze([
+                                    ...this.session.options.strokeDashArray,
+                                ]),
+                            }
+                          : {}),
+                  }),
               })
             : null;
     }

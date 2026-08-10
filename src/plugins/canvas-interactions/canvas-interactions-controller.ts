@@ -22,14 +22,18 @@ import { FabricPointerSource } from './fabric-pointer-source.js';
 import type { CanvasInteractionBinding } from './interaction-binding.js';
 import { InteractionRuntime } from './interaction-runtime.js';
 import { PointerCoordinateMapper } from './pointer-coordinate-mapper.js';
+import { CanvasPropertyLease, CanvasPropertyLeaseGroup } from './canvas-property-lease.js';
 
 interface CanvasInteractionsHost extends CanvasReadPort, BaseImageReadPort, CoreDiagnosticsPort {}
 
 export class CanvasInteractionsController implements CanvasInteractionsPluginApi {
     private readonly listeners = new Set<CanvasInteractionsStatusListener>();
     private readonly runtime: InteractionRuntime;
+    private readonly options: CanvasInteractionsPluginOptions;
     private canvas: ReturnType<CanvasReadPort['getCanvas']> = null;
     private pointerSource: FabricPointerSource | null = null;
+    private propertyLeases: CanvasPropertyLeaseGroup | null = null;
+    private leasedBindingId: string | null = null;
     private disposed = false;
 
     constructor(
@@ -38,9 +42,11 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
         options: CanvasInteractionsPluginOptions,
         bindings: readonly CanvasInteractionBinding[] = [],
     ) {
-        this.runtime = new InteractionRuntime(bindings, tools, host, options, () =>
-            this.publishStatus(),
-        );
+        this.options = options;
+        this.runtime = new InteractionRuntime(bindings, tools, host, options, () => {
+            this.updateCanvasPresentation();
+            this.publishStatus();
+        });
     }
 
     refresh(): void {
@@ -56,6 +62,7 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
                 this.runtime,
             );
         }
+        this.updateCanvasPresentation();
         this.publishStatus();
     }
 
@@ -105,6 +112,7 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
     }
 
     private releasePointerSource(): void {
+        this.releaseCanvasPresentation();
         this.pointerSource?.dispose();
         this.pointerSource = null;
         this.canvas = null;
@@ -112,6 +120,39 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
 
     invalidateLifecycle(reason: InteractionCancelReason): void {
         this.runtime.invalidateLifecycle(reason);
+    }
+
+    private updateCanvasPresentation(): void {
+        const canvas = this.canvas;
+        const bindingId = this.runtime.status().activeBindingId;
+        if (canvas && this.propertyLeases && this.leasedBindingId === bindingId) return;
+        this.releaseCanvasPresentation();
+        if (!canvas || !bindingId) return;
+        const cursor = this.cursorFor(bindingId);
+        const allowSelection = bindingId === 'text';
+        const leases = new CanvasPropertyLeaseGroup();
+        leases.add(new CanvasPropertyLease(canvas, 'defaultCursor', cursor));
+        leases.add(new CanvasPropertyLease(canvas, 'hoverCursor', cursor));
+        leases.add(new CanvasPropertyLease(canvas, 'selection', allowSelection));
+        leases.add(new CanvasPropertyLease(canvas, 'skipTargetFind', !allowSelection));
+        this.propertyLeases = leases;
+        this.leasedBindingId = bindingId;
+        canvas.requestRenderAll();
+    }
+
+    private releaseCanvasPresentation(): void {
+        if (!this.propertyLeases) return;
+        this.propertyLeases.dispose();
+        this.propertyLeases = null;
+        this.leasedBindingId = null;
+        this.canvas?.requestRenderAll();
+    }
+
+    private cursorFor(bindingId: string): string {
+        if (bindingId === 'text') return this.options.cursors?.text ?? 'text';
+        if (bindingId === 'shape') return this.options.cursors?.shape ?? 'crosshair';
+        if (bindingId === 'draw') return this.options.cursors?.draw ?? 'crosshair';
+        return this.options.cursors?.mosaic ?? 'crosshair';
     }
 
     private publishStatus(): void {

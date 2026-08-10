@@ -47,6 +47,7 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
     private activeToolId: string | null = null;
     private activeGesture: ActiveGesture | null = null;
     private epoch = 0;
+    private lifecycleEpoch = 0;
     private disposed = false;
 
     constructor(
@@ -77,9 +78,14 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
         const binding = this.bindings.find((candidate) => candidate.toolId === this.activeToolId);
         if (!binding) return;
         const epoch = ++this.epoch;
+        const lifecycleEpoch = this.lifecycleEpoch;
         const gestureContext: InteractionGestureContext = Object.freeze({
             epoch,
             isCurrent: () => this.isEpochCurrent(epoch),
+            canResume: (toolId: string) =>
+                !this.disposed &&
+                this.lifecycleEpoch === lifecycleEpoch &&
+                (this.activeToolId === null || this.activeToolId === toolId),
         });
         try {
             const claim = binding.claim({
@@ -136,6 +142,7 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
 
     invalidateLifecycle(reason: InteractionCancelReason): void {
         if (this.disposed) return;
+        this.lifecycleEpoch += 1;
         this.invalidateLocal(reason);
     }
 
@@ -151,6 +158,7 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
 
     dispose(): void {
         if (this.disposed) return;
+        this.lifecycleEpoch += 1;
         this.invalidateLocal('dispose');
         this.disposed = true;
         this.toolSubscription.dispose();

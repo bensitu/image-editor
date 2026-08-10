@@ -16,6 +16,7 @@ import {
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
 import { CanvasInteractionsController } from './canvas-interactions-controller.js';
+import { createCanvasInteractionBindings } from './bindings/create-bindings.js';
 import type {
     CanvasInteractionsPluginApi,
     CanvasInteractionsPluginOptions,
@@ -87,6 +88,7 @@ export function canvasInteractionsPlugin(
                 }),
                 context.tools,
                 options,
+                createCanvasInteractionBindings(options),
             );
             context.disposables.add(controller);
             context.disposables.add(

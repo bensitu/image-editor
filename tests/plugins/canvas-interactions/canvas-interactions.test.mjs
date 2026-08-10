@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ImageEditorCore } from '../../../src/core/index.js';
+import { createFullPreset } from '../../../src/presets/full/index.js';
+import { shapeAnnotationPluginRef } from '../../../src/plugins/annotation-shape/index.js';
 import {
     canvasInteractionsPlugin,
     canvasInteractionsPluginRef,
@@ -12,7 +14,15 @@ import {
 } from '../../../src/plugins/canvas-interactions/canvas-property-lease.js';
 import { FabricPointerSource } from '../../../src/plugins/canvas-interactions/fabric-pointer-source.js';
 import { PointerCoordinateMapper } from '../../../src/plugins/canvas-interactions/pointer-coordinate-mapper.js';
-import { fabric, resetEditorDom } from '../../helpers/fabric-environment.mjs';
+import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
+
+async function waitFor(predicate, message) {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+        if (predicate()) return;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.fail(message);
+}
 
 test('Canvas Interactions installs as an optional Plugin with an isolated status lifecycle', async () => {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
@@ -160,4 +170,60 @@ test('Pointer source owns one primary pointer and detaches every listener', () =
     assert.equal(cancelled, 1);
     source.dispose();
     assert.equal(listeners.size, 0);
+});
+
+test('Shape pointer interaction commits through the public Feature API and restores Canvas properties', async () => {
+    const ids = resetEditorDom({ containerWidth: 360, containerHeight: 260 });
+    const preset = createFullPreset(fabric, { core: { canvasWidth: 360, canvasHeight: 260 } });
+    const interactions = preset.editor.use(
+        canvasInteractionsPlugin({
+            shape: {
+                plugin: {
+                    ref: shapeAnnotationPluginRef,
+                    resolve: () => preset.shape,
+                },
+            },
+        }),
+    );
+    await preset.editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await preset.editor.loadImage(makeImageDataUrl({ width: 160, height: 100 }));
+    const canvas = preset.editor.getCanvas();
+    assert.ok(canvas);
+    const original = {
+        defaultCursor: canvas.defaultCursor,
+        hoverCursor: canvas.hoverCursor,
+        selection: canvas.selection,
+        skipTargetFind: canvas.skipTargetFind,
+    };
+
+    await preset.shape.enter({ kind: 'rect' });
+    assert.equal(canvas.defaultCursor, 'crosshair');
+    assert.equal(canvas.selection, false);
+    assert.equal(canvas.skipTargetFind, true);
+    const fire = (name, x, y) =>
+        canvas.fire(name, {
+            e: { button: 0, isPrimary: true, pointerId: 1, pointerType: 'mouse' },
+            scenePoint: new fabric.Point(x, y),
+            target: null,
+        });
+    fire('mouse:down', 80, 70);
+    fire('mouse:move', 150, 120);
+    fire('mouse:up', 170, 140);
+    await waitFor(
+        () => preset.annotations.list({ kinds: ['annotation:shape'] }).length === 1,
+        'Shape interaction did not commit.',
+    );
+    await waitFor(() => !interactions.getStatus().gestureActive, 'Gesture did not settle.');
+
+    assert.deepEqual(
+        {
+            defaultCursor: canvas.defaultCursor,
+            hoverCursor: canvas.hoverCursor,
+            selection: canvas.selection,
+            skipTargetFind: canvas.skipTargetFind,
+        },
+        original,
+    );
+    await preset.editor.disposeAsync();
+    document.body.innerHTML = '';
 });
