@@ -22,8 +22,12 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { assertImageDataUrlInputBudget, estimateBase64PayloadBytes, readImageHeaderDimensions } =
-    await import('../src/image/image-input-budget.ts');
+const {
+    assertImageDataUrlInputBudget,
+    assertImageFileInputBudget,
+    estimateBase64PayloadBytes,
+    readImageHeaderDimensions,
+} = await import('../src/image/image-input-budget.ts');
 const { ImageDecodeError } = await import('../src/core/errors.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 
@@ -55,6 +59,22 @@ function jpegHeaderWithAppSegment(width, height) {
     const appSegment = [0xff, 0xe0, 0x00, 0x04, 0x12, 0x34];
     const sof = [...jpegHeader(width, height).slice(2)];
     return Uint8Array.from([0xff, 0xd8, ...appSegment, ...sof]);
+}
+
+function jpegWithLargeMetadata(width, height) {
+    const segmentPayloadLength = 0xffff - 2;
+    const segmentCount = 5;
+    const sof = jpegHeader(width, height).slice(2);
+    const bytes = new Uint8Array(2 + segmentCount * (4 + segmentPayloadLength) + sof.length);
+    bytes.set([0xff, 0xd8], 0);
+
+    let offset = 2;
+    for (let index = 0; index < segmentCount; index += 1) {
+        bytes.set([0xff, 0xe1, 0xff, 0xff], offset);
+        offset += 4 + segmentPayloadLength;
+    }
+    bytes.set(sof, offset);
+    return bytes;
 }
 
 function webpVp8xHeader(width, height) {
@@ -146,6 +166,29 @@ test('assertImageDataUrlInputBudget accepts unpadded base64 image data URLs', ()
         assertImageDataUrlInputBudget(
             dataUrl,
             resolveOptions({ maxInputBytes: 1024, maxInputPixels: 4 }),
+        ),
+    );
+});
+
+test('assertImageFileInputBudget finds JPEG dimensions after large metadata', async () => {
+    const options = resolveOptions({ maxInputBytes: 1024 * 1024, maxInputPixels: 10_000 });
+
+    await assert.rejects(
+        () =>
+            assertImageFileInputBudget(
+                new File([jpegWithLargeMetadata(200, 100)], 'large.jpg', {
+                    type: 'image/jpeg',
+                }),
+                options,
+            ),
+        (error) => error instanceof ImageDecodeError && /maxInputPixels/.test(error.message),
+    );
+    await assert.doesNotReject(() =>
+        assertImageFileInputBudget(
+            new File([jpegWithLargeMetadata(100, 100)], 'within-limit.jpg', {
+                type: 'image/jpeg',
+            }),
+            options,
         ),
     );
 });
