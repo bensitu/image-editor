@@ -191,6 +191,7 @@ import {
     type EditorRuntimeWiring,
 } from './runtime/editor-facade-wiring.js';
 import type { EditorContextFactory } from './runtime/editor-contexts.js';
+import { runBusyOperation } from './runtime/editor-operation-runner.js';
 import { EditorRuntime } from './runtime/editor-runtime.js';
 import {
     handleObjectModified as handleObjectModifiedImpl,
@@ -1100,9 +1101,18 @@ export class ImageEditor {
         options: T = {} as T,
     ): T & InternalOperationOptions {
         return {
+            ...this.withOperationTokenOptions(token, options),
+            [TRUSTED_STATE_RESTORE]: true,
+        } as T & InternalOperationOptions;
+    }
+
+    private withOperationTokenOptions<T extends object>(
+        token: OperationToken | null | undefined,
+        options: T = {} as T,
+    ): T & InternalOperationOptions {
+        return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
-            [TRUSTED_STATE_RESTORE]: true,
         } as T & InternalOperationOptions;
     }
 
@@ -2087,7 +2097,16 @@ export class ImageEditor {
      * @param jsonString - JSON string returned by `saveState` (or parsed object).
      */
     async loadFromState(jsonString: string | CanvasJson): Promise<void> {
-        return this.loadFromStateInternal(jsonString);
+        if (!jsonString || !this.runtime.canvas || this.runtime.isDisposed) return;
+        if (!this.canRunIdleOperation('loadFromState')) return;
+
+        await runBusyOperation(
+            this.actionAccessFactory.buildBusyOperationAccess(),
+            'loadFromState',
+            async (_context, token) => {
+                await this.loadFromStateInternal(jsonString, this.withOperationTokenOptions(token));
+            },
+        );
     }
 
     private async loadFromStateInternal(

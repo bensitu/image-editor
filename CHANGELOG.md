@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Preserve ordinary application metadata fields named `source` while continuing to validate actual Fabric image sources.
 - Roll back failed public state restoration instead of leaving partially restored canvas state.
+- Prevent overlapping public state restoration from interleaving changes on the live canvas.
 
 ## [2.9.0] - 2026-07-11
 
