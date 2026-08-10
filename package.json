@@ -210,6 +210,16 @@
                 "default": "./dist/cjs/plugins/dom-controls/index.cjs"
             }
         },
+        "./plugins/canvas-interactions": {
+            "import": {
+                "types": "./dist/types/plugins/canvas-interactions/index.d.ts",
+                "default": "./dist/esm/plugins/canvas-interactions/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/canvas-interactions/index.d.cts",
+                "default": "./dist/cjs/plugins/canvas-interactions/index.cjs"
+            }
+        },
         "./presets/minimal": {
             "import": {
                 "types": "./dist/types/presets/minimal/index.d.ts",
@@ -297,6 +307,7 @@
         "test:annotation-integration": "node scripts/run-node-tests.mjs tests/plugins/annotation",
         "test:overlay-state": "node scripts/run-node-tests.mjs tests/plugins/overlay-state",
         "test:dom-controls": "node scripts/run-node-tests.mjs tests/plugins/dom-controls",
+        "test:canvas-interactions": "node scripts/run-node-tests.mjs tests/plugins/canvas-interactions",
         "test:presets": "node scripts/run-node-tests.mjs tests/presets",
         "test:migration": "node scripts/run-node-tests.mjs tests/migrate-v2",
         "build:codemod": "npm run build --workspace @bensitu/image-editor-codemod",

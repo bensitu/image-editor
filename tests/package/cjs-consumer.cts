@@ -16,6 +16,7 @@ import transformEntry = require('@bensitu/image-editor/plugins/transform');
 import mosaicEntry = require('@bensitu/image-editor/plugins/mosaic');
 import overlayStateEntry = require('@bensitu/image-editor/plugins/overlay-state');
 import domControlsEntry = require('@bensitu/image-editor/plugins/dom-controls');
+import canvasInteractionsEntry = require('@bensitu/image-editor/plugins/canvas-interactions');
 import minimalPresetEntry = require('@bensitu/image-editor/presets/minimal');
 import redactionPresetEntry = require('@bensitu/image-editor/presets/redaction');
 import annotationPresetEntry = require('@bensitu/image-editor/presets/annotation');
@@ -63,6 +64,9 @@ const overlayState: overlayStateEntry.OverlayStatePluginApi = editor.use(
 const overlayDocument: overlayStateEntry.OverlayStateDocument = overlayState.exportState();
 const domControls: domControlsEntry.DomControlsPluginApi = editor.use(
     domControlsEntry.domControlsPlugin(),
+);
+const canvasInteractions: canvasInteractionsEntry.CanvasInteractionsPluginApi = editor.use(
+    canvasInteractionsEntry.canvasInteractionsPlugin(),
 );
 const minimalPreset = minimalPresetEntry.createMinimalPreset(fabric);
 const minimalHistoryPreset = minimalPresetEntry.createMinimalPreset(fabric, { history: {} });
@@ -142,6 +146,7 @@ void mosaic;
 void overlayState;
 void overlayDocument;
 void domControls;
+void canvasInteractions;
 void minimalPreset;
 void minimalHistoryPreset.history;
 void redactionPreset.masks;

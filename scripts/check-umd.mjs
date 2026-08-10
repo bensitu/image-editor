@@ -37,6 +37,7 @@ const requiredFullSources = Object.freeze([
     '/plugins/annotation-draw/',
     '/plugins/overlay-state/',
     '/plugins/dom-controls/',
+    '/plugins/canvas-interactions/',
     '/presets/full/',
 ]);
 const forbiddenCoreSources = Object.freeze([

@@ -63,6 +63,7 @@ const featureMatchers = {
     annotationDraw: (file) => file.startsWith('src/plugins/annotation-draw/'),
     overlayState: (file) => file.startsWith('src/plugins/overlay-state/'),
     domControls: (file) => file.startsWith('src/plugins/dom-controls/'),
+    canvasInteractions: (file) => file.startsWith('src/plugins/canvas-interactions/'),
     presets: (file) => file.startsWith('src/presets/'),
     filters: (file) =>
         file.startsWith('src/plugins/filters/') || file === 'src/image/image-filters.ts',
@@ -622,6 +623,10 @@ async function analyze(packageRoot) {
             ['mosaic', path.join(sourceRoot, 'plugins', 'mosaic', 'index.ts')],
             ['overlayState', path.join(sourceRoot, 'plugins', 'overlay-state', 'index.ts')],
             ['domControls', path.join(sourceRoot, 'plugins', 'dom-controls', 'index.ts')],
+            [
+                'canvasInteractions',
+                path.join(sourceRoot, 'plugins', 'canvas-interactions', 'index.ts'),
+            ],
             ['presetMinimal', path.join(sourceRoot, 'presets', 'minimal', 'index.ts')],
             ['presetRedaction', path.join(sourceRoot, 'presets', 'redaction', 'index.ts')],
             ['presetAnnotation', path.join(sourceRoot, 'presets', 'annotation', 'index.ts')],

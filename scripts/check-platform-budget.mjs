@@ -19,6 +19,7 @@ const optionalFeaturePrefixes = Object.freeze([
     'dist/esm/plugins/annotation-text/',
     'dist/esm/plugins/crop/',
     'dist/esm/plugins/dom-controls/',
+    'dist/esm/plugins/canvas-interactions/',
     'dist/esm/plugins/filters/',
     'dist/esm/plugins/mask/',
     'dist/esm/plugins/mosaic/',

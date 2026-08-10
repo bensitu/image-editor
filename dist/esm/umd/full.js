@@ -13,5 +13,6 @@ export * from '../plugins/annotation-shape/index.js';
 export { drawAnnotationPlugin, drawAnnotationPluginRef, } from '../plugins/annotation-draw/index.js';
 export * from '../plugins/overlay-state/index.js';
 export * from '../plugins/dom-controls/index.js';
+export * from '../plugins/canvas-interactions/index.js';
 export * from '../presets/full/index.js';
 //# sourceMappingURL=full.js.map

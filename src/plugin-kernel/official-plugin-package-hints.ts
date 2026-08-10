@@ -62,6 +62,10 @@ export const OFFICIAL_PLUGIN_PACKAGE_HINTS: readonly OfficialPluginPackageHint[]
         pluginId: 'plugin:dom-controls',
         packageName: '@bensitu/image-editor/plugins/dom-controls',
     }),
+    Object.freeze({
+        pluginId: 'plugin:canvas-interactions',
+        packageName: '@bensitu/image-editor/plugins/canvas-interactions',
+    }),
 ]);
 
 const packageHintsByPluginId = new Map(

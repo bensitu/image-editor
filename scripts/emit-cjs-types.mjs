@@ -30,6 +30,7 @@ const cjsEntries = [
     'plugins/annotation-draw/index',
     'plugins/overlay-state/index',
     'plugins/dom-controls/index',
+    'plugins/canvas-interactions/index',
     'presets/minimal/index',
     'presets/redaction/index',
     'presets/annotation/index',

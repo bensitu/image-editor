@@ -30,6 +30,7 @@ export const EXPECTED_PACKAGE_EXPORTS = Object.freeze([
     './plugins/annotation-draw',
     './plugins/overlay-state',
     './plugins/dom-controls',
+    './plugins/canvas-interactions',
     './presets/minimal',
     './presets/redaction',
     './presets/annotation',

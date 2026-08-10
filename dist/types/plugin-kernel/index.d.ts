@@ -12,7 +12,7 @@ export { OperationRegistry, type OperationConflictDomain, type OperationDefiniti
 export { PluginManager, type PluginHostState, type PluginHostCapabilityProvider, type PluginManagerOptions, } from './plugin-manager.js';
 export { definePluginRef, isPluginRef, type PluginIdentity, type PluginRef } from './plugin-ref.js';
 export { PluginStateStore, type ScopedPluginStateStore } from './plugin-state-store.js';
-export type { EditorPlugin, EditorPluginDefinition, CapabilityProviderOptions, PluginCapabilityReader, PluginCapabilitySetupAccess, PluginCommittedEventAccess, PluginCommittedEventSetupAccess, PluginLifecycleContext, PluginOperationAccess, PluginOperationSetupAccess, PluginSetupContext, PluginToolAccess, PluginToolSetupAccess, SynchronousEditorPlugin, } from './plugin-types.js';
+export type { EditorPlugin, EditorPluginDefinition, CapabilityProviderOptions, PluginCapabilityReader, PluginCapabilitySetupAccess, PluginCommittedEventAccess, PluginCommittedEventSetupAccess, PluginLifecycleContext, PluginOperationAccess, PluginOperationSetupAccess, PluginSetupContext, PluginToolAccess, PluginToolSetupAccess, PluginToolStatus, PluginToolStatusListener, PluginToolStatusSubscriptionOptions, SynchronousEditorPlugin, } from './plugin-types.js';
 export { RegistrationScope, type RegistrationScopeOptions } from './registration-scope.js';
 export type { PluginErrorSink, PluginKernelWarning, PluginWarningSink } from './reporting.js';
-export { ToolCoordinator, type ToolContext, type ToolCoordinatorOptions, type ToolDefinition, type ToolExitReason, type ToolId, } from './tool-coordinator.js';
+export { ToolCoordinator, type ToolContext, type ToolCoordinatorOptions, type ToolDefinition, type ToolExitReason, type ToolId, type ToolStatus, type ToolStatusListener, type ToolStatusSubscriptionOptions, } from './tool-coordinator.js';

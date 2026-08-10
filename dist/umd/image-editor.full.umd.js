@@ -1680,6 +1680,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		Object.freeze({
 			pluginId: "plugin:dom-controls",
 			packageName: "@bensitu/image-editor/plugins/dom-controls"
+		}),
+		Object.freeze({
+			pluginId: "plugin:canvas-interactions",
+			packageName: "@bensitu/image-editor/plugins/canvas-interactions"
 		})
 	]);
 	const packageHintsByPluginId = new Map(OFFICIAL_PLUGIN_PACKAGE_HINTS.map(({ pluginId, packageName }) => [pluginId, packageName]));
@@ -1940,7 +1944,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: /* @__PURE__ */ new Map()
 			});
+			Object.defineProperty(this, "statusListeners", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: /* @__PURE__ */ new Set()
+			});
 			Object.defineProperty(this, "active", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
+			Object.defineProperty(this, "lastPublishedActiveToolId", {
 				enumerable: true,
 				configurable: true,
 				writable: true,
@@ -2003,6 +2019,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} finally {
 				this.active = null;
 				this.tools.clear();
+				this.statusListeners.clear();
 				this.disposed = true;
 			}
 			if (exitError) throw exitError;
@@ -2050,6 +2067,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return false;
 			}
 		}
+		subscribe(listener, options = {}) {
+			this.assertActive("subscribe to tool state");
+			if (typeof listener !== "function") throw new TypeError("[ImageEditor] Tool status listener must be a function.");
+			this.statusListeners.add(listener);
+			if (options.emitCurrent !== false) this.invokeStatusListener(listener, this.status());
+			return createDisposable(() => {
+				this.statusListeners.delete(listener);
+			});
+		}
 		async dispose() {
 			if (this.disposed) return;
 			let exitError = null;
@@ -2061,6 +2087,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} finally {
 				this.active = null;
 				this.tools.clear();
+				this.statusListeners.clear();
 				this.disposed = true;
 			}
 			if (exitError) throw exitError;
@@ -2105,10 +2132,30 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			while (this.transitionCompletion) await this.transitionCompletion;
 		}
 		notifyActivityChange() {
-			var _a, _b;
+			var _a, _b, _c, _d;
+			const activeToolId = (_b = (_a = this.active) === null || _a === void 0 ? void 0 : _a.definition.id) !== null && _b !== void 0 ? _b : null;
+			if (activeToolId !== this.lastPublishedActiveToolId) {
+				this.lastPublishedActiveToolId = activeToolId;
+				const status = this.status();
+				for (const listener of [...this.statusListeners]) this.invokeStatusListener(listener, status);
+			}
 			try {
-				(_b = (_a = this.options).activitySink) === null || _b === void 0 || _b.call(_a);
+				(_d = (_c = this.options).activitySink) === null || _d === void 0 || _d.call(_c);
 			} catch {}
+		}
+		status() {
+			var _a, _b;
+			return Object.freeze({ activeToolId: (_b = (_a = this.active) === null || _a === void 0 ? void 0 : _a.definition.id) !== null && _b !== void 0 ? _b : null });
+		}
+		invokeStatusListener(listener, status) {
+			try {
+				const result = listener(status);
+				if (isPromiseLike(result)) Promise.resolve(result).catch((error) => {
+					reportErrorSafely(this.options.errorSink, error);
+				});
+			} catch (error) {
+				reportErrorSafely(this.options.errorSink, error);
+			}
 		}
 		assertActive(operation) {
 			if (this.disposed) throw new PluginKernelDisposedError(operation);
@@ -2722,7 +2769,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				enter: (toolId) => this.toolCoordinator.enter(toolId, pluginId),
 				exit: (reason) => this.toolCoordinator.exit(reason),
 				getActiveToolId: () => this.toolCoordinator.getActiveToolId(),
-				canRunOperation: (operationId) => this.toolCoordinator.canRunOperation(operationId)
+				canRunOperation: (operationId) => this.toolCoordinator.canRunOperation(operationId),
+				subscribe: (...args) => this.toolCoordinator.subscribe(...args)
 			});
 			const events = Object.freeze({ emitCommitted: (eventName, payload) => this.eventBus.emitCommitted(eventName, payload) });
 			const lifecycle = Object.freeze({
@@ -18390,6 +18438,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				operationId: "annotation-text:create"
 			});
 		}
+		enter() {
+			this.assertActive("enter the Text tool");
+			this.assertImageLoaded();
+		}
 		async beginEditing(id) {
 			var _a;
 			this.assertActive("begin Text editing");
@@ -18630,6 +18682,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					reentrancy: "reject"
 				}));
 				for (const operationId of [
+					"annotation-text:enter",
+					"annotation-text:exit",
 					"annotation-text:begin-edit",
 					"annotation-text:cancel-edit",
 					"annotation-text:configure"
@@ -18658,6 +18712,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return controller;
 				};
 				return Object.freeze({
+					enter: () => context.operations.run("annotation-text:enter", void 0, async () => {
+						requireController().enter();
+						await context.tools.enter(TEXT_TOOL_ID);
+					}),
+					exit: () => {
+						if (context.tools.getActiveToolId() !== TEXT_TOOL_ID) return Promise.resolve();
+						return context.operations.run("annotation-text:exit", void 0, () => context.tools.exit("requested"));
+					},
 					create: (createOptions) => requireController().create(createOptions),
 					beginEditing: (id) => context.operations.run("annotation-text:begin-edit", id, async (value) => {
 						await context.tools.enter(TEXT_TOOL_ID);
@@ -21456,7 +21518,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugins/dom-controls/index.js
 	const domControlsPluginRef = definePluginRef("plugin:dom-controls", "1.0.0");
-	function collectPluginDependencies(options) {
+	function collectPluginDependencies$1(options) {
 		var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
 		const bindings = [
 			(_a = options.transform) === null || _a === void 0 ? void 0 : _a.plugin,
@@ -21482,7 +21544,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Object.freeze([...dependencies.values()]);
 	}
 	function domControlsPlugin(options = {}) {
-		const requiresPlugins = collectPluginDependencies(options);
+		const requiresPlugins = collectPluginDependencies$1(options);
 		let configuredOptions = options;
 		let controller = null;
 		return definePlugin({
@@ -21532,6 +21594,148 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			onDispose() {
 				controller === null || controller === void 0 || controller.dispose();
 				configuredOptions = null;
+			}
+		});
+	}
+
+//#endregion
+//#region dist/esm/plugins/canvas-interactions/canvas-interactions-controller.js
+	var CanvasInteractionsController = class {
+		constructor(host) {
+			Object.defineProperty(this, "host", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: host
+			});
+			Object.defineProperty(this, "listeners", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: /* @__PURE__ */ new Set()
+			});
+			Object.defineProperty(this, "disposed", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: false
+			});
+		}
+		refresh() {
+			this.assertActive("refresh Canvas interactions");
+		}
+		async cancel(_reason = "requested") {
+			this.assertActive("cancel Canvas interactions");
+		}
+		getStatus() {
+			return this.status();
+		}
+		subscribe(listener) {
+			this.assertActive("subscribe to Canvas interaction status");
+			if (typeof listener !== "function") throw new TypeError("[ImageEditor] Canvas interaction status listener must be a function.");
+			this.listeners.add(listener);
+			this.invokeListener(listener, this.status());
+			let active = true;
+			return Object.freeze({ dispose: () => {
+				if (!active) return;
+				active = false;
+				this.listeners.delete(listener);
+			} });
+		}
+		dispose() {
+			if (this.disposed) return;
+			this.disposed = true;
+			const status = this.status();
+			for (const listener of [...this.listeners]) this.invokeListener(listener, status);
+			this.listeners.clear();
+		}
+		status() {
+			return Object.freeze({
+				isBound: false,
+				isDisposed: this.disposed,
+				activeBindingId: null,
+				gestureActive: false
+			});
+		}
+		invokeListener(listener, status) {
+			try {
+				listener(status);
+			} catch (error) {
+				this.host.reportWarning(error, "A Canvas interaction status listener failed.");
+			}
+		}
+		assertActive(operation) {
+			if (this.disposed) throw new Error(`[ImageEditor] Cannot ${operation} after Canvas Interactions disposal.`);
+		}
+	};
+
+//#endregion
+//#region dist/esm/plugins/canvas-interactions/index.js
+	const canvasInteractionsPluginRef = definePluginRef("plugin:canvas-interactions", "1.0.0");
+	function collectPluginDependencies(options) {
+		const bindings = [
+			options.text ? options.text.plugin : void 0,
+			options.text ? options.text.overlays : void 0,
+			options.text ? options.text.annotations : void 0,
+			options.shape ? options.shape.plugin : void 0,
+			options.draw ? options.draw.plugin : void 0,
+			options.mosaic ? options.mosaic.plugin : void 0
+		];
+		const dependencies = /* @__PURE__ */ new Map();
+		for (const binding of bindings) {
+			if (!binding) continue;
+			if (!binding.ref || typeof binding.resolve !== "function") throw new TypeError("[ImageEditor] Each Canvas interaction requires a PluginRef and API resolver.");
+			const existing = dependencies.get(binding.ref.id);
+			if (existing && existing !== binding.ref) throw new TypeError(`[ImageEditor] Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`);
+			dependencies.set(binding.ref.id, binding.ref);
+		}
+		return Object.freeze([...dependencies.values()]);
+	}
+	function canvasInteractionsPlugin(options = {}) {
+		const requiresPlugins = collectPluginDependencies(options);
+		let controller = null;
+		return definePlugin({
+			ref: canvasInteractionsPluginRef,
+			manifest: {
+				id: canvasInteractionsPluginRef.id,
+				version: "1.0.0",
+				apiVersion: canvasInteractionsPluginRef.apiVersion,
+				engine: "^3.0.0",
+				requiresPlugins,
+				requires: [
+					{
+						token: CANVAS_READ_CAPABILITY,
+						range: "^1.0.0"
+					},
+					{
+						token: BASE_IMAGE_READ_CAPABILITY,
+						range: "^1.0.0"
+					},
+					{
+						token: CORE_DIAGNOSTICS_CAPABILITY,
+						range: "^1.0.0"
+					}
+				],
+				permissions: ["fabric:canvas-read", "fabric:global-mutation"]
+			},
+			setupMode: "sync",
+			setup(context) {
+				controller = new CanvasInteractionsController(Object.freeze({
+					...context.capabilities.require(CANVAS_READ_CAPABILITY),
+					...context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY)
+				}));
+				context.disposables.add(controller);
+				return controller;
+			},
+			onInit() {
+				controller === null || controller === void 0 || controller.refresh();
+			},
+			onImageLoaded() {
+				controller === null || controller === void 0 || controller.refresh();
+			},
+			onDispose() {
+				controller === null || controller === void 0 || controller.dispose();
+				controller = null;
 			}
 		});
 	}
@@ -21675,6 +21879,8 @@ exports.VISIBLE_RASTER_BAKE_CAPABILITY = VISIBLE_RASTER_BAKE_CAPABILITY;
 exports.annotationFoundationPlugin = annotationFoundationPlugin;
 exports.annotationFoundationRef = annotationFoundationRef;
 exports.areFilterDefinitionsEqual = areFilterDefinitionsEqual;
+exports.canvasInteractionsPlugin = canvasInteractionsPlugin;
+exports.canvasInteractionsPluginRef = canvasInteractionsPluginRef;
 exports.captureOverlayStateBounds = captureOverlayStateBounds;
 exports.composePlugins = composePlugins;
 exports.createCapabilityToken = createCapabilityToken;

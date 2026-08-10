@@ -1,8 +1,8 @@
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-5j1vZghc.cjs');
-const require_annotation = require('./annotation-6vWDOcU5.cjs');
+const require_overlay = require('./overlay-CyVyDvJZ.cjs');
+const require_annotation = require('./annotation-CzJy5jdC.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-Co4kk4f1.cjs');
 
 //#region dist/esm/plugins/annotation-text/text-controller.js
@@ -361,6 +361,10 @@ var TextAnnotationController = class {
 			operationId: "annotation-text:create"
 		});
 	}
+	enter() {
+		this.assertActive("enter the Text tool");
+		this.assertImageLoaded();
+	}
 	async beginEditing(id) {
 		var _a;
 		this.assertActive("begin Text editing");
@@ -601,6 +605,8 @@ function textAnnotationPlugin(options = {}) {
 				reentrancy: "reject"
 			}));
 			for (const operationId of [
+				"annotation-text:enter",
+				"annotation-text:exit",
 				"annotation-text:begin-edit",
 				"annotation-text:cancel-edit",
 				"annotation-text:configure"
@@ -629,6 +635,14 @@ function textAnnotationPlugin(options = {}) {
 				return controller;
 			};
 			return Object.freeze({
+				enter: () => context.operations.run("annotation-text:enter", void 0, async () => {
+					requireController().enter();
+					await context.tools.enter(TEXT_TOOL_ID);
+				}),
+				exit: () => {
+					if (context.tools.getActiveToolId() !== TEXT_TOOL_ID) return Promise.resolve();
+					return context.operations.run("annotation-text:exit", void 0, () => context.tools.exit("requested"));
+				},
 				create: (createOptions) => requireController().create(createOptions),
 				beginEditing: (id) => context.operations.run("annotation-text:begin-edit", id, async (value) => {
 					await context.tools.enter(TEXT_TOOL_ID);
@@ -681,4 +695,4 @@ Object.defineProperty(exports, 'textAnnotationPluginRef', {
     return textAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-text-Cy8xjSQd.cjs.map
+//# sourceMappingURL=annotation-text-CIflhB-y.cjs.map

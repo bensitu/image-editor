@@ -735,6 +735,7 @@ export class PluginManager {
             exit: (reason) => this.toolCoordinator.exit(reason),
             getActiveToolId: () => this.toolCoordinator.getActiveToolId(),
             canRunOperation: (operationId) => this.toolCoordinator.canRunOperation(operationId),
+            subscribe: (...args) => this.toolCoordinator.subscribe(...args),
         });
         const events = Object.freeze({
             emitCommitted: (eventName, payload) => this.eventBus.emitCommitted(eventName, payload),

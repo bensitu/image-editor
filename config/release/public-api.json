@@ -1951,6 +1951,24 @@
                     ]
                 },
                 {
+                    "name": "PluginToolStatus",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "PluginToolStatusListener",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "PluginToolStatusSubscriptionOptions",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
                     "name": "RASTER_MUTATION_CAPABILITY",
                     "kinds": [
                         "VariableDeclaration"
@@ -4137,6 +4155,109 @@
                 "domControlsPluginRef"
             ]
         },
+        "./plugins/canvas-interactions": {
+            "import": "./dist/esm/plugins/canvas-interactions/index.js",
+            "require": "./dist/cjs/plugins/canvas-interactions/index.cjs",
+            "importTypes": "./dist/types/plugins/canvas-interactions/index.d.ts",
+            "requireTypes": "./dist/types/plugins/canvas-interactions/index.d.cts",
+            "exports": [
+                {
+                    "name": "CanvasCursorOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "CanvasInteractionErrorContext",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "canvasInteractionsPlugin",
+                    "kinds": [
+                        "FunctionDeclaration"
+                    ]
+                },
+                {
+                    "name": "CanvasInteractionsPluginApi",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "CanvasInteractionsPluginOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "canvasInteractionsPluginRef",
+                    "kinds": [
+                        "VariableDeclaration"
+                    ]
+                },
+                {
+                    "name": "CanvasInteractionsStatus",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "CanvasInteractionsStatusListener",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "CanvasPluginBinding",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "default",
+                    "kinds": [
+                        "FunctionDeclaration"
+                    ]
+                },
+                {
+                    "name": "DrawCanvasInteractionOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "InteractionCancelReason",
+                    "kinds": [
+                        "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "MosaicCanvasInteractionOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "ShapeCanvasInteractionOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "TextCanvasInteractionOptions",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                }
+            ],
+            "runtimeExports": [
+                "canvasInteractionsPlugin",
+                "canvasInteractionsPluginRef",
+                "default"
+            ]
+        },
         "./presets/minimal": {
             "import": "./dist/esm/presets/minimal/index.js",
             "require": "./dist/cjs/presets/minimal/index.cjs",
@@ -4427,11 +4548,11 @@
     },
     "documentation": {
         "path": "docs/reference/api.md",
-        "formalEntryCount": 22,
+        "formalEntryCount": 23,
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "ddb727251328cf8f5af65cb765e49103c9706477a982ba67c79c026bdb5effae",
+        "graphSha256": "147c2420765fe4a8e1b1116faed502c445113532cb3dbb1dc0b453df2f4608ae",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4579,7 +4700,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/index.d.ts",
-                "sha256": "de30dcf3f54b3d5df06e1522561a2dbf9be2fd12e5c59973d7ac5cf224731f6c"
+                "sha256": "557d8d4dcf66618f7a8854aedd83ebbf2dd21c5ebb0ecc0e62f7ade852a25050"
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
@@ -4611,7 +4732,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-types.d.ts",
-                "sha256": "1bc209de4d547c847056b573d194a25017b034870cc2d6ee74933967eb5b00f5"
+                "sha256": "de87ce319c98deb8ff5b70be3b1280332dfe4bab0025cb159bd8b8a98312592a"
             },
             {
                 "file": "dist/types/plugin-kernel/registration-scope.d.ts",
@@ -4627,7 +4748,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/tool-coordinator.d.ts",
-                "sha256": "ea0dac98a77de229506b3f5ef9760b2a17645556a8c7f29c52accd4f4bb6b0ba"
+                "sha256": "b4942141edc3253445451ded27973a2071888e0cba5c4e8b595968b886571ff4"
             },
             {
                 "file": "dist/types/plugins/annotation-draw/draw-annotation.d.ts",
@@ -4651,7 +4772,15 @@
             },
             {
                 "file": "dist/types/plugins/annotation-text/text-annotation.d.ts",
-                "sha256": "358f3f4ba34d02f9c71cdf00455bbd2795f4815492d059977241f24317b67d85"
+                "sha256": "ea61734799c8db6f1afa3db9066ec06d91a299a6a4561f5dd5c0881a446cf0be"
+            },
+            {
+                "file": "dist/types/plugins/canvas-interactions/canvas-interactions-types.d.ts",
+                "sha256": "c98cafc0ec2530c92d9c2ac483a83957210e0db91d597f5872c2129a8f884ef2"
+            },
+            {
+                "file": "dist/types/plugins/canvas-interactions/index.d.ts",
+                "sha256": "6748672ea3589b41f6e75ab6ca4f582a9cdeaa54e2998838904394da27c10055"
             },
             {
                 "file": "dist/types/plugins/crop/crop-errors.d.ts",
@@ -4783,7 +4912,7 @@
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "341c0741fa56c691dd0f1357dc8421c3a3dcf2a28b0dbdb311fbf79e8c226ed0"
+                "sha256": "a888c0972a09b24f7dfcf24d2e7309e3ff4285e550bb6dd173a66d534a6a858c"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",
@@ -4846,6 +4975,11 @@
             {
                 "name": "annotationFoundationRef",
                 "id": "foundation:annotation",
+                "apiVersion": "1.0.0"
+            },
+            {
+                "name": "canvasInteractionsPluginRef",
+                "id": "plugin:canvas-interactions",
                 "apiVersion": "1.0.0"
             },
             {
@@ -5097,6 +5231,8 @@
             "annotationFoundationPlugin",
             "annotationFoundationRef",
             "areFilterDefinitionsEqual",
+            "canvasInteractionsPlugin",
+            "canvasInteractionsPluginRef",
             "captureOverlayStateBounds",
             "composePlugins",
             "createCapabilityToken",
@@ -5389,6 +5525,60 @@
                 "name": "CANVAS_RESIZE_CAPABILITY",
                 "kinds": [
                     "VariableDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasCursorOptions",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasInteractionErrorContext",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "canvasInteractionsPlugin",
+                "kinds": [
+                    "FunctionDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasInteractionsPluginApi",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasInteractionsPluginOptions",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "canvasInteractionsPluginRef",
+                "kinds": [
+                    "VariableDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasInteractionsStatus",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasInteractionsStatusListener",
+                "kinds": [
+                    "TypeAliasDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasPluginBinding",
+                "kinds": [
+                    "InterfaceDeclaration"
                 ]
             },
             {
@@ -5824,6 +6014,12 @@
                 ]
             },
             {
+                "name": "DrawCanvasInteractionOptions",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
                 "name": "DrawConfiguration",
                 "kinds": [
                     "InterfaceDeclaration"
@@ -6118,6 +6314,12 @@
                 ]
             },
             {
+                "name": "InteractionCancelReason",
+                "kinds": [
+                    "TypeAliasDeclaration"
+                ]
+            },
+            {
                 "name": "isOverlayStateBoundsGeometry",
                 "kinds": [
                     "FunctionDeclaration"
@@ -6221,6 +6423,12 @@
             },
             {
                 "name": "MosaicBrushPreviewStyle",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "MosaicCanvasInteractionOptions",
                 "kinds": [
                     "InterfaceDeclaration"
                 ]
@@ -6832,6 +7040,24 @@
                 ]
             },
             {
+                "name": "PluginToolStatus",
+                "kinds": [
+                    "TypeAliasDeclaration"
+                ]
+            },
+            {
+                "name": "PluginToolStatusListener",
+                "kinds": [
+                    "TypeAliasDeclaration"
+                ]
+            },
+            {
+                "name": "PluginToolStatusSubscriptionOptions",
+                "kinds": [
+                    "TypeAliasDeclaration"
+                ]
+            },
+            {
                 "name": "RASTER_MUTATION_CAPABILITY",
                 "kinds": [
                     "VariableDeclaration"
@@ -6941,6 +7167,12 @@
             },
             {
                 "name": "ShapeAnnotationUpdate",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "ShapeCanvasInteractionOptions",
                 "kinds": [
                     "InterfaceDeclaration"
                 ]
@@ -7061,6 +7293,12 @@
             },
             {
                 "name": "TextAnnotationUpdate",
+                "kinds": [
+                    "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "TextCanvasInteractionOptions",
                 "kinds": [
                     "InterfaceDeclaration"
                 ]

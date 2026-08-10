@@ -144,6 +144,14 @@ export const MODULAR_UMD_PLUGINS = Object.freeze(
             sourceKind: 'plugin',
             guardExport: 'domControlsPlugin',
         },
+        {
+            id: 'canvas-interactions',
+            input: 'dist/esm/plugins/canvas-interactions/index.js',
+            globalName: 'ImageEditorPlugins.CanvasInteractions',
+            dependencies: ['core'],
+            sourceKind: 'plugin',
+            guardExport: 'canvasInteractionsPlugin',
+        },
     ].map((definition) =>
         freezeModuleDefinition({
             ...definition,

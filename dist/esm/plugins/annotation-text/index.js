@@ -46,6 +46,8 @@ export function textAnnotationPlugin(options = {}) {
                 }));
             }
             for (const operationId of [
+                'annotation-text:enter',
+                'annotation-text:exit',
                 'annotation-text:begin-edit',
                 'annotation-text:cancel-edit',
                 'annotation-text:configure',
@@ -92,6 +94,15 @@ export function textAnnotationPlugin(options = {}) {
                 return controller;
             };
             const api = {
+                enter: () => context.operations.run('annotation-text:enter', undefined, async () => {
+                    requireController().enter();
+                    await context.tools.enter(TEXT_TOOL_ID);
+                }),
+                exit: () => {
+                    if (context.tools.getActiveToolId() !== TEXT_TOOL_ID)
+                        return Promise.resolve();
+                    return context.operations.run('annotation-text:exit', undefined, () => context.tools.exit('requested'));
+                },
                 create: (createOptions) => requireController().create(createOptions),
                 beginEditing: (id) => context.operations.run('annotation-text:begin-edit', id, async (value) => {
                     await context.tools.enter(TEXT_TOOL_ID);

@@ -443,6 +443,10 @@ export class TextAnnotationController {
             operationId: 'annotation-text:create',
         });
     }
+    enter() {
+        this.assertActive('enter the Text tool');
+        this.assertImageLoaded();
+    }
     async beginEditing(id) {
         var _a;
         this.assertActive('begin Text editing');

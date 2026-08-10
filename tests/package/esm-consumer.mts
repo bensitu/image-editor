@@ -57,6 +57,10 @@ import {
     domControlsPlugin,
     type DomControlsPluginApi,
 } from '@bensitu/image-editor/plugins/dom-controls';
+import {
+    canvasInteractionsPlugin,
+    type CanvasInteractionsPluginApi,
+} from '@bensitu/image-editor/plugins/canvas-interactions';
 import { createMinimalPreset } from '@bensitu/image-editor/presets/minimal';
 import { createRedactionPreset } from '@bensitu/image-editor/presets/redaction';
 import { createAnnotationPreset } from '@bensitu/image-editor/presets/annotation';
@@ -95,6 +99,7 @@ const mosaic: MosaicPluginApi = editor.use(mosaicPlugin({ brushSizePx: 20 }));
 const overlayState: OverlayStatePluginApi = editor.use(overlayStatePlugin());
 const overlayDocument: OverlayStateDocument = overlayState.exportState();
 const domControls: DomControlsPluginApi = editor.use(domControlsPlugin());
+const canvasInteractions: CanvasInteractionsPluginApi = editor.use(canvasInteractionsPlugin());
 const minimalPreset = createMinimalPreset(fabric);
 const minimalHistoryPreset = createMinimalPreset(fabric, { history: {} });
 const redactionPreset = createRedactionPreset(fabric);
@@ -171,6 +176,7 @@ void mosaic;
 void overlayState;
 void overlayDocument;
 void domControls;
+void canvasInteractions;
 void minimalPreset;
 void minimalHistoryPreset.history;
 void redactionPreset.masks;

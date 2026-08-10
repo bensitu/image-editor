@@ -17,7 +17,19 @@ export class ToolCoordinator {
             writable: true,
             value: new Map()
         });
+        Object.defineProperty(this, "statusListeners", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Set()
+        });
         Object.defineProperty(this, "active", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "lastPublishedActiveToolId", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -86,6 +98,7 @@ export class ToolCoordinator {
         finally {
             this.active = null;
             this.tools.clear();
+            this.statusListeners.clear();
             this.disposed = true;
         }
         if (exitError)
@@ -143,6 +156,18 @@ export class ToolCoordinator {
             return false;
         }
     }
+    subscribe(listener, options = {}) {
+        this.assertActive('subscribe to tool state');
+        if (typeof listener !== 'function') {
+            throw new TypeError('[ImageEditor] Tool status listener must be a function.');
+        }
+        this.statusListeners.add(listener);
+        if (options.emitCurrent !== false)
+            this.invokeStatusListener(listener, this.status());
+        return createDisposable(() => {
+            this.statusListeners.delete(listener);
+        });
+    }
     async dispose() {
         if (this.disposed)
             return;
@@ -158,6 +183,7 @@ export class ToolCoordinator {
         finally {
             this.active = null;
             this.tools.clear();
+            this.statusListeners.clear();
             this.disposed = true;
         }
         if (exitError)
@@ -214,11 +240,36 @@ export class ToolCoordinator {
             await this.transitionCompletion;
     }
     notifyActivityChange() {
-        var _a, _b;
+        var _a, _b, _c, _d;
+        const activeToolId = (_b = (_a = this.active) === null || _a === void 0 ? void 0 : _a.definition.id) !== null && _b !== void 0 ? _b : null;
+        if (activeToolId !== this.lastPublishedActiveToolId) {
+            this.lastPublishedActiveToolId = activeToolId;
+            const status = this.status();
+            for (const listener of [...this.statusListeners]) {
+                this.invokeStatusListener(listener, status);
+            }
+        }
         try {
-            (_b = (_a = this.options).activitySink) === null || _b === void 0 ? void 0 : _b.call(_a);
+            (_d = (_c = this.options).activitySink) === null || _d === void 0 ? void 0 : _d.call(_c);
         }
         catch {
+        }
+    }
+    status() {
+        var _a, _b;
+        return Object.freeze({ activeToolId: (_b = (_a = this.active) === null || _a === void 0 ? void 0 : _a.definition.id) !== null && _b !== void 0 ? _b : null });
+    }
+    invokeStatusListener(listener, status) {
+        try {
+            const result = listener(status);
+            if (isPromiseLike(result)) {
+                void Promise.resolve(result).catch((error) => {
+                    reportErrorSafely(this.options.errorSink, error);
+                });
+            }
+        }
+        catch (error) {
+            reportErrorSafely(this.options.errorSink, error);
         }
     }
     assertActive(operation) {

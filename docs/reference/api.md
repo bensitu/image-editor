@@ -14,30 +14,31 @@ replace the Facade contract.
 Every main-package entry below provides ESM, CommonJS, ESM declarations,
 CommonJS declarations, and NodeNext resolution. Fabric stays external.
 
-| Import                                           | Responsibility                                    |
-| ------------------------------------------------ | ------------------------------------------------- |
-| `@bensitu/image-editor`                          | Core Framework root                               |
-| `@bensitu/image-editor/core`                     | Core Framework class and contracts                |
-| `@bensitu/image-editor/sdk`                      | Plugin authoring and Capability contracts         |
-| `@bensitu/image-editor/testing`                  | Test host and Conformance Kit                     |
-| `@bensitu/image-editor/plugins/transform`        | Base-image transforms                             |
-| `@bensitu/image-editor/plugins/history`          | Bounded History provider                          |
-| `@bensitu/image-editor/plugins/overlay`          | Shared Overlay Foundation                         |
-| `@bensitu/image-editor/plugins/mask`             | Editable redaction masks                          |
-| `@bensitu/image-editor/plugins/filters`          | Previewed and committed image filters             |
-| `@bensitu/image-editor/plugins/crop`             | Transactional crop sessions                       |
-| `@bensitu/image-editor/plugins/mosaic`           | Transactional pixelation sessions                 |
-| `@bensitu/image-editor/plugins/annotation`       | Shared Annotation Foundation                      |
-| `@bensitu/image-editor/plugins/annotation-text`  | Text creation/editing                             |
-| `@bensitu/image-editor/plugins/annotation-shape` | Rect, line, and arrow annotations                 |
-| `@bensitu/image-editor/plugins/annotation-draw`  | Freehand Draw and whole-object Eraser             |
-| `@bensitu/image-editor/plugins/overlay-state`    | Portable Overlay document wire format             |
-| `@bensitu/image-editor/plugins/dom-controls`     | Optional imperative DOM adapter                   |
-| `@bensitu/image-editor/presets/minimal`          | Transform with optional History                   |
-| `@bensitu/image-editor/presets/redaction`        | Redaction-focused composition                     |
-| `@bensitu/image-editor/presets/annotation`       | Annotation-focused composition                    |
-| `@bensitu/image-editor/presets/full`             | Every official Feature and both Foundations       |
-| `@bensitu/image-editor/migrate-v2`               | Isolated source-Snapshot detection and conversion |
+| Import                                              | Responsibility                                    |
+| --------------------------------------------------- | ------------------------------------------------- |
+| `@bensitu/image-editor`                             | Core Framework root                               |
+| `@bensitu/image-editor/core`                        | Core Framework class and contracts                |
+| `@bensitu/image-editor/sdk`                         | Plugin authoring and Capability contracts         |
+| `@bensitu/image-editor/testing`                     | Test host and Conformance Kit                     |
+| `@bensitu/image-editor/plugins/transform`           | Base-image transforms                             |
+| `@bensitu/image-editor/plugins/history`             | Bounded History provider                          |
+| `@bensitu/image-editor/plugins/overlay`             | Shared Overlay Foundation                         |
+| `@bensitu/image-editor/plugins/mask`                | Editable redaction masks                          |
+| `@bensitu/image-editor/plugins/filters`             | Previewed and committed image filters             |
+| `@bensitu/image-editor/plugins/crop`                | Transactional crop sessions                       |
+| `@bensitu/image-editor/plugins/mosaic`              | Transactional pixelation sessions                 |
+| `@bensitu/image-editor/plugins/annotation`          | Shared Annotation Foundation                      |
+| `@bensitu/image-editor/plugins/annotation-text`     | Text creation/editing                             |
+| `@bensitu/image-editor/plugins/annotation-shape`    | Rect, line, and arrow annotations                 |
+| `@bensitu/image-editor/plugins/annotation-draw`     | Freehand Draw and whole-object Eraser             |
+| `@bensitu/image-editor/plugins/overlay-state`       | Portable Overlay document wire format             |
+| `@bensitu/image-editor/plugins/dom-controls`        | Optional imperative DOM adapter                   |
+| `@bensitu/image-editor/plugins/canvas-interactions` | Optional Canvas pointer interaction adapter       |
+| `@bensitu/image-editor/presets/minimal`             | Transform with optional History                   |
+| `@bensitu/image-editor/presets/redaction`           | Redaction-focused composition                     |
+| `@bensitu/image-editor/presets/annotation`          | Annotation-focused composition                    |
+| `@bensitu/image-editor/presets/full`                | Every official Feature and both Foundations       |
+| `@bensitu/image-editor/migrate-v2`                  | Isolated source-Snapshot detection and conversion |
 
 Do not import source paths, `dist` files, controllers, coordinators, registries,
 or internal chunks. `@bensitu/image-editor-codemod` is a separate package, not a

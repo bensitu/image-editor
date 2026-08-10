@@ -54,6 +54,7 @@
         "src/plugins/annotation-draw/index.ts",
         "src/plugins/overlay-state/index.ts",
         "src/plugins/dom-controls/index.ts",
+        "src/plugins/canvas-interactions/index.ts",
         "src/presets/minimal/index.ts",
         "src/presets/redaction/index.ts",
         "src/presets/annotation/index.ts",

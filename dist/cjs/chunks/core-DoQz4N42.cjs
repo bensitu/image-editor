@@ -1,6 +1,6 @@
 const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
-const require_plugin_manager = require('./plugin-manager-iUo9HuAR.cjs');
+const require_plugin_manager = require('./plugin-manager-BCwOehdX.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 
@@ -5521,4 +5521,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-DvVN5MTJ.cjs.map
+//# sourceMappingURL=core-DoQz4N42.cjs.map

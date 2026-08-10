@@ -40,6 +40,7 @@ const packageSubpathEntries = Object.freeze({
     [`${packageName}/plugins/annotation-draw`]: ['plugins', 'annotation-draw', 'index.js'],
     [`${packageName}/plugins/overlay-state`]: ['plugins', 'overlay-state', 'index.js'],
     [`${packageName}/plugins/dom-controls`]: ['plugins', 'dom-controls', 'index.js'],
+    [`${packageName}/plugins/canvas-interactions`]: ['plugins', 'canvas-interactions', 'index.js'],
     [`${packageName}/presets/minimal`]: ['presets', 'minimal', 'index.js'],
     [`${packageName}/presets/redaction`]: ['presets', 'redaction', 'index.js'],
     [`${packageName}/presets/annotation`]: ['presets', 'annotation', 'index.js'],

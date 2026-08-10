@@ -40,6 +40,7 @@ const formalEntries = Object.freeze({
     'plugins/annotation-draw/index': 'dist/esm/plugins/annotation-draw/index.js',
     'plugins/overlay-state/index': 'dist/esm/plugins/overlay-state/index.js',
     'plugins/dom-controls/index': 'dist/esm/plugins/dom-controls/index.js',
+    'plugins/canvas-interactions/index': 'dist/esm/plugins/canvas-interactions/index.js',
     'presets/minimal/index': 'dist/esm/presets/minimal/index.js',
     'presets/redaction/index': 'dist/esm/presets/redaction/index.js',
     'presets/annotation/index': 'dist/esm/presets/annotation/index.js',

@@ -25,6 +25,7 @@ const sourceRoots = [
     'src/plugins/annotation-draw',
     'src/plugins/overlay-state',
     'src/plugins/dom-controls',
+    'src/plugins/canvas-interactions',
 ];
 const publicSourceEntries = new Set([
     'src/core/index.ts',

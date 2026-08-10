@@ -34,6 +34,7 @@ const requiredEntries = [
     './plugins/mosaic',
     './plugins/overlay-state',
     './plugins/dom-controls',
+    './plugins/canvas-interactions',
     './presets/minimal',
     './presets/redaction',
     './presets/annotation',
@@ -153,6 +154,7 @@ import { drawAnnotationPlugin } from '@bensitu/image-editor/plugins/annotation-d
 import { transformPlugin } from '@bensitu/image-editor/plugins/transform';
 import { overlayStatePlugin } from '@bensitu/image-editor/plugins/overlay-state';
 import { domControlsPlugin } from '@bensitu/image-editor/plugins/dom-controls';
+import { canvasInteractionsPlugin } from '@bensitu/image-editor/plugins/canvas-interactions';
 import { createMinimalPreset } from '@bensitu/image-editor/presets/minimal';
 import { createRedactionPreset } from '@bensitu/image-editor/presets/redaction';
 import { createAnnotationPreset } from '@bensitu/image-editor/presets/annotation';
@@ -160,7 +162,7 @@ import { createFullPreset } from '@bensitu/image-editor/presets/full';
 import { detectSnapshotVersion, loadV2Snapshot, migrateV2Snapshot, v2SnapshotMigration } from '@bensitu/image-editor/migrate-v2';
 import { publicPlugin } from '@image-editor-fixtures/public-plugin';
 assert.equal(RootCore, ImageEditorCore);
-for (const value of [definePlugin, createPluginTestHost, historyPlugin, filtersPlugin, cropPlugin, maskPlugin, mosaicPlugin, overlayFoundationPlugin, annotationFoundationPlugin, textAnnotationPlugin, shapeAnnotationPlugin, drawAnnotationPlugin, transformPlugin, overlayStatePlugin, domControlsPlugin, createMinimalPreset, createRedactionPreset, createAnnotationPreset, createFullPreset, detectSnapshotVersion, loadV2Snapshot, migrateV2Snapshot, v2SnapshotMigration, publicPlugin]) {
+for (const value of [definePlugin, createPluginTestHost, historyPlugin, filtersPlugin, cropPlugin, maskPlugin, mosaicPlugin, overlayFoundationPlugin, annotationFoundationPlugin, textAnnotationPlugin, shapeAnnotationPlugin, drawAnnotationPlugin, transformPlugin, overlayStatePlugin, domControlsPlugin, canvasInteractionsPlugin, createMinimalPreset, createRedactionPreset, createAnnotationPreset, createFullPreset, detectSnapshotVersion, loadV2Snapshot, migrateV2Snapshot, v2SnapshotMigration, publicPlugin]) {
     assert.equal(typeof value, 'function');
 }
 assert.match(import.meta.resolve('fabric'), /node_modules[\\\\/]fabric[\\\\/]/u);
@@ -186,6 +188,7 @@ const { drawAnnotationPlugin } = require('@bensitu/image-editor/plugins/annotati
 const { transformPlugin } = require('@bensitu/image-editor/plugins/transform');
 const { overlayStatePlugin } = require('@bensitu/image-editor/plugins/overlay-state');
 const { domControlsPlugin } = require('@bensitu/image-editor/plugins/dom-controls');
+const { canvasInteractionsPlugin } = require('@bensitu/image-editor/plugins/canvas-interactions');
 const { createMinimalPreset } = require('@bensitu/image-editor/presets/minimal');
 const { createRedactionPreset } = require('@bensitu/image-editor/presets/redaction');
 const { createAnnotationPreset } = require('@bensitu/image-editor/presets/annotation');
@@ -193,7 +196,7 @@ const { createFullPreset } = require('@bensitu/image-editor/presets/full');
 const { detectSnapshotVersion, loadV2Snapshot, migrateV2Snapshot, v2SnapshotMigration } = require('@bensitu/image-editor/migrate-v2');
 const { publicPlugin } = require('@image-editor-fixtures/public-plugin');
 assert.equal(RootCore, ImageEditorCore);
-for (const value of [definePlugin, createPluginTestHost, historyPlugin, filtersPlugin, cropPlugin, maskPlugin, mosaicPlugin, overlayFoundationPlugin, annotationFoundationPlugin, textAnnotationPlugin, shapeAnnotationPlugin, drawAnnotationPlugin, transformPlugin, overlayStatePlugin, domControlsPlugin, createMinimalPreset, createRedactionPreset, createAnnotationPreset, createFullPreset, detectSnapshotVersion, loadV2Snapshot, migrateV2Snapshot, v2SnapshotMigration, publicPlugin]) {
+for (const value of [definePlugin, createPluginTestHost, historyPlugin, filtersPlugin, cropPlugin, maskPlugin, mosaicPlugin, overlayFoundationPlugin, annotationFoundationPlugin, textAnnotationPlugin, shapeAnnotationPlugin, drawAnnotationPlugin, transformPlugin, overlayStatePlugin, domControlsPlugin, canvasInteractionsPlugin, createMinimalPreset, createRedactionPreset, createAnnotationPreset, createFullPreset, detectSnapshotVersion, loadV2Snapshot, migrateV2Snapshot, v2SnapshotMigration, publicPlugin]) {
     assert.equal(typeof value, 'function');
 }
 assert.match(require.resolve('fabric'), /node_modules[\\\\/]fabric[\\\\/]/u);
@@ -216,6 +219,7 @@ import type { DrawAnnotationPluginApi } from '@bensitu/image-editor/plugins/anno
 import type { TransformPluginApi } from '@bensitu/image-editor/plugins/transform';
 import type { OverlayStatePluginApi } from '@bensitu/image-editor/plugins/overlay-state';
 import type { DomControlsPluginApi } from '@bensitu/image-editor/plugins/dom-controls';
+import type { CanvasInteractionsPluginApi } from '@bensitu/image-editor/plugins/canvas-interactions';
 import type { MinimalPresetResult } from '@bensitu/image-editor/presets/minimal';
 import type { RedactionPresetResult } from '@bensitu/image-editor/presets/redaction';
 import type { AnnotationPresetResult } from '@bensitu/image-editor/presets/annotation';
@@ -224,7 +228,7 @@ import { detectSnapshotVersion, type SnapshotMigrationWarning } from '@bensitu/i
 import { publicPlugin, type PublicPluginApi } from '@image-editor-fixtures/public-plugin';
 const ref = definePluginRef<PublicPluginApi>('fixture:type-consumer', '1.0.0');
 const plugin = publicPlugin();
-declare const values: [ImageEditorCore, CoreStatusPort, PluginConformanceReport, HistoryPort, FiltersPluginApi, CropPluginApi, CropRect, MaskPluginApi, MosaicPluginApi, MosaicImagePoint, OverlayFoundationApi, AnnotationPluginApi, TextAnnotationPluginApi, ShapeAnnotationPluginApi, DrawAnnotationPluginApi, TransformPluginApi, OverlayStatePluginApi, DomControlsPluginApi, MinimalPresetResult, RedactionPresetResult, AnnotationPresetResult, FullPresetResult, SnapshotMigrationWarning];
+declare const values: [ImageEditorCore, CoreStatusPort, PluginConformanceReport, HistoryPort, FiltersPluginApi, CropPluginApi, CropRect, MaskPluginApi, MosaicPluginApi, MosaicImagePoint, OverlayFoundationApi, AnnotationPluginApi, TextAnnotationPluginApi, ShapeAnnotationPluginApi, DrawAnnotationPluginApi, TransformPluginApi, OverlayStatePluginApi, DomControlsPluginApi, CanvasInteractionsPluginApi, MinimalPresetResult, RedactionPresetResult, AnnotationPresetResult, FullPresetResult, SnapshotMigrationWarning];
 const detection = detectSnapshotVersion({});
 void ref;
 void plugin;
@@ -249,6 +253,7 @@ import annotationDraw = require('@bensitu/image-editor/plugins/annotation-draw')
 import transform = require('@bensitu/image-editor/plugins/transform');
 import overlayState = require('@bensitu/image-editor/plugins/overlay-state');
 import domControls = require('@bensitu/image-editor/plugins/dom-controls');
+import canvasInteractions = require('@bensitu/image-editor/plugins/canvas-interactions');
 import minimalPreset = require('@bensitu/image-editor/presets/minimal');
 import redactionPreset = require('@bensitu/image-editor/presets/redaction');
 import annotationPreset = require('@bensitu/image-editor/presets/annotation');
@@ -257,7 +262,7 @@ import migration = require('@bensitu/image-editor/migrate-v2');
 import fixture = require('@image-editor-fixtures/public-plugin');
 const ref = sdk.definePluginRef<fixture.PublicPluginApi>('fixture:type-consumer-cjs', '1.0.0');
 const plugin = fixture.publicPlugin();
-declare const values: [core.ImageEditorCore, sdk.CoreStatusPort, testing.PluginConformanceReport, history.HistoryPort, filters.FiltersPluginApi, crop.CropPluginApi, crop.CropRect, mask.MaskPluginApi, mosaic.MosaicPluginApi, mosaic.MosaicImagePoint, overlay.OverlayFoundationApi, annotation.AnnotationPluginApi, annotationText.TextAnnotationPluginApi, annotationShape.ShapeAnnotationPluginApi, annotationDraw.DrawAnnotationPluginApi, transform.TransformPluginApi, overlayState.OverlayStatePluginApi, domControls.DomControlsPluginApi, minimalPreset.MinimalPresetResult, redactionPreset.RedactionPresetResult, annotationPreset.AnnotationPresetResult, fullPreset.FullPresetResult, migration.SnapshotMigrationWarning];
+declare const values: [core.ImageEditorCore, sdk.CoreStatusPort, testing.PluginConformanceReport, history.HistoryPort, filters.FiltersPluginApi, crop.CropPluginApi, crop.CropRect, mask.MaskPluginApi, mosaic.MosaicPluginApi, mosaic.MosaicImagePoint, overlay.OverlayFoundationApi, annotation.AnnotationPluginApi, annotationText.TextAnnotationPluginApi, annotationShape.ShapeAnnotationPluginApi, annotationDraw.DrawAnnotationPluginApi, transform.TransformPluginApi, overlayState.OverlayStatePluginApi, domControls.DomControlsPluginApi, canvasInteractions.CanvasInteractionsPluginApi, minimalPreset.MinimalPresetResult, redactionPreset.RedactionPresetResult, annotationPreset.AnnotationPresetResult, fullPreset.FullPresetResult, migration.SnapshotMigrationWarning];
 const detection = migration.detectSnapshotVersion({});
 void ref;
 void plugin;
