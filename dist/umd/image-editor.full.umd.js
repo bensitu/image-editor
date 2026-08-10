@@ -9489,14 +9489,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (this.disposed) return;
 			const targets = this.resolveOverlayTargets(target);
 			if (targets.length === 0) return;
+			let supersededTransaction = null;
+			let supersessionReason = null;
 			if (this.activeGesture) {
 				const currentTargets = this.activeGesture.targets;
 				if (currentTargets.length === targets.length && currentTargets.every((entry, index) => {
 					var _a;
 					return entry.persistentId === ((_a = targets[index]) === null || _a === void 0 ? void 0 : _a.persistentId);
 				})) return;
-				this.failGesture(this.activeGesture, abortError$2("Overlay gesture was superseded by another target."));
-				return;
+				supersededTransaction = this.activeGesture.transaction;
+				supersessionReason = abortError$2("Overlay gesture was superseded by another target.");
+				this.failGesture(this.activeGesture, supersessionReason);
 			}
 			let resolveCompletion;
 			let rejectCompletion;
@@ -9526,6 +9529,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				id,
 				action,
 				targets,
+				rollbackTargets: this.captureGestureTargets(targets),
+				sealedTargets: null,
+				selectionIds: Object.freeze([...this.getSelection().ids]),
 				completion,
 				resolve: resolveCompletion,
 				reject: rejectCompletion,
@@ -9558,20 +9564,24 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					gesture.context = context;
 					await this.waitForGestureCompletion(gesture, context.signal);
 					await gesture.previewWork;
-					return this.createMutationDescriptor(id, "overlay:gesture", gesture.action, targets, context.metadata);
+					return this.createMutationDescriptor(id, "overlay:gesture", gesture.action, gesture.targets, context.metadata);
 				},
-				rollback: () => void 0,
-				synchronize: (descriptor, context) => this.runInteractionPolicies(targets, descriptor, context, "synchronize"),
-				validate: (descriptor, context) => this.validateMutation(targets, descriptor, context),
+				rollback: (context) => this.rollbackGesture(gesture, context),
+				synchronize: (descriptor, context) => this.runInteractionPolicies(gesture.targets, descriptor, context, "synchronize"),
+				validate: (descriptor, context) => this.validateMutation(gesture.targets, descriptor, context),
 				describeCommit: (descriptor) => descriptor
 			}, boundary);
 			let commitStarted = false;
-			const commit = () => {
+			const commit = async () => {
 				commitStarted = true;
-				return this.mutations.run(request).then(() => void 0);
+				if (supersededTransaction) await this.rebaseSupersedingGesture(gesture);
+				await this.mutations.run(request);
 			};
 			const previousCommit = this.gestureCommitTail;
-			const transaction = (previousCommit ? previousCommit.then(commit) : commit()).catch((error) => {
+			const predecessor = previousCommit && previousCommit === supersededTransaction ? previousCommit.catch((error) => {
+				if (error !== supersessionReason) throw error;
+			}) : previousCommit;
+			const transaction = (predecessor ? predecessor.then(commit) : commit()).catch((error) => {
 				if (error === gesture.quietCancellationReason) return;
 				throw error;
 			});
@@ -9606,6 +9616,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		resolveGesture(gesture) {
 			if (gesture.completionSettled) return;
 			try {
+				gesture.sealedTargets = this.captureGestureTargets(gesture.targets);
 				gesture.boundary.after = this.mementos.captureMemento();
 			} catch (error) {
 				this.failGesture(gesture, error);
@@ -9621,6 +9632,51 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			gesture.previewController.abort(error);
 			gesture.reject(error);
 			this.clearGesture(gesture);
+		}
+		captureGestureTargets(targets) {
+			return Object.freeze(targets.map((entry) => Object.freeze({
+				object: entry.object,
+				persistentId: entry.persistentId,
+				kind: entry.kind.definition.id,
+				transform: captureTransform(entry.object)
+			})));
+		}
+		async rebaseSupersedingGesture(gesture) {
+			this.rebuildIndex();
+			gesture.targets = this.resolveOverlayIds(gesture.targets.map((entry) => entry.persistentId));
+			const liveSelection = gesture.selectionIds.filter((persistentId) => this.byId.has(persistentId));
+			this.applySelection(liveSelection);
+			gesture.boundary.before = this.mementos.captureMemento();
+			gesture.rollbackTargets = this.captureGestureTargets(gesture.targets);
+			if (!gesture.completionSettled || !gesture.sealedTargets) return;
+			const sealedById = new Map(gesture.sealedTargets.map((entry) => [entry.persistentId, entry.transform]));
+			for (const target of gesture.targets) {
+				const transform = sealedById.get(target.persistentId);
+				if (!transform) throw new CoreRuntimeError(`[ImageEditor] Superseding Overlay gesture lost target "${target.persistentId}".`);
+				target.object.set(transform);
+				target.object.setCoords();
+			}
+			const descriptor = this.createMutationDescriptor(gesture.id, "overlay:gesture", gesture.action, gesture.targets, gesture.context.metadata);
+			await this.runInteractionPolicies(gesture.targets, descriptor, gesture.context, "preview");
+			this.host.requestRender();
+			gesture.boundary.after = this.mementos.captureMemento();
+		}
+		async rollbackGesture(gesture, context) {
+			await gesture.previewWork;
+			if (this.disposed) return;
+			const canvas = this.host.getCanvas();
+			if (!canvas) return;
+			for (let index = gesture.rollbackTargets.length - 1; index >= 0; index -= 1) {
+				const entry = gesture.rollbackTargets[index];
+				if (!canvas.getObjects().includes(entry.object)) canvas.add(entry.object);
+				entry.object.set(entry.transform);
+				entry.object.setCoords();
+			}
+			this.rebuildIndex();
+			const selectionIds = gesture.selectionIds.filter((persistentId) => this.byId.has(persistentId));
+			this.applySelection(selectionIds);
+			const descriptor = this.createMutationDescriptor(gesture.id, "overlay:gesture", gesture.action, gesture.targets, context.metadata);
+			await this.runInteractionPolicies(gesture.targets, descriptor, context, "preview");
 		}
 		clearGesture(gesture) {
 			if (this.activeGesture === gesture) this.activeGesture = null;

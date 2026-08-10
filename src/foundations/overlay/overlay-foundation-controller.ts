@@ -87,7 +87,7 @@ const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for(
 );
 
 interface InteractiveMutationBoundary {
-    readonly before: CoreMemento;
+    before: CoreMemento;
     after: CoreMemento | null;
 }
 
@@ -101,7 +101,10 @@ function withInteractiveMutationBoundary<TRequest extends object>(
 interface ActiveOverlayGesture {
     readonly id: string;
     action: OverlayMutationAction;
-    readonly targets: readonly IndexedOverlay[];
+    targets: readonly IndexedOverlay[];
+    rollbackTargets: readonly PreparedOverlay[];
+    sealedTargets: readonly PreparedOverlay[] | null;
+    readonly selectionIds: readonly string[];
     readonly completion: Promise<void>;
     readonly resolve: () => void;
     readonly reject: (error: unknown) => void;
@@ -1407,6 +1410,8 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         if (this.disposed) return;
         const targets = this.resolveOverlayTargets(target);
         if (targets.length === 0) return;
+        let supersededTransaction: Promise<void> | null = null;
+        let supersessionReason: unknown = null;
         if (this.activeGesture) {
             const currentTargets = this.activeGesture.targets;
             const sameTargets =
@@ -1415,11 +1420,9 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                     (entry, index) => entry.persistentId === targets[index]?.persistentId,
                 );
             if (sameTargets) return;
-            this.failGesture(
-                this.activeGesture,
-                abortError('Overlay gesture was superseded by another target.'),
-            );
-            return;
+            supersededTransaction = this.activeGesture.transaction;
+            supersessionReason = abortError('Overlay gesture was superseded by another target.');
+            this.failGesture(this.activeGesture, supersessionReason);
         }
 
         let resolveCompletion!: () => void;
@@ -1450,6 +1453,9 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             id,
             action,
             targets,
+            rollbackTargets: this.captureGestureTargets(targets),
+            sealedTargets: null,
+            selectionIds: Object.freeze([...this.getSelection().ids]),
             completion,
             resolve: resolveCompletion,
             reject: rejectCompletion,
@@ -1489,33 +1495,46 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                         id,
                         'overlay:gesture',
                         gesture.action,
-                        targets,
+                        gesture.targets,
                         context.metadata,
                     );
                 },
-                // A click starts Fabric's transform lifecycle without changing geometry. The
-                // no-op rollback lets Core confirm that the captured Memento still matches and
-                // avoid replacing live objects merely to cancel that empty gesture.
-                rollback: () => undefined,
+                rollback: (context: DocumentMutationContext) =>
+                    this.rollbackGesture(gesture, context),
                 synchronize: (
                     descriptor: OverlayMutationDescriptor,
                     context: DocumentMutationContext,
-                ) => this.runInteractionPolicies(targets, descriptor, context, 'synchronize'),
+                ) =>
+                    this.runInteractionPolicies(
+                        gesture.targets,
+                        descriptor,
+                        context,
+                        'synchronize',
+                    ),
                 validate: (
                     descriptor: OverlayMutationDescriptor,
                     context: DocumentMutationContext,
-                ) => this.validateMutation(targets, descriptor, context),
+                ) => this.validateMutation(gesture.targets, descriptor, context),
                 describeCommit: (descriptor: OverlayMutationDescriptor) => descriptor,
             },
             boundary,
         );
         let commitStarted = false;
-        const commit = (): Promise<void> => {
+        const commit = async (): Promise<void> => {
             commitStarted = true;
-            return this.mutations.run(request).then(() => undefined);
+            if (supersededTransaction) {
+                await this.rebaseSupersedingGesture(gesture);
+            }
+            await this.mutations.run(request);
         };
         const previousCommit = this.gestureCommitTail;
-        const rawTransaction = previousCommit ? previousCommit.then(commit) : commit();
+        const predecessor =
+            previousCommit && previousCommit === supersededTransaction
+                ? previousCommit.catch((error: unknown) => {
+                      if (error !== supersessionReason) throw error;
+                  })
+                : previousCommit;
+        const rawTransaction = predecessor ? predecessor.then(commit) : commit();
         const transaction = rawTransaction.catch((error: unknown) => {
             if (error === gesture.quietCancellationReason) return;
             throw error;
@@ -1581,6 +1600,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
     private resolveGesture(gesture: ActiveOverlayGesture): void {
         if (gesture.completionSettled) return;
         try {
+            gesture.sealedTargets = this.captureGestureTargets(gesture.targets);
             gesture.boundary.after = this.mementos.captureMemento();
         } catch (error) {
             this.failGesture(gesture, error);
@@ -1597,6 +1617,86 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         gesture.previewController.abort(error);
         gesture.reject(error);
         this.clearGesture(gesture);
+    }
+
+    private captureGestureTargets(targets: readonly IndexedOverlay[]): readonly PreparedOverlay[] {
+        return Object.freeze(
+            targets.map((entry) =>
+                Object.freeze({
+                    object: entry.object,
+                    persistentId: entry.persistentId,
+                    kind: entry.kind.definition.id,
+                    transform: captureTransform(entry.object),
+                }),
+            ),
+        );
+    }
+
+    private async rebaseSupersedingGesture(gesture: ActiveOverlayGesture): Promise<void> {
+        this.rebuildIndex();
+        gesture.targets = this.resolveOverlayIds(
+            gesture.targets.map((entry) => entry.persistentId),
+        );
+        const liveSelection = gesture.selectionIds.filter((persistentId) =>
+            this.byId.has(persistentId),
+        );
+        this.applySelection(liveSelection);
+        gesture.boundary.before = this.mementos.captureMemento();
+        gesture.rollbackTargets = this.captureGestureTargets(gesture.targets);
+        if (!gesture.completionSettled || !gesture.sealedTargets) return;
+
+        const sealedById = new Map(
+            gesture.sealedTargets.map((entry) => [entry.persistentId, entry.transform]),
+        );
+        for (const target of gesture.targets) {
+            const transform = sealedById.get(target.persistentId);
+            if (!transform) {
+                throw new CoreRuntimeError(
+                    `[ImageEditor] Superseding Overlay gesture lost target "${target.persistentId}".`,
+                );
+            }
+            target.object.set(transform);
+            target.object.setCoords();
+        }
+        const descriptor = this.createMutationDescriptor(
+            gesture.id,
+            'overlay:gesture',
+            gesture.action,
+            gesture.targets,
+            gesture.context.metadata,
+        );
+        await this.runInteractionPolicies(gesture.targets, descriptor, gesture.context, 'preview');
+        this.host.requestRender();
+        gesture.boundary.after = this.mementos.captureMemento();
+    }
+
+    private async rollbackGesture(
+        gesture: ActiveOverlayGesture,
+        context: DocumentMutationContext,
+    ): Promise<void> {
+        await gesture.previewWork;
+        if (this.disposed) return;
+        const canvas = this.host.getCanvas();
+        if (!canvas) return;
+        for (let index = gesture.rollbackTargets.length - 1; index >= 0; index -= 1) {
+            const entry = gesture.rollbackTargets[index]!;
+            if (!canvas.getObjects().includes(entry.object)) canvas.add(entry.object);
+            entry.object.set(entry.transform);
+            entry.object.setCoords();
+        }
+        this.rebuildIndex();
+        const selectionIds = gesture.selectionIds.filter((persistentId) =>
+            this.byId.has(persistentId),
+        );
+        this.applySelection(selectionIds);
+        const descriptor = this.createMutationDescriptor(
+            gesture.id,
+            'overlay:gesture',
+            gesture.action,
+            gesture.targets,
+            context.metadata,
+        );
+        await this.runInteractionPolicies(gesture.targets, descriptor, context, 'preview');
     }
 
     private clearGesture(gesture: ActiveOverlayGesture): void {

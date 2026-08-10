@@ -3,7 +3,7 @@ const require_core = require('./core-DCTijpP6.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-jv9sBUzH.cjs');
+const require_overlay = require('./overlay-D3L7j_rR.cjs');
 const require_internal_layer_placement = require('./internal-layer-placement-CP6C0Dc2.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-Co4kk4f1.cjs');
@@ -1401,4 +1401,4 @@ Object.defineProperty(exports, 'maskPluginRef', {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-BTfulCxv.cjs.map
+//# sourceMappingURL=mask-D4vTqMF-.cjs.map

@@ -405,7 +405,7 @@ test('slow committed observers do not retain the input gesture slot', async () =
     await dispose(editor);
 });
 
-test('repeated gesture targets are idempotent while changed targets abort', async () => {
+test('repeated gesture targets are idempotent while a changed target replaces tracking', async () => {
     const { committed, editor, history, overlay } = await createEditor();
     const first = addRect(editor, 'rect:gesture:first');
     const second = addRect(editor, 'rect:gesture:second');
@@ -413,11 +413,61 @@ test('repeated gesture targets are idempotent while changed targets abort', asyn
     beginGesture(editor, first, 'drag');
     const transaction = overlay.waitForIdle();
     beginGesture(editor, first, 'drag');
+    first.set({ left: 78, top: 64 });
+    previewGesture(editor, first, 'object:moving');
     beginGesture(editor, second, 'drag');
 
     await assert.rejects(transaction, /superseded by another target/u);
-    assert.equal(history.getState().size, 0);
-    assert.equal(committed.length, 0);
+    assert.equal(overlay.getByPersistentId('rect:gesture:first'), first);
+    assert.equal(first.left, 20);
+    assert.equal(first.top, 18);
+    assert.equal(overlay.getByPersistentId('rect:gesture:second'), second);
+    second.set({ left: 130, top: 111 });
+    previewGesture(editor, second, 'object:moving');
+    endGesture(editor, second);
+    await overlay.waitForIdle();
+
+    assert.equal(history.getState().size, 1);
+    assert.equal(committed.length, 1);
+    assert.deepEqual(committed[0].result.objectIds, ['rect:gesture:second']);
+    assert.equal(overlay.getByPersistentId('rect:gesture:second').left, 130);
+    assert.equal(overlay.getByPersistentId('rect:gesture:second').top, 111);
+
+    await history.undo();
+    assert.equal(overlay.getByPersistentId('rect:gesture:second').left, 20);
+    assert.equal(overlay.getByPersistentId('rect:gesture:second').top, 18);
+    await dispose(editor);
+});
+
+test('a superseding gesture can finish while predecessor rollback settles', async () => {
+    const { committed, editor, history, overlay } = await createEditor();
+    const first = addRect(editor, 'rect:synchronous-supersession:first');
+    const second = addRect(editor, 'rect:synchronous-supersession:second');
+
+    beginGesture(editor, first, 'drag');
+    const firstTransaction = overlay.waitForIdle();
+    first.set({ left: 82, top: 67 });
+    previewGesture(editor, first, 'object:moving');
+    beginGesture(editor, second, 'drag');
+    second.set({ left: 142, top: 116 });
+    previewGesture(editor, second, 'object:moving');
+    endGesture(editor, second);
+    const secondTransaction = overlay.waitForIdle();
+
+    await assert.rejects(firstTransaction, /superseded by another target/u);
+    await secondTransaction;
+
+    assert.equal(overlay.getByPersistentId('rect:synchronous-supersession:first').left, 20);
+    assert.equal(overlay.getByPersistentId('rect:synchronous-supersession:first').top, 18);
+    assert.equal(overlay.getByPersistentId('rect:synchronous-supersession:second').left, 142);
+    assert.equal(overlay.getByPersistentId('rect:synchronous-supersession:second').top, 116);
+    assert.equal(history.getState().size, 1);
+    assert.equal(committed.length, 1);
+    assert.deepEqual(committed[0].result.objectIds, ['rect:synchronous-supersession:second']);
+
+    await history.undo();
+    assert.equal(overlay.getByPersistentId('rect:synchronous-supersession:second').left, 20);
+    assert.equal(overlay.getByPersistentId('rect:synchronous-supersession:second').top, 18);
     await dispose(editor);
 });
 
