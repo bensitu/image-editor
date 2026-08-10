@@ -285,8 +285,8 @@ directly.
   Fabric objects, such as `getMasks()`, `getAnnotations()`, selection callbacks,
   and lifecycle callbacks, expose live editor-owned objects. Treat those objects
   as read-only from integration code.
-- `loadImage()`, crop, merge, and overlay import are transactional: failures
-  restore the previous canvas state where applicable.
+- `loadImage()`, `loadFromState()`, crop, merge, and overlay import are
+  transactional: failures restore the previous canvas state where applicable.
 - Lifecycle callback exceptions are caught and logged so host callback failures
   do not replace the editor operation.
 

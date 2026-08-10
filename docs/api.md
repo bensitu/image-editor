@@ -323,7 +323,9 @@ State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
 deserialization, including `maxInputBytes` and `maxInputPixels` for embedded
 image resources and rejection of unsafe structural keys. It remains intended
 for compatible editor snapshots; parsing arbitrary external JSON successfully
-does not make it a valid editor state.
+does not make it a valid editor state. If a public restore fails after mutation
+begins, the editor rolls back to the complete pre-call state and rejects with
+the original restoration error.
 
 ## Overlay Persistence
 

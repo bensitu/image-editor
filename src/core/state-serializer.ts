@@ -704,6 +704,8 @@ export interface LoadFromStateInput {
     maxInputBytes?: number;
     /** Upper bound for each parseable source image in a public snapshot. */
     maxInputPixels?: number;
+    /** Called after validation and immediately before live canvas mutation begins. */
+    beforeMutation?: () => void;
 }
 
 /**
@@ -830,39 +832,48 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
         });
     }
 
-    // 2. restore canvas pixel dimensions before
-    //    Fabric touches the canvas. Guard against malformed payloads
-    //    (missing or non-positive width/height) by skipping the resize.
-    if (
+    // 2. validate canvas pixel dimensions before any live mutation. Guard
+    //    against malformed payloads by skipping the resize.
+    const restorableCanvasSize =
         typeof json.width === 'number' &&
         json.width > 0 &&
         typeof json.height === 'number' &&
         json.height > 0
-    ) {
+            ? { width: json.width, height: json.height }
+            : null;
+    if (restorableCanvasSize) {
         assertRestoredCanvasSizeAllowed(
-            json.width,
-            json.height,
+            restorableCanvasSize.width,
+            restorableCanvasSize.height,
             input.maxCanvasPixels ?? DEFAULT_MAX_RESTORE_CANVAS_PIXELS,
             isPublicRestore
                 ? (input.maxRestoreCanvasDimension ?? DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
                 : null,
         );
-        setCanvasSize(json.width, json.height);
     }
 
-    // 3. Fabric v7 `loadFromJSON` returns a Promise.
-    const loadFromJsonPromise = (
-        canvas as unknown as {
-            loadFromJSON(json: CanvasJson): Promise<FabricNS.Canvas>;
-        }
-    ).loadFromJSON(json);
+    input.beforeMutation?.();
+    if (restorableCanvasSize) {
+        setCanvasSize(restorableCanvasSize.width, restorableCanvasSize.height);
+    }
+
+    // 3. Fabric v7 `loadFromJSON` returns a Promise. Fabric temporarily
+    // disables render-on-add/remove while loading, but does not restore the
+    // flag when deserialization rejects.
+    const previousRenderOnAddRemove = canvas.renderOnAddRemove;
     try {
+        const loadFromJsonPromise = (
+            canvas as unknown as {
+                loadFromJSON(json: CanvasJson): Promise<FabricNS.Canvas>;
+            }
+        ).loadFromJSON(json);
         await withTimeout(
             loadFromJsonPromise,
             DEFAULT_STATE_RESTORE_TIMEOUT_MS,
             'canvas.loadFromJSON',
         );
     } catch (error) {
+        canvas.renderOnAddRemove = previousRenderOnAddRemove;
         if (error instanceof ImageLoadTimeoutError) {
             throw new StateRestoreError(
                 'loadFromState: canvas.loadFromJSON timed out while restoring editor state.',
