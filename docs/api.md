@@ -46,6 +46,12 @@ new ImageEditor(options?: ImageEditorOptions) // UMD: reads globalThis.fabric
 | `dispose()`         | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent.                           |
 | `disposeAsync()`    | Same teardown as `dispose()`, resolving after Fabric canvas disposal settles. Idempotent.                      |
 
+`init()` binds the DOM and initializes the Fabric canvas synchronously. When
+`initialImageBase64` is configured, `init()` starts its image load
+asynchronously and returns before that load necessarily completes. Use
+`onImageLoaded` for image-ready work; `onBusyChange` and `isProcessing()` expose
+the in-progress lifecycle state.
+
 `dispose()` is synchronous and starts Fabric canvas teardown. If an integration
 must immediately create another editor on the same `<canvas>` element, wait for
 the next microtask or animation frame before reusing that element, or call

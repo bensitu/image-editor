@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Publish separate readable and minified UMD bundles, with CDN package metadata targeting the minified build.
 - Embed source content in published JavaScript source maps for package debugging.
 - Clarify that `saveState()` records undo/redo history and does not export serialized state.
+- Clarify that `initialImageBase64` begins asynchronous loading during synchronous `init()`.
 
 ### Fixed
 

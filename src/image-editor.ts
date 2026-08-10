@@ -578,7 +578,7 @@ export class ImageEditor {
     // PUBLIC — init
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** Initializes DOM bindings, canvas state, and the optional initial image. */
+    /** Initializes DOM and canvas state synchronously, then starts any initial image load. */
     init(elementMap: ElementMap = {}): void {
         if (!this.runtime.isFabricLoaded) {
             const globalFabric = (globalThis as unknown as { fabric?: unknown }).fabric;

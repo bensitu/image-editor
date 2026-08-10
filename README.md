@@ -292,6 +292,8 @@ directly.
 - `saveState()` records the current editor state in undo/redo history and
   returns `void`; it does not export a snapshot string. Use the overlay-state
   APIs for independent long-term mask and annotation persistence.
+- `init()` is synchronous. When `initialImageBase64` is configured, it starts
+  an asynchronous load; use `onImageLoaded` before running image-ready work.
 - `dispose()` starts teardown synchronously; `disposeAsync()` waits for that
   same teardown even when called after `dispose()`.
 - Lifecycle callback exceptions are caught and logged so host callback failures
