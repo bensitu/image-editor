@@ -85,15 +85,26 @@ export function canvasInteractionsPlugin(
                     ...context.capabilities.require(BASE_IMAGE_READ_CAPABILITY),
                     ...context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY),
                 }),
+                context.tools,
+                options,
             );
             context.disposables.add(controller);
+            context.disposables.add(
+                context.events.on('state:loaded', () =>
+                    controller?.invalidateLifecycle('state-loaded'),
+                ),
+            );
             return controller;
         },
         onInit() {
             controller?.refresh();
         },
         onImageLoaded() {
+            controller?.invalidateLifecycle('image-replaced');
             controller?.refresh();
+        },
+        onImageCleared() {
+            controller?.invalidateLifecycle('image-cleared');
         },
         onDispose() {
             controller?.dispose();

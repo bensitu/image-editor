@@ -9,26 +9,39 @@ import type {
     CanvasReadPort,
     CoreDiagnosticsPort,
     Disposable,
+    PluginToolAccess,
 } from '../../sdk/index.js';
 import type {
     CanvasInteractionsPluginApi,
+    CanvasInteractionsPluginOptions,
     CanvasInteractionsStatus,
     CanvasInteractionsStatusListener,
     InteractionCancelReason,
 } from './canvas-interactions-types.js';
 import { FabricPointerSource } from './fabric-pointer-source.js';
-import type { PointerSample, PointerSourceSink } from './interaction-types.js';
+import type { CanvasInteractionBinding } from './interaction-binding.js';
+import { InteractionRuntime } from './interaction-runtime.js';
 import { PointerCoordinateMapper } from './pointer-coordinate-mapper.js';
 
 interface CanvasInteractionsHost extends CanvasReadPort, BaseImageReadPort, CoreDiagnosticsPort {}
 
 export class CanvasInteractionsController implements CanvasInteractionsPluginApi {
     private readonly listeners = new Set<CanvasInteractionsStatusListener>();
+    private readonly runtime: InteractionRuntime;
     private canvas: ReturnType<CanvasReadPort['getCanvas']> = null;
     private pointerSource: FabricPointerSource | null = null;
     private disposed = false;
 
-    constructor(private readonly host: CanvasInteractionsHost) {}
+    constructor(
+        private readonly host: CanvasInteractionsHost,
+        tools: PluginToolAccess,
+        options: CanvasInteractionsPluginOptions,
+        bindings: readonly CanvasInteractionBinding[] = [],
+    ) {
+        this.runtime = new InteractionRuntime(bindings, tools, host, options, () =>
+            this.publishStatus(),
+        );
+    }
 
     refresh(): void {
         this.assertActive('refresh Canvas interactions');
@@ -37,23 +50,18 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
         this.releasePointerSource();
         this.canvas = canvas;
         if (canvas) {
-            const sink: PointerSourceSink = {
-                down: (sample) => this.handlePointerDown(sample),
-                move: (sample) => this.handlePointerMove(sample),
-                up: (sample) => this.handlePointerUp(sample),
-                cancel: () => this.handlePointerCancel(),
-            };
             this.pointerSource = new FabricPointerSource(
                 canvas,
                 new PointerCoordinateMapper(this.host),
-                sink,
+                this.runtime,
             );
         }
         this.publishStatus();
     }
 
-    async cancel(_reason: InteractionCancelReason = 'requested'): Promise<void> {
+    async cancel(reason: InteractionCancelReason = 'requested'): Promise<void> {
         this.assertActive('cancel Canvas interactions');
+        await this.runtime.cancelGesture(reason);
     }
 
     getStatus(): Readonly<CanvasInteractionsStatus> {
@@ -81,6 +89,7 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
 
     dispose(): void {
         if (this.disposed) return;
+        this.runtime.dispose();
         this.releasePointerSource();
         this.disposed = true;
         this.publishStatus();
@@ -91,8 +100,7 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
         return Object.freeze({
             isBound: this.pointerSource !== null,
             isDisposed: this.disposed,
-            activeBindingId: null,
-            gestureActive: false,
+            ...this.runtime.status(),
         });
     }
 
@@ -102,13 +110,9 @@ export class CanvasInteractionsController implements CanvasInteractionsPluginApi
         this.canvas = null;
     }
 
-    private handlePointerDown(_sample: PointerSample): void {}
-
-    private handlePointerMove(_sample: PointerSample): void {}
-
-    private handlePointerUp(_sample: PointerSample): void {}
-
-    private handlePointerCancel(): void {}
+    invalidateLifecycle(reason: InteractionCancelReason): void {
+        this.runtime.invalidateLifecycle(reason);
+    }
 
     private publishStatus(): void {
         const status = this.status();

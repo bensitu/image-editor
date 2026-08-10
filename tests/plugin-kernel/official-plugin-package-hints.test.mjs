@@ -12,6 +12,7 @@ import { PluginManager } from '../../src/plugin-kernel/plugin-manager.js';
 import { drawAnnotationPluginRef } from '../../src/plugins/annotation-draw/index.js';
 import { shapeAnnotationPluginRef } from '../../src/plugins/annotation-shape/index.js';
 import { textAnnotationPluginRef } from '../../src/plugins/annotation-text/index.js';
+import { canvasInteractionsPluginRef } from '../../src/plugins/canvas-interactions/index.js';
 import { cropPluginRef } from '../../src/plugins/crop/index.js';
 import { domControlsPluginRef } from '../../src/plugins/dom-controls/index.js';
 import { filtersPluginRef } from '../../src/plugins/filters/index.js';
@@ -36,6 +37,7 @@ const officialEntries = [
     [drawAnnotationPluginRef, './plugins/annotation-draw'],
     [overlayStatePluginRef, './plugins/overlay-state'],
     [domControlsPluginRef, './plugins/dom-controls'],
+    [canvasInteractionsPluginRef, './plugins/canvas-interactions'],
 ];
 
 function createConsumer(dependencyRef) {

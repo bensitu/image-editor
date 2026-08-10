@@ -49,6 +49,7 @@ export type {
     OptionalCapabilityStatus,
     PluginPermission,
     PluginSetupContext,
+    PluginToolAccess,
     PluginToolStatus,
     PluginToolStatusListener,
     PluginToolStatusSubscriptionOptions,
