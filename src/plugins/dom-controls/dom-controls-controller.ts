@@ -663,7 +663,10 @@ export class DomControlsController implements Disposable {
             controls.commitButton,
             'shape.commitButton',
             () => api.commit(),
-            () => api.getSession()?.geometry !== null && api.getSession() !== null,
+            () => {
+                const session = api.getSession();
+                return session !== null && session.geometry !== null;
+            },
         );
         this.button(
             ownerDocument,

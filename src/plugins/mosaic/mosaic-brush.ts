@@ -106,6 +106,7 @@ export function interpolateMosaicPoints(
     const deltaX = end.xPx - start.xPx;
     const deltaY = end.yPx - start.yPx;
     const distance = Math.hypot(deltaX, deltaY);
+    if (distance === 0) return Object.freeze([]);
     const spacing = Math.max(1, radiusPx / 2);
     const steps = Math.max(1, Math.ceil(distance / spacing));
     return Object.freeze(

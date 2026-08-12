@@ -76,6 +76,7 @@ test('Mosaic interpolation bounds gaps and pixelation changes only a circular re
     const points = interpolateMosaicPoints({ xPx: 2, yPx: 2 }, { xPx: 18, yPx: 2 }, 4);
     assert.ok(points.length > 1);
     assert.deepEqual(points.at(-1), { xPx: 18, yPx: 2 });
+    assert.deepEqual(interpolateMosaicPoints({ xPx: 5, yPx: 7 }, { xPx: 5, yPx: 7 }, 4), []);
     const imageData = makeImageData(12, 8);
     const before = new Uint8ClampedArray(imageData.data);
     const dirty = applyCircularMosaic(imageData, {

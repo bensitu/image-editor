@@ -353,10 +353,10 @@ function validateMetadata(
     path: string,
     limits: OverlayStateLimits,
     issues: OverlayStateValidationIssue[],
-): value is Readonly<Record<string, unknown>> {
+): void {
     if (!isPlainRecord(value)) {
         addIssue(issues, 'metadata.invalid', path, 'Metadata must be an object.');
-        return false;
+        return;
     }
     let keys = 0;
     const visit = (entry: unknown, entryPath: string, depth: number): void => {
@@ -391,7 +391,6 @@ function validateMetadata(
         }
     };
     visit(value, path, 0);
-    return true;
 }
 
 function jsonBytes(value: unknown): number {

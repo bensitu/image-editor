@@ -192,3 +192,27 @@ test('Requested cancellation calls the owner while document invalidation remains
     assert.equal(runtime.status().gestureActive, false);
     runtime.dispose();
 });
+
+test('Pointer cancellation reports a binding cleanup failure once', async () => {
+    const tools = new TestToolAccess();
+    tools.setActive('annotation:draw');
+    const errors: unknown[] = [];
+    const failure = new Error('cancel failed');
+    const binding: CanvasInteractionBinding<object> = {
+        id: 'draw',
+        toolId: 'annotation:draw',
+        claim: () => ({ gesture: {} }),
+        move: () => undefined,
+        end: () => undefined,
+        cancel: () => Promise.reject(failure),
+    };
+    const runtime = createRuntime(binding, tools, errors);
+
+    runtime.down(sample(1));
+    runtime.cancel();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.deepEqual(errors, [failure]);
+    runtime.dispose();
+});

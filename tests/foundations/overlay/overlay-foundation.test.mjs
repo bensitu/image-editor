@@ -59,7 +59,8 @@ function registerRectKind(overlay, options = {}) {
                     Number.isFinite(value.top) &&
                     Number.isFinite(value.width) &&
                     Number.isFinite(value.height),
-                deserialize: (value, context) => new context.fabric.Rect(value),
+                deserialize:
+                    options.deserialize ?? ((value, context) => new context.fabric.Rect(value)),
             },
         },
     });
@@ -347,6 +348,38 @@ test('snapshot round-trip restores serialized overlays and rejects duplicate ids
     assert.ok(afterRejectedLoad);
     assert.equal(afterRejectedLoad.left, restored.left);
     assert.equal(afterRejectedLoad.angle, restored.angle);
+    await dispose(editor);
+});
+
+test('snapshot restore prepares every Overlay before replacing live objects', async () => {
+    const { editor, ids, overlay } = createEditor();
+    let restoreCount = 0;
+    let firstTargetVisibleAtFailure = false;
+    let rejectSecondRestore = false;
+    registerRectKind(overlay, {
+        deserialize: (value, context) => {
+            restoreCount += 1;
+            if (rejectSecondRestore && restoreCount === 2) {
+                firstTargetVisibleAtFailure = overlay.getByPersistentId('rect:target-one') !== null;
+                throw new Error('synthetic Overlay restore failure');
+            }
+            return new context.fabric.Rect(value);
+        },
+    });
+    await initializeAndLoad(editor, ids);
+    const first = addRect(editor, 'rect:target-one');
+    const second = addRect(editor, 'rect:target-two');
+    const target = editor.saveState();
+    editor.getCanvas().remove(first, second);
+    const current = addRect(editor, 'rect:current');
+    rejectSecondRestore = true;
+
+    await assert.rejects(editor.loadFromState(target), /synthetic Overlay restore failure/);
+
+    assert.equal(firstTargetVisibleAtFailure, false);
+    const restoredCurrent = overlay.getByPersistentId('rect:current');
+    assert.ok(restoredCurrent);
+    assert.equal(restoredCurrent.left, current.left);
     await dispose(editor);
 });
 

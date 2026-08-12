@@ -45,6 +45,7 @@ type ShapeHost = CoreDiagnosticsPort & FabricRuntimePort & BaseImageInfoPort;
 type ShapeObject = FabricNS.FabricObject & {
     editorShapeKind?: ShapeAnnotationKind;
     editorShapeGeometry?: ShapeGeometryInput;
+    editorArrowHeadLength?: number;
 };
 
 interface ShapeFeatureUpdate {
@@ -59,6 +60,7 @@ interface SerializedShape {
     readonly version: 1;
     readonly shapeKind: ShapeAnnotationKind;
     readonly geometry: ShapeGeometryInput;
+    readonly arrowHeadLength?: number;
     readonly object: Readonly<Record<string, unknown>>;
 }
 
@@ -330,6 +332,9 @@ function isSerializedShape(value: unknown): value is SerializedShape {
             return false;
         }
         const geometry = normalizeShapeGeometry(value.geometry);
+        if (value.arrowHeadLength !== undefined) {
+            finiteRange(value.arrowHeadLength, 'Arrow head length', 1, 1_000);
+        }
         const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
         const type =
             typeof serializedObject.type === 'string' ? serializedObject.type.toLowerCase() : '';
@@ -382,6 +387,8 @@ export class ShapeAnnotationController {
                         version: 1,
                         shapeKind: shape.editorShapeKind,
                         geometry: shape.editorShapeGeometry,
+                        arrowHeadLength:
+                            shape.editorArrowHeadLength ?? this.configuration.arrowHeadLength,
                         object: object.toObject(),
                     });
                 },
@@ -399,6 +406,8 @@ export class ShapeAnnotationController {
                     }
                     object.editorShapeKind = value.shapeKind;
                     object.editorShapeGeometry = normalizeShapeGeometry(value.geometry);
+                    object.editorArrowHeadLength =
+                        value.arrowHeadLength ?? this.configuration.arrowHeadLength;
                     return object;
                 },
             },
@@ -446,7 +455,7 @@ export class ShapeAnnotationController {
                             opacity: Number.isFinite(object.opacity) ? object.opacity : 1,
                             strokeDashArray,
                             arrowHeadLength: context.toImageNormalizedScalar(
-                                this.configuration.arrowHeadLength,
+                                shape.editorArrowHeadLength ?? this.configuration.arrowHeadLength,
                             ),
                         } satisfies ShapeStateData),
                     });
@@ -735,6 +744,7 @@ export class ShapeAnnotationController {
         }
         object.editorShapeKind = geometry.kind;
         object.editorShapeGeometry = geometry;
+        object.editorArrowHeadLength = resolved.arrowHeadLength;
         return object;
     }
 

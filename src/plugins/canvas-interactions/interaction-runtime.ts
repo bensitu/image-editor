@@ -129,9 +129,7 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
 
     cancel(): void {
         if (this.disposed) return;
-        observePromise(this.cancelGesture('pointer-cancel'), (error) => {
-            this.reportError(error, null, 'cancel');
-        });
+        observePromise(this.cancelGesture('pointer-cancel'), () => undefined);
     }
 
     async cancelGesture(reason: InteractionCancelReason = 'requested'): Promise<void> {

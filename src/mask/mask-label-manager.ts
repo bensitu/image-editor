@@ -190,8 +190,8 @@ export function syncMaskLabel(context: MaskLabelManagerContext, mask: MaskObject
     const offset = Math.max(0, options.maskLabelOffset ?? 3);
 
     mask.labelObject.set({
-        left: Math.round(tl.x + (vx / dist) * offset),
-        top: Math.round(tl.y + (vy / dist) * offset),
+        left: tl.x + (vx / dist) * offset,
+        top: tl.y + (vy / dist) * offset,
         angle: mask.angle ?? 0,
         originX: 'left',
         originY: 'top',

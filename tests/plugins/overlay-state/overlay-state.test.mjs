@@ -62,7 +62,7 @@ async function createDraw(draw) {
     return id;
 }
 
-function registerCustomKind(overlay) {
+function registerCustomKind(overlay, options = {}) {
     const kind = 'example:badge';
     overlay.registerKind({
         id: kind,
@@ -116,18 +116,20 @@ function registerCustomKind(overlay) {
                 Number.isFinite(value.data?.width) &&
                 Number.isFinite(value.data?.height) &&
                 typeof value.data?.fill === 'string',
-            deserialize: (value, context) => {
-                const center = context.toCanvasPoint(value.geometry.point);
-                return new fabric.Rect({
-                    left: center.x,
-                    top: center.y,
-                    originX: 'center',
-                    originY: 'center',
-                    width: context.toCanvasScalar(value.data.width),
-                    height: context.toCanvasScalar(value.data.height),
-                    fill: value.data.fill,
-                });
-            },
+            deserialize:
+                options.deserialize ??
+                ((value, context) => {
+                    const center = context.toCanvasPoint(value.geometry.point);
+                    return new fabric.Rect({
+                        left: center.x,
+                        top: center.y,
+                        originX: 'center',
+                        originY: 'center',
+                        width: context.toCanvasScalar(value.data.width),
+                        height: context.toCanvasScalar(value.data.height),
+                        fill: value.data.fill,
+                    });
+                }),
         },
     });
     return kind;
@@ -183,6 +185,7 @@ test('Overlay State round-trips mixed official and third-party kinds without ren
     const textId = await instance.text.create({ text: 'Persisted', left: 24, top: 18 });
     const shapeId = await instance.shape.create({
         geometry: { kind: 'arrow', start: { x: 34, y: 42 }, end: { x: 112, y: 50 } },
+        arrowHeadLength: 14,
     });
     const drawId = await createDraw(instance.draw);
     const custom = new fabric.Rect({ left: 76, top: 76, width: 18, height: 12, fill: '#3355ff' });
@@ -193,6 +196,7 @@ test('Overlay State round-trips mixed official and third-party kinds without ren
     await instance.overlay.setLocked(shapeId, true);
 
     const first = instance.state.exportState({ metadata: { document: { owner: 'test' } } });
+    instance.shape.configure({ arrowHeadLength: 40 });
     const second = instance.state.exportState({ metadata: { document: { owner: 'test' } } });
     assert.equal(JSON.stringify(first), JSON.stringify(second));
     assert.deepEqual(
@@ -320,6 +324,52 @@ test('Overlay State missing-kind skip never accepts malformed installed codec da
     malformed.overlays[0].data.maskId = -1;
     assert.equal(instance.state.validate(malformed, { missingKindPolicy: 'skip' }).valid, false);
     await dispose(instance.editor);
+});
+
+test('Overlay State import disposes objects prepared before a codec failure', async () => {
+    const { editor, overlay, state } = await createEditor();
+    let deserializeCount = 0;
+    let disposalCount = 0;
+    const kind = registerCustomKind(overlay, {
+        deserialize: (value, context) => {
+            deserializeCount += 1;
+            if (deserializeCount === 2) throw new Error('synthetic State Codec failure');
+            const center = context.toCanvasPoint(value.geometry.point);
+            const object = new fabric.Rect({
+                left: center.x,
+                top: center.y,
+                originX: 'center',
+                originY: 'center',
+                width: context.toCanvasScalar(value.data.width),
+                height: context.toCanvasScalar(value.data.height),
+                fill: value.data.fill,
+            });
+            const disposeObject = object.dispose.bind(object);
+            object.dispose = () => {
+                disposalCount += 1;
+                disposeObject();
+            };
+            return object;
+        },
+    });
+    await editor.loadImage(makeImageDataUrl({ width: 120, height: 80 }));
+    const originals = [
+        new fabric.Rect({ left: 20, top: 20, width: 12, height: 10, fill: '#3355ff' }),
+        new fabric.Rect({ left: 60, top: 40, width: 16, height: 14, fill: '#5533ff' }),
+    ];
+    originals.forEach((object, index) => {
+        object.editorOverlayKind = kind;
+        object.editorOverlayId = `badge:${index + 1}`;
+    });
+    await overlay.add(originals);
+    const document = state.exportState();
+
+    await assert.rejects(state.importState(document), /synthetic State Codec failure/);
+
+    assert.equal(disposalCount, 1);
+    assert.equal(overlay.getByPersistentId('badge:1'), originals[0]);
+    assert.equal(overlay.getByPersistentId('badge:2'), originals[1]);
+    await dispose(editor);
 });
 
 test('Overlay State import rolls back an applied replacement when rendering fails', async () => {
