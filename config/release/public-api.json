@@ -537,6 +537,12 @@
                     ]
                 },
                 {
+                    "name": "PluginImageLifecycleContext",
+                    "kinds": [
+                        "InterfaceDeclaration"
+                    ]
+                },
+                {
                     "name": "PluginLifecycleContext",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -1302,6 +1308,12 @@
                     "name": "OverlayListOrder",
                     "kinds": [
                         "TypeAliasDeclaration"
+                    ]
+                },
+                {
+                    "name": "PluginImageLifecycleContext",
+                    "kinds": [
+                        "InterfaceDeclaration"
                     ]
                 },
                 {
@@ -4564,7 +4576,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "d5575988c4ea0adc7e452eb86479e80241e4da563047f9000b2f8421d2dd27d9",
+        "graphSha256": "46560bf91f66d671c53855d5d4b785f9aad2a2641cfb435e334c94360e37e9a6",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4588,7 +4600,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "e09231dd4ca6fb0f6bb286bfea3dc94fd32e59f327a283f6c3934dafa1fb9d14"
+                "sha256": "2f8c812eb0ab7df5846e1794ec9cb62ab8d20bf912a2280449ea94c5cbacc50f"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
@@ -4604,7 +4616,7 @@
             },
             {
                 "file": "dist/types/core-runtime/public-types.d.ts",
-                "sha256": "41384569f6b5cc0198db85d1509f23f7fd77a22cb4ab8dde832d8eb6646a4c51"
+                "sha256": "aab566899f4d3a31f4da1afe9e826c32528f18c47cc7f2ce9ca419f8c0e569b1"
             },
             {
                 "file": "dist/types/core-runtime/state/clone-state-value.d.ts",
@@ -4644,7 +4656,7 @@
             },
             {
                 "file": "dist/types/core/index.d.ts",
-                "sha256": "35d3ebfc1f8fa4348ec23d6130e384462dcc25de7e8a39a7c1f3520ec9b4b0d3"
+                "sha256": "b2c97ba463067b1a4ef32b618ea96701e8f2f13021d2187cf83598715efa9078"
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
@@ -4652,7 +4664,7 @@
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-definition.d.ts",
-                "sha256": "87ee907ff83ba559d0c8c6f91fce4d6b8765f1881b766e30ad51bc89f055bf56"
+                "sha256": "603d29b24b7595a48d6fe5b5634a4c7dea92a8dad7645fa9765500c827459a38"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-errors.d.ts",
@@ -4676,7 +4688,7 @@
             },
             {
                 "file": "dist/types/foundations/overlay/overlay-types.d.ts",
-                "sha256": "04ce27c3abf37c3dde1bed255f3ef2f31f2ed5c683a46804a0de1c85a502fe06"
+                "sha256": "b9b3e280b5af263b8d53ef8e63762e9514f62f2d94923e237893a6fd988ad051"
             },
             {
                 "file": "dist/types/index.d.ts",
@@ -4712,7 +4724,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/index.d.ts",
-                "sha256": "557d8d4dcf66618f7a8854aedd83ebbf2dd21c5ebb0ecc0e62f7ade852a25050"
+                "sha256": "05648edf5ce73d37e91888f15f711a3ff7326fd6659aa7c69bf17162ec124bfa"
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
@@ -4724,7 +4736,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manager.d.ts",
-                "sha256": "5fd0eced6dddbafee913d79652fde1f859067a3854614a5d1ada6e5ed5007718"
+                "sha256": "b15f9b009f6c1191875de512620cbdde0ddf351f91525940647b8570ac1f6fcd"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manifest.d.ts",
@@ -4744,7 +4756,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-types.d.ts",
-                "sha256": "de87ce319c98deb8ff5b70be3b1280332dfe4bab0025cb159bd8b8a98312592a"
+                "sha256": "3db16acc9674971a5c779b86d06cd611e4292c4460ce74d46852b8f5385a18ad"
             },
             {
                 "file": "dist/types/plugin-kernel/registration-scope.d.ts",
@@ -4764,7 +4776,7 @@
             },
             {
                 "file": "dist/types/plugins/annotation-draw/draw-annotation.d.ts",
-                "sha256": "99a03f39b814972d2e7e4524ce652f47030948e54f7a565c675d1467fbc5f02a"
+                "sha256": "397ed0496f62709902e80f759fc58257974b4547022f6bb26e2bbad6d0a568a2"
             },
             {
                 "file": "dist/types/plugins/annotation-draw/index.d.ts",
@@ -4776,7 +4788,7 @@
             },
             {
                 "file": "dist/types/plugins/annotation-shape/shape-annotation.d.ts",
-                "sha256": "5b0faca4ee0c1b3e35ddde7b9b2e24b8c07a1f84a6ee7baf174f2bbcd201609d"
+                "sha256": "3f12d0c890c9a2a36271b88f8084042da00c65c8a1c0d00ed694ac783a8e74ba"
             },
             {
                 "file": "dist/types/plugins/annotation-text/index.d.ts",
@@ -4784,11 +4796,11 @@
             },
             {
                 "file": "dist/types/plugins/annotation-text/text-annotation.d.ts",
-                "sha256": "ea61734799c8db6f1afa3db9066ec06d91a299a6a4561f5dd5c0881a446cf0be"
+                "sha256": "a1a8c5c7d1a061eebb1c413fc8a94c797b9007eee6d8efe8697ac8917824243d"
             },
             {
                 "file": "dist/types/plugins/canvas-interactions/canvas-interactions-types.d.ts",
-                "sha256": "c98cafc0ec2530c92d9c2ac483a83957210e0db91d597f5872c2129a8f884ef2"
+                "sha256": "ba85c9c7e31d33ac839cdc349bbbe81f87116d167c76064939eaac59f9040a46"
             },
             {
                 "file": "dist/types/plugins/canvas-interactions/index.d.ts",
@@ -4804,7 +4816,7 @@
             },
             {
                 "file": "dist/types/plugins/crop/crop-session.d.ts",
-                "sha256": "60ac02bbef87a8bffd6ff5d55885cf8600daad90906ae19d907989018c26c28f"
+                "sha256": "50cdc11709d8ec946d53e0f8f52c0a0f6aea3317c4022aef9228faab19a13b09"
             },
             {
                 "file": "dist/types/plugins/crop/index.d.ts",
@@ -4816,7 +4828,7 @@
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-types.d.ts",
-                "sha256": "e399239979b002819dcd885c8ac532bfdfea1dd412de0c943d25bd2b4ea4c062"
+                "sha256": "a5b9b35225f74c5c522d9015683a093afe80a294ea1d2b6cd9801843fd0f5c23"
             },
             {
                 "file": "dist/types/plugins/dom-controls/index.d.ts",
@@ -4832,7 +4844,7 @@
             },
             {
                 "file": "dist/types/plugins/filters/filters-controller.d.ts",
-                "sha256": "9f6e52662c6aca56392f049fbe6094db0a2481b05f45650aab3bbaba3e420911"
+                "sha256": "9169c98736210bae93e69368fd4fc6e3136919e94827de9c0d2e375c137e1468"
             },
             {
                 "file": "dist/types/plugins/filters/filters-errors.d.ts",
@@ -4844,7 +4856,7 @@
             },
             {
                 "file": "dist/types/plugins/history/history-controller.d.ts",
-                "sha256": "b65f36f444052828b672f62ae7786c74647fc1d1e8d9e3471fd95eef9c6c444b"
+                "sha256": "15b3844496cc1c73e931daa2b2c4e91e2b15c1b07272efda318b07b701cf1651"
             },
             {
                 "file": "dist/types/plugins/history/index.d.ts",
@@ -4856,7 +4868,7 @@
             },
             {
                 "file": "dist/types/plugins/mask/mask-controller.d.ts",
-                "sha256": "687f48d55ec91bf97e55dffdad3506c244cedc417898afaa17fefc7ac894601c"
+                "sha256": "d9e1cd3ed350d0c298e01e5b1622309a4bd94e8f56c420ea7d4e1c41cca16d96"
             },
             {
                 "file": "dist/types/plugins/mosaic/index.d.ts",
@@ -4872,7 +4884,7 @@
             },
             {
                 "file": "dist/types/plugins/mosaic/mosaic-session.d.ts",
-                "sha256": "ce244efee4bbecc3ee17d30b6797d4061fbfe84b4f6c32fe108a61438161dde0"
+                "sha256": "985de7445709b5163f54f0bc887ae7b1be1cd40f27edd6a45d2ae958dd34e9db"
             },
             {
                 "file": "dist/types/plugins/overlay-state/index.d.ts",
@@ -4884,7 +4896,7 @@
             },
             {
                 "file": "dist/types/plugins/overlay-state/overlay-state-types.d.ts",
-                "sha256": "a95589ffca46b573b5c4d901a8ee259756cf2036c1cd7764654db96f681b91d9"
+                "sha256": "96d576946de8aba63edf6c6a9bedfd3ee70b6c76abd65b740ebcc817d8de5f99"
             },
             {
                 "file": "dist/types/plugins/overlay-state/overlay-state-validation.d.ts",
