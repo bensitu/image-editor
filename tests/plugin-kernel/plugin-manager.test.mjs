@@ -98,6 +98,24 @@ test('synchronous install rejects a Promise setup and rolls registrations back',
     manager.disposeSync();
 });
 
+test('asynchronous setup timeout releases the installation lock', async () => {
+    const manager = new PluginManager({ setupTimeoutMs: 20 });
+    const plugin = pluginDefinition('example-test:stalled-setup', {
+        setup: () => new Promise(() => undefined),
+    });
+
+    await assert.rejects(
+        manager.install(plugin),
+        (error) =>
+            error instanceof PluginSetupError &&
+            error.cause instanceof Error &&
+            error.cause.name === 'TimeoutError',
+    );
+    assert.equal(manager.state, 'created');
+    assert.equal(manager.has(plugin.ref.id), false);
+    await manager.dispose();
+});
+
 test('direct duplicate installation is strict and install after initialization is rejected', async () => {
     const manager = new PluginManager();
     const plugin = pluginDefinition('example-test:duplicate');
@@ -366,6 +384,44 @@ test('onInit failure disposes all installed plugins and preserves cleanup failur
     assert.equal(manager.state, 'disposed');
     assert.deepEqual(calls, ['init:first', 'init:failing', 'dispose:failing', 'dispose:first']);
     await manager.dispose();
+});
+
+test('dispose waits for cleanup started by an initialization failure', async () => {
+    let releaseCleanup;
+    const cleanupGate = new Promise((resolve) => {
+        releaseCleanup = resolve;
+    });
+    let reportCleanupStarted;
+    const cleanupStarted = new Promise((resolve) => {
+        reportCleanupStarted = resolve;
+    });
+    const manager = new PluginManager();
+    await manager.install(
+        pluginDefinition('example-test:init-cleanup-race', {
+            onInit: () => {
+                throw new Error('initialization failed');
+            },
+            onDispose: async () => {
+                reportCleanupStarted();
+                await cleanupGate;
+            },
+        }),
+    );
+
+    const initialization = manager.initialize();
+    await cleanupStarted;
+    let disposalSettled = false;
+    const disposal = manager.dispose().then(() => {
+        disposalSettled = true;
+    });
+    await Promise.resolve();
+    assert.equal(disposalSettled, false);
+
+    releaseCleanup();
+    await assert.rejects(initialization, PluginLifecycleError);
+    await disposal;
+    assert.equal(disposalSettled, true);
+    assert.equal(manager.state, 'disposed');
 });
 
 test('dispose continues after plugin failures, aggregates them, and remains idempotent', async () => {

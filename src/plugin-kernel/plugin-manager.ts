@@ -328,13 +328,30 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             }),
         );
         this.eventBus = new CommittedEventBus<TEvents>(options);
-        for (const provider of options.hostCapabilities ?? []) {
-            this.capabilityRegistry.provideHost(
-                provider.token,
-                provider.implementation,
-                provider.providerId,
-                provider.requiredPermission,
-            );
+        try {
+            for (const provider of options.hostCapabilities ?? []) {
+                this.capabilityRegistry.provideHost(
+                    provider.token,
+                    provider.implementation,
+                    provider.providerId,
+                    provider.requiredPermission,
+                );
+            }
+        } catch (error) {
+            for (const dispose of [
+                () => this.eventBus.dispose(),
+                () => this.toolCoordinator.disposeSync(),
+                () => this.operationRegistry.dispose(),
+                () => this.capabilityRegistry.dispose(),
+                () => this.stateStore.dispose(),
+            ]) {
+                try {
+                    dispose();
+                } catch (cleanupError) {
+                    reportErrorSafely(options.errorSink, cleanupError);
+                }
+            }
+            throw error;
         }
     }
 
@@ -556,8 +573,13 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             this.hostState = 'initialized';
         } catch (error) {
             this.hostState = 'disposing';
-            const cleanupErrors = await this.cleanupAll();
-            this.hostState = 'disposed';
+            const cleanup = (async () => {
+                const cleanupErrors = await this.cleanupAll();
+                this.hostState = 'disposed';
+                return cleanupErrors;
+            })();
+            this.disposePromise = cleanup.then(() => undefined);
+            const cleanupErrors = await cleanup;
             const lifecycleError =
                 error instanceof PluginLifecycleError
                     ? error
@@ -802,7 +824,10 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             const cycle = visit(pluginId);
             if (cycle) return cycle;
         }
-        return Object.freeze([...remaining, remaining.values().next().value as string]);
+        throw new PluginKernelStateError(
+            'resolve Plugin dependency order without a detectable cycle',
+            this.hostState,
+        );
     }
 
     private performPendingInstallSync(

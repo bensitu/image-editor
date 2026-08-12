@@ -173,9 +173,7 @@ export class CapabilityRegistry implements Disposable {
             if (isSameTransaction) {
                 const noop = createNoopDisposable();
                 return {
-                    commit: () => {
-                        existing.complete = true;
-                    },
+                    commit: () => undefined,
                     dispose: () => noop.dispose(),
                 };
             }
