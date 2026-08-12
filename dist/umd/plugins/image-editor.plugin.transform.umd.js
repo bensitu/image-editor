@@ -667,7 +667,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					clearState: () => controller === null || controller === void 0 ? void 0 : controller.resetStateFromImage()
 				}));
 				const requireController = () => {
-					if (!controller) throw new Error("Transform plugin is not installed.");
+					if (!controller) throw new _bensitu_image_editor_sdk.PluginNotInstalledError(transformPluginRef.id);
 					return controller;
 				};
 				return Object.freeze({

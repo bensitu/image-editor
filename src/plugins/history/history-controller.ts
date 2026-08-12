@@ -10,6 +10,7 @@ import { estimateRetainedBytes } from './retained-size-estimator.js';
 
 const DEFAULT_MAX_HISTORY_BYTES = 128 * 1024 * 1024;
 
+/** Immutable History availability, position, and retained-memory status. */
 export interface HistoryStatus {
     readonly isEnabled: boolean;
     readonly canUndo: boolean;
@@ -21,32 +22,50 @@ export interface HistoryStatus {
     readonly maxBytes: number;
 }
 
+/** Alias for the complete observable History status. */
 export type HistoryAvailability = HistoryStatus;
 
+/** Selects the document state used when History is enabled. */
 export interface HistoryEnableOptions {
     readonly baseline: 'current';
 }
 
+/** Controls whether disabling History also removes retained entries. */
 export interface HistoryDisableOptions {
     readonly clear?: boolean;
 }
 
+/** Public History capture, navigation, enablement, and observation operations. */
 export interface HistoryPort {
+    /** Reports whether new document mutations enter History. */
     readonly isEnabled: boolean;
+    /** Number of retained undo and redo entries. */
     readonly length: number;
+    /** Reports whether History can accept or navigate records. */
     isAvailable(): boolean;
+    /** Adds one committed Core mutation record. */
     push(record: CoreHistoryRecord): void;
+    /** Enables History using the current document as its baseline. */
     enable(options: HistoryEnableOptions): Promise<void>;
+    /** Disables History and optionally clears retained entries. */
     disable(options?: HistoryDisableOptions): Promise<void>;
+    /** Restores the preceding retained document state. */
     undo(): Promise<void>;
+    /** Restores the next retained document state. */
     redo(): Promise<void>;
+    /** Reports whether an undo entry is available. */
     canUndo(): boolean;
+    /** Reports whether a redo entry is available. */
     canRedo(): boolean;
+    /** Returns an immutable History status snapshot. */
     getState(): HistoryStatus;
+    /** Removes all retained entries while preserving enablement. */
     clear(): void;
+    /** Subscribes to History status changes. */
     onChange(handler: (state: HistoryStatus) => void): () => void;
 }
 
+/** Configures initial enablement, entry count, retained bytes, and notifications. */
 export interface HistoryPluginOptions {
     readonly enabled?: boolean;
     readonly maxSize?: number;

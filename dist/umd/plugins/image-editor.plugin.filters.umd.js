@@ -1231,7 +1231,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return task(operationContext.signal);
 				}) }), mutations, raster, options);
 				const requireController = () => {
-					if (!controller) throw new Error("Filters Plugin is not installed.");
+					if (!controller) throw new _bensitu_image_editor_sdk.PluginNotInstalledError(filtersPluginRef.id);
 					return controller;
 				};
 				const visibleRasterBake = Object.freeze({

@@ -1,6 +1,6 @@
 import { OVERLAY_AUTHORING_SESSION_CONFLICT_DOMAINS, PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS, } from '../../utils/internal-operation-conflict-domains.js';
 import { ANNOTATION_AUTHORING_CAPABILITY, ANNOTATION_CAPABILITY, annotationFoundationRef, } from '../../foundations/annotation/index.js';
-import { BASE_IMAGE_INFO_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, definePlugin, definePluginRef, observePromise, } from '../../sdk/index.js';
+import { BASE_IMAGE_INFO_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, PluginNotInstalledError, definePlugin, definePluginRef, observePromise, } from '../../sdk/index.js';
 import { TextAnnotationController, resolveTextConfiguration } from './text-controller.js';
 const TEXT_TOOL_ID = 'annotation:text';
 export const textAnnotationPluginRef = definePluginRef('annotation:text', '1.0.0');
@@ -90,7 +90,7 @@ export function textAnnotationPlugin(options = {}) {
             }));
             const requireController = () => {
                 if (!controller)
-                    throw new Error('Text Annotation Plugin is not installed.');
+                    throw new PluginNotInstalledError(textAnnotationPluginRef.id);
                 return controller;
             };
             const api = {

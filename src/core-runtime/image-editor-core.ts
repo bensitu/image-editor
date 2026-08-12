@@ -456,9 +456,13 @@ function dataUrlToFile(dataUrl: string, fileName: string): File {
     return new File([bytes.slice().buffer as ArrayBuffer], fileName, { type: mimeType });
 }
 
+/** Controls validation, migration, and cancellation for one state restoration. */
 export interface LoadStateOptions {
+    /** Handling policy for state slices whose owning Plugin is unavailable. */
     readonly missingPluginPolicy?: MissingPluginPolicy;
+    /** Ordered migrations available to the Snapshot service. */
     readonly migrations?: readonly SnapshotMigration[];
+    /** Cancels preparation or transactional restoration. */
     readonly signal?: AbortSignal;
 }
 
@@ -470,7 +474,16 @@ interface PublishedPluginApi {
     readonly handle: StablePluginApiHandle;
 }
 
+/**
+ * Owns the editor Canvas, Base Image, Plugin runtime, state, exports, and lifecycle.
+ *
+ * @remarks
+ * Install synchronous Plugins before calling {@link ImageEditorCore.init}. Initialization and
+ * every mutating operation are instance-scoped; callers should await
+ * {@link ImageEditorCore.disposeAsync} before releasing the host DOM.
+ */
 export class ImageEditorCore {
+    /** Immutable normalized construction options. */
     readonly options: ResolvedImageEditorCoreOptions;
     private readonly slices = new StateSliceRegistry();
     private readonly objectProperties = new ObjectPropertyRegistry();
@@ -509,6 +522,12 @@ export class ImageEditorCore {
     private lastRuntimeStatus: CoreRuntimeStatus | null = null;
     private relayoutSequence = 0;
 
+    /**
+     * Creates a configured editor without accessing the DOM.
+     *
+     * @param fabric - Supported Fabric.js module namespace.
+     * @param options - Core resource limits, layout policy, export defaults, and diagnostics.
+     */
     constructor(
         readonly fabric: FabricModule,
         options: ImageEditorCoreOptions = {},
@@ -651,6 +670,7 @@ export class ImageEditorCore {
         this.plugins = this.createPluginManager();
     }
 
+    /** Installs one synchronous Plugin before initialization and returns its stable API. */
     use<TApi>(plugin: SynchronousEditorPlugin<TApi, CoreEventMap>): TApi {
         this.lifecycle.assertAvailable('install a plugin');
         const outcome = this.plugins.installSyncForHost(plugin);
@@ -658,6 +678,11 @@ export class ImageEditorCore {
         return this.publishPluginApi(plugin.ref.id, outcome.api);
     }
 
+    /**
+     * Installs a synchronous Plugin plan or array as one dependency-ordered batch.
+     *
+     * @remarks If installation fails, registrations created by the batch are rolled back.
+     */
     install<TApis, TPlugin extends { readonly ref: PluginRef<unknown> }>(
         plan: PluginPlan<TApis, TPlugin>,
     ): TApis;
@@ -690,26 +715,35 @@ export class ImageEditorCore {
         return Object.freeze(pluginsOrPlan.map((plugin) => resolveApi(plugin)));
     }
 
+    /** Returns a stable installed Plugin API, or `null` when the Plugin is unavailable. */
     getPlugin<TApi>(ref: PluginRef<TApi>): TApi | null {
         const api = this.plugins.get(ref);
         return api === null ? null : this.publishPluginApi(ref.id, api);
     }
 
+    /**
+     * Returns a stable installed Plugin API.
+     *
+     * @throws {@link PluginNotInstalledError} When the referenced Plugin is unavailable.
+     */
     requirePlugin<TApi>(ref: PluginRef<TApi>): TApi {
         const api = this.getPlugin(ref);
         if (api === null) throw new PluginNotInstalledError(ref.id);
         return api;
     }
 
+    /** Returns an installed Plugin API by runtime identifier without compile-time API typing. */
     getPluginById(pluginId: string): unknown | null {
         const api = this.plugins.getById(pluginId);
         return api === null ? null : this.publishPluginApi(pluginId, api);
     }
 
+    /** Returns the current lifecycle state. */
     getLifecycleState(): EditorLifecycleState {
         return this.lifecycle.current;
     }
 
+    /** Returns an immutable snapshot of host-observable runtime state. */
     getRuntimeStatus(): CoreRuntimeStatus {
         const lifecycle = this.lifecycle.current;
         let busy = this.geometry.isRunning || this.documentMutations.isRunning;
@@ -733,6 +767,11 @@ export class ImageEditorCore {
         });
     }
 
+    /**
+     * Subscribes to lifecycle, image, operation, tool, layout, and geometry status changes.
+     *
+     * @returns An idempotent subscription handle.
+     */
     subscribeStatus(
         listener: CoreStatusListener,
         options: CoreStatusSubscriptionOptions = {},
@@ -754,6 +793,11 @@ export class ImageEditorCore {
         });
     }
 
+    /**
+     * Subscribes to a committed Core event.
+     *
+     * @remarks Listener failures are reported as warnings and do not roll back committed work.
+     */
     on<TKey extends keyof CoreEventMap & string>(
         eventName: TKey,
         listener: CoreEventListener<CoreEventMap[TKey]>,
@@ -765,10 +809,17 @@ export class ImageEditorCore {
         return this.plugins.onCommittedForHost(eventName, listener);
     }
 
+    /** Returns an immutable copy of diagnostics recorded by this editor instance. */
     getDiagnostics(): readonly CoreDiagnostic[] {
         return Object.freeze([...this.diagnostics]);
     }
 
+    /**
+     * Creates the Fabric Canvas and initializes installed Plugins.
+     *
+     * @remarks An `initialImageBase64` value is fully loaded before this promise resolves.
+     * @throws When DOM resolution, Canvas creation, image loading, or Plugin initialization fails.
+     */
     async init(elements: CoreElementMap): Promise<void> {
         this.lifecycle.beginInitialization();
         this.emitRuntimeStatus();
@@ -858,6 +909,11 @@ export class ImageEditorCore {
         });
     }
 
+    /**
+     * Replaces the document image from a supported Base64 Data URL.
+     *
+     * @remarks The replacement is transactional and supersedes any pending image load.
+     */
     async loadImage(source: string, options: LoadImageOptions = {}): Promise<void> {
         this.assertReady('load an image');
         await this.performImageLoad(source, options);
@@ -1062,6 +1118,7 @@ export class ImageEditorCore {
         }
     }
 
+    /** Reads a browser `File` and replaces the document image transactionally. */
     async loadImageFile(file: File, options: LoadImageOptions = {}): Promise<void> {
         if (!(file instanceof File))
             throw new TypeError('[ImageEditor] loadImageFile expects a File.');
@@ -1112,11 +1169,17 @@ export class ImageEditorCore {
         await this.loadImage(dataUrl, options);
     }
 
+    /** Serializes the current persistent document state. */
     saveState(): string {
         this.assertReady('save state');
         return this.snapshots.stringify();
     }
 
+    /**
+     * Validates, migrates, and transactionally restores serialized document state.
+     *
+     * @remarks A failed or cancelled restoration leaves the preceding document intact.
+     */
     async loadFromState(input: string | unknown, options: LoadStateOptions = {}): Promise<void> {
         this.assertReady('load state');
         try {
@@ -1150,20 +1213,24 @@ export class ImageEditorCore {
         }
     }
 
+    /** Renders the requested export area and returns an encoded Data URL. */
     exportImageBase64(options: CoreExportOptions = {}): Promise<string> {
         return this.runExport(options);
     }
 
+    /** Renders the requested export area and returns a named browser `File`. */
     async exportImageFile(options: CoreExportOptions = {}): Promise<File> {
         const resolved = resolveExportOptions(options, this.options.exportDefaults);
         const dataUrl = await this.runExport(resolved);
         return dataUrlToFile(dataUrl, exportFileName(resolved.fileName, resolved.format));
     }
 
+    /** Reports whether a committed Base Image is available. */
     isImageLoaded(): boolean {
         return this.imageLoaded && this.baseImage !== null;
     }
 
+    /** Returns current Base Image geometry and source metadata, or `null` when absent. */
     getImageInfo(): CoreImageInfo | null {
         const image = this.baseImage;
         if (!image) return null;
@@ -1179,10 +1246,16 @@ export class ImageEditorCore {
         });
     }
 
+    /**
+     * Returns the owned Fabric Canvas after initialization.
+     *
+     * @remarks Host code must not dispose the returned Canvas.
+     */
     getCanvas(): FabricNS.Canvas | null {
         return this.canvas;
     }
 
+    /** Sets the strategy used by future image layout operations. */
     setLayoutMode(mode: LayoutMode): void {
         this.assertNotDisposed('set layout mode');
         if (!isLayoutMode(mode)) {
@@ -1193,6 +1266,7 @@ export class ImageEditorCore {
         this.emitRuntimeStatus();
     }
 
+    /** Resizes the Canvas viewport without changing document geometry. */
     resizeCanvas(width: number, height: number): void {
         this.assertReady('resize the Canvas');
         if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
@@ -1202,6 +1276,7 @@ export class ImageEditorCore {
         this.canvas?.renderAll();
     }
 
+    /** Resizes the Canvas viewport to its measured container without scaling the document. */
     resizeToContainer(): void {
         this.assertReady('resize the Canvas to its container');
         this.viewportCache.clear();
@@ -1242,6 +1317,11 @@ export class ImageEditorCore {
         this.canvas?.renderAll();
     }
 
+    /**
+     * Observes the configured container and schedules responsive viewport resizing.
+     *
+     * @throws When no container or `ResizeObserver` implementation is available.
+     */
     observeContainer(options: ContainerObservationOptions = {}): CoreSubscription {
         this.assertReady('observe the Canvas container');
         const container = this.containerElement;
@@ -1299,6 +1379,7 @@ export class ImageEditorCore {
         return subscription;
     }
 
+    /** Recomputes Base Image geometry with the selected layout strategy as one mutation. */
     async relayout(options: ResponsiveLayoutOptions = {}): Promise<void> {
         this.assertReady('recompute the image layout');
         const mode = options.mode ?? this.layoutMode;
@@ -1368,6 +1449,11 @@ export class ImageEditorCore {
         this.emitRuntimeStatus();
     }
 
+    /**
+     * Rebuilds runtime services after an unrecoverable transactional failure.
+     *
+     * @throws When the editor is not in the `faulted` lifecycle state.
+     */
     emergencyReset(): Promise<void> {
         if (this.emergencyResetPromise) return this.emergencyResetPromise;
         if (this.lifecycle.current !== 'faulted') {
@@ -1391,6 +1477,11 @@ export class ImageEditorCore {
         return reset;
     }
 
+    /**
+     * Performs best-effort cleanup of a faulted editor and records cleanup failures.
+     *
+     * @throws When the editor is not in the `faulted` lifecycle state.
+     */
     async forceDispose(): Promise<void> {
         if (this.lifecycle.current === 'disposed') return;
         if (this.lifecycle.current !== 'faulted') {
@@ -1478,6 +1569,11 @@ export class ImageEditorCore {
         }
     }
 
+    /**
+     * Aborts active work, disposes Plugins and Canvas resources, and awaits cleanup completion.
+     *
+     * @remarks Repeated calls return the same in-flight disposal promise.
+     */
     disposeAsync(): Promise<void> {
         if (this.disposePromise) return this.disposePromise;
         if (this.lifecycle.current === 'disposed') return Promise.resolve();

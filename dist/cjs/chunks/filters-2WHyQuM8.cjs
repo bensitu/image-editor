@@ -1,3 +1,4 @@
+const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
@@ -1097,7 +1098,7 @@ function filtersPlugin(options = {}) {
 				return task(operationContext.signal);
 			}) }), mutations, raster, options);
 			const requireController = () => {
-				if (!controller) throw new Error("Filters Plugin is not installed.");
+				if (!controller) throw new require_plugin_identifier.PluginNotInstalledError(filtersPluginRef.id);
 				return controller;
 			};
 			const visibleRasterBake = Object.freeze({
@@ -1221,4 +1222,4 @@ Object.defineProperty(exports, 'normalizeFilterDefinitions', {
     return normalizeFilterDefinitions;
   }
 });
-//# sourceMappingURL=filters-C992jBn0.cjs.map
+//# sourceMappingURL=filters-2WHyQuM8.cjs.map

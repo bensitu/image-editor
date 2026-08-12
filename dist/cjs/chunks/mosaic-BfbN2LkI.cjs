@@ -1,3 +1,4 @@
+const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
@@ -997,7 +998,7 @@ function mosaicPlugin(options = {}) {
 				...render
 			}), geometry, raster, visibleRasterBake, context.capabilities.getOptionalStatus(require_sdk.VISIBLE_RASTER_BAKE_CAPABILITY), configuration);
 			const requireController = () => {
-				if (!controller) throw new Error("Mosaic Plugin is not installed.");
+				if (!controller) throw new require_plugin_identifier.PluginNotInstalledError(mosaicPluginRef.id);
 				return controller;
 			};
 			for (const operationId of [
@@ -1117,4 +1118,4 @@ Object.defineProperty(exports, 'mosaicPluginRef', {
     return mosaicPluginRef;
   }
 });
-//# sourceMappingURL=mosaic-uXCA19xz.cjs.map
+//# sourceMappingURL=mosaic-BfbN2LkI.cjs.map

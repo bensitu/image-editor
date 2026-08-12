@@ -1,3 +1,4 @@
+const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
@@ -633,7 +634,7 @@ function drawAnnotationPlugin(options = {}) {
 				canRunOperation: (operationId) => operationId.startsWith("annotation-draw:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export" || operationId === "history:undo" || operationId === "history:redo"
 			}));
 			const requireController = () => {
-				if (!controller) throw new Error("Draw Annotation Plugin is not installed.");
+				if (!controller) throw new require_plugin_identifier.PluginNotInstalledError(drawAnnotationPluginRef.id);
 				return controller;
 			};
 			return Object.freeze({
@@ -685,4 +686,4 @@ Object.defineProperty(exports, 'drawAnnotationPluginRef', {
     return drawAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-draw-Dy_yP4KD.cjs.map
+//# sourceMappingURL=annotation-draw-BWs5DVWC.cjs.map

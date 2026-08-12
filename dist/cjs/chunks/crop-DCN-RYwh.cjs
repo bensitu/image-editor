@@ -1,3 +1,4 @@
+const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
@@ -1100,7 +1101,7 @@ function cropPlugin(options = {}) {
 				...render
 			}), geometry, raster, overlay, visibleRasterBake, context.capabilities.getOptionalStatus(require_sdk.VISIBLE_RASTER_BAKE_CAPABILITY), configuration);
 			const requireController = () => {
-				if (!controller) throw new Error("Crop Plugin is not installed.");
+				if (!controller) throw new require_plugin_identifier.PluginNotInstalledError(cropPluginRef.id);
 				return controller;
 			};
 			for (const operationId of [
@@ -1217,4 +1218,4 @@ Object.defineProperty(exports, 'cropPluginRef', {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-Punea8fd.cjs.map
+//# sourceMappingURL=crop-DCN-RYwh.cjs.map

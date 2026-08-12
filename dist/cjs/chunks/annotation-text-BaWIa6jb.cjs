@@ -1,3 +1,4 @@
+const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
@@ -631,7 +632,7 @@ function textAnnotationPlugin(options = {}) {
 				else controller === null || controller === void 0 || controller.cancelEditing();
 			}));
 			const requireController = () => {
-				if (!controller) throw new Error("Text Annotation Plugin is not installed.");
+				if (!controller) throw new require_plugin_identifier.PluginNotInstalledError(textAnnotationPluginRef.id);
 				return controller;
 			};
 			return Object.freeze({
@@ -695,4 +696,4 @@ Object.defineProperty(exports, 'textAnnotationPluginRef', {
     return textAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-text-DqfI56w7.cjs.map
+//# sourceMappingURL=annotation-text-BaWIa6jb.cjs.map

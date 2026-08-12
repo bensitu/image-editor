@@ -834,7 +834,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					canRunOperation: (operationId) => operationId.startsWith("annotation-shape:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
 				}));
 				const requireController = () => {
-					if (!controller) throw new Error("Shape Annotation Plugin is not installed.");
+					if (!controller) throw new _bensitu_image_editor_sdk.PluginNotInstalledError(shapeAnnotationPluginRef.id);
 					return controller;
 				};
 				return Object.freeze({

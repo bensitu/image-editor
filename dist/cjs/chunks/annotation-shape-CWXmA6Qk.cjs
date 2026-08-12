@@ -1,3 +1,4 @@
+const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
@@ -626,7 +627,7 @@ function shapeAnnotationPlugin(options = {}) {
 				canRunOperation: (operationId) => operationId.startsWith("annotation-shape:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
 			}));
 			const requireController = () => {
-				if (!controller) throw new Error("Shape Annotation Plugin is not installed.");
+				if (!controller) throw new require_plugin_identifier.PluginNotInstalledError(shapeAnnotationPluginRef.id);
 				return controller;
 			};
 			return Object.freeze({
@@ -682,4 +683,4 @@ Object.defineProperty(exports, 'shapeAnnotationPluginRef', {
     return shapeAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-shape-DYgbtEgC.cjs.map
+//# sourceMappingURL=annotation-shape-CWXmA6Qk.cjs.map

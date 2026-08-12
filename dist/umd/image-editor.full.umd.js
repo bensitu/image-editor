@@ -12774,7 +12774,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					clearState: () => controller === null || controller === void 0 ? void 0 : controller.resetStateFromImage()
 				}));
 				const requireController = () => {
-					if (!controller) throw new Error("Transform plugin is not installed.");
+					if (!controller) throw new PluginNotInstalledError(transformPluginRef.id);
 					return controller;
 				};
 				return Object.freeze({
@@ -15869,7 +15869,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return task(operationContext.signal);
 				}) }), mutations, raster, options);
 				const requireController = () => {
-					if (!controller) throw new Error("Filters Plugin is not installed.");
+					if (!controller) throw new PluginNotInstalledError(filtersPluginRef.id);
 					return controller;
 				};
 				const visibleRasterBake = Object.freeze({
@@ -17021,7 +17021,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...render
 				}), geometry, raster, overlay, visibleRasterBake, context.capabilities.getOptionalStatus(VISIBLE_RASTER_BAKE_CAPABILITY), configuration);
 				const requireController = () => {
-					if (!controller) throw new Error("Crop Plugin is not installed.");
+					if (!controller) throw new PluginNotInstalledError(cropPluginRef.id);
 					return controller;
 				};
 				for (const operationId of [
@@ -18094,7 +18094,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...render
 				}), geometry, raster, visibleRasterBake, context.capabilities.getOptionalStatus(VISIBLE_RASTER_BAKE_CAPABILITY), configuration);
 				const requireController = () => {
-					if (!controller) throw new Error("Mosaic Plugin is not installed.");
+					if (!controller) throw new PluginNotInstalledError(mosaicPluginRef.id);
 					return controller;
 				};
 				for (const operationId of [
@@ -18804,7 +18804,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					else controller === null || controller === void 0 || controller.cancelEditing();
 				}));
 				const requireController = () => {
-					if (!controller) throw new Error("Text Annotation Plugin is not installed.");
+					if (!controller) throw new PluginNotInstalledError(textAnnotationPluginRef.id);
 					return controller;
 				};
 				return Object.freeze({
@@ -19477,7 +19477,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					canRunOperation: (operationId) => operationId.startsWith("annotation-shape:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
 				}));
 				const requireController = () => {
-					if (!controller) throw new Error("Shape Annotation Plugin is not installed.");
+					if (!controller) throw new PluginNotInstalledError(shapeAnnotationPluginRef.id);
 					return controller;
 				};
 				return Object.freeze({
@@ -20149,7 +20149,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					canRunOperation: (operationId) => operationId.startsWith("annotation-draw:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export" || operationId === "history:undo" || operationId === "history:redo"
 				}));
 				const requireController = () => {
-					if (!controller) throw new Error("Draw Annotation Plugin is not installed.");
+					if (!controller) throw new PluginNotInstalledError(drawAnnotationPluginRef.id);
 					return controller;
 				};
 				return Object.freeze({

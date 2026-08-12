@@ -1,3 +1,4 @@
+const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
@@ -635,7 +636,7 @@ function transformPlugin(options = {}) {
 				clearState: () => controller === null || controller === void 0 ? void 0 : controller.resetStateFromImage()
 			}));
 			const requireController = () => {
-				if (!controller) throw new Error("Transform plugin is not installed.");
+				if (!controller) throw new require_plugin_identifier.PluginNotInstalledError(transformPluginRef.id);
 				return controller;
 			};
 			return Object.freeze({
@@ -675,4 +676,4 @@ Object.defineProperty(exports, 'transformPluginRef', {
     return transformPluginRef;
   }
 });
-//# sourceMappingURL=transform-BRbeAqOU.cjs.map
+//# sourceMappingURL=transform-DHO5oLI_.cjs.map

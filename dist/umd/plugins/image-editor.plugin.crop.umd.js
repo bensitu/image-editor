@@ -1191,7 +1191,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...render
 				}), geometry, raster, overlay, visibleRasterBake, context.capabilities.getOptionalStatus(_bensitu_image_editor_sdk.VISIBLE_RASTER_BAKE_CAPABILITY), configuration);
 				const requireController = () => {
-					if (!controller) throw new Error("Crop Plugin is not installed.");
+					if (!controller) throw new _bensitu_image_editor_sdk.PluginNotInstalledError(cropPluginRef.id);
 					return controller;
 				};
 				for (const operationId of [

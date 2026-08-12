@@ -3,11 +3,11 @@ const require_core_capabilities = require('../../chunks/core-capabilities-DPdoMg
 const require_core = require('../../chunks/core-IzQmeOnC.cjs');
 const require_overlay = require('../../chunks/overlay-CK9dFJPW.cjs');
 const require_annotation = require('../../chunks/annotation-Drb-vPam.cjs');
-const require_transform = require('../../chunks/transform-BRbeAqOU.cjs');
+const require_transform = require('../../chunks/transform-DHO5oLI_.cjs');
 const require_history = require('../../chunks/history-D5eaCnO6.cjs');
-const require_annotation_text = require('../../chunks/annotation-text-DqfI56w7.cjs');
-const require_annotation_shape = require('../../chunks/annotation-shape-DYgbtEgC.cjs');
-const require_annotation_draw = require('../../chunks/annotation-draw-Dy_yP4KD.cjs');
+const require_annotation_text = require('../../chunks/annotation-text-BaWIa6jb.cjs');
+const require_annotation_shape = require('../../chunks/annotation-shape-CWXmA6Qk.cjs');
+const require_annotation_draw = require('../../chunks/annotation-draw-BWs5DVWC.cjs');
 const require_overlay_state = require('../../chunks/overlay-state-Jb8nfUe3.cjs');
 const require_preset_support = require('../../chunks/preset-support-D2cHniBE.cjs');
 

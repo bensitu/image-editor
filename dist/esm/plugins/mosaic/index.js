@@ -1,4 +1,4 @@
-import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_STATUS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, VISIBLE_RASTER_BAKE_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_STATUS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, PluginNotInstalledError, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, VISIBLE_RASTER_BAKE_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { MosaicController, resolveMosaicConfiguration } from './mosaic-controller.js';
 const MOSAIC_TOOL_ID = 'plugin:mosaic';
 const mosaicPreviewDomains = ['base-image', 'overlay', 'selection', 'state'];
@@ -66,7 +66,7 @@ export function mosaicPlugin(options = {}) {
             }), geometry, raster, visibleRasterBake, context.capabilities.getOptionalStatus(VISIBLE_RASTER_BAKE_CAPABILITY), configuration);
             const requireController = () => {
                 if (!controller)
-                    throw new Error('Mosaic Plugin is not installed.');
+                    throw new PluginNotInstalledError(mosaicPluginRef.id);
                 return controller;
             };
             for (const operationId of [

@@ -839,7 +839,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					else controller === null || controller === void 0 || controller.cancelEditing();
 				}));
 				const requireController = () => {
-					if (!controller) throw new Error("Text Annotation Plugin is not installed.");
+					if (!controller) throw new _bensitu_image_editor_sdk.PluginNotInstalledError(textAnnotationPluginRef.id);
 					return controller;
 				};
 				return Object.freeze({
