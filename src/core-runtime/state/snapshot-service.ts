@@ -187,20 +187,25 @@ function inspectTree(
     ancestors.delete(value);
 }
 
+function sortJsonValue(entry: unknown): unknown {
+    if (Array.isArray(entry)) return entry.map(sortJsonValue);
+    if (entry && typeof entry === 'object') {
+        const result: Record<string, unknown> = {};
+        for (const key of Object.keys(entry).sort()) {
+            result[key] = sortJsonValue((entry as Record<string, unknown>)[key]);
+        }
+        return result;
+    }
+    return entry;
+}
+
+function stringifyStableJson(value: unknown): string {
+    return JSON.stringify(sortJsonValue(value));
+}
+
 function stableJson(value: unknown, limits: SnapshotLimits): string {
     inspectTree(value, limits);
-    const sortValue = (entry: unknown): unknown => {
-        if (Array.isArray(entry)) return entry.map(sortValue);
-        if (entry && typeof entry === 'object') {
-            const result: Record<string, unknown> = {};
-            for (const key of Object.keys(entry).sort()) {
-                result[key] = sortValue((entry as Record<string, unknown>)[key]);
-            }
-            return result;
-        }
-        return entry;
-    };
-    return JSON.stringify(sortValue(value));
+    return stringifyStableJson(value);
 }
 
 function parseInput(input: string | unknown, limits: SnapshotLimits): unknown {
@@ -321,6 +326,7 @@ export class SnapshotService implements Disposable {
         if (!migration) return this.prepareParsed(parsed, options);
         const context: SnapshotMigrationContext = options.signal ? { signal: options.signal } : {};
         const migrated = await migration.migrate(immutableInput, context);
+        options.signal?.throwIfAborted();
         return this.prepareParsed(parseInput(migrated, this.limits), options);
     }
 
@@ -340,7 +346,7 @@ export class SnapshotService implements Disposable {
         const validatedSlices: Array<Readonly<{ id: string; value: unknown }>> = [];
         const opaqueSlices: Array<Readonly<{ id: string; entry: PluginMementoEntry }>> = [];
         for (const [id, entry] of Object.entries(snapshot.plugins)) {
-            const serializedBytes = byteLength(stableJson(entry.data, this.limits));
+            const serializedBytes = byteLength(stringifyStableJson(entry.data));
             if (serializedBytes > this.limits.maxPluginPayloadBytes) {
                 throw new SnapshotValidationError(
                     `plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`,

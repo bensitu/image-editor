@@ -411,12 +411,11 @@ export async function preprocessImageDataUrl(
         });
     }
 
+    const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
     const decoded =
-        (await decodeWithImageBitmap(bytes, request.mimeType, request.signal)) ??
+        (await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal)) ??
         (await decodeWithImage(
-            orientationNormalized
-                ? bytesDataUrl(neutralizeJpegOrientation(bytes), request.mimeType)
-                : request.source,
+            orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source,
             request.ownerDocument,
             request.signal,
         ));

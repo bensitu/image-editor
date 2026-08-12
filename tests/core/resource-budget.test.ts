@@ -93,6 +93,23 @@ test('encoded image headers reject an oversized single dimension before decode',
     await editor.disposeAsync();
 });
 
+test('an empty image file is rejected before decoding', async () => {
+    const ids = resetEditorDom();
+    const editor = new ImageEditorCore(fabric);
+    await editor.init({ canvas: ids.canvas });
+
+    await assert.rejects(
+        editor.loadImageFile(new File([], 'empty.png', { type: 'image/png' })),
+        (error: unknown) =>
+            error instanceof Error &&
+            'code' in error &&
+            error.code === 'IMAGE_FILE_EMPTY' &&
+            /empty/iu.test(error.message),
+    );
+    assert.equal(editor.getImageInfo(), null);
+    await editor.disposeAsync();
+});
+
 test('a decoded image rejected by the dimension budget is disposed without document mutation', async () => {
     const ids = resetEditorDom();
     const safeSource = makeImageDataUrl({ width: 64, height: 48 });

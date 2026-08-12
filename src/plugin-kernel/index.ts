@@ -91,6 +91,7 @@ export type {
     PluginCapabilitySetupAccess,
     PluginCommittedEventAccess,
     PluginCommittedEventSetupAccess,
+    PluginImageLifecycleContext,
     PluginLifecycleContext,
     PluginOperationAccess,
     PluginOperationSetupAccess,

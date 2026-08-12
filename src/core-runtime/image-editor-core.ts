@@ -415,6 +415,7 @@ function isCoreImageInfo(value: unknown): value is CoreImageInfo {
         typeof candidate.height === 'number' &&
         typeof candidate.naturalWidth === 'number' &&
         typeof candidate.naturalHeight === 'number' &&
+        (candidate.mimeType === null || isImageMimeType(candidate.mimeType)) &&
         typeof candidate.geometryRevision === 'number'
     );
 }
@@ -976,7 +977,7 @@ export class ImageEditorCore {
                                 this.assertCurrentLoad(sequence, commitContext.signal);
                                 const previousBaseImage = this.baseImage;
                                 if (previousBaseImage) {
-                                    await this.plugins.notifyImageCleared();
+                                    await this.plugins.notifyImageCleared(commitContext.signal);
                                     this.assertCurrentLoad(sequence, commitContext.signal);
                                 }
                                 const canvas = this.requireCanvasForImageLoad('loadImage');
@@ -1016,7 +1017,10 @@ export class ImageEditorCore {
                                 if (!imageInfo) {
                                     throw new Error('Loaded image information is unavailable.');
                                 }
-                                await this.plugins.notifyImageLoaded(imageInfo);
+                                await this.plugins.notifyImageLoaded(
+                                    imageInfo,
+                                    commitContext.signal,
+                                );
                                 this.assertCurrentLoad(sequence, commitContext.signal);
                                 return imageInfo;
                             },
@@ -1061,6 +1065,11 @@ export class ImageEditorCore {
     async loadImageFile(file: File, options: LoadImageOptions = {}): Promise<void> {
         if (!(file instanceof File))
             throw new TypeError('[ImageEditor] loadImageFile expects a File.');
+        if (file.size === 0) {
+            throw new CoreRuntimeError('[ImageEditor] Image file is empty.', {
+                code: 'IMAGE_FILE_EMPTY',
+            });
+        }
         if (file.size > this.options.maxInputBytes) {
             throw new CoreRuntimeError('[ImageEditor] Image file exceeds maxInputBytes.');
         }
@@ -1077,12 +1086,25 @@ export class ImageEditorCore {
             };
             reader.onerror = () => {
                 cleanup();
-                reject(reader.error ?? new Error('FileReader failed.'));
+                reject(
+                    new CoreRuntimeError('[ImageEditor] Image file could not be read.', {
+                        code: 'IMAGE_FILE_READ_FAILED',
+                        cause: reader.error,
+                    }),
+                );
             };
             reader.onload = () => {
                 cleanup();
-                if (typeof reader.result === 'string') resolve(reader.result);
-                else reject(new Error('FileReader did not produce a Data URL.'));
+                if (typeof reader.result === 'string' && reader.result.startsWith('data:')) {
+                    resolve(reader.result);
+                } else {
+                    reject(
+                        new CoreRuntimeError(
+                            '[ImageEditor] Image file reader did not produce a Data URL.',
+                            { code: 'IMAGE_FILE_RESULT_INVALID' },
+                        ),
+                    );
+                }
             };
             options.signal?.addEventListener('abort', abort, { once: true });
             reader.readAsDataURL(file);

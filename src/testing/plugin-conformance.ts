@@ -7,6 +7,7 @@
 import { isDangerousStateKey } from '../plugin-kernel/plugin-identifier.js';
 import type {
     EditorPlugin,
+    PluginImageLifecycleContext,
     PluginLifecycleContext,
     PluginSetupContext,
 } from '../plugin-kernel/plugin-types.js';
@@ -194,9 +195,9 @@ function wrapPlugin<TApi, TEvents extends object>(
         readonly onInit?: (context: PluginLifecycleContext<TEvents>) => Promise<void>;
         readonly onImageLoaded?: (
             image: unknown,
-            context: PluginLifecycleContext<TEvents>,
+            context: PluginImageLifecycleContext<TEvents>,
         ) => Promise<void>;
-        readonly onImageCleared?: (context: PluginLifecycleContext<TEvents>) => Promise<void>;
+        readonly onImageCleared?: (context: PluginImageLifecycleContext<TEvents>) => Promise<void>;
         readonly onDispose?: (context: PluginLifecycleContext<TEvents>) => Promise<void>;
     },
 ): EditorPlugin<TApi, TEvents> {
@@ -212,11 +213,11 @@ function wrapPlugin<TApi, TEvents extends object>(
                 Promise.resolve(source.onInit?.(context)).then(() => undefined)),
         onImageLoaded:
             definition.onImageLoaded ??
-            ((image: unknown, context: PluginLifecycleContext<TEvents>) =>
+            ((image: unknown, context: PluginImageLifecycleContext<TEvents>) =>
                 Promise.resolve(source.onImageLoaded?.(image, context)).then(() => undefined)),
         onImageCleared:
             definition.onImageCleared ??
-            ((context: PluginLifecycleContext<TEvents>) =>
+            ((context: PluginImageLifecycleContext<TEvents>) =>
                 Promise.resolve(source.onImageCleared?.(context)).then(() => undefined)),
         onDispose:
             definition.onDispose ??

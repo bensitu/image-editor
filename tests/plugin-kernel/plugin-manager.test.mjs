@@ -157,6 +157,32 @@ test('lifecycle callbacks use install order and dispose uses reverse order', asy
     ]);
 });
 
+test('image lifecycle notifications expose cancellation and stop before later callbacks', async () => {
+    const calls = [];
+    const manager = new PluginManager();
+    const controller = new AbortController();
+    const reason = new DOMException('Image notification was cancelled.', 'AbortError');
+
+    await manager.install(
+        pluginDefinition('example-test:first-image-listener', {
+            onImageLoaded: (_image, context) => {
+                calls.push(context.signal === controller.signal ? 'first:signal' : 'first:other');
+                controller.abort(reason);
+            },
+        }),
+    );
+    await manager.install(
+        pluginDefinition('example-test:second-image-listener', {
+            onImageLoaded: () => calls.push('second'),
+        }),
+    );
+    await manager.initialize();
+
+    await assert.rejects(manager.notifyImageLoaded({ revision: 1 }, controller.signal), reason);
+    assert.deepEqual(calls, ['first:signal']);
+    await manager.dispose();
+});
+
 test('synchronous disposal reports detached lifecycle work and still completes cleanup', async () => {
     const calls = [];
     const reported = [];

@@ -54,6 +54,7 @@ import type {
     PluginCapabilityReader,
     PluginCommittedEventAccess,
     PluginCommittedEventSetupAccess,
+    PluginImageLifecycleContext,
     PluginLifecycleContext,
     PluginOperationAccess,
     PluginOperationSetupAccess,
@@ -607,29 +608,49 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
     }
 
-    async notifyImageLoaded(image: unknown): Promise<void> {
+    async notifyImageLoaded(image: unknown, signal?: AbortSignal): Promise<void> {
         this.assertLifecycleReady('notify plugins that an image loaded');
+        const notificationSignal = signal ?? new AbortController().signal;
         for (const pluginId of this.installationOrder) {
+            notificationSignal.throwIfAborted();
             const record = this.installed.get(pluginId);
             if (!record?.plugin.onImageLoaded) continue;
+            const context: PluginImageLifecycleContext<TEvents> = Object.freeze({
+                ...record.lifecycleContext,
+                signal: notificationSignal,
+            });
             try {
-                await record.plugin.onImageLoaded(image, record.lifecycleContext);
+                await record.plugin.onImageLoaded(image, context);
             } catch (error) {
+                if (notificationSignal.aborted) {
+                    throw notificationSignal.reason ?? error;
+                }
                 throw new PluginLifecycleError(pluginId, 'image-loaded', error);
             }
+            notificationSignal.throwIfAborted();
         }
     }
 
-    async notifyImageCleared(): Promise<void> {
+    async notifyImageCleared(signal?: AbortSignal): Promise<void> {
         this.assertLifecycleReady('notify plugins that an image cleared');
+        const notificationSignal = signal ?? new AbortController().signal;
         for (const pluginId of this.installationOrder) {
+            notificationSignal.throwIfAborted();
             const record = this.installed.get(pluginId);
             if (!record?.plugin.onImageCleared) continue;
+            const context: PluginImageLifecycleContext<TEvents> = Object.freeze({
+                ...record.lifecycleContext,
+                signal: notificationSignal,
+            });
             try {
-                await record.plugin.onImageCleared(record.lifecycleContext);
+                await record.plugin.onImageCleared(context);
             } catch (error) {
+                if (notificationSignal.aborted) {
+                    throw notificationSignal.reason ?? error;
+                }
                 throw new PluginLifecycleError(pluginId, 'image-cleared', error);
             }
+            notificationSignal.throwIfAborted();
         }
     }
 

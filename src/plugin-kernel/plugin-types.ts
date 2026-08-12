@@ -148,6 +148,13 @@ export interface PluginLifecycleContext<TEvents extends object = PluginEventMap>
     readonly events: PluginCommittedEventAccess<TEvents>;
 }
 
+/** Lifecycle context for image notifications that can be cancelled by the host operation. */
+export interface PluginImageLifecycleContext<
+    TEvents extends object = PluginEventMap,
+> extends PluginLifecycleContext<TEvents> {
+    readonly signal: AbortSignal;
+}
+
 export interface PluginSetupContext<TEvents extends object = PluginEventMap> {
     readonly plugin: PluginIdentity;
     readonly pluginId: string;
@@ -164,8 +171,11 @@ export interface EditorPluginDefinition<TEvents extends object = PluginEventMap>
     readonly manifest: PluginManifest;
     setup(context: PluginSetupContext<TEvents>): MaybePromise<unknown>;
     onInit?(context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
-    onImageLoaded?(image: unknown, context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
-    onImageCleared?(context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
+    onImageLoaded?(
+        image: unknown,
+        context: PluginImageLifecycleContext<TEvents>,
+    ): MaybePromise<void>;
+    onImageCleared?(context: PluginImageLifecycleContext<TEvents>): MaybePromise<void>;
     onDispose?(context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
 }
 
@@ -203,8 +213,11 @@ export interface KernelPluginDefinition<TEvents extends object = PluginEventMap>
     readonly setupMode?: 'sync';
     setup(context: PluginSetupContext<TEvents>): MaybePromise<unknown>;
     onInit?(context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
-    onImageLoaded?(image: unknown, context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
-    onImageCleared?(context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
+    onImageLoaded?(
+        image: unknown,
+        context: PluginImageLifecycleContext<TEvents>,
+    ): MaybePromise<void>;
+    onImageCleared?(context: PluginImageLifecycleContext<TEvents>): MaybePromise<void>;
     onDispose?(context: PluginLifecycleContext<TEvents>): MaybePromise<void>;
 }
 

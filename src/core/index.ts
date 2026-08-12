@@ -101,6 +101,7 @@ export {
     type CapabilityRequirement,
     type CapabilityToken,
     type Disposable,
+    type PluginImageLifecycleContext,
     type PluginLifecycleContext,
     type PluginRef,
     type PluginSetupContext,

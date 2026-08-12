@@ -159,6 +159,25 @@ test('explicit Snapshot migrations are deterministic, isolated, and revalidated'
         }),
         /schema must be/i,
     );
+
+    const controller = new AbortController();
+    const reason = new DOMException('Snapshot conversion was cancelled.', 'AbortError');
+    await assert.rejects(
+        snapshots.prepareForLoad(source, {
+            signal: controller.signal,
+            migrations: [
+                {
+                    ...migration,
+                    migrate: (_input, context) => {
+                        assert.equal(context.signal, controller.signal);
+                        controller.abort(reason);
+                        return target;
+                    },
+                },
+            ],
+        }),
+        reason,
+    );
 });
 
 test('Snapshot limits reject resource, structure, image, and source attacks', async (t) => {
