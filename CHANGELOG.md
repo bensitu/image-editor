@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a Full Preset UMD under the `ImageEditorFull` global while keeping Fabric external, plus browser smoke coverage and permanent size attribution.
 - Add modular Core and per-Plugin UMD artifacts for script-tag consumers.
 - Add shared-runtime boundary checks, per-module gzip budgets, deterministic artifact governance, and browser composition coverage for Modular UMD.
-- Add public Vanilla, React, Vue, and Next examples, a Plugin package template, and an executable pure-Fabric versus Framework redaction comparison.
+- Add public Vanilla, React, Vue, Svelte, and Next examples, a Plugin package template, and an executable pure-Fabric versus Framework redaction comparison.
 - Add durable source, architecture, package-consumer, browser, security, bundle-isolation, and release-artifact validation profiles.
 
 ### Changed
@@ -53,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep failed setup, image load, State restore, geometry, raster, Overlay, Crop, Mosaic, and migration operations atomic with zero committed partial state.
 - Keep Testing, migration conversion, Codemod, DOM, Preset, and Fabric runtime modules out of entries that do not select them.
 
+### Fixed
+
+- Preserve the committed document and active Plugin state when image loading, state restoration, export, interaction, or lifecycle work fails or overlaps.
+- Bound Plugin installation, setup, disposal, committed-event listeners, and host operations so stalled extensions cannot block the runtime indefinitely.
+- Release operation, Tool, listener, and disposable registrations deterministically across Plugin rollback, replacement, and editor cleanup.
+- Keep gesture replacement, Annotation editing, Overlay labels, selection targeting, and raster preview sessions synchronized with committed History and events.
+- Make package, reference Plugin, example, security, and release checks deterministic and portable across supported operating systems and package-manager environments.
+- Publish typed Plugin availability errors and consumer-facing TSDoc through the generated declaration files.
+
 ### Deprecated
 
 - None. Removed facade methods and private controller paths have no runtime compatibility aliases; use the migration guide and Codemod report instead.
@@ -64,6 +73,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plugin permissions provide an auditable authority boundary, not a sandbox for untrusted JavaScript.
 - Full UMD intentionally includes every official Feature; use ESM or Modular UMD composition when transfer size and selected Features matter.
 - Public imports and types are SSR-safe, but Canvas initialization, browser image decoding, and browser export remain client-side operations.
+
+## [2.9.1] - 2026-08-11
+
+### Security
+
+- Require supported public image Data URLs to use Base64 encoding so configured input limits are applied consistently.
+- Enforce source image pixel limits for JPEG files even when metadata segments precede the image dimension segment.
+- Apply configured image input limits to image resources in public state restoration before Fabric deserialization.
+- Reject unsafe structural keys in public state payloads before deserialization.
+
+### Changed
+
+- Publish separate readable and minified UMD bundles, with CDN package metadata targeting the minified build.
+- Embed source content in published JavaScript source maps for package debugging.
+- Clarify that `saveState()` records undo/redo history and does not export serialized state.
+- Clarify that `initialImageBase64` begins asynchronous loading during synchronous `init()`.
+
+### Fixed
+
+- Preserve ordinary application metadata fields named `source` while continuing to validate actual Fabric image sources.
+- Roll back failed public state restoration instead of leaving partially restored canvas state.
+- Prevent overlapping public state restoration from interleaving changes on the live canvas.
+- Prevent timed-out state restoration from applying stale changes after the operation fails.
+- Allow `disposeAsync()` to await Fabric canvas cleanup previously started by `dispose()`.
+- Release download object URLs when DOM setup fails before delayed cleanup is registered.
 
 ## [2.9.0] - 2026-07-11
 

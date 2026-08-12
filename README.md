@@ -192,6 +192,7 @@ run the public [Conformance Kit](docs/reference/api.md#testing-and-conformance).
 - [Vanilla DOM Controls](examples/vanilla-dom-controls)
 - [React basic example](examples/react-basic)
 - [Vue basic example](examples/vue-basic)
+- [Svelte basic example](examples/svelte-basic)
 - [Next.js client-only example](examples/next-client-only)
 - [Third-party Plugin template](examples/plugin-template)
 - [Watermark, Metadata, Grid/Guide, and Blur Region reference Plugins](examples/reference-plugins)
@@ -221,13 +222,14 @@ run the public [Conformance Kit](docs/reference/api.md#testing-and-conformance).
 ## Framework Integration
 
 The Core editor is framework-agnostic and accepts string targets or element
-instances for its canvas and container. React, Vue, Next.js, Nuxt, and other
+instances for its canvas and container. React, Vue, Svelte, Next.js, Nuxt, and other
 frameworks should create one Preset or Plugin composition inside a client-side
 lifecycle hook, retain its Plugin APIs, and dispose its editor during cleanup.
 Framework handlers call Plugin APIs directly; DOM Controls is not required.
 
 - [React integration](docs/frameworks/react.md)
 - [Vue integration](docs/frameworks/vue.md)
+- [Svelte integration](docs/frameworks/svelte.md)
 - [SSR / Next.js / Nuxt](docs/frameworks/ssr.md)
 
 Runtime Fabric imports, editor creation, `init()`, image loading, canvas resizing,
@@ -389,6 +391,12 @@ npm test
 
 See [Development and contributing](docs/development/contributing.md) for browser tests,
 visual tests, release checks, and CI-equivalent commands.
+
+## Buy Me A Coffee
+
+<a href="https://www.buymeacoffee.com/bensitu">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" width="200" />
+</a>
 
 ## License
 
