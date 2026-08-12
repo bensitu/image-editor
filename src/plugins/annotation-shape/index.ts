@@ -17,6 +17,7 @@ import {
     BASE_IMAGE_INFO_CAPABILITY,
     CORE_DIAGNOSTICS_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
+    PluginNotInstalledError,
     definePlugin,
     definePluginRef,
     type PluginSetupContext,
@@ -116,7 +117,7 @@ export function shapeAnnotationPlugin(
                 }),
             );
             const requireController = (): ShapeAnnotationController => {
-                if (!controller) throw new Error('Shape Annotation Plugin is not installed.');
+                if (!controller) throw new PluginNotInstalledError(shapeAnnotationPluginRef.id);
                 return controller;
             };
             const api: ShapeAnnotationPluginApi = {

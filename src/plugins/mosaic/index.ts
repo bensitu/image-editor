@@ -13,6 +13,7 @@ import {
     FABRIC_RUNTIME_CAPABILITY,
     GEOMETRY_MUTATION_CAPABILITY,
     IMAGE_RESOURCE_POLICY_CAPABILITY,
+    PluginNotInstalledError,
     RASTER_MUTATION_CAPABILITY,
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
@@ -109,7 +110,7 @@ export function mosaicPlugin(
                 configuration,
             );
             const requireController = (): MosaicController => {
-                if (!controller) throw new Error('Mosaic Plugin is not installed.');
+                if (!controller) throw new PluginNotInstalledError(mosaicPluginRef.id);
                 return controller;
             };
             for (const operationId of [

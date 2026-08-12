@@ -17,6 +17,7 @@ import {
     BASE_IMAGE_INFO_CAPABILITY,
     CORE_DIAGNOSTICS_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
+    PluginNotInstalledError,
     definePlugin,
     definePluginRef,
     type PluginSetupContext,
@@ -129,7 +130,7 @@ export function drawAnnotationPlugin(
                 }),
             );
             const requireController = (): DrawAnnotationController => {
-                if (!controller) throw new Error('Draw Annotation Plugin is not installed.');
+                if (!controller) throw new PluginNotInstalledError(drawAnnotationPluginRef.id);
                 return controller;
             };
             const api: DrawAnnotationPluginApi = {

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
 import {
     CONFORMANCE_PROFILE,
@@ -58,16 +58,12 @@ const assertionFunctions = [
 ];
 
 const execFileAsync = promisify(execFile);
+const typeScriptCli = fileURLToPath(import.meta.resolve('typescript/bin/tsc'));
 
 async function runTypeInferenceFixtures() {
     await execFileAsync(
         process.execPath,
-        [
-            path.resolve('node_modules/typescript/bin/tsc'),
-            '-p',
-            'tests/types/tsconfig.json',
-            '--noEmit',
-        ],
+        [typeScriptCli, '-p', 'tests/types/tsconfig.json', '--noEmit'],
         { cwd: process.cwd(), windowsHide: true },
     );
 }

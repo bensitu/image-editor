@@ -10,6 +10,7 @@ import {
     CORE_STATUS_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
     GEOMETRY_MUTATION_CAPABILITY,
+    PluginNotInstalledError,
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
     definePlugin,
@@ -128,7 +129,7 @@ export function transformPlugin(
                 }),
             );
             const requireController = (): TransformPluginController => {
-                if (!controller) throw new Error('Transform plugin is not installed.');
+                if (!controller) throw new PluginNotInstalledError(transformPluginRef.id);
                 return controller;
             };
             return Object.freeze({

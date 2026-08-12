@@ -15,6 +15,7 @@ import {
     EXPORT_CONTRIBUTION_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
     IMAGE_RESOURCE_POLICY_CAPABILITY,
+    PluginNotInstalledError,
     RASTER_MUTATION_CAPABILITY,
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
@@ -151,7 +152,7 @@ export function filtersPlugin(
                 options,
             );
             const requireController = (): FiltersController => {
-                if (!controller) throw new Error('Filters Plugin is not installed.');
+                if (!controller) throw new PluginNotInstalledError(filtersPluginRef.id);
                 return controller;
             };
             const visibleRasterBake: VisibleRasterBakePort = Object.freeze({

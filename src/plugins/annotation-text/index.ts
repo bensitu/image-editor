@@ -18,6 +18,7 @@ import {
     BASE_IMAGE_INFO_CAPABILITY,
     CORE_DIAGNOSTICS_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
+    PluginNotInstalledError,
     definePlugin,
     definePluginRef,
     observePromise,
@@ -145,7 +146,7 @@ export function textAnnotationPlugin(
                 }),
             );
             const requireController = (): TextAnnotationController => {
-                if (!controller) throw new Error('Text Annotation Plugin is not installed.');
+                if (!controller) throw new PluginNotInstalledError(textAnnotationPluginRef.id);
                 return controller;
             };
             const api: TextAnnotationPluginApi = {

@@ -14,6 +14,7 @@ import {
     FABRIC_RUNTIME_CAPABILITY,
     GEOMETRY_MUTATION_CAPABILITY,
     IMAGE_RESOURCE_POLICY_CAPABILITY,
+    PluginNotInstalledError,
     RASTER_MUTATION_CAPABILITY,
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
@@ -114,7 +115,7 @@ export function cropPlugin(
                 configuration,
             );
             const requireController = (): CropController => {
-                if (!controller) throw new Error('Crop Plugin is not installed.');
+                if (!controller) throw new PluginNotInstalledError(cropPluginRef.id);
                 return controller;
             };
             for (const operationId of [
