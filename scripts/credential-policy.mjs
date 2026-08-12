@@ -37,6 +37,23 @@ export const CREDENTIAL_PATTERNS = Object.freeze([
         kind: 'openai-api-key',
         pattern: /\bsk-(?:(?:proj|svcacct)-)?[A-Za-z0-9_-]{20,255}\b/u,
     }),
+    Object.freeze({
+        kind: 'stripe-live-key',
+        pattern: /\b(?:sk|rk)_live_[A-Za-z0-9]{16,255}\b/u,
+    }),
+    Object.freeze({
+        kind: 'twilio-api-key',
+        pattern: /\bSK[0-9a-fA-F]{32}\b/u,
+    }),
+    Object.freeze({
+        kind: 'sendgrid-api-key',
+        pattern: /\bSG\.[A-Za-z0-9_-]{16,64}\.[A-Za-z0-9_-]{20,128}\b/u,
+    }),
+    Object.freeze({
+        kind: 'azure-storage-key',
+        pattern:
+            /\bDefaultEndpointsProtocol=https?;[^\r\n]{0,512}\bAccountKey=[A-Za-z0-9+/]{40,}={0,2}(?:;|$)/u,
+    }),
 ]);
 
 export function findCredentialKinds(source) {

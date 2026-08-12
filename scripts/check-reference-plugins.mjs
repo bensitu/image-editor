@@ -115,6 +115,7 @@ async function pack(directory, destination) {
             `${result.name} packed internal documents.`,
         );
     }
+    assertCondition(files.includes('LICENSE'), `${result.name} package is missing LICENSE.`);
     const artifactPath = path.join(destination, result.filename);
     return Object.freeze({
         name: result.name,
@@ -254,7 +255,7 @@ async function buildPluginPackage(sourceInspection, mainArtifact, buildRoot, art
         'utf8',
     );
     console.log(`Installing public dependencies for ${descriptor.name}.`);
-    await npm(['install', '--no-audit', '--no-fund'], destination);
+    await npm(['install', '--ignore-scripts', '--no-audit', '--no-fund'], destination);
     await npm(['run', 'build'], destination);
     await npm(['test'], destination);
     await writeFile(
@@ -384,7 +385,8 @@ async function installAndVerifyConsumer(mainArtifact, pluginBuilds, temporaryRoo
         'utf8',
     );
     console.log('Installing packed artifacts in a clean consumer.');
-    await npm(['install', '--no-audit', '--no-fund'], consumerRoot);
+    await npm(['install', '--ignore-scripts', '--no-audit', '--no-fund'], consumerRoot);
+    await npm(['rebuild', 'canvas'], consumerRoot);
     await copyConsumerFixture(consumerRoot);
     const typeScriptCli = path.join(consumerRoot, 'node_modules', 'typescript', 'bin', 'tsc');
     await run(process.execPath, [typeScriptCli, '-p', 'tsconfig.json'], consumerRoot);

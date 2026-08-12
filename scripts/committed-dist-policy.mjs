@@ -11,7 +11,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
-const DIST_ROOT = 'dist';
+const DIST_ROOTS = Object.freeze(['dist', 'packages/image-editor-codemod/dist']);
 const MAX_GIT_OUTPUT_BYTES = 32 * 1024 * 1024;
 
 function normalizePath(filePath) {
@@ -115,11 +115,12 @@ async function mapWithConcurrency(values, concurrency, callback) {
 
 export async function inspectCommittedDist(repositoryRoot) {
     const absoluteRoot = path.resolve(repositoryRoot);
-    const [indexSource, objectFormat, generatedPaths] = await Promise.all([
-        gitText(absoluteRoot, ['ls-files', '--stage', '-z', '--', DIST_ROOT]),
+    const [indexSource, objectFormat, generatedRoots] = await Promise.all([
+        gitText(absoluteRoot, ['ls-files', '--stage', '-z', '--', ...DIST_ROOTS]),
         gitText(absoluteRoot, ['rev-parse', '--show-object-format']),
-        collectFiles(path.join(absoluteRoot, DIST_ROOT)),
+        Promise.all(DIST_ROOTS.map((root) => collectFiles(path.join(absoluteRoot, root)))),
     ]);
+    const generatedPaths = generatedRoots.flat();
     const normalizedObjectFormat = objectFormat.trim();
     if (!['sha1', 'sha256'].includes(normalizedObjectFormat)) {
         throw new Error(`Unsupported Git object format: ${normalizedObjectFormat}`);

@@ -219,6 +219,9 @@ function isSerializedShape(value) {
             return false;
         }
         const geometry = normalizeShapeGeometry(value.geometry);
+        if (value.arrowHeadLength !== undefined) {
+            finiteRange(value.arrowHeadLength, 'Arrow head length', 1, 1000);
+        }
         const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
         const type = typeof serializedObject.type === 'string' ? serializedObject.type.toLowerCase() : '';
         return (bytes <= MAX_SHAPE_OBJECT_BYTES &&
@@ -292,16 +295,19 @@ export class ShapeAnnotationController {
                 type: 'annotation:shape-object',
                 version: '1.0.0',
                 serialize: (object) => {
+                    var _a;
                     const shape = object;
                     return Object.freeze({
                         version: 1,
                         shapeKind: shape.editorShapeKind,
                         geometry: shape.editorShapeGeometry,
+                        arrowHeadLength: (_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength,
                         object: object.toObject(),
                     });
                 },
                 validate: isSerializedShape,
                 deserialize: async (value, context) => {
+                    var _a;
                     if (!isSerializedShape(value)) {
                         throw new AnnotationValidationError('Serialized Shape data is malformed.');
                     }
@@ -312,6 +318,8 @@ export class ShapeAnnotationController {
                     }
                     object.editorShapeKind = value.shapeKind;
                     object.editorShapeGeometry = normalizeShapeGeometry(value.geometry);
+                    object.editorArrowHeadLength =
+                        (_a = value.arrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength;
                     return object;
                 },
             },
@@ -319,6 +327,7 @@ export class ShapeAnnotationController {
                 type: 'annotation:shape',
                 version: '1.0.0',
                 serialize: (object, context) => {
+                    var _a;
                     const shape = object;
                     const geometry = normalizeShapeGeometry(shape.editorShapeGeometry);
                     const stateGeometry = geometry.kind === 'rect'
@@ -343,7 +352,7 @@ export class ShapeAnnotationController {
                             fill: typeof object.fill === 'string' ? object.fill : '',
                             opacity: Number.isFinite(object.opacity) ? object.opacity : 1,
                             strokeDashArray,
-                            arrowHeadLength: context.toImageNormalizedScalar(this.configuration.arrowHeadLength),
+                            arrowHeadLength: context.toImageNormalizedScalar((_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength),
                         }),
                     });
                 },
@@ -602,6 +611,7 @@ export class ShapeAnnotationController {
         }
         object.editorShapeKind = geometry.kind;
         object.editorShapeGeometry = geometry;
+        object.editorArrowHeadLength = resolved.arrowHeadLength;
         return object;
     }
     resolveStyle(value) {

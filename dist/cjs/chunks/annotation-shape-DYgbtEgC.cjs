@@ -1,8 +1,8 @@
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-CyVyDvJZ.cjs');
-const require_annotation = require('./annotation-CzJy5jdC.cjs');
+const require_overlay = require('./overlay-CK9dFJPW.cjs');
+const require_annotation = require('./annotation-Drb-vPam.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-Co4kk4f1.cjs');
 
 //#region dist/esm/plugins/annotation-shape/shape-controller.js
@@ -179,6 +179,7 @@ function isSerializedShape(value) {
 			"path"
 		] })) return false;
 		const geometry = normalizeShapeGeometry(value.geometry);
+		if (value.arrowHeadLength !== void 0) finiteRange(value.arrowHeadLength, "Arrow head length", 1, 1e3);
 		const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
 		const type = typeof serializedObject.type === "string" ? serializedObject.type.toLowerCase() : "";
 		return bytes <= MAX_SHAPE_OBJECT_BYTES && geometry.kind === value.shapeKind && (geometry.kind === "rect" && type === "rect" || geometry.kind === "line" && (type === "line" || type === "polyline") || geometry.kind === "arrow" && type === "path");
@@ -244,21 +245,25 @@ var ShapeAnnotationController = class {
 				type: "annotation:shape-object",
 				version: "1.0.0",
 				serialize: (object) => {
+					var _a;
 					const shape = object;
 					return Object.freeze({
 						version: 1,
 						shapeKind: shape.editorShapeKind,
 						geometry: shape.editorShapeGeometry,
+						arrowHeadLength: (_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength,
 						object: object.toObject()
 					});
 				},
 				validate: isSerializedShape,
 				deserialize: async (value, context) => {
+					var _a;
 					if (!isSerializedShape(value)) throw new require_annotation.AnnotationValidationError("Serialized Shape data is malformed.");
 					const object = (await context.fabric.util.enlivenObjects([value.object]))[0];
 					if (!object) throw new require_annotation.AnnotationValidationError("Fabric did not restore a Shape.");
 					object.editorShapeKind = value.shapeKind;
 					object.editorShapeGeometry = normalizeShapeGeometry(value.geometry);
+					object.editorArrowHeadLength = (_a = value.arrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength;
 					return object;
 				}
 			},
@@ -266,7 +271,9 @@ var ShapeAnnotationController = class {
 				type: "annotation:shape",
 				version: "1.0.0",
 				serialize: (object, context) => {
-					const geometry = normalizeShapeGeometry(object.editorShapeGeometry);
+					var _a;
+					const shape = object;
+					const geometry = normalizeShapeGeometry(shape.editorShapeGeometry);
 					const stateGeometry = geometry.kind === "rect" ? Object.freeze({
 						kind: "rect",
 						bounds: require_overlay.captureOverlayStateBounds(object, context)
@@ -285,7 +292,7 @@ var ShapeAnnotationController = class {
 							fill: typeof object.fill === "string" ? object.fill : "",
 							opacity: Number.isFinite(object.opacity) ? object.opacity : 1,
 							strokeDashArray,
-							arrowHeadLength: context.toImageNormalizedScalar(this.configuration.arrowHeadLength)
+							arrowHeadLength: context.toImageNormalizedScalar((_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength)
 						})
 					});
 				},
@@ -507,6 +514,7 @@ var ShapeAnnotationController = class {
 		else object = new this.host.fabric.Path(buildArrowPath(geometry, resolved.arrowHeadLength), common);
 		object.editorShapeKind = geometry.kind;
 		object.editorShapeGeometry = geometry;
+		object.editorArrowHeadLength = resolved.arrowHeadLength;
 		return object;
 	}
 	resolveStyle(value) {
@@ -674,4 +682,4 @@ Object.defineProperty(exports, 'shapeAnnotationPluginRef', {
     return shapeAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-shape-qLcj81ul.cjs.map
+//# sourceMappingURL=annotation-shape-DYgbtEgC.cjs.map

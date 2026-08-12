@@ -714,9 +714,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (existing.providerPluginId === providerPluginId && existing.transactionId === transactionId && existing.version === providerVersion && existing.requiredPermission === requiredPermission && Object.is(existing.implementation, implementation)) {
 					const noop = createNoopDisposable();
 					return {
-						commit: () => {
-							existing.complete = true;
-						},
+						commit: () => void 0,
 						dispose: () => noop.dispose()
 					};
 				}
@@ -1369,17 +1367,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		drainPending() {
 			if (this.disposed) return;
-			let started = true;
-			while (started) {
-				started = false;
-				for (let index = 0; index < this.pendingRequests.length; index += 1) {
-					const request = this.pendingRequests[index];
-					if (this.findConflicts(request.record, request.options.parent).length > 0) continue;
-					this.pendingRequests.splice(index, 1);
-					this.startRequest(request);
-					started = true;
-					break;
+			for (let index = 0; index < this.pendingRequests.length;) {
+				const request = this.pendingRequests[index];
+				if (this.findConflicts(request.record, request.options.parent).length > 0) {
+					index += 1;
+					continue;
 				}
+				this.pendingRequests.splice(index, 1);
+				this.startRequest(request);
 			}
 		}
 		createActive(record, parent, request) {
@@ -2298,7 +2293,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...options.activitySink ? { activitySink: options.activitySink } : {}
 			}));
 			this.eventBus = new CommittedEventBus(options);
-			for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
+			try {
+				for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
+			} catch (error) {
+				for (const dispose of [
+					() => this.eventBus.dispose(),
+					() => this.toolCoordinator.disposeSync(),
+					() => this.operationRegistry.dispose(),
+					() => this.capabilityRegistry.dispose(),
+					() => this.stateStore.dispose()
+				]) try {
+					dispose();
+				} catch (cleanupError) {
+					reportErrorSafely(options.errorSink, cleanupError);
+				}
+				throw error;
+			}
 		}
 		get state() {
 			return this.hostState;
@@ -2437,8 +2447,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.hostState = "initialized";
 			} catch (error) {
 				this.hostState = "disposing";
-				const cleanupErrors = await this.cleanupAll();
-				this.hostState = "disposed";
+				const cleanup = (async () => {
+					const cleanupErrors = await this.cleanupAll();
+					this.hostState = "disposed";
+					return cleanupErrors;
+				})();
+				this.disposePromise = cleanup.then(() => void 0);
+				const cleanupErrors = await cleanup;
 				const lifecycleError = error instanceof PluginLifecycleError ? error : new PluginLifecycleError("plugin-kernel", "init", error);
 				throw new PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : "plugin-kernel", "init", lifecycleError.cause, cleanupErrors);
 			}
@@ -2464,28 +2479,46 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				throw new PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : "plugin-kernel", "init", lifecycleError.cause, cleanupErrors);
 			}
 		}
-		async notifyImageLoaded(image) {
+		async notifyImageLoaded(image, signal) {
+			var _a;
 			this.assertLifecycleReady("notify plugins that an image loaded");
+			const notificationSignal = signal !== null && signal !== void 0 ? signal : new AbortController().signal;
 			for (const pluginId of this.installationOrder) {
+				notificationSignal.throwIfAborted();
 				const record = this.installed.get(pluginId);
 				if (!(record === null || record === void 0 ? void 0 : record.plugin.onImageLoaded)) continue;
+				const context = Object.freeze({
+					...record.lifecycleContext,
+					signal: notificationSignal
+				});
 				try {
-					await record.plugin.onImageLoaded(image, record.lifecycleContext);
+					await record.plugin.onImageLoaded(image, context);
 				} catch (error) {
+					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-loaded", error);
 				}
+				notificationSignal.throwIfAborted();
 			}
 		}
-		async notifyImageCleared() {
+		async notifyImageCleared(signal) {
+			var _a;
 			this.assertLifecycleReady("notify plugins that an image cleared");
+			const notificationSignal = signal !== null && signal !== void 0 ? signal : new AbortController().signal;
 			for (const pluginId of this.installationOrder) {
+				notificationSignal.throwIfAborted();
 				const record = this.installed.get(pluginId);
 				if (!(record === null || record === void 0 ? void 0 : record.plugin.onImageCleared)) continue;
+				const context = Object.freeze({
+					...record.lifecycleContext,
+					signal: notificationSignal
+				});
 				try {
-					await record.plugin.onImageCleared(record.lifecycleContext);
+					await record.plugin.onImageCleared(context);
 				} catch (error) {
+					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-cleared", error);
 				}
+				notificationSignal.throwIfAborted();
 			}
 		}
 		dispose() {
@@ -2592,7 +2625,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const cycle = visit(pluginId);
 				if (cycle) return cycle;
 			}
-			return Object.freeze([...remaining, remaining.values().next().value]);
+			throw new PluginKernelStateError("resolve Plugin dependency order without a detectable cycle", this.hostState);
 		}
 		performPendingInstallSync(plugin, visibleTransactions) {
 			if (plugin.setupMode !== "sync") throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
@@ -3536,7 +3569,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			orientationNormalized: false,
 			downsampled: false
 		});
-		const decoded = (_a = await decodeWithImageBitmap(bytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(neutralizeJpegOrientation(bytes), request.mimeType) : request.source, request.ownerDocument, request.signal);
+		const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
+		const decoded = (_a = await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source, request.ownerDocument, request.signal);
 		try {
 			request.signal.throwIfAborted();
 			const canvas = request.ownerDocument.createElement("canvas");
@@ -6126,18 +6160,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		ancestors.delete(value);
 	}
+	function sortJsonValue(entry) {
+		if (Array.isArray(entry)) return entry.map(sortJsonValue);
+		if (entry && typeof entry === "object") {
+			const result = {};
+			for (const key of Object.keys(entry).sort()) result[key] = sortJsonValue(entry[key]);
+			return result;
+		}
+		return entry;
+	}
+	function stringifyStableJson(value) {
+		return JSON.stringify(sortJsonValue(value));
+	}
 	function stableJson(value, limits) {
 		inspectTree(value, limits);
-		const sortValue = (entry) => {
-			if (Array.isArray(entry)) return entry.map(sortValue);
-			if (entry && typeof entry === "object") {
-				const result = {};
-				for (const key of Object.keys(entry).sort()) result[key] = sortValue(entry[key]);
-				return result;
-			}
-			return entry;
-		};
-		return JSON.stringify(sortValue(value));
+		return stringifyStableJson(value);
 	}
 	function parseInput(input, limits) {
 		if (typeof input !== "string") {
@@ -6250,7 +6287,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return this.prepareParsed(parseInput(input, this.limits), options);
 		}
 		async prepareForLoad(input, options = {}) {
-			var _a;
+			var _a, _b;
 			this.assertActive("prepare a public snapshot");
 			const parsed = parseInput(input, this.limits);
 			if (!((_a = options.migrations) === null || _a === void 0 ? void 0 : _a.length) || isRecord(parsed) && parsed.schema === "image-editor.state" && parsed.version === 3) return this.prepareParsed(parsed, options);
@@ -6259,6 +6296,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!migration) return this.prepareParsed(parsed, options);
 			const context = options.signal ? { signal: options.signal } : {};
 			const migrated = await migration.migrate(immutableInput, context);
+			(_b = options.signal) === null || _b === void 0 || _b.throwIfAborted();
 			return this.prepareParsed(parseInput(migrated, this.limits), options);
 		}
 		prepareParsed(input, options) {
@@ -6270,7 +6308,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const validatedSlices = [];
 			const opaqueSlices = [];
 			for (const [id, entry] of Object.entries(snapshot.plugins)) {
-				if (byteLength(stableJson(entry.data, this.limits)) > this.limits.maxPluginPayloadBytes) throw new SnapshotValidationError(`plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`, `$.plugins.${id}.data`);
+				if (byteLength(stringifyStableJson(entry.data)) > this.limits.maxPluginPayloadBytes) throw new SnapshotValidationError(`plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`, `$.plugins.${id}.data`);
 				const slice = this.slices.get(id);
 				if (!slice) {
 					if (policy === "error") throw new SnapshotValidationError("required plugin is not installed.", `$.plugins.${id}`);
@@ -6724,7 +6762,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function isCoreImageInfo(value) {
 		if (!value || typeof value !== "object") return false;
 		const candidate = value;
-		return typeof candidate.width === "number" && typeof candidate.height === "number" && typeof candidate.naturalWidth === "number" && typeof candidate.naturalHeight === "number" && typeof candidate.geometryRevision === "number";
+		return typeof candidate.width === "number" && typeof candidate.height === "number" && typeof candidate.naturalWidth === "number" && typeof candidate.naturalHeight === "number" && (candidate.mimeType === null || isImageMimeType(candidate.mimeType)) && typeof candidate.geometryRevision === "number";
 	}
 	function reportSafely(callback, error, message, fallback) {
 		try {
@@ -7285,7 +7323,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								this.assertCurrentLoad(sequence, commitContext.signal);
 								const previousBaseImage = this.baseImage;
 								if (previousBaseImage) {
-									await this.plugins.notifyImageCleared();
+									await this.plugins.notifyImageCleared(commitContext.signal);
 									this.assertCurrentLoad(sequence, commitContext.signal);
 								}
 								const canvas = this.requireCanvasForImageLoad("loadImage");
@@ -7319,7 +7357,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								disposeReplacedBaseImage(previousBaseImage, baseImage, "image replacement");
 								const imageInfo = this.getImageInfo();
 								if (!imageInfo) throw new Error("Loaded image information is unavailable.");
-								await this.plugins.notifyImageLoaded(imageInfo);
+								await this.plugins.notifyImageLoaded(imageInfo, commitContext.signal);
 								this.assertCurrentLoad(sequence, commitContext.signal);
 								return imageInfo;
 							},
@@ -7350,6 +7388,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		async loadImageFile(file, options = {}) {
 			var _a;
 			if (!(file instanceof File)) throw new TypeError("[ImageEditor] loadImageFile expects a File.");
+			if (file.size === 0) throw new CoreRuntimeError("[ImageEditor] Image file is empty.", { code: "IMAGE_FILE_EMPTY" });
 			if (file.size > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image file exceeds maxInputBytes.");
 			if ((_a = options.signal) === null || _a === void 0 ? void 0 : _a.aborted) throw loadAbortReason(options.signal, "Image file read was aborted.");
 			const dataUrl = await new Promise((resolve, reject) => {
@@ -7365,14 +7404,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					reject(loadAbortReason(options.signal, "Image file read was aborted."));
 				};
 				reader.onerror = () => {
-					var _a;
 					cleanup();
-					reject((_a = reader.error) !== null && _a !== void 0 ? _a : /* @__PURE__ */ new Error("FileReader failed."));
+					reject(new CoreRuntimeError("[ImageEditor] Image file could not be read.", {
+						code: "IMAGE_FILE_READ_FAILED",
+						cause: reader.error
+					}));
 				};
 				reader.onload = () => {
 					cleanup();
-					if (typeof reader.result === "string") resolve(reader.result);
-					else reject(/* @__PURE__ */ new Error("FileReader did not produce a Data URL."));
+					if (typeof reader.result === "string" && reader.result.startsWith("data:")) resolve(reader.result);
+					else reject(new CoreRuntimeError("[ImageEditor] Image file reader did not produce a Data URL.", { code: "IMAGE_FILE_RESULT_INVALID" }));
 				};
 				(_a = options.signal) === null || _a === void 0 || _a.addEventListener("abort", abort, { once: true });
 				reader.readAsDataURL(file);

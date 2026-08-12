@@ -274,9 +274,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 		cancel() {
 			if (this.disposed) return;
-			(0, _bensitu_image_editor_sdk.observePromise)(this.cancelGesture("pointer-cancel"), (error) => {
-				this.reportError(error, null, "cancel");
-			});
+			(0, _bensitu_image_editor_sdk.observePromise)(this.cancelGesture("pointer-cancel"), () => void 0);
 		}
 		async cancelGesture(reason = "requested") {
 			this.assertActive("cancel Canvas interactions");

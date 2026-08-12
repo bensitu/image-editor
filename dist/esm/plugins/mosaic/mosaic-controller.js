@@ -366,8 +366,10 @@ export class MosaicController {
         }
         const stroke = session.strokes[strokeIndex];
         const point = this.normalizePoint(value, session);
-        this.assertPointBudget(session);
         const previous = stroke.points[stroke.points.length - 1];
+        if (previous.xPx === point.xPx && previous.yPx === point.yPx)
+            return;
+        this.assertPointBudget(session);
         const interpolated = interpolateMosaicPoints(previous, point, stroke.configuration.brushSizePx / 2);
         this.assertInterpolatedPointBudget(session, interpolated.length);
         stroke.points.push(point);

@@ -131,7 +131,6 @@ export async function inspectPublicBundleIsolation(measurement) {
         );
         const unknown = classifiedModules.filter((entry) => entry.category === 'UNKNOWN');
         const duplicates = duplicateModules(fixture.modules);
-        const attributedDuplicates = [];
         const unattributedDuplicates = duplicates;
         const categories = new Set(classifiedModules.map((entry) => entry.category));
         const bundledFabric = fixture.modules.filter((moduleName) =>
@@ -168,7 +167,6 @@ export async function inspectPublicBundleIsolation(measurement) {
             testingRuntimeLeakage: testingLeakage.length,
             featureCoreLeakage: coreFeatures.length,
             fabricBundledModules: bundledFabric.length,
-            attributedDuplicateHelpers: Object.freeze(attributedDuplicates),
             unattributedDuplicateHelpers: Object.freeze(unattributedDuplicates),
         });
     }

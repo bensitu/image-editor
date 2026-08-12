@@ -309,9 +309,8 @@ export async function preprocessImageDataUrl(request) {
             downsampled: false,
         });
     }
-    const decoded = (_a = (await decodeWithImageBitmap(bytes, request.mimeType, request.signal))) !== null && _a !== void 0 ? _a : (await decodeWithImage(orientationNormalized
-        ? bytesDataUrl(neutralizeJpegOrientation(bytes), request.mimeType)
-        : request.source, request.ownerDocument, request.signal));
+    const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
+    const decoded = (_a = (await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal))) !== null && _a !== void 0 ? _a : (await decodeWithImage(orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source, request.ownerDocument, request.signal));
     try {
         request.signal.throwIfAborted();
         const canvas = request.ownerDocument.createElement('canvas');

@@ -1,6 +1,6 @@
 const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
-const require_plugin_manager = require('./plugin-manager-BCwOehdX.cjs');
+const require_plugin_manager = require('./plugin-manager-BoJcJvMe.cjs');
 const require_image_budget = require('./image-budget-fYafUuFf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 
@@ -548,7 +548,8 @@ async function preprocessImageDataUrl(request) {
 		orientationNormalized: false,
 		downsampled: false
 	});
-	const decoded = (_a = await decodeWithImageBitmap(bytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(neutralizeJpegOrientation(bytes), request.mimeType) : request.source, request.ownerDocument, request.signal);
+	const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
+	const decoded = (_a = await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source, request.ownerDocument, request.signal);
 	try {
 		request.signal.throwIfAborted();
 		const canvas = request.ownerDocument.createElement("canvas");
@@ -3070,18 +3071,21 @@ function inspectTree(value, limits, path = "$", depth = 0, ancestors = /* @__PUR
 	}
 	ancestors.delete(value);
 }
+function sortJsonValue(entry) {
+	if (Array.isArray(entry)) return entry.map(sortJsonValue);
+	if (entry && typeof entry === "object") {
+		const result = {};
+		for (const key of Object.keys(entry).sort()) result[key] = sortJsonValue(entry[key]);
+		return result;
+	}
+	return entry;
+}
+function stringifyStableJson(value) {
+	return JSON.stringify(sortJsonValue(value));
+}
 function stableJson(value, limits) {
 	inspectTree(value, limits);
-	const sortValue = (entry) => {
-		if (Array.isArray(entry)) return entry.map(sortValue);
-		if (entry && typeof entry === "object") {
-			const result = {};
-			for (const key of Object.keys(entry).sort()) result[key] = sortValue(entry[key]);
-			return result;
-		}
-		return entry;
-	};
-	return JSON.stringify(sortValue(value));
+	return stringifyStableJson(value);
 }
 function parseInput(input, limits) {
 	if (typeof input !== "string") {
@@ -3194,7 +3198,7 @@ var SnapshotService = class {
 		return this.prepareParsed(parseInput(input, this.limits), options);
 	}
 	async prepareForLoad(input, options = {}) {
-		var _a;
+		var _a, _b;
 		this.assertActive("prepare a public snapshot");
 		const parsed = parseInput(input, this.limits);
 		if (!((_a = options.migrations) === null || _a === void 0 ? void 0 : _a.length) || isRecord(parsed) && parsed.schema === "image-editor.state" && parsed.version === 3) return this.prepareParsed(parsed, options);
@@ -3203,6 +3207,7 @@ var SnapshotService = class {
 		if (!migration) return this.prepareParsed(parsed, options);
 		const context = options.signal ? { signal: options.signal } : {};
 		const migrated = await migration.migrate(immutableInput, context);
+		(_b = options.signal) === null || _b === void 0 || _b.throwIfAborted();
 		return this.prepareParsed(parseInput(migrated, this.limits), options);
 	}
 	prepareParsed(input, options) {
@@ -3214,7 +3219,7 @@ var SnapshotService = class {
 		const validatedSlices = [];
 		const opaqueSlices = [];
 		for (const [id, entry] of Object.entries(snapshot.plugins)) {
-			if (byteLength(stableJson(entry.data, this.limits)) > this.limits.maxPluginPayloadBytes) throw new SnapshotValidationError(`plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`, `$.plugins.${id}.data`);
+			if (byteLength(stringifyStableJson(entry.data)) > this.limits.maxPluginPayloadBytes) throw new SnapshotValidationError(`plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`, `$.plugins.${id}.data`);
 			const slice = this.slices.get(id);
 			if (!slice) {
 				if (policy === "error") throw new SnapshotValidationError("required plugin is not installed.", `$.plugins.${id}`);
@@ -3668,7 +3673,7 @@ function markBaseImage(image) {
 function isCoreImageInfo(value) {
 	if (!value || typeof value !== "object") return false;
 	const candidate = value;
-	return typeof candidate.width === "number" && typeof candidate.height === "number" && typeof candidate.naturalWidth === "number" && typeof candidate.naturalHeight === "number" && typeof candidate.geometryRevision === "number";
+	return typeof candidate.width === "number" && typeof candidate.height === "number" && typeof candidate.naturalWidth === "number" && typeof candidate.naturalHeight === "number" && (candidate.mimeType === null || isImageMimeType(candidate.mimeType)) && typeof candidate.geometryRevision === "number";
 }
 function reportSafely(callback, error, message, fallback) {
 	try {
@@ -4229,7 +4234,7 @@ var ImageEditorCore = class {
 							this.assertCurrentLoad(sequence, commitContext.signal);
 							const previousBaseImage = this.baseImage;
 							if (previousBaseImage) {
-								await this.plugins.notifyImageCleared();
+								await this.plugins.notifyImageCleared(commitContext.signal);
 								this.assertCurrentLoad(sequence, commitContext.signal);
 							}
 							const canvas = this.requireCanvasForImageLoad("loadImage");
@@ -4263,7 +4268,7 @@ var ImageEditorCore = class {
 							disposeReplacedBaseImage(previousBaseImage, baseImage, "image replacement");
 							const imageInfo = this.getImageInfo();
 							if (!imageInfo) throw new Error("Loaded image information is unavailable.");
-							await this.plugins.notifyImageLoaded(imageInfo);
+							await this.plugins.notifyImageLoaded(imageInfo, commitContext.signal);
 							this.assertCurrentLoad(sequence, commitContext.signal);
 							return imageInfo;
 						},
@@ -4294,6 +4299,7 @@ var ImageEditorCore = class {
 	async loadImageFile(file, options = {}) {
 		var _a;
 		if (!(file instanceof File)) throw new TypeError("[ImageEditor] loadImageFile expects a File.");
+		if (file.size === 0) throw new CoreRuntimeError("[ImageEditor] Image file is empty.", { code: "IMAGE_FILE_EMPTY" });
 		if (file.size > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image file exceeds maxInputBytes.");
 		if ((_a = options.signal) === null || _a === void 0 ? void 0 : _a.aborted) throw loadAbortReason(options.signal, "Image file read was aborted.");
 		const dataUrl = await new Promise((resolve, reject) => {
@@ -4309,14 +4315,16 @@ var ImageEditorCore = class {
 				reject(loadAbortReason(options.signal, "Image file read was aborted."));
 			};
 			reader.onerror = () => {
-				var _a;
 				cleanup();
-				reject((_a = reader.error) !== null && _a !== void 0 ? _a : /* @__PURE__ */ new Error("FileReader failed."));
+				reject(new CoreRuntimeError("[ImageEditor] Image file could not be read.", {
+					code: "IMAGE_FILE_READ_FAILED",
+					cause: reader.error
+				}));
 			};
 			reader.onload = () => {
 				cleanup();
-				if (typeof reader.result === "string") resolve(reader.result);
-				else reject(/* @__PURE__ */ new Error("FileReader did not produce a Data URL."));
+				if (typeof reader.result === "string" && reader.result.startsWith("data:")) resolve(reader.result);
+				else reject(new CoreRuntimeError("[ImageEditor] Image file reader did not produce a Data URL.", { code: "IMAGE_FILE_RESULT_INVALID" }));
 			};
 			(_a = options.signal) === null || _a === void 0 || _a.addEventListener("abort", abort, { once: true });
 			reader.readAsDataURL(file);
@@ -5521,4 +5529,4 @@ Object.defineProperty(exports, 'transformRectBounds', {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-DoQz4N42.cjs.map
+//# sourceMappingURL=core-IzQmeOnC.cjs.map

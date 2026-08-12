@@ -387,6 +387,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				"path"
 			] })) return false;
 			const geometry = normalizeShapeGeometry(value.geometry);
+			if (value.arrowHeadLength !== void 0) finiteRange(value.arrowHeadLength, "Arrow head length", 1, 1e3);
 			const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
 			const type = typeof serializedObject.type === "string" ? serializedObject.type.toLowerCase() : "";
 			return bytes <= MAX_SHAPE_OBJECT_BYTES && geometry.kind === value.shapeKind && (geometry.kind === "rect" && type === "rect" || geometry.kind === "line" && (type === "line" || type === "polyline") || geometry.kind === "arrow" && type === "path");
@@ -452,21 +453,25 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					type: "annotation:shape-object",
 					version: "1.0.0",
 					serialize: (object) => {
+						var _a;
 						const shape = object;
 						return Object.freeze({
 							version: 1,
 							shapeKind: shape.editorShapeKind,
 							geometry: shape.editorShapeGeometry,
+							arrowHeadLength: (_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength,
 							object: object.toObject()
 						});
 					},
 					validate: isSerializedShape,
 					deserialize: async (value, context) => {
+						var _a;
 						if (!isSerializedShape(value)) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Serialized Shape data is malformed.");
 						const object = (await context.fabric.util.enlivenObjects([value.object]))[0];
 						if (!object) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Fabric did not restore a Shape.");
 						object.editorShapeKind = value.shapeKind;
 						object.editorShapeGeometry = normalizeShapeGeometry(value.geometry);
+						object.editorArrowHeadLength = (_a = value.arrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength;
 						return object;
 					}
 				},
@@ -474,7 +479,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					type: "annotation:shape",
 					version: "1.0.0",
 					serialize: (object, context) => {
-						const geometry = normalizeShapeGeometry(object.editorShapeGeometry);
+						var _a;
+						const shape = object;
+						const geometry = normalizeShapeGeometry(shape.editorShapeGeometry);
 						const stateGeometry = geometry.kind === "rect" ? Object.freeze({
 							kind: "rect",
 							bounds: (0, _bensitu_image_editor_plugins_overlay.captureOverlayStateBounds)(object, context)
@@ -493,7 +500,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								fill: typeof object.fill === "string" ? object.fill : "",
 								opacity: Number.isFinite(object.opacity) ? object.opacity : 1,
 								strokeDashArray,
-								arrowHeadLength: context.toImageNormalizedScalar(this.configuration.arrowHeadLength)
+								arrowHeadLength: context.toImageNormalizedScalar((_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength)
 							})
 						});
 					},
@@ -715,6 +722,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			else object = new this.host.fabric.Path(buildArrowPath(geometry, resolved.arrowHeadLength), common);
 			object.editorShapeKind = geometry.kind;
 			object.editorShapeGeometry = geometry;
+			object.editorArrowHeadLength = resolved.arrowHeadLength;
 			return object;
 		}
 		resolveStyle(value) {

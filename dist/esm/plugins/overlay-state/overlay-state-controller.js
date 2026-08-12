@@ -63,7 +63,7 @@ function codecAccepts(codec, value) {
     }
 }
 export class OverlayStateController {
-    constructor(overlay, baseImage, canvas, configuredLimits) {
+    constructor(overlay, baseImage, canvas, diagnostics, configuredLimits) {
         Object.defineProperty(this, "overlay", {
             enumerable: true,
             configurable: true,
@@ -81,6 +81,12 @@ export class OverlayStateController {
             configurable: true,
             writable: true,
             value: canvas
+        });
+        Object.defineProperty(this, "diagnostics", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: diagnostics
         });
         Object.defineProperty(this, "configuredLimits", {
             enumerable: true,
@@ -225,83 +231,91 @@ export class OverlayStateController {
         }
         const idMapEntries = [];
         const additions = [];
+        const preparedObjects = new Set();
         let skipped = 0;
         const ordered = document.overlays
             .map((item, index) => ({ item, index }))
             .sort((left, right) => left.item.layer - right.item.layer);
-        for (const { item, index } of ordered) {
-            const resolved = resolveStateKind(this.overlay, item.kind);
-            if (!resolved ||
-                resolved.codec.type !== item.codec.type ||
-                resolved.codec.version !== item.codec.version) {
-                if (missingKindPolicy === 'skip') {
-                    skipped += 1;
-                    continue;
-                }
-                throw new OverlayStateCodecError(item.kind);
-            }
-            let persistentId = item.id;
-            if (reserved.has(persistentId)) {
-                if (idConflict === 'error')
-                    throw new OverlayStateIdConflictError(persistentId);
-                const regenerated = nextAvailableId(persistentId, reserved);
-                idMapEntries.push(Object.freeze([persistentId, regenerated]));
-                persistentId = regenerated;
-            }
-            reserved.add(persistentId);
-            const value = stateValue(document, index);
-            const object = await resolved.codec.deserialize(value, context.codec);
-            if (!object || typeof object !== 'object' || object.canvas) {
-                throw new OverlayStateCodecError(item.kind, 'restored an incompatible object');
-            }
-            const marked = object;
-            marked.editorOverlayKind = item.kind;
-            marked.editorOverlayId = persistentId;
-            marked.editorOverlayHidden = item.hidden;
-            marked.editorOverlayLocked = item.locked;
-            (_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 ? void 0 : _f.call(_e, object, persistentId);
-            if (!resolved.adapter.classify(object)) {
-                throw new OverlayStateCodecError(item.kind, 'restored an incompatible object');
-            }
-            if (resolved.adapter.setHidden)
-                resolved.adapter.setHidden(object, item.hidden);
-            else
-                object.set({ visible: !item.hidden });
-            if (resolved.adapter.setLocked)
-                resolved.adapter.setLocked(object, item.locked);
-            else
-                object.set({ selectable: !item.locked, evented: !item.locked });
-            additions.push(Object.freeze({ kind: item.kind, persistentId, object }));
-        }
-        const additionObjects = Object.freeze(additions.map((entry) => entry.object));
-        if (new Set(additionObjects).size !== additionObjects.length) {
-            throw new OverlayStateCodecError('multiple', 'restored duplicate object identities');
-        }
-        if (removeIds.length > 0 || additions.length > 0) {
-            await this.overlay.mutate({
-                id: `overlay-state:import-${++this.sequence}`,
-                operationId: IMPORT_OPERATION_ID,
-                action: 'delete',
-                objectIds: removeIds,
-                mutate: () => {
-                    const canvas = this.canvas.requireCanvas('import Overlay State');
-                    canvas.discardActiveObject();
-                    for (const object of removeObjects)
-                        canvas.remove(object);
-                    for (const object of additionObjects)
-                        canvas.add(object);
-                },
-                affectedObjects: () => additionObjects,
-                validate: () => {
-                    for (const addition of additions) {
-                        if (this.overlay.getByPersistentId(addition.persistentId) !==
-                            addition.object) {
-                            throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
-                        }
+        try {
+            for (const { item, index } of ordered) {
+                const resolved = resolveStateKind(this.overlay, item.kind);
+                if (!resolved ||
+                    resolved.codec.type !== item.codec.type ||
+                    resolved.codec.version !== item.codec.version) {
+                    if (missingKindPolicy === 'skip') {
+                        skipped += 1;
+                        continue;
                     }
-                },
-                metadata: Object.freeze({ mode, imported: additions.length, skipped }),
-            });
+                    throw new OverlayStateCodecError(item.kind);
+                }
+                let persistentId = item.id;
+                if (reserved.has(persistentId)) {
+                    if (idConflict === 'error')
+                        throw new OverlayStateIdConflictError(persistentId);
+                    const regenerated = nextAvailableId(persistentId, reserved);
+                    idMapEntries.push(Object.freeze([persistentId, regenerated]));
+                    persistentId = regenerated;
+                }
+                reserved.add(persistentId);
+                const value = stateValue(document, index);
+                const object = await resolved.codec.deserialize(value, context.codec);
+                if (!object || typeof object !== 'object' || object.canvas) {
+                    throw new OverlayStateCodecError(item.kind, 'restored an incompatible object');
+                }
+                preparedObjects.add(object);
+                const marked = object;
+                marked.editorOverlayKind = item.kind;
+                marked.editorOverlayId = persistentId;
+                marked.editorOverlayHidden = item.hidden;
+                marked.editorOverlayLocked = item.locked;
+                (_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 ? void 0 : _f.call(_e, object, persistentId);
+                if (!resolved.adapter.classify(object)) {
+                    throw new OverlayStateCodecError(item.kind, 'restored an incompatible object');
+                }
+                if (resolved.adapter.setHidden)
+                    resolved.adapter.setHidden(object, item.hidden);
+                else
+                    object.set({ visible: !item.hidden });
+                if (resolved.adapter.setLocked)
+                    resolved.adapter.setLocked(object, item.locked);
+                else
+                    object.set({ selectable: !item.locked, evented: !item.locked });
+                additions.push(Object.freeze({ kind: item.kind, persistentId, object }));
+            }
+            const additionObjects = Object.freeze(additions.map((entry) => entry.object));
+            if (new Set(additionObjects).size !== additionObjects.length) {
+                throw new OverlayStateCodecError('multiple', 'restored duplicate object identities');
+            }
+            if (removeIds.length > 0 || additions.length > 0) {
+                await this.overlay.mutate({
+                    id: `overlay-state:import-${++this.sequence}`,
+                    operationId: IMPORT_OPERATION_ID,
+                    action: 'delete',
+                    objectIds: removeIds,
+                    mutate: () => {
+                        const canvas = this.canvas.requireCanvas('import Overlay State');
+                        canvas.discardActiveObject();
+                        for (const object of removeObjects)
+                            canvas.remove(object);
+                        for (const object of additionObjects)
+                            canvas.add(object);
+                    },
+                    affectedObjects: () => additionObjects,
+                    validate: () => {
+                        for (const addition of additions) {
+                            if (this.overlay.getByPersistentId(addition.persistentId) !==
+                                addition.object) {
+                                throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
+                            }
+                        }
+                    },
+                    metadata: Object.freeze({ mode, imported: additions.length, skipped }),
+                });
+            }
+        }
+        catch (error) {
+            this.disposePreparedObjects(preparedObjects);
+            throw error;
         }
         return Object.freeze({
             mode,
@@ -338,6 +352,24 @@ export class OverlayStateController {
             }
         });
         return Object.freeze(issues);
+    }
+    disposePreparedObjects(objects) {
+        for (const object of objects) {
+            if (object.canvas) {
+                try {
+                    object.canvas.remove(object);
+                }
+                catch (error) {
+                    this.diagnostics.reportWarning(error, 'Overlay State rejected-object detachment failed.');
+                }
+            }
+            try {
+                object.dispose();
+            }
+            catch (error) {
+                this.diagnostics.reportWarning(error, 'Overlay State rejected-object cleanup failed.');
+            }
+        }
     }
     assertActive(operation) {
         if (this.disposed)

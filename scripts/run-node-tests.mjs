@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
@@ -55,14 +55,14 @@ if (testFiles.length === 0) {
 const relativeTestFiles = testFiles.map((file) =>
     path.relative(repoRoot, file).split(path.sep).join('/'),
 );
-const child = spawn(
-    process.execPath,
-    ['--import', './tests/helpers/register-ts-loader.mjs', '--test', ...relativeTestFiles],
-    {
-        cwd: repoRoot,
-        stdio: 'inherit',
-    },
-);
+const loaderUrl = pathToFileURL(
+    path.join(repoRoot, 'tests', 'helpers', 'register-ts-loader.mjs'),
+).href;
+const child = spawn(process.execPath, ['--import', loaderUrl, '--test', ...relativeTestFiles], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    windowsHide: true,
+});
 
 child.on('error', (error) => {
     console.error(error);

@@ -16,6 +16,13 @@ const credentialCases: readonly (readonly [CredentialKind, string])[] = Object.f
     ['google-api-key', `AIza${'G'.repeat(35)}`],
     ['npm-token', `npm_${'H'.repeat(36)}`],
     ['openai-api-key', `sk-proj-${'I'.repeat(32)}`],
+    ['stripe-live-key', `sk_live_${'J'.repeat(24)}`],
+    ['twilio-api-key', `SK${'a1'.repeat(16)}`],
+    ['sendgrid-api-key', `SG.${'K'.repeat(22)}.${'L'.repeat(43)}`],
+    [
+        'azure-storage-key',
+        `DefaultEndpointsProtocol=https;AccountName=storage;AccountKey=${'M'.repeat(44)};EndpointSuffix=core.windows.net`,
+    ],
 ]);
 
 test('shared credential policy covers supported provider signatures', () => {

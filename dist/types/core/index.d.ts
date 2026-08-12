@@ -13,4 +13,4 @@ export type { BaseImageGeometrySnapshot, GeometryMutationBaseContext, GeometryMu
 export type { DocumentMutationContext, DocumentMutationDescriptor, DocumentMutationPort, } from '../core-runtime/mutation/index.js';
 export type { DefaultMaskConfig, LabelConfig, MaskConfig, MaskFactoryOptions, MaskObject, OverlayListOrder, } from './public-types.js';
 export * from '../core-runtime/state/index.js';
-export { createCapabilityToken, definePluginRef, type CapabilityRequirement, type CapabilityToken, type Disposable, type PluginLifecycleContext, type PluginRef, type PluginSetupContext, type SynchronousEditorPlugin, } from '../plugin-kernel/index.js';
+export { createCapabilityToken, definePluginRef, type CapabilityRequirement, type CapabilityToken, type Disposable, type PluginImageLifecycleContext, type PluginLifecycleContext, type PluginRef, type PluginSetupContext, type SynchronousEditorPlugin, } from '../plugin-kernel/index.js';

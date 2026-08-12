@@ -145,7 +145,7 @@ function assertSourcesExclude(artifact, patterns) {
 
 function actualExternalDependencies(source) {
     const externalIds = new Set();
-    for (const match of source.slice(0, 4096).matchAll(/\brequire\((['"])([^'"]+)\1\)/gu)) {
+    for (const match of source.matchAll(/\brequire\((['"])([^'"]+)\1\)/gu)) {
         externalIds.add(match[2]);
     }
     return externalIds;

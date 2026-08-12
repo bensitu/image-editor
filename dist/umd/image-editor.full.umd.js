@@ -714,9 +714,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (existing.providerPluginId === providerPluginId && existing.transactionId === transactionId && existing.version === providerVersion && existing.requiredPermission === requiredPermission && Object.is(existing.implementation, implementation)) {
 					const noop = createNoopDisposable();
 					return {
-						commit: () => {
-							existing.complete = true;
-						},
+						commit: () => void 0,
 						dispose: () => noop.dispose()
 					};
 				}
@@ -1369,17 +1367,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		drainPending() {
 			if (this.disposed) return;
-			let started = true;
-			while (started) {
-				started = false;
-				for (let index = 0; index < this.pendingRequests.length; index += 1) {
-					const request = this.pendingRequests[index];
-					if (this.findConflicts(request.record, request.options.parent).length > 0) continue;
-					this.pendingRequests.splice(index, 1);
-					this.startRequest(request);
-					started = true;
-					break;
+			for (let index = 0; index < this.pendingRequests.length;) {
+				const request = this.pendingRequests[index];
+				if (this.findConflicts(request.record, request.options.parent).length > 0) {
+					index += 1;
+					continue;
 				}
+				this.pendingRequests.splice(index, 1);
+				this.startRequest(request);
 			}
 		}
 		createActive(record, parent, request) {
@@ -2298,7 +2293,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...options.activitySink ? { activitySink: options.activitySink } : {}
 			}));
 			this.eventBus = new CommittedEventBus(options);
-			for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
+			try {
+				for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
+			} catch (error) {
+				for (const dispose of [
+					() => this.eventBus.dispose(),
+					() => this.toolCoordinator.disposeSync(),
+					() => this.operationRegistry.dispose(),
+					() => this.capabilityRegistry.dispose(),
+					() => this.stateStore.dispose()
+				]) try {
+					dispose();
+				} catch (cleanupError) {
+					reportErrorSafely(options.errorSink, cleanupError);
+				}
+				throw error;
+			}
 		}
 		get state() {
 			return this.hostState;
@@ -2437,8 +2447,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.hostState = "initialized";
 			} catch (error) {
 				this.hostState = "disposing";
-				const cleanupErrors = await this.cleanupAll();
-				this.hostState = "disposed";
+				const cleanup = (async () => {
+					const cleanupErrors = await this.cleanupAll();
+					this.hostState = "disposed";
+					return cleanupErrors;
+				})();
+				this.disposePromise = cleanup.then(() => void 0);
+				const cleanupErrors = await cleanup;
 				const lifecycleError = error instanceof PluginLifecycleError ? error : new PluginLifecycleError("plugin-kernel", "init", error);
 				throw new PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : "plugin-kernel", "init", lifecycleError.cause, cleanupErrors);
 			}
@@ -2464,28 +2479,46 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				throw new PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : "plugin-kernel", "init", lifecycleError.cause, cleanupErrors);
 			}
 		}
-		async notifyImageLoaded(image) {
+		async notifyImageLoaded(image, signal) {
+			var _a;
 			this.assertLifecycleReady("notify plugins that an image loaded");
+			const notificationSignal = signal !== null && signal !== void 0 ? signal : new AbortController().signal;
 			for (const pluginId of this.installationOrder) {
+				notificationSignal.throwIfAborted();
 				const record = this.installed.get(pluginId);
 				if (!(record === null || record === void 0 ? void 0 : record.plugin.onImageLoaded)) continue;
+				const context = Object.freeze({
+					...record.lifecycleContext,
+					signal: notificationSignal
+				});
 				try {
-					await record.plugin.onImageLoaded(image, record.lifecycleContext);
+					await record.plugin.onImageLoaded(image, context);
 				} catch (error) {
+					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-loaded", error);
 				}
+				notificationSignal.throwIfAborted();
 			}
 		}
-		async notifyImageCleared() {
+		async notifyImageCleared(signal) {
+			var _a;
 			this.assertLifecycleReady("notify plugins that an image cleared");
+			const notificationSignal = signal !== null && signal !== void 0 ? signal : new AbortController().signal;
 			for (const pluginId of this.installationOrder) {
+				notificationSignal.throwIfAborted();
 				const record = this.installed.get(pluginId);
 				if (!(record === null || record === void 0 ? void 0 : record.plugin.onImageCleared)) continue;
+				const context = Object.freeze({
+					...record.lifecycleContext,
+					signal: notificationSignal
+				});
 				try {
-					await record.plugin.onImageCleared(record.lifecycleContext);
+					await record.plugin.onImageCleared(context);
 				} catch (error) {
+					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-cleared", error);
 				}
+				notificationSignal.throwIfAborted();
 			}
 		}
 		dispose() {
@@ -2592,7 +2625,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const cycle = visit(pluginId);
 				if (cycle) return cycle;
 			}
-			return Object.freeze([...remaining, remaining.values().next().value]);
+			throw new PluginKernelStateError("resolve Plugin dependency order without a detectable cycle", this.hostState);
 		}
 		performPendingInstallSync(plugin, visibleTransactions) {
 			if (plugin.setupMode !== "sync") throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
@@ -3536,7 +3569,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			orientationNormalized: false,
 			downsampled: false
 		});
-		const decoded = (_a = await decodeWithImageBitmap(bytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(neutralizeJpegOrientation(bytes), request.mimeType) : request.source, request.ownerDocument, request.signal);
+		const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
+		const decoded = (_a = await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source, request.ownerDocument, request.signal);
 		try {
 			request.signal.throwIfAborted();
 			const canvas = request.ownerDocument.createElement("canvas");
@@ -6093,18 +6127,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		ancestors.delete(value);
 	}
+	function sortJsonValue(entry) {
+		if (Array.isArray(entry)) return entry.map(sortJsonValue);
+		if (entry && typeof entry === "object") {
+			const result = {};
+			for (const key of Object.keys(entry).sort()) result[key] = sortJsonValue(entry[key]);
+			return result;
+		}
+		return entry;
+	}
+	function stringifyStableJson(value) {
+		return JSON.stringify(sortJsonValue(value));
+	}
 	function stableJson(value, limits) {
 		inspectTree(value, limits);
-		const sortValue = (entry) => {
-			if (Array.isArray(entry)) return entry.map(sortValue);
-			if (entry && typeof entry === "object") {
-				const result = {};
-				for (const key of Object.keys(entry).sort()) result[key] = sortValue(entry[key]);
-				return result;
-			}
-			return entry;
-		};
-		return JSON.stringify(sortValue(value));
+		return stringifyStableJson(value);
 	}
 	function parseInput(input, limits) {
 		if (typeof input !== "string") {
@@ -6217,7 +6254,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return this.prepareParsed(parseInput(input, this.limits), options);
 		}
 		async prepareForLoad(input, options = {}) {
-			var _a;
+			var _a, _b;
 			this.assertActive("prepare a public snapshot");
 			const parsed = parseInput(input, this.limits);
 			if (!((_a = options.migrations) === null || _a === void 0 ? void 0 : _a.length) || isRecord$9(parsed) && parsed.schema === "image-editor.state" && parsed.version === 3) return this.prepareParsed(parsed, options);
@@ -6226,6 +6263,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!migration) return this.prepareParsed(parsed, options);
 			const context = options.signal ? { signal: options.signal } : {};
 			const migrated = await migration.migrate(immutableInput, context);
+			(_b = options.signal) === null || _b === void 0 || _b.throwIfAborted();
 			return this.prepareParsed(parseInput(migrated, this.limits), options);
 		}
 		prepareParsed(input, options) {
@@ -6237,7 +6275,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const validatedSlices = [];
 			const opaqueSlices = [];
 			for (const [id, entry] of Object.entries(snapshot.plugins)) {
-				if (byteLength(stableJson(entry.data, this.limits)) > this.limits.maxPluginPayloadBytes) throw new SnapshotValidationError(`plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`, `$.plugins.${id}.data`);
+				if (byteLength(stringifyStableJson(entry.data)) > this.limits.maxPluginPayloadBytes) throw new SnapshotValidationError(`plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`, `$.plugins.${id}.data`);
 				const slice = this.slices.get(id);
 				if (!slice) {
 					if (policy === "error") throw new SnapshotValidationError("required plugin is not installed.", `$.plugins.${id}`);
@@ -6691,7 +6729,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function isCoreImageInfo(value) {
 		if (!value || typeof value !== "object") return false;
 		const candidate = value;
-		return typeof candidate.width === "number" && typeof candidate.height === "number" && typeof candidate.naturalWidth === "number" && typeof candidate.naturalHeight === "number" && typeof candidate.geometryRevision === "number";
+		return typeof candidate.width === "number" && typeof candidate.height === "number" && typeof candidate.naturalWidth === "number" && typeof candidate.naturalHeight === "number" && (candidate.mimeType === null || isImageMimeType(candidate.mimeType)) && typeof candidate.geometryRevision === "number";
 	}
 	function reportSafely(callback, error, message, fallback) {
 		try {
@@ -7252,7 +7290,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								this.assertCurrentLoad(sequence, commitContext.signal);
 								const previousBaseImage = this.baseImage;
 								if (previousBaseImage) {
-									await this.plugins.notifyImageCleared();
+									await this.plugins.notifyImageCleared(commitContext.signal);
 									this.assertCurrentLoad(sequence, commitContext.signal);
 								}
 								const canvas = this.requireCanvasForImageLoad("loadImage");
@@ -7286,7 +7324,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								disposeReplacedBaseImage(previousBaseImage, baseImage, "image replacement");
 								const imageInfo = this.getImageInfo();
 								if (!imageInfo) throw new Error("Loaded image information is unavailable.");
-								await this.plugins.notifyImageLoaded(imageInfo);
+								await this.plugins.notifyImageLoaded(imageInfo, commitContext.signal);
 								this.assertCurrentLoad(sequence, commitContext.signal);
 								return imageInfo;
 							},
@@ -7317,6 +7355,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		async loadImageFile(file, options = {}) {
 			var _a;
 			if (!(file instanceof File)) throw new TypeError("[ImageEditor] loadImageFile expects a File.");
+			if (file.size === 0) throw new CoreRuntimeError("[ImageEditor] Image file is empty.", { code: "IMAGE_FILE_EMPTY" });
 			if (file.size > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image file exceeds maxInputBytes.");
 			if ((_a = options.signal) === null || _a === void 0 ? void 0 : _a.aborted) throw loadAbortReason(options.signal, "Image file read was aborted.");
 			const dataUrl = await new Promise((resolve, reject) => {
@@ -7332,14 +7371,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					reject(loadAbortReason(options.signal, "Image file read was aborted."));
 				};
 				reader.onerror = () => {
-					var _a;
 					cleanup();
-					reject((_a = reader.error) !== null && _a !== void 0 ? _a : /* @__PURE__ */ new Error("FileReader failed."));
+					reject(new CoreRuntimeError("[ImageEditor] Image file could not be read.", {
+						code: "IMAGE_FILE_READ_FAILED",
+						cause: reader.error
+					}));
 				};
 				reader.onload = () => {
 					cleanup();
-					if (typeof reader.result === "string") resolve(reader.result);
-					else reject(/* @__PURE__ */ new Error("FileReader did not produce a Data URL."));
+					if (typeof reader.result === "string" && reader.result.startsWith("data:")) resolve(reader.result);
+					else reject(new CoreRuntimeError("[ImageEditor] Image file reader did not produce a Data URL.", { code: "IMAGE_FILE_RESULT_INVALID" }));
 				};
 				(_a = options.signal) === null || _a === void 0 || _a.addEventListener("abort", abort, { once: true });
 				reader.readAsDataURL(file);
@@ -9035,9 +9076,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return (_b = (_a = this.kinds.get(kind)) === null || _a === void 0 ? void 0 : _a.definition) !== null && _b !== void 0 ? _b : null;
 		}
 		getSelection() {
-			var _a, _b;
 			this.assertActive("read overlay selection");
-			const canvas = this.host.requireCanvas("read overlay selection");
+			return this.readSelection();
+		}
+		readSelection() {
+			var _a, _b;
+			const canvas = this.host.getCanvas();
+			if (!canvas) return this.retainedSelection;
 			const classifications = getActiveCanvasObjects(canvas).map((object) => this.byObject.get(object)).filter((entry) => entry !== void 0).map((entry) => this.classificationFor(entry));
 			if (classifications.length === 0 && canvas.getObjects().some((object) => isSessionCanvasObject(object))) return this.retainedSelection;
 			this.retainedSelection = Object.freeze({
@@ -9454,7 +9499,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return Object.freeze({
 					version: 1,
 					overlays: Object.freeze(overlays),
-					selectionIds: this.getSelection().ids
+					selectionIds: this.readSelection().ids
 				});
 			} finally {
 				this.setPreviewObjectsHidden(true);
@@ -9495,33 +9540,82 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a, _b;
 			const canvas = this.host.getCanvas();
 			if (!canvas) throw new CoreRuntimeError("[ImageEditor] Overlay state restore requires Canvas.");
-			canvas.discardActiveObject();
-			for (const indexed of [...this.byId.values()]) canvas.remove(indexed.object);
-			this.byId.clear();
-			this.preservedRecords = [];
-			for (const record of value.overlays) {
-				const serializer = this.serializers.get(record.kind);
-				const kind = this.kinds.get(record.kind);
-				if (!serializer || !kind || kind.definition.persistence.mode !== "persistent" || record.codec.type !== serializer.type || record.codec.version !== serializer.version) {
-					this.preservedRecords.push(record);
-					continue;
+			const restored = [];
+			const preserved = [];
+			try {
+				for (const record of value.overlays) {
+					const serializer = this.serializers.get(record.kind);
+					const kind = this.kinds.get(record.kind);
+					if (!serializer || !kind || kind.definition.persistence.mode !== "persistent" || record.codec.type !== serializer.type || record.codec.version !== serializer.version) {
+						preserved.push(record);
+						continue;
+					}
+					if (!serializer.validate(record.data)) throw new CoreRuntimeError(`[ImageEditor] Serialized overlay "${record.persistentId}" is invalid.`);
+					const object = await serializer.deserialize(record.data, { fabric: this.host.fabric });
+					if (!object || typeof object !== "object" || object.canvas) throw new CoreRuntimeError(`[ImageEditor] Serialized overlay "${record.persistentId}" restored an incompatible object.`);
+					restored.push(Object.freeze({
+						object,
+						record
+					}));
+					const marked = object;
+					marked.editorOverlayKind = record.kind;
+					marked.editorOverlayId = record.persistentId;
+					marked.editorOverlayHidden = record.hidden;
+					marked.editorOverlayLocked = record.locked;
+					(_b = (_a = kind.definition).setPersistentId) === null || _b === void 0 || _b.call(_a, object, record.persistentId);
 				}
-				if (!serializer.validate(record.data)) throw new CoreRuntimeError(`[ImageEditor] Serialized overlay "${record.persistentId}" is invalid.`);
-				const object = await serializer.deserialize(record.data, { fabric: this.host.fabric });
-				const marked = object;
-				marked.editorOverlayKind = record.kind;
-				marked.editorOverlayId = record.persistentId;
-				marked.editorOverlayHidden = record.hidden;
-				marked.editorOverlayLocked = record.locked;
-				(_b = (_a = kind.definition).setPersistentId) === null || _b === void 0 || _b.call(_a, object, record.persistentId);
-				canvas.add(object);
-				this.applyHidden(record.persistentId, record.hidden);
-				this.applyLocked(record.persistentId, record.locked);
+			} catch (error) {
+				this.disposeDetachedObjects(restored.map(({ object }) => object), "Rejected Overlay restore object cleanup failed.");
+				throw error;
 			}
-			this.rebuildIndex();
-			const restoredSelection = value.selectionIds.filter((persistentId) => this.byId.has(persistentId));
-			if (restoredSelection.length > 0) this.applySelection(restoredSelection);
-			this.host.requestRender();
+			const previousObjects = [...this.byId.values()].map(({ object }) => object);
+			const previousPreserved = this.preservedRecords;
+			const previousSelection = this.readSelection().ids;
+			try {
+				canvas.discardActiveObject();
+				for (const object of previousObjects) canvas.remove(object);
+				this.byId.clear();
+				this.preservedRecords = preserved;
+				for (const { object } of restored) canvas.add(object);
+				this.rebuildIndex();
+				for (const { record } of restored) {
+					this.applyHidden(record.persistentId, record.hidden);
+					this.applyLocked(record.persistentId, record.locked);
+				}
+				const restoredSelection = value.selectionIds.filter((persistentId) => this.byId.has(persistentId));
+				if (restoredSelection.length > 0) this.applySelection(restoredSelection);
+				else this.retainedSelection = EMPTY_SELECTION_STATE;
+				this.host.requestRender();
+			} catch (error) {
+				let rollbackError = null;
+				try {
+					canvas.discardActiveObject();
+					for (const { object } of restored) if (canvas.getObjects().includes(object)) canvas.remove(object);
+					this.preservedRecords = previousPreserved;
+					for (const object of previousObjects) if (!canvas.getObjects().includes(object)) canvas.add(object);
+					this.rebuildIndex();
+					if (previousSelection.length > 0) this.applySelection(previousSelection);
+					else this.retainedSelection = EMPTY_SELECTION_STATE;
+					this.host.requestRender();
+				} catch (restoreError) {
+					rollbackError = restoreError;
+				}
+				this.disposeDetachedObjects(restored.map(({ object }) => object), "Rejected Overlay restore object cleanup failed.");
+				if (rollbackError) throw new CoreRuntimeError("[ImageEditor] Overlay state restore and local rollback both failed.", {
+					code: "OVERLAY_STATE_RESTORE_ROLLBACK_FAILED",
+					cause: Object.freeze([error, rollbackError]),
+					behavior: "fatal-rollback"
+				});
+				throw error;
+			}
+			this.disposeDetachedObjects(previousObjects, "Replaced Overlay object cleanup failed.");
+		}
+		disposeDetachedObjects(objects, message) {
+			for (const object of new Set(objects)) try {
+				object.dispose();
+			} catch (error) {
+				this.host.reportWarning(error, message);
+			}
 		}
 		resetState() {
 			const canvas = this.host.getCanvas();
@@ -10060,7 +10154,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		emitSelection() {
 			if (this.disposed) return;
-			const selection = this.getSelection();
+			const selection = this.readSelection();
 			for (const listener of [...this.selectionListeners]) try {
 				listener(selection);
 			} catch (error) {
@@ -13903,8 +13997,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const dist = Math.sqrt(vx * vx + vy * vy) || 1;
 		const offset = Math.max(0, (_b = options.maskLabelOffset) !== null && _b !== void 0 ? _b : 3);
 		mask.labelObject.set({
-			left: Math.round(tl.x + vx / dist * offset),
-			top: Math.round(tl.y + vy / dist * offset),
+			left: tl.x + vx / dist * offset,
+			top: tl.y + vy / dist * offset,
 			angle: (_c = mask.angle) !== null && _c !== void 0 ? _c : 0,
 			originX: "left",
 			originY: "top",
@@ -17050,6 +17144,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const deltaX = end.xPx - start.xPx;
 		const deltaY = end.yPx - start.yPx;
 		const distance = Math.hypot(deltaX, deltaY);
+		if (distance === 0) return Object.freeze([]);
 		const spacing = Math.max(1, radiusPx / 2);
 		const steps = Math.max(1, Math.ceil(distance / spacing));
 		return Object.freeze(Array.from(Array.from({ length: steps }).keys(), (index) => {
@@ -17617,8 +17712,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (strokeIndex === null) throw new MosaicSessionError("Mosaic appendStroke requires an active stroke.");
 			const stroke = session.strokes[strokeIndex];
 			const point = this.normalizePoint(value, session);
-			this.assertPointBudget(session);
 			const previous = stroke.points[stroke.points.length - 1];
+			if (previous.xPx === point.xPx && previous.yPx === point.yPx) return;
+			this.assertPointBudget(session);
 			const interpolated = interpolateMosaicPoints(previous, point, stroke.configuration.brushSizePx / 2);
 			this.assertInterpolatedPointBudget(session, interpolated.length);
 			stroke.points.push(point);
@@ -18934,6 +19030,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				"path"
 			] })) return false;
 			const geometry = normalizeShapeGeometry(value.geometry);
+			if (value.arrowHeadLength !== void 0) finiteRange$1(value.arrowHeadLength, "Arrow head length", 1, 1e3);
 			const bytes = new TextEncoder().encode(JSON.stringify(serializedObject)).byteLength;
 			const type = typeof serializedObject.type === "string" ? serializedObject.type.toLowerCase() : "";
 			return bytes <= MAX_SHAPE_OBJECT_BYTES && geometry.kind === value.shapeKind && (geometry.kind === "rect" && type === "rect" || geometry.kind === "line" && (type === "line" || type === "polyline") || geometry.kind === "arrow" && type === "path");
@@ -18999,21 +19096,25 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					type: "annotation:shape-object",
 					version: "1.0.0",
 					serialize: (object) => {
+						var _a;
 						const shape = object;
 						return Object.freeze({
 							version: 1,
 							shapeKind: shape.editorShapeKind,
 							geometry: shape.editorShapeGeometry,
+							arrowHeadLength: (_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength,
 							object: object.toObject()
 						});
 					},
 					validate: isSerializedShape,
 					deserialize: async (value, context) => {
+						var _a;
 						if (!isSerializedShape(value)) throw new AnnotationValidationError("Serialized Shape data is malformed.");
 						const object = (await context.fabric.util.enlivenObjects([value.object]))[0];
 						if (!object) throw new AnnotationValidationError("Fabric did not restore a Shape.");
 						object.editorShapeKind = value.shapeKind;
 						object.editorShapeGeometry = normalizeShapeGeometry(value.geometry);
+						object.editorArrowHeadLength = (_a = value.arrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength;
 						return object;
 					}
 				},
@@ -19021,7 +19122,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					type: "annotation:shape",
 					version: "1.0.0",
 					serialize: (object, context) => {
-						const geometry = normalizeShapeGeometry(object.editorShapeGeometry);
+						var _a;
+						const shape = object;
+						const geometry = normalizeShapeGeometry(shape.editorShapeGeometry);
 						const stateGeometry = geometry.kind === "rect" ? Object.freeze({
 							kind: "rect",
 							bounds: captureOverlayStateBounds(object, context)
@@ -19040,7 +19143,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								fill: typeof object.fill === "string" ? object.fill : "",
 								opacity: Number.isFinite(object.opacity) ? object.opacity : 1,
 								strokeDashArray,
-								arrowHeadLength: context.toImageNormalizedScalar(this.configuration.arrowHeadLength)
+								arrowHeadLength: context.toImageNormalizedScalar((_a = shape.editorArrowHeadLength) !== null && _a !== void 0 ? _a : this.configuration.arrowHeadLength)
 							})
 						});
 					},
@@ -19262,6 +19365,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			else object = new this.host.fabric.Path(buildArrowPath(geometry, resolved.arrowHeadLength), common);
 			object.editorShapeKind = geometry.kind;
 			object.editorShapeGeometry = geometry;
+			object.editorArrowHeadLength = resolved.arrowHeadLength;
 			return object;
 		}
 		resolveStyle(value) {
@@ -20450,7 +20554,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function validateMetadata(value, path, limits, issues) {
 		if (!isPlainRecord(value)) {
 			addIssue(issues, "metadata.invalid", path, "Metadata must be an object.");
-			return false;
+			return;
 		}
 		let keys = 0;
 		const visit = (entry, entryPath, depth) => {
@@ -20473,7 +20577,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 		};
 		visit(value, path, 0);
-		return true;
 	}
 	function jsonBytes(value) {
 		return utf8Bytes(JSON.stringify(value));
@@ -20650,7 +20753,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 	var OverlayStateController = class {
-		constructor(overlay, baseImage, canvas, configuredLimits) {
+		constructor(overlay, baseImage, canvas, diagnostics, configuredLimits) {
 			Object.defineProperty(this, "overlay", {
 				enumerable: true,
 				configurable: true,
@@ -20668,6 +20771,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				configurable: true,
 				writable: true,
 				value: canvas
+			});
+			Object.defineProperty(this, "diagnostics", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: diagnostics
 			});
 			Object.defineProperty(this, "configuredLimits", {
 				enumerable: true,
@@ -20800,74 +20909,81 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (mode === "replace") for (const id of removeIds) reserved.delete(id);
 			const idMapEntries = [];
 			const additions = [];
+			const preparedObjects = /* @__PURE__ */ new Set();
 			let skipped = 0;
 			const ordered = document.overlays.map((item, index) => ({
 				item,
 				index
 			})).sort((left, right) => left.item.layer - right.item.layer);
-			for (const { item, index } of ordered) {
-				const resolved = resolveStateKind(this.overlay, item.kind);
-				if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
-					if (missingKindPolicy === "skip") {
-						skipped += 1;
-						continue;
+			try {
+				for (const { item, index } of ordered) {
+					const resolved = resolveStateKind(this.overlay, item.kind);
+					if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
+						if (missingKindPolicy === "skip") {
+							skipped += 1;
+							continue;
+						}
+						throw new OverlayStateCodecError(item.kind);
 					}
-					throw new OverlayStateCodecError(item.kind);
+					let persistentId = item.id;
+					if (reserved.has(persistentId)) {
+						if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
+						const regenerated = nextAvailableId(persistentId, reserved);
+						idMapEntries.push(Object.freeze([persistentId, regenerated]));
+						persistentId = regenerated;
+					}
+					reserved.add(persistentId);
+					const value = stateValue(document, index);
+					const object = await resolved.codec.deserialize(value, context.codec);
+					if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+					preparedObjects.add(object);
+					const marked = object;
+					marked.editorOverlayKind = item.kind;
+					marked.editorOverlayId = persistentId;
+					marked.editorOverlayHidden = item.hidden;
+					marked.editorOverlayLocked = item.locked;
+					(_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 || _f.call(_e, object, persistentId);
+					if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+					if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
+					else object.set({ visible: !item.hidden });
+					if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
+					else object.set({
+						selectable: !item.locked,
+						evented: !item.locked
+					});
+					additions.push(Object.freeze({
+						kind: item.kind,
+						persistentId,
+						object
+					}));
 				}
-				let persistentId = item.id;
-				if (reserved.has(persistentId)) {
-					if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
-					const regenerated = nextAvailableId(persistentId, reserved);
-					idMapEntries.push(Object.freeze([persistentId, regenerated]));
-					persistentId = regenerated;
-				}
-				reserved.add(persistentId);
-				const value = stateValue(document, index);
-				const object = await resolved.codec.deserialize(value, context.codec);
-				if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-				const marked = object;
-				marked.editorOverlayKind = item.kind;
-				marked.editorOverlayId = persistentId;
-				marked.editorOverlayHidden = item.hidden;
-				marked.editorOverlayLocked = item.locked;
-				(_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 || _f.call(_e, object, persistentId);
-				if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-				if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
-				else object.set({ visible: !item.hidden });
-				if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
-				else object.set({
-					selectable: !item.locked,
-					evented: !item.locked
+				const additionObjects = Object.freeze(additions.map((entry) => entry.object));
+				if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
+				if (removeIds.length > 0 || additions.length > 0) await this.overlay.mutate({
+					id: `overlay-state:import-${++this.sequence}`,
+					operationId: IMPORT_OPERATION_ID,
+					action: "delete",
+					objectIds: removeIds,
+					mutate: () => {
+						const canvas = this.canvas.requireCanvas("import Overlay State");
+						canvas.discardActiveObject();
+						for (const object of removeObjects) canvas.remove(object);
+						for (const object of additionObjects) canvas.add(object);
+					},
+					affectedObjects: () => additionObjects,
+					validate: () => {
+						for (const addition of additions) if (this.overlay.getByPersistentId(addition.persistentId) !== addition.object) throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
+					},
+					metadata: Object.freeze({
+						mode,
+						imported: additions.length,
+						skipped
+					})
 				});
-				additions.push(Object.freeze({
-					kind: item.kind,
-					persistentId,
-					object
-				}));
+			} catch (error) {
+				this.disposePreparedObjects(preparedObjects);
+				throw error;
 			}
-			const additionObjects = Object.freeze(additions.map((entry) => entry.object));
-			if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
-			if (removeIds.length > 0 || additions.length > 0) await this.overlay.mutate({
-				id: `overlay-state:import-${++this.sequence}`,
-				operationId: IMPORT_OPERATION_ID,
-				action: "delete",
-				objectIds: removeIds,
-				mutate: () => {
-					const canvas = this.canvas.requireCanvas("import Overlay State");
-					canvas.discardActiveObject();
-					for (const object of removeObjects) canvas.remove(object);
-					for (const object of additionObjects) canvas.add(object);
-				},
-				affectedObjects: () => additionObjects,
-				validate: () => {
-					for (const addition of additions) if (this.overlay.getByPersistentId(addition.persistentId) !== addition.object) throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
-				},
-				metadata: Object.freeze({
-					mode,
-					imported: additions.length,
-					skipped
-				})
-			});
 			return Object.freeze({
 				mode,
 				imported: additions.length,
@@ -20897,6 +21013,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				}));
 			});
 			return Object.freeze(issues);
+		}
+		disposePreparedObjects(objects) {
+			for (const object of objects) {
+				if (object.canvas) try {
+					object.canvas.remove(object);
+				} catch (error) {
+					this.diagnostics.reportWarning(error, "Overlay State rejected-object detachment failed.");
+				}
+				try {
+					object.dispose();
+				} catch (error) {
+					this.diagnostics.reportWarning(error, "Overlay State rejected-object cleanup failed.");
+				}
+			}
 		}
 		assertActive(operation) {
 			if (this.disposed) throw new OverlayStatePluginDisposedError(operation);
@@ -20928,6 +21058,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					{
 						token: CANVAS_READ_CAPABILITY,
 						range: "^1.0.0"
+					},
+					{
+						token: CORE_DIAGNOSTICS_CAPABILITY,
+						range: "^1.0.0"
 					}
 				],
 				permissions: ["fabric:canvas-read"]
@@ -20937,13 +21071,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const overlay = context.capabilities.require(OVERLAY_CAPABILITY);
 				const baseImage = context.capabilities.require(BASE_IMAGE_READ_CAPABILITY);
 				const canvas = context.capabilities.require(CANVAS_READ_CAPABILITY);
+				const diagnostics = context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY);
 				context.operations.register({
 					id: "overlay-state:import",
 					mode: "mutation",
 					conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
-				controller = new OverlayStateController(overlay, baseImage, canvas, limits);
+				controller = new OverlayStateController(overlay, baseImage, canvas, diagnostics, limits);
 				return controller;
 			},
 			onDispose() {
@@ -21344,8 +21479,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (controls.enterButton && !controls.enterOptions) throw new DomControlsConfigurationError("shape.enterOptions is required when shape.enterButton is configured.");
 			this.button(ownerDocument, controls.enterButton, "shape.enterButton", () => api.enter(controls.enterOptions), () => api.getSession() === null);
 			this.button(ownerDocument, controls.commitButton, "shape.commitButton", () => api.commit(), () => {
-				var _a;
-				return ((_a = api.getSession()) === null || _a === void 0 ? void 0 : _a.geometry) !== null && api.getSession() !== null;
+				const session = api.getSession();
+				return session !== null && session.geometry !== null;
 			});
 			this.button(ownerDocument, controls.cancelButton, "shape.cancelButton", () => api.cancel(), () => api.getSession() !== null);
 			this.render(ownerDocument, controls.status, "shape.status", () => api.getSession());
@@ -21872,9 +22007,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		cancel() {
 			if (this.disposed) return;
-			observePromise(this.cancelGesture("pointer-cancel"), (error) => {
-				this.reportError(error, null, "cancel");
-			});
+			observePromise(this.cancelGesture("pointer-cancel"), () => void 0);
 		}
 		async cancelGesture(reason = "requested") {
 			this.assertActive("cancel Canvas interactions");

@@ -725,9 +725,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return (_b = (_a = this.kinds.get(kind)) === null || _a === void 0 ? void 0 : _a.definition) !== null && _b !== void 0 ? _b : null;
 		}
 		getSelection() {
-			var _a, _b;
 			this.assertActive("read overlay selection");
-			const canvas = this.host.requireCanvas("read overlay selection");
+			return this.readSelection();
+		}
+		readSelection() {
+			var _a, _b;
+			const canvas = this.host.getCanvas();
+			if (!canvas) return this.retainedSelection;
 			const classifications = getActiveCanvasObjects(canvas).map((object) => this.byObject.get(object)).filter((entry) => entry !== void 0).map((entry) => this.classificationFor(entry));
 			if (classifications.length === 0 && canvas.getObjects().some((object) => isSessionCanvasObject(object))) return this.retainedSelection;
 			this.retainedSelection = Object.freeze({
@@ -1144,7 +1148,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return Object.freeze({
 					version: 1,
 					overlays: Object.freeze(overlays),
-					selectionIds: this.getSelection().ids
+					selectionIds: this.readSelection().ids
 				});
 			} finally {
 				this.setPreviewObjectsHidden(true);
@@ -1185,33 +1189,82 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a, _b;
 			const canvas = this.host.getCanvas();
 			if (!canvas) throw new _bensitu_image_editor_core.CoreRuntimeError("[ImageEditor] Overlay state restore requires Canvas.");
-			canvas.discardActiveObject();
-			for (const indexed of [...this.byId.values()]) canvas.remove(indexed.object);
-			this.byId.clear();
-			this.preservedRecords = [];
-			for (const record of value.overlays) {
-				const serializer = this.serializers.get(record.kind);
-				const kind = this.kinds.get(record.kind);
-				if (!serializer || !kind || kind.definition.persistence.mode !== "persistent" || record.codec.type !== serializer.type || record.codec.version !== serializer.version) {
-					this.preservedRecords.push(record);
-					continue;
+			const restored = [];
+			const preserved = [];
+			try {
+				for (const record of value.overlays) {
+					const serializer = this.serializers.get(record.kind);
+					const kind = this.kinds.get(record.kind);
+					if (!serializer || !kind || kind.definition.persistence.mode !== "persistent" || record.codec.type !== serializer.type || record.codec.version !== serializer.version) {
+						preserved.push(record);
+						continue;
+					}
+					if (!serializer.validate(record.data)) throw new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] Serialized overlay "${record.persistentId}" is invalid.`);
+					const object = await serializer.deserialize(record.data, { fabric: this.host.fabric });
+					if (!object || typeof object !== "object" || object.canvas) throw new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] Serialized overlay "${record.persistentId}" restored an incompatible object.`);
+					restored.push(Object.freeze({
+						object,
+						record
+					}));
+					const marked = object;
+					marked.editorOverlayKind = record.kind;
+					marked.editorOverlayId = record.persistentId;
+					marked.editorOverlayHidden = record.hidden;
+					marked.editorOverlayLocked = record.locked;
+					(_b = (_a = kind.definition).setPersistentId) === null || _b === void 0 || _b.call(_a, object, record.persistentId);
 				}
-				if (!serializer.validate(record.data)) throw new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] Serialized overlay "${record.persistentId}" is invalid.`);
-				const object = await serializer.deserialize(record.data, { fabric: this.host.fabric });
-				const marked = object;
-				marked.editorOverlayKind = record.kind;
-				marked.editorOverlayId = record.persistentId;
-				marked.editorOverlayHidden = record.hidden;
-				marked.editorOverlayLocked = record.locked;
-				(_b = (_a = kind.definition).setPersistentId) === null || _b === void 0 || _b.call(_a, object, record.persistentId);
-				canvas.add(object);
-				this.applyHidden(record.persistentId, record.hidden);
-				this.applyLocked(record.persistentId, record.locked);
+			} catch (error) {
+				this.disposeDetachedObjects(restored.map(({ object }) => object), "Rejected Overlay restore object cleanup failed.");
+				throw error;
 			}
-			this.rebuildIndex();
-			const restoredSelection = value.selectionIds.filter((persistentId) => this.byId.has(persistentId));
-			if (restoredSelection.length > 0) this.applySelection(restoredSelection);
-			this.host.requestRender();
+			const previousObjects = [...this.byId.values()].map(({ object }) => object);
+			const previousPreserved = this.preservedRecords;
+			const previousSelection = this.readSelection().ids;
+			try {
+				canvas.discardActiveObject();
+				for (const object of previousObjects) canvas.remove(object);
+				this.byId.clear();
+				this.preservedRecords = preserved;
+				for (const { object } of restored) canvas.add(object);
+				this.rebuildIndex();
+				for (const { record } of restored) {
+					this.applyHidden(record.persistentId, record.hidden);
+					this.applyLocked(record.persistentId, record.locked);
+				}
+				const restoredSelection = value.selectionIds.filter((persistentId) => this.byId.has(persistentId));
+				if (restoredSelection.length > 0) this.applySelection(restoredSelection);
+				else this.retainedSelection = EMPTY_SELECTION_STATE;
+				this.host.requestRender();
+			} catch (error) {
+				let rollbackError = null;
+				try {
+					canvas.discardActiveObject();
+					for (const { object } of restored) if (canvas.getObjects().includes(object)) canvas.remove(object);
+					this.preservedRecords = previousPreserved;
+					for (const object of previousObjects) if (!canvas.getObjects().includes(object)) canvas.add(object);
+					this.rebuildIndex();
+					if (previousSelection.length > 0) this.applySelection(previousSelection);
+					else this.retainedSelection = EMPTY_SELECTION_STATE;
+					this.host.requestRender();
+				} catch (restoreError) {
+					rollbackError = restoreError;
+				}
+				this.disposeDetachedObjects(restored.map(({ object }) => object), "Rejected Overlay restore object cleanup failed.");
+				if (rollbackError) throw new _bensitu_image_editor_core.CoreRuntimeError("[ImageEditor] Overlay state restore and local rollback both failed.", {
+					code: "OVERLAY_STATE_RESTORE_ROLLBACK_FAILED",
+					cause: Object.freeze([error, rollbackError]),
+					behavior: "fatal-rollback"
+				});
+				throw error;
+			}
+			this.disposeDetachedObjects(previousObjects, "Replaced Overlay object cleanup failed.");
+		}
+		disposeDetachedObjects(objects, message) {
+			for (const object of new Set(objects)) try {
+				object.dispose();
+			} catch (error) {
+				this.host.reportWarning(error, message);
+			}
 		}
 		resetState() {
 			const canvas = this.host.getCanvas();
@@ -1750,7 +1803,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		emitSelection() {
 			if (this.disposed) return;
-			const selection = this.getSelection();
+			const selection = this.readSelection();
 			for (const listener of [...this.selectionListeners]) try {
 				listener(selection);
 			} catch (error) {

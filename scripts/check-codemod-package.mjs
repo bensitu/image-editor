@@ -112,7 +112,7 @@ import assert from 'node:assert/strict';
 import { transformSource } from '@bensitu/image-editor-codemod';
 const result = transformSource(
   "import { ImageEditor } from '@bensitu/image-editor';\\nconst editor = new ImageEditor(fabric);\\neditor.init({ canvas: 'canvas' });\\n",
-  'consumer.ts',
+  'consumer.mts',
 );
 assert.equal(result.changed, true);
 assert.match(result.code, /ImageEditorCore/);
@@ -155,16 +155,16 @@ void report;
     const typescriptCli = path.join(consumerRoot, 'node_modules', 'typescript', 'bin', 'tsc');
     await runNode([typescriptCli, '-p', 'tsconfig.json'], consumerRoot);
 
-    const sourcePath = path.join(consumerRoot, 'editor.ts');
+    const sourcePath = path.join(consumerRoot, 'editor.mts');
     await writeFile(
         sourcePath,
         "import { ImageEditor } from '@bensitu/image-editor';\nconst editor = new ImageEditor(fabric);\neditor.init({ canvas: 'canvas' });\n",
         'utf8',
     );
     const cliPath = path.join(installedRoot, 'dist', 'cli.js');
-    await runCli([cliPath, 'migrate', 'editor.ts', '--dry-run'], consumerRoot, 1);
-    await runCli([cliPath, 'migrate', 'editor.ts', '--write'], consumerRoot, 0);
-    await runCli([cliPath, 'migrate', 'editor.ts', '--write'], consumerRoot, 0);
+    await runCli([cliPath, 'migrate', 'editor.mts', '--dry-run'], consumerRoot, 1);
+    await runCli([cliPath, 'migrate', 'editor.mts', '--write'], consumerRoot, 0);
+    await runCli([cliPath, 'migrate', 'editor.mts', '--write'], consumerRoot, 0);
     if (!(await readFile(sourcePath, 'utf8')).includes('ImageEditorCore')) {
         throw new Error('Installed codemod CLI did not transform the source file.');
     }

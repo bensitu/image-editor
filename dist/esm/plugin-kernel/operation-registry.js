@@ -328,18 +328,14 @@ export class OperationRegistry {
     drainPending() {
         if (this.disposed)
             return;
-        let started = true;
-        while (started) {
-            started = false;
-            for (let index = 0; index < this.pendingRequests.length; index += 1) {
-                const request = this.pendingRequests[index];
-                if (this.findConflicts(request.record, request.options.parent).length > 0)
-                    continue;
-                this.pendingRequests.splice(index, 1);
-                this.startRequest(request);
-                started = true;
-                break;
+        for (let index = 0; index < this.pendingRequests.length;) {
+            const request = this.pendingRequests[index];
+            if (this.findConflicts(request.record, request.options.parent).length > 0) {
+                index += 1;
+                continue;
             }
+            this.pendingRequests.splice(index, 1);
+            this.startRequest(request);
         }
     }
     createActive(record, parent, request) {

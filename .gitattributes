@@ -1,1 +1,3 @@
 dist/** linguist-generated=true text eol=lf
+packages/image-editor-codemod/dist/** linguist-generated=true text eol=lf
+packages/image-editor-codemod/src/** text eol=lf

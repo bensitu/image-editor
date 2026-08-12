@@ -17,6 +17,17 @@ const VALID_DIST_TAG = /^[a-z][a-z0-9._-]{0,63}$/u;
 const SEMVER_PATTERN =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
 
+function runNpm(args) {
+    const npmCliPath = process.env.npm_execpath;
+    if (!npmCliPath) {
+        throw new Error('npm_execpath is unavailable; run this command through an npm script.');
+    }
+    return execFileAsync(process.execPath, [npmCliPath, ...args], {
+        encoding: 'utf8',
+        windowsHide: true,
+    });
+}
+
 function parseReleaseVersion(versionInput) {
     const version = String(versionInput ?? '');
     const match = SEMVER_PATTERN.exec(version);
@@ -148,20 +159,16 @@ function registryNotFound(error) {
 
 async function inspectFromNpm(artifact, registry) {
     try {
-        const { stdout } = await execFileAsync(
-            'npm',
-            [
-                'view',
-                `${artifact.name}@${artifact.version}`,
-                'name',
-                'version',
-                'dist.integrity',
-                '--json',
-                '--registry',
-                registry,
-            ],
-            { encoding: 'utf8' },
-        );
+        const { stdout } = await runNpm([
+            'view',
+            `${artifact.name}@${artifact.version}`,
+            'name',
+            'version',
+            'dist.integrity',
+            '--json',
+            '--registry',
+            registry,
+        ]);
         const metadata = JSON.parse(stdout);
         return Object.freeze({
             name: metadata.name,
@@ -200,21 +207,17 @@ async function runCli() {
     await publishReleaseArtifacts(artifacts, {
         inspect: (artifact) => inspectFromNpm(artifact, registry),
         publish: async (artifact) => {
-            await execFileAsync(
-                'npm',
-                [
-                    'publish',
-                    artifact.tarball,
-                    '--access',
-                    'public',
-                    '--tag',
-                    tag,
-                    '--provenance',
-                    '--registry',
-                    registry,
-                ],
-                { encoding: 'utf8' },
-            );
+            await runNpm([
+                'publish',
+                artifact.tarball,
+                '--access',
+                'public',
+                '--tag',
+                tag,
+                '--provenance',
+                '--registry',
+                registry,
+            ]);
         },
         onStatus: ({ artifact, status }) => {
             console.log(`${artifact.name}@${artifact.version}: ${status}`);

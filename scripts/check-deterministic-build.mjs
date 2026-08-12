@@ -41,7 +41,7 @@ async function collectFiles(directory) {
         if (entry.isDirectory()) files.push(...(await collectFiles(entryPath)));
         else if (entry.isFile()) files.push(entryPath);
     }
-    return files;
+    return files.sort();
 }
 
 async function outputManifest() {

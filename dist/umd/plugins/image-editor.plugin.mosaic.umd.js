@@ -80,6 +80,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const deltaX = end.xPx - start.xPx;
 		const deltaY = end.yPx - start.yPx;
 		const distance = Math.hypot(deltaX, deltaY);
+		if (distance === 0) return Object.freeze([]);
 		const spacing = Math.max(1, radiusPx / 2);
 		const steps = Math.max(1, Math.ceil(distance / spacing));
 		return Object.freeze(Array.from(Array.from({ length: steps }).keys(), (index) => {
@@ -706,8 +707,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (strokeIndex === null) throw new MosaicSessionError("Mosaic appendStroke requires an active stroke.");
 			const stroke = session.strokes[strokeIndex];
 			const point = this.normalizePoint(value, session);
-			this.assertPointBudget(session);
 			const previous = stroke.points[stroke.points.length - 1];
+			if (previous.xPx === point.xPx && previous.yPx === point.yPx) return;
+			this.assertPointBudget(session);
 			const interpolated = interpolateMosaicPoints(previous, point, stroke.configuration.brushSizePx / 2);
 			this.assertInterpolatedPointBudget(session, interpolated.length);
 			stroke.points.push(point);

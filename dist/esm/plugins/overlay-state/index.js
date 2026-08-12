@@ -1,6 +1,6 @@
 import { PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { OVERLAY_CAPABILITY } from '../../foundations/overlay/index.js';
-import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { OverlayStateController } from './overlay-state-controller.js';
 import { resolveOverlayStateLimits } from './overlay-state-validation.js';
 export const overlayStatePluginRef = definePluginRef('plugin:overlay-state', '1.0.0');
@@ -18,6 +18,7 @@ export function overlayStatePlugin(options = {}) {
                 { token: OVERLAY_CAPABILITY, range: '^1.0.0' },
                 { token: BASE_IMAGE_READ_CAPABILITY, range: '^1.0.0' },
                 { token: CANVAS_READ_CAPABILITY, range: '^1.0.0' },
+                { token: CORE_DIAGNOSTICS_CAPABILITY, range: '^1.0.0' },
             ],
             permissions: ['fabric:canvas-read'],
         },
@@ -26,13 +27,14 @@ export function overlayStatePlugin(options = {}) {
             const overlay = context.capabilities.require(OVERLAY_CAPABILITY);
             const baseImage = context.capabilities.require(BASE_IMAGE_READ_CAPABILITY);
             const canvas = context.capabilities.require(CANVAS_READ_CAPABILITY);
+            const diagnostics = context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY);
             context.operations.register({
                 id: 'overlay-state:import',
                 mode: 'mutation',
                 conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
-            controller = new OverlayStateController(overlay, baseImage, canvas, limits);
+            controller = new OverlayStateController(overlay, baseImage, canvas, diagnostics, limits);
             return controller;
         },
         onDispose() {

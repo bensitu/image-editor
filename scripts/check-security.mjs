@@ -28,6 +28,7 @@ const textExtensions = new Set([
     '.json',
     '.md',
     '.mjs',
+    '.map',
     '.ts',
     '.tsx',
     '.vue',
@@ -76,7 +77,7 @@ async function checkTrackedFiles() {
 
     const exposed = [];
     for (const file of files) {
-        if (!textExtensions.has(path.extname(file).toLowerCase()) || file.startsWith('dist/')) {
+        if (!textExtensions.has(path.extname(file).toLowerCase())) {
             continue;
         }
         try {

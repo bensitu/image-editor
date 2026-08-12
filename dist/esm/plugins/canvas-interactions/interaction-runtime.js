@@ -139,9 +139,7 @@ export class InteractionRuntime {
     cancel() {
         if (this.disposed)
             return;
-        observePromise(this.cancelGesture('pointer-cancel'), (error) => {
-            this.reportError(error, null, 'cancel');
-        });
+        observePromise(this.cancelGesture('pointer-cancel'), () => undefined);
     }
     async cancelGesture(reason = 'requested') {
         this.assertActive('cancel Canvas interactions');

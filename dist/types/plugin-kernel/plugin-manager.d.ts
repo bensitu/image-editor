@@ -47,8 +47,8 @@ export declare class PluginManager<TEvents extends object = PluginEventMap> impl
     has<TApi>(refOrId: PluginRef<TApi> | string): boolean;
     initialize(): Promise<void>;
     initializeSync(): void;
-    notifyImageLoaded(image: unknown): Promise<void>;
-    notifyImageCleared(): Promise<void>;
+    notifyImageLoaded(image: unknown, signal?: AbortSignal): Promise<void>;
+    notifyImageCleared(signal?: AbortSignal): Promise<void>;
     dispose(): Promise<void>;
     disposeSync(): void;
     private prepareBatch;

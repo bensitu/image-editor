@@ -1,9 +1,9 @@
 const require_plugin_identifier = require('./plugin-identifier-DhlVh5SQ.cjs');
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
-const require_core = require('./core-DoQz4N42.cjs');
+const require_core = require('./core-IzQmeOnC.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-CyVyDvJZ.cjs');
+const require_overlay = require('./overlay-CK9dFJPW.cjs');
 const require_safe_object_key = require('./safe-object-key-SlUB_ab4.cjs');
 
 //#region dist/esm/plugins/overlay-state/overlay-state-errors.js
@@ -371,7 +371,7 @@ function validIdentifier(value, path, limits, issues, persistent = false) {
 function validateMetadata(value, path, limits, issues) {
 	if (!isPlainRecord(value)) {
 		addIssue(issues, "metadata.invalid", path, "Metadata must be an object.");
-		return false;
+		return;
 	}
 	let keys = 0;
 	const visit = (entry, entryPath, depth) => {
@@ -394,7 +394,6 @@ function validateMetadata(value, path, limits, issues) {
 		}
 	};
 	visit(value, path, 0);
-	return true;
 }
 function jsonBytes(value) {
 	return utf8Bytes(JSON.stringify(value));
@@ -571,7 +570,7 @@ function codecAccepts(codec, value) {
 	}
 }
 var OverlayStateController = class {
-	constructor(overlay, baseImage, canvas, configuredLimits) {
+	constructor(overlay, baseImage, canvas, diagnostics, configuredLimits) {
 		Object.defineProperty(this, "overlay", {
 			enumerable: true,
 			configurable: true,
@@ -589,6 +588,12 @@ var OverlayStateController = class {
 			configurable: true,
 			writable: true,
 			value: canvas
+		});
+		Object.defineProperty(this, "diagnostics", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: diagnostics
 		});
 		Object.defineProperty(this, "configuredLimits", {
 			enumerable: true,
@@ -721,74 +726,81 @@ var OverlayStateController = class {
 		if (mode === "replace") for (const id of removeIds) reserved.delete(id);
 		const idMapEntries = [];
 		const additions = [];
+		const preparedObjects = /* @__PURE__ */ new Set();
 		let skipped = 0;
 		const ordered = document.overlays.map((item, index) => ({
 			item,
 			index
 		})).sort((left, right) => left.item.layer - right.item.layer);
-		for (const { item, index } of ordered) {
-			const resolved = resolveStateKind(this.overlay, item.kind);
-			if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
-				if (missingKindPolicy === "skip") {
-					skipped += 1;
-					continue;
+		try {
+			for (const { item, index } of ordered) {
+				const resolved = resolveStateKind(this.overlay, item.kind);
+				if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
+					if (missingKindPolicy === "skip") {
+						skipped += 1;
+						continue;
+					}
+					throw new OverlayStateCodecError(item.kind);
 				}
-				throw new OverlayStateCodecError(item.kind);
+				let persistentId = item.id;
+				if (reserved.has(persistentId)) {
+					if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
+					const regenerated = nextAvailableId(persistentId, reserved);
+					idMapEntries.push(Object.freeze([persistentId, regenerated]));
+					persistentId = regenerated;
+				}
+				reserved.add(persistentId);
+				const value = stateValue(document, index);
+				const object = await resolved.codec.deserialize(value, context.codec);
+				if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+				preparedObjects.add(object);
+				const marked = object;
+				marked.editorOverlayKind = item.kind;
+				marked.editorOverlayId = persistentId;
+				marked.editorOverlayHidden = item.hidden;
+				marked.editorOverlayLocked = item.locked;
+				(_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 || _f.call(_e, object, persistentId);
+				if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+				if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
+				else object.set({ visible: !item.hidden });
+				if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
+				else object.set({
+					selectable: !item.locked,
+					evented: !item.locked
+				});
+				additions.push(Object.freeze({
+					kind: item.kind,
+					persistentId,
+					object
+				}));
 			}
-			let persistentId = item.id;
-			if (reserved.has(persistentId)) {
-				if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
-				const regenerated = nextAvailableId(persistentId, reserved);
-				idMapEntries.push(Object.freeze([persistentId, regenerated]));
-				persistentId = regenerated;
-			}
-			reserved.add(persistentId);
-			const value = stateValue(document, index);
-			const object = await resolved.codec.deserialize(value, context.codec);
-			if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-			const marked = object;
-			marked.editorOverlayKind = item.kind;
-			marked.editorOverlayId = persistentId;
-			marked.editorOverlayHidden = item.hidden;
-			marked.editorOverlayLocked = item.locked;
-			(_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 || _f.call(_e, object, persistentId);
-			if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-			if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
-			else object.set({ visible: !item.hidden });
-			if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
-			else object.set({
-				selectable: !item.locked,
-				evented: !item.locked
+			const additionObjects = Object.freeze(additions.map((entry) => entry.object));
+			if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
+			if (removeIds.length > 0 || additions.length > 0) await this.overlay.mutate({
+				id: `overlay-state:import-${++this.sequence}`,
+				operationId: IMPORT_OPERATION_ID,
+				action: "delete",
+				objectIds: removeIds,
+				mutate: () => {
+					const canvas = this.canvas.requireCanvas("import Overlay State");
+					canvas.discardActiveObject();
+					for (const object of removeObjects) canvas.remove(object);
+					for (const object of additionObjects) canvas.add(object);
+				},
+				affectedObjects: () => additionObjects,
+				validate: () => {
+					for (const addition of additions) if (this.overlay.getByPersistentId(addition.persistentId) !== addition.object) throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
+				},
+				metadata: Object.freeze({
+					mode,
+					imported: additions.length,
+					skipped
+				})
 			});
-			additions.push(Object.freeze({
-				kind: item.kind,
-				persistentId,
-				object
-			}));
+		} catch (error) {
+			this.disposePreparedObjects(preparedObjects);
+			throw error;
 		}
-		const additionObjects = Object.freeze(additions.map((entry) => entry.object));
-		if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
-		if (removeIds.length > 0 || additions.length > 0) await this.overlay.mutate({
-			id: `overlay-state:import-${++this.sequence}`,
-			operationId: IMPORT_OPERATION_ID,
-			action: "delete",
-			objectIds: removeIds,
-			mutate: () => {
-				const canvas = this.canvas.requireCanvas("import Overlay State");
-				canvas.discardActiveObject();
-				for (const object of removeObjects) canvas.remove(object);
-				for (const object of additionObjects) canvas.add(object);
-			},
-			affectedObjects: () => additionObjects,
-			validate: () => {
-				for (const addition of additions) if (this.overlay.getByPersistentId(addition.persistentId) !== addition.object) throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
-			},
-			metadata: Object.freeze({
-				mode,
-				imported: additions.length,
-				skipped
-			})
-		});
 		return Object.freeze({
 			mode,
 			imported: additions.length,
@@ -818,6 +830,20 @@ var OverlayStateController = class {
 			}));
 		});
 		return Object.freeze(issues);
+	}
+	disposePreparedObjects(objects) {
+		for (const object of objects) {
+			if (object.canvas) try {
+				object.canvas.remove(object);
+			} catch (error) {
+				this.diagnostics.reportWarning(error, "Overlay State rejected-object detachment failed.");
+			}
+			try {
+				object.dispose();
+			} catch (error) {
+				this.diagnostics.reportWarning(error, "Overlay State rejected-object cleanup failed.");
+			}
+		}
 	}
 	assertActive(operation) {
 		if (this.disposed) throw new OverlayStatePluginDisposedError(operation);
@@ -849,6 +875,10 @@ function overlayStatePlugin(options = {}) {
 				{
 					token: require_core_capabilities.CANVAS_READ_CAPABILITY,
 					range: "^1.0.0"
+				},
+				{
+					token: require_core_capabilities.CORE_DIAGNOSTICS_CAPABILITY,
+					range: "^1.0.0"
 				}
 			],
 			permissions: ["fabric:canvas-read"]
@@ -858,13 +888,14 @@ function overlayStatePlugin(options = {}) {
 			const overlay = context.capabilities.require(require_overlay.OVERLAY_CAPABILITY);
 			const baseImage = context.capabilities.require(require_core_capabilities.BASE_IMAGE_READ_CAPABILITY);
 			const canvas = context.capabilities.require(require_core_capabilities.CANVAS_READ_CAPABILITY);
+			const diagnostics = context.capabilities.require(require_core_capabilities.CORE_DIAGNOSTICS_CAPABILITY);
 			context.operations.register({
 				id: "overlay-state:import",
 				mode: "mutation",
 				conflictDomains: require_internal_operation_conflict_domains.PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
-			controller = new OverlayStateController(overlay, baseImage, canvas, limits);
+			controller = new OverlayStateController(overlay, baseImage, canvas, diagnostics, limits);
 			return controller;
 		},
 		onDispose() {
@@ -941,4 +972,4 @@ Object.defineProperty(exports, 'overlayStatePluginRef', {
     return overlayStatePluginRef;
   }
 });
-//# sourceMappingURL=overlay-state-Cirb44dO.cjs.map
+//# sourceMappingURL=overlay-state-Jb8nfUe3.cjs.map

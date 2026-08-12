@@ -61,9 +61,7 @@ var CapabilityRegistry = class {
 			if (existing.providerPluginId === providerPluginId && existing.transactionId === transactionId && existing.version === providerVersion && existing.requiredPermission === requiredPermission && Object.is(existing.implementation, implementation)) {
 				const noop = require_core_capabilities.createNoopDisposable();
 				return {
-					commit: () => {
-						existing.complete = true;
-					},
+					commit: () => void 0,
 					dispose: () => noop.dispose()
 				};
 			}
@@ -716,17 +714,14 @@ var OperationRegistry = class {
 	}
 	drainPending() {
 		if (this.disposed) return;
-		let started = true;
-		while (started) {
-			started = false;
-			for (let index = 0; index < this.pendingRequests.length; index += 1) {
-				const request = this.pendingRequests[index];
-				if (this.findConflicts(request.record, request.options.parent).length > 0) continue;
-				this.pendingRequests.splice(index, 1);
-				this.startRequest(request);
-				started = true;
-				break;
+		for (let index = 0; index < this.pendingRequests.length;) {
+			const request = this.pendingRequests[index];
+			if (this.findConflicts(request.record, request.options.parent).length > 0) {
+				index += 1;
+				continue;
 			}
+			this.pendingRequests.splice(index, 1);
+			this.startRequest(request);
 		}
 	}
 	createActive(record, parent, request) {
@@ -1610,7 +1605,22 @@ var PluginManager = class {
 			...options.activitySink ? { activitySink: options.activitySink } : {}
 		}));
 		this.eventBus = new CommittedEventBus(options);
-		for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
+		try {
+			for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId, provider.requiredPermission);
+		} catch (error) {
+			for (const dispose of [
+				() => this.eventBus.dispose(),
+				() => this.toolCoordinator.disposeSync(),
+				() => this.operationRegistry.dispose(),
+				() => this.capabilityRegistry.dispose(),
+				() => this.stateStore.dispose()
+			]) try {
+				dispose();
+			} catch (cleanupError) {
+				require_core_capabilities.reportErrorSafely(options.errorSink, cleanupError);
+			}
+			throw error;
+		}
 	}
 	get state() {
 		return this.hostState;
@@ -1749,8 +1759,13 @@ var PluginManager = class {
 			this.hostState = "initialized";
 		} catch (error) {
 			this.hostState = "disposing";
-			const cleanupErrors = await this.cleanupAll();
-			this.hostState = "disposed";
+			const cleanup = (async () => {
+				const cleanupErrors = await this.cleanupAll();
+				this.hostState = "disposed";
+				return cleanupErrors;
+			})();
+			this.disposePromise = cleanup.then(() => void 0);
+			const cleanupErrors = await cleanup;
 			const lifecycleError = error instanceof require_plugin_identifier.PluginLifecycleError ? error : new require_plugin_identifier.PluginLifecycleError("plugin-kernel", "init", error);
 			throw new require_plugin_identifier.PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : "plugin-kernel", "init", lifecycleError.cause, cleanupErrors);
 		}
@@ -1776,28 +1791,46 @@ var PluginManager = class {
 			throw new require_plugin_identifier.PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : "plugin-kernel", "init", lifecycleError.cause, cleanupErrors);
 		}
 	}
-	async notifyImageLoaded(image) {
+	async notifyImageLoaded(image, signal) {
+		var _a;
 		this.assertLifecycleReady("notify plugins that an image loaded");
+		const notificationSignal = signal !== null && signal !== void 0 ? signal : new AbortController().signal;
 		for (const pluginId of this.installationOrder) {
+			notificationSignal.throwIfAborted();
 			const record = this.installed.get(pluginId);
 			if (!(record === null || record === void 0 ? void 0 : record.plugin.onImageLoaded)) continue;
+			const context = Object.freeze({
+				...record.lifecycleContext,
+				signal: notificationSignal
+			});
 			try {
-				await record.plugin.onImageLoaded(image, record.lifecycleContext);
+				await record.plugin.onImageLoaded(image, context);
 			} catch (error) {
+				if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 				throw new require_plugin_identifier.PluginLifecycleError(pluginId, "image-loaded", error);
 			}
+			notificationSignal.throwIfAborted();
 		}
 	}
-	async notifyImageCleared() {
+	async notifyImageCleared(signal) {
+		var _a;
 		this.assertLifecycleReady("notify plugins that an image cleared");
+		const notificationSignal = signal !== null && signal !== void 0 ? signal : new AbortController().signal;
 		for (const pluginId of this.installationOrder) {
+			notificationSignal.throwIfAborted();
 			const record = this.installed.get(pluginId);
 			if (!(record === null || record === void 0 ? void 0 : record.plugin.onImageCleared)) continue;
+			const context = Object.freeze({
+				...record.lifecycleContext,
+				signal: notificationSignal
+			});
 			try {
-				await record.plugin.onImageCleared(record.lifecycleContext);
+				await record.plugin.onImageCleared(context);
 			} catch (error) {
+				if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 				throw new require_plugin_identifier.PluginLifecycleError(pluginId, "image-cleared", error);
 			}
+			notificationSignal.throwIfAborted();
 		}
 	}
 	dispose() {
@@ -1904,7 +1937,7 @@ var PluginManager = class {
 			const cycle = visit(pluginId);
 			if (cycle) return cycle;
 		}
-		return Object.freeze([...remaining, remaining.values().next().value]);
+		throw new require_plugin_identifier.PluginKernelStateError("resolve Plugin dependency order without a detectable cycle", this.hostState);
 	}
 	performPendingInstallSync(plugin, visibleTransactions) {
 		if (plugin.setupMode !== "sync") throw new require_plugin_identifier.InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`, plugin.ref.id);
@@ -2290,4 +2323,4 @@ Object.defineProperty(exports, 'normalizeThrownError', {
     return normalizeThrownError;
   }
 });
-//# sourceMappingURL=plugin-manager-BCwOehdX.cjs.map
+//# sourceMappingURL=plugin-manager-BoJcJvMe.cjs.map

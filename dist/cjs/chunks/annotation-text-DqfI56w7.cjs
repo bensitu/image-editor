@@ -1,8 +1,8 @@
 const require_core_capabilities = require('./core-capabilities-DPdoMgAf.cjs');
 const require_internal_operation_conflict_domains = require('./internal-operation-conflict-domains-Cx-QNq29.cjs');
 const require_sdk = require('./sdk-CkdOSZDn.cjs');
-const require_overlay = require('./overlay-CyVyDvJZ.cjs');
-const require_annotation = require('./annotation-CzJy5jdC.cjs');
+const require_overlay = require('./overlay-CK9dFJPW.cjs');
+const require_annotation = require('./annotation-Drb-vPam.cjs');
 const require_safe_fabric_serialization = require('./safe-fabric-serialization-Co4kk4f1.cjs');
 
 //#region dist/esm/plugins/annotation-text/text-controller.js
@@ -695,4 +695,4 @@ Object.defineProperty(exports, 'textAnnotationPluginRef', {
     return textAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-text-CIflhB-y.cjs.map
+//# sourceMappingURL=annotation-text-DqfI56w7.cjs.map

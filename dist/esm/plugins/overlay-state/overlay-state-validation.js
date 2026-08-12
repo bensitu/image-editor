@@ -229,7 +229,7 @@ function validIdentifier(value, path, limits, issues, persistent = false) {
 function validateMetadata(value, path, limits, issues) {
     if (!isPlainRecord(value)) {
         addIssue(issues, 'metadata.invalid', path, 'Metadata must be an object.');
-        return false;
+        return;
     }
     let keys = 0;
     const visit = (entry, entryPath, depth) => {
@@ -255,7 +255,6 @@ function validateMetadata(value, path, limits, issues) {
         }
     };
     visit(value, path, 0);
-    return true;
 }
 function jsonBytes(value) {
     return utf8Bytes(JSON.stringify(value));

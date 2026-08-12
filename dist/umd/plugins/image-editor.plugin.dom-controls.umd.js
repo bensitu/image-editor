@@ -395,8 +395,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (controls.enterButton && !controls.enterOptions) throw new DomControlsConfigurationError("shape.enterOptions is required when shape.enterButton is configured.");
 			this.button(ownerDocument, controls.enterButton, "shape.enterButton", () => api.enter(controls.enterOptions), () => api.getSession() === null);
 			this.button(ownerDocument, controls.commitButton, "shape.commitButton", () => api.commit(), () => {
-				var _a;
-				return ((_a = api.getSession()) === null || _a === void 0 ? void 0 : _a.geometry) !== null && api.getSession() !== null;
+				const session = api.getSession();
+				return session !== null && session.geometry !== null;
 			});
 			this.button(ownerDocument, controls.cancelButton, "shape.cancelButton", () => api.cancel(), () => api.getSession() !== null);
 			this.render(ownerDocument, controls.status, "shape.status", () => api.getSession());

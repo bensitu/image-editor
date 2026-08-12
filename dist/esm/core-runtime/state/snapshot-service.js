@@ -100,21 +100,24 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
     }
     ancestors.delete(value);
 }
+function sortJsonValue(entry) {
+    if (Array.isArray(entry))
+        return entry.map(sortJsonValue);
+    if (entry && typeof entry === 'object') {
+        const result = {};
+        for (const key of Object.keys(entry).sort()) {
+            result[key] = sortJsonValue(entry[key]);
+        }
+        return result;
+    }
+    return entry;
+}
+function stringifyStableJson(value) {
+    return JSON.stringify(sortJsonValue(value));
+}
 function stableJson(value, limits) {
     inspectTree(value, limits);
-    const sortValue = (entry) => {
-        if (Array.isArray(entry))
-            return entry.map(sortValue);
-        if (entry && typeof entry === 'object') {
-            const result = {};
-            for (const key of Object.keys(entry).sort()) {
-                result[key] = sortValue(entry[key]);
-            }
-            return result;
-        }
-        return entry;
-    };
-    return JSON.stringify(sortValue(value));
+    return stringifyStableJson(value);
 }
 function parseInput(input, limits) {
     if (typeof input !== 'string') {
@@ -233,7 +236,7 @@ export class SnapshotService {
         return this.prepareParsed(parseInput(input, this.limits), options);
     }
     async prepareForLoad(input, options = {}) {
-        var _a;
+        var _a, _b;
         this.assertActive('prepare a public snapshot');
         const parsed = parseInput(input, this.limits);
         if (!((_a = options.migrations) === null || _a === void 0 ? void 0 : _a.length) ||
@@ -246,6 +249,7 @@ export class SnapshotService {
             return this.prepareParsed(parsed, options);
         const context = options.signal ? { signal: options.signal } : {};
         const migrated = await migration.migrate(immutableInput, context);
+        (_b = options.signal) === null || _b === void 0 ? void 0 : _b.throwIfAborted();
         return this.prepareParsed(parseInput(migrated, this.limits), options);
     }
     prepareParsed(input, options) {
@@ -259,7 +263,7 @@ export class SnapshotService {
         const validatedSlices = [];
         const opaqueSlices = [];
         for (const [id, entry] of Object.entries(snapshot.plugins)) {
-            const serializedBytes = byteLength(stableJson(entry.data, this.limits));
+            const serializedBytes = byteLength(stringifyStableJson(entry.data));
             if (serializedBytes > this.limits.maxPluginPayloadBytes) {
                 throw new SnapshotValidationError(`plugin payload exceeds ${this.limits.maxPluginPayloadBytes} bytes.`, `$.plugins.${id}.data`);
             }

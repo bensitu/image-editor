@@ -1,6 +1,6 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
 const require_core_capabilities = require('../../chunks/core-capabilities-DPdoMgAf.cjs');
-const require_core = require('../../chunks/core-DoQz4N42.cjs');
+const require_core = require('../../chunks/core-IzQmeOnC.cjs');
 const require_sdk = require('../../chunks/sdk-CkdOSZDn.cjs');
 
 //#region dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
@@ -272,9 +272,7 @@ var InteractionRuntime = class {
 	}
 	cancel() {
 		if (this.disposed) return;
-		require_core_capabilities.observePromise(this.cancelGesture("pointer-cancel"), (error) => {
-			this.reportError(error, null, "cancel");
-		});
+		require_core_capabilities.observePromise(this.cancelGesture("pointer-cancel"), () => void 0);
 	}
 	async cancelGesture(reason = "requested") {
 		this.assertActive("cancel Canvas interactions");

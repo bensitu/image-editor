@@ -42,4 +42,3 @@ export interface RunCodemodOptions {
 export declare function transformSource(source: string, fileName?: string): SourceTransformResult;
 export declare function runCodemod(targets: readonly string[], options?: RunCodemodOptions): Promise<CodemodReport>;
 export declare function writeCodemodReport(filePath: string, report: CodemodReport): Promise<void>;
-//# sourceMappingURL=index.d.ts.map
