@@ -1,0 +1,26 @@
+{
+    "name": "@bensitu/image-editor-svelte-basic-example",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "@bensitu/image-editor": "file:../..",
+        "fabric": "^7.4.0",
+        "svelte": "^5.56.8"
+    },
+    "devDependencies": {
+        "@sveltejs/vite-plugin-svelte": "^7.3.0",
+        "@tsconfig/svelte": "^5.0.8",
+        "svelte-check": "^4.7.5",
+        "typescript": "^6.0.3",
+        "vite": "^8.2.1"
+    },
+    "engines": {
+        "node": ">=22.12.0"
+    }
+}

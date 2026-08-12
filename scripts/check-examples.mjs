@@ -28,6 +28,7 @@ const buildWorkspaces = Object.freeze([
     '@bensitu/image-editor-vanilla-core-example',
     '@bensitu/image-editor-vanilla-dom-controls-example',
     '@bensitu/image-editor-react-basic-example',
+    '@bensitu/image-editor-svelte-basic-example',
     '@bensitu/image-editor-vue-basic-example',
     '@bensitu/image-editor-next-client-only-example',
     '@bensitu/image-editor-redaction-comparison',
@@ -64,7 +65,7 @@ async function collectFiles(directory) {
         if (['dist', 'node_modules', '.next'].includes(entry.name)) continue;
         const entryPath = path.join(directory, entry.name);
         if (entry.isDirectory()) files.push(...(await collectFiles(entryPath)));
-        else if (entry.isFile() && /\.(?:[cm]?[jt]sx?|vue)$/u.test(entry.name))
+        else if (entry.isFile() && /\.(?:[cm]?[jt]sx?|svelte|vue)$/u.test(entry.name))
             files.push(entryPath);
     }
     return files;
@@ -162,6 +163,7 @@ async function verifyFabricRanges() {
 
     for (const packageName of [
         '@bensitu/image-editor-react-basic-example',
+        '@bensitu/image-editor-svelte-basic-example',
         '@bensitu/image-editor-vue-basic-example',
         '@bensitu/image-editor-next-client-only-example',
     ]) {
