@@ -20,6 +20,12 @@ export {
     type MaybePromise,
 } from '../plugin-kernel/disposable.js';
 export { isRuntimeIdentifier } from '../plugin-kernel/plugin-identifier.js';
+export {
+    coreOperationIds,
+    cropOperationIds,
+    historyOperationIds,
+    mosaicOperationIds,
+} from '../plugin-kernel/operation-ids.js';
 export { isValidSemVer } from '../plugin-kernel/semver.js';
 export {
     CapabilityConflictError,

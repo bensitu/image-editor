@@ -76,6 +76,12 @@ export {
     type OperationToken,
 } from './operation-registry.js';
 export {
+    coreOperationIds,
+    cropOperationIds,
+    historyOperationIds,
+    mosaicOperationIds,
+} from './operation-ids.js';
+export {
     PluginManager,
     type PluginHostState,
     type PluginHostCapabilityProvider,

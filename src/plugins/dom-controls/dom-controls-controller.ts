@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { CoreDiagnosticsPort, Disposable } from '../../sdk/index.js';
+import { historyOperationIds, type CoreDiagnosticsPort, type Disposable } from '../../sdk/index.js';
 import type { OverlayFoundationApi } from '../../foundations/overlay/index.js';
 import type { AnnotationPluginApi, AnnotationStatus } from '../../foundations/annotation/index.js';
 import type { CropPluginApi } from '../crop/index.js';
@@ -737,11 +737,17 @@ export class DomControlsController implements Disposable {
         if (keyboard.historyActions !== false && modifier && !event.altKey) {
             if ((key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey)) {
                 if (!apis.history?.canRedo()) return null;
-                return Object.freeze({ name: 'history:redo', run: () => apis.history!.redo() });
+                return Object.freeze({
+                    name: historyOperationIds.redo,
+                    run: () => apis.history!.redo(),
+                });
             }
             if (key === 'z' && !event.shiftKey) {
                 if (!apis.history?.canUndo()) return null;
-                return Object.freeze({ name: 'history:undo', run: () => apis.history!.undo() });
+                return Object.freeze({
+                    name: historyOperationIds.undo,
+                    run: () => apis.history!.undo(),
+                });
             }
         }
 

@@ -18,8 +18,11 @@ import {
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
     VISIBLE_RASTER_BAKE_CAPABILITY,
+    coreOperationIds,
+    cropOperationIds,
     definePlugin,
     definePluginRef,
+    mosaicOperationIds,
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
@@ -114,12 +117,12 @@ export function mosaicPlugin(
                 return controller;
             };
             for (const operationId of [
-                'mosaic:enter',
-                'mosaic:begin-stroke',
-                'mosaic:append-stroke',
-                'mosaic:end-stroke',
-                'mosaic:cancel',
-                'mosaic:configure',
+                mosaicOperationIds.enter,
+                mosaicOperationIds.beginStroke,
+                mosaicOperationIds.appendStroke,
+                mosaicOperationIds.endStroke,
+                mosaicOperationIds.cancel,
+                mosaicOperationIds.configure,
             ]) {
                 context.disposables.add(
                     context.operations.register({
@@ -132,7 +135,7 @@ export function mosaicPlugin(
             }
             context.disposables.add(
                 context.operations.register({
-                    id: 'mosaic:commit',
+                    id: mosaicOperationIds.commit,
                     mode: 'mutation',
                     conflictDomains: mosaicMutationDomains,
                     reentrancy: 'queue',
@@ -147,11 +150,11 @@ export function mosaicPlugin(
                     },
                     canRunOperation: (operationId) =>
                         operationId.startsWith('mosaic:') ||
-                        operationId === 'crop:enter' ||
-                        operationId === 'core:load-image' ||
-                        operationId === 'core:commit-load-image' ||
-                        operationId === 'core:load-state' ||
-                        operationId === 'core:export',
+                        operationId === cropOperationIds.enter ||
+                        operationId === coreOperationIds.loadImage ||
+                        operationId === coreOperationIds.commitLoadImage ||
+                        operationId === coreOperationIds.loadState ||
+                        operationId === coreOperationIds.export,
                 }),
             );
             context.disposables.add(
@@ -174,7 +177,7 @@ export function mosaicPlugin(
                 },
                 enter: (enterOptions?: MosaicEnterOptions) =>
                     runPreviewOperation(
-                        'mosaic:enter',
+                        mosaicOperationIds.enter,
                         enterOptions ?? {},
                         async (mosaic, value) => {
                             if (mosaic.isActive) {
@@ -191,15 +194,15 @@ export function mosaicPlugin(
                         },
                     ),
                 beginStroke: (point: MosaicImagePoint) =>
-                    runPreviewOperation('mosaic:begin-stroke', point, (mosaic, value) =>
+                    runPreviewOperation(mosaicOperationIds.beginStroke, point, (mosaic, value) =>
                         mosaic.beginStroke(value),
                     ),
                 appendStroke: (point: MosaicImagePoint) =>
-                    runPreviewOperation('mosaic:append-stroke', point, (mosaic, value) =>
+                    runPreviewOperation(mosaicOperationIds.appendStroke, point, (mosaic, value) =>
                         mosaic.appendStroke(value),
                     ),
                 endStroke: () =>
-                    runPreviewOperation('mosaic:end-stroke', undefined, (mosaic) =>
+                    runPreviewOperation(mosaicOperationIds.endStroke, undefined, (mosaic) =>
                         mosaic.endStroke(),
                     ),
                 commit: async (commitOptions?: MosaicCommitOptions) => {
@@ -212,14 +215,14 @@ export function mosaicPlugin(
                     }
                 },
                 cancel: () =>
-                    runPreviewOperation('mosaic:cancel', undefined, async (mosaic) => {
+                    runPreviewOperation(mosaicOperationIds.cancel, undefined, async (mosaic) => {
                         mosaic.cancel();
                         if (context.tools.getActiveToolId() === MOSAIC_TOOL_ID) {
                             await context.tools.exit('requested');
                         }
                     }),
                 configure: (patch: MosaicConfigurationPatch) =>
-                    runPreviewOperation('mosaic:configure', patch, (mosaic, value) =>
+                    runPreviewOperation(mosaicOperationIds.configure, patch, (mosaic, value) =>
                         mosaic.configure(value),
                     ),
                 getConfiguration: () => requireController().getConfiguration(),

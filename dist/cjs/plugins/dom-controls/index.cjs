@@ -1,6 +1,6 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_core_capabilities = require('../../chunks/core-capabilities-DPdoMgAf.cjs');
-const require_sdk = require('../../chunks/sdk-CkdOSZDn.cjs');
+const require_core_capabilities = require('../../chunks/core-capabilities-BJafsEkA.cjs');
+const require_sdk = require('../../chunks/sdk-DFCNfN_D.cjs');
 
 //#region dist/esm/plugins/dom-controls/dom-controls-controller.js
 var DomControlsConfigurationError = class extends Error {
@@ -433,14 +433,14 @@ var DomControlsController = class {
 			if (key === "z" && event.shiftKey || key === "y" && !event.shiftKey) {
 				if (!((_a = apis.history) === null || _a === void 0 ? void 0 : _a.canRedo())) return null;
 				return Object.freeze({
-					name: "history:redo",
+					name: require_core_capabilities.historyOperationIds.redo,
 					run: () => apis.history.redo()
 				});
 			}
 			if (key === "z" && !event.shiftKey) {
 				if (!((_b = apis.history) === null || _b === void 0 ? void 0 : _b.canUndo())) return null;
 				return Object.freeze({
-					name: "history:undo",
+					name: require_core_capabilities.historyOperationIds.undo,
 					run: () => apis.history.undo()
 				});
 			}

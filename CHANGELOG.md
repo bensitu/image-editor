@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep gesture replacement, Annotation editing, Overlay labels, selection targeting, and raster preview sessions synchronized with committed History and events.
 - Make package, reference Plugin, example, security, and release checks deterministic and portable across supported operating systems and package-manager environments.
 - Publish typed Plugin availability errors and consumer-facing TSDoc through the generated declaration files.
+- Share host and cross-Plugin operation identifiers through typed SDK constants used by both registration and Tool policies.
 
 ### Deprecated
 

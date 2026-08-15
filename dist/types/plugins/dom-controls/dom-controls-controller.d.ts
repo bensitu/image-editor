@@ -3,7 +3,7 @@
  *
  * @module
  */
-import type { CoreDiagnosticsPort, Disposable } from '../../sdk/index.js';
+import { type CoreDiagnosticsPort, type Disposable } from '../../sdk/index.js';
 import type { DomControlsOptions, DomControlsStatus } from './dom-controls-types.js';
 export declare class DomControlsConfigurationError extends Error {
     readonly name = "DomControlsConfigurationError";

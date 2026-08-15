@@ -11,6 +11,7 @@ import type { OverlayRuntimeApi } from '../../foundations/overlay/index.js';
 import { markSessionObject, placeSessionObject } from '../../utils/internal-layer-placement.js';
 import {
     createDisposable,
+    cropOperationIds,
     observePromise,
     type BaseImageReadPort,
     type CanvasReadPort,
@@ -354,7 +355,7 @@ export class CropController {
         const state = session.state;
         const selectionIds = session.selectionIds;
         this.closeSession(true);
-        const mutationId = `crop:apply:${++this.mutationSequence}`;
+        const mutationId = `${cropOperationIds.apply}:${++this.mutationSequence}`;
         const resources: {
             replacement: FabricNS.FabricImage | null;
             replacedSource: FabricNS.FabricImage | null;
@@ -364,7 +365,7 @@ export class CropController {
             await this.geometry.run({
                 id: mutationId,
                 kind: 'crop',
-                operationId: 'crop:apply',
+                operationId: cropOperationIds.apply,
                 sourceRect: {
                     left: rect.leftPx,
                     top: rect.topPx,

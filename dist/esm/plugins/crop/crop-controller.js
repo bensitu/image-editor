@@ -1,5 +1,5 @@
 import { markSessionObject, placeSessionObject } from '../../utils/internal-layer-placement.js';
-import { createDisposable, observePromise, } from '../../sdk/index.js';
+import { createDisposable, cropOperationIds, observePromise, } from '../../sdk/index.js';
 import { CropIntegrationError, CropSessionError, CropValidationError } from './crop-errors.js';
 import { constrainCropRectToRotation, fitCropRectToAspectRatio, normalizeCropAspectRatio, normalizeCropRect, normalizeCropRotation, } from './crop-geometry.js';
 import { applyCropOverlayPolicy, findCropOverlayCandidates, normalizeCropOverlayPolicy, } from './crop-overlay-policy.js';
@@ -297,14 +297,14 @@ export class CropController {
         const state = session.state;
         const selectionIds = session.selectionIds;
         this.closeSession(true);
-        const mutationId = `crop:apply:${++this.mutationSequence}`;
+        const mutationId = `${cropOperationIds.apply}:${++this.mutationSequence}`;
         const resources = { replacement: null, replacedSource: null };
         let committed = false;
         try {
             await this.geometry.run({
                 id: mutationId,
                 kind: 'crop',
-                operationId: 'crop:apply',
+                operationId: cropOperationIds.apply,
                 sourceRect: {
                     left: rect.leftPx,
                     top: rect.topPx,

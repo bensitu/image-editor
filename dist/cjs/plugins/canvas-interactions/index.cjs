@@ -1,7 +1,7 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
-const require_core_capabilities = require('../../chunks/core-capabilities-DPdoMgAf.cjs');
-const require_core = require('../../chunks/core-IzQmeOnC.cjs');
-const require_sdk = require('../../chunks/sdk-CkdOSZDn.cjs');
+const require_core_capabilities = require('../../chunks/core-capabilities-BJafsEkA.cjs');
+const require_core = require('../../chunks/core-jSdV4FnB.cjs');
+const require_sdk = require('../../chunks/sdk-DFCNfN_D.cjs');
 
 //#region dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
 function finiteNumber(value) {

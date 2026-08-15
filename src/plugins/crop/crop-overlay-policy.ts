@@ -8,6 +8,7 @@ import type * as FabricNS from 'fabric';
 
 import type { DocumentMutationContext } from '../../core/index.js';
 import type { OverlayRuntimeApi } from '../../foundations/overlay/index.js';
+import { cropOperationIds } from '../../sdk/index.js';
 import { CropValidationError } from './crop-errors.js';
 import type { CropOverlayPolicy } from './crop-session.js';
 
@@ -139,7 +140,7 @@ export async function applyCropOverlayPolicy(
     if (removeIds.length === 0) return;
     await overlay.mutate({
         id: `${mutationId}:overlay`,
-        operationId: 'crop:apply',
+        operationId: cropOperationIds.apply,
         action: 'delete',
         objectIds: removeIds,
         parent,

@@ -1587,6 +1587,37 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region dist/esm/plugin-kernel/operation-ids.js
+	const coreOperationIds = Object.freeze({
+		loadImage: "core:load-image",
+		commitLoadImage: "core:commit-load-image",
+		loadState: "core:load-state",
+		export: "core:export",
+		relayout: "core:relayout"
+	});
+	const cropOperationIds = Object.freeze({
+		enter: "crop:enter",
+		updateRect: "crop:update-rect",
+		setAspectRatio: "crop:set-aspect-ratio",
+		setRotation: "crop:set-rotation",
+		apply: "crop:apply",
+		cancel: "crop:cancel"
+	});
+	const mosaicOperationIds = Object.freeze({
+		enter: "mosaic:enter",
+		beginStroke: "mosaic:begin-stroke",
+		appendStroke: "mosaic:append-stroke",
+		endStroke: "mosaic:end-stroke",
+		commit: "mosaic:commit",
+		cancel: "mosaic:cancel",
+		configure: "mosaic:configure"
+	});
+	const historyOperationIds = Object.freeze({
+		undo: "history:undo",
+		redo: "history:redo"
+	});
+
+//#endregion
 //#region dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
@@ -7234,7 +7265,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (options.concurrency && options.concurrency !== "replace-pending") throw new CoreRuntimeError("[ImageEditor] Unsupported load concurrency policy.");
 			const preprocessing = resolveImagePreprocessing(options.preprocessing, this.options.imagePreprocessing);
 			try {
-				await this.plugins.runOperationForHost("core:load-image", source, async (loadSource, operationContext) => {
+				await this.plugins.runOperationForHost(coreOperationIds.loadImage, source, async (loadSource, operationContext) => {
 					const sequence = ++this.loadSequence;
 					this.latestLoadSequence = sequence;
 					const dimensions = encodedImage.dimensions;
@@ -7278,7 +7309,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						await this.documentMutations.run({
 							id: `core:load-image-transaction:${sequence}`,
 							kind: "raster",
-							operationId: "core:commit-load-image",
+							operationId: coreOperationIds.commitLoadImage,
 							conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 							signal: operationContext.signal,
 							metadata: Object.freeze({
@@ -7403,7 +7434,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await this.documentMutations.run({
 					id: `core:load-state-transaction:${sequence}`,
 					kind: "compound",
-					operationId: "core:load-state",
+					operationId: coreOperationIds.loadState,
 					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					...options.signal ? { signal: options.signal } : {},
 					metadata: Object.freeze({ sequence }),
@@ -7562,7 +7593,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			await this.geometry.run({
 				id: `core:relayout:${++this.relayoutSequence}`,
 				kind: "transform",
-				operationId: "core:relayout",
+				operationId: coreOperationIds.relayout,
 				metadata: Object.freeze({ mode }),
 				mutateBase: () => {
 					this.layoutMode = mode;
@@ -7850,25 +7881,25 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]
 			});
 			manager.registerHostOperation({
-				id: "core:load-image",
+				id: coreOperationIds.loadImage,
 				mode: "busy",
 				conflictDomains: ["image-decode"],
 				reentrancy: "replace"
 			});
 			manager.registerHostOperation({
-				id: "core:commit-load-image",
+				id: coreOperationIds.commitLoadImage,
 				mode: "mutation",
 				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			manager.registerHostOperation({
-				id: "core:load-state",
+				id: coreOperationIds.loadState,
 				mode: "mutation",
 				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			manager.registerHostOperation({
-				id: "core:export",
+				id: coreOperationIds.export,
 				mode: "read",
 				conflictDomains: [
 					"document",
@@ -7880,7 +7911,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				reentrancy: "queue"
 			});
 			manager.registerHostOperation({
-				id: "core:relayout",
+				id: coreOperationIds.relayout,
 				mode: "mutation",
 				conflictDomains: [
 					"document",
@@ -8153,7 +8184,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a;
 			this.assertReady("export an image");
 			const resolved = resolveExportOptions(options, this.options.exportDefaults);
-			const operation = this.plugins.beginOperationForHost("core:export");
+			const operation = this.plugins.beginOperationForHost(coreOperationIds.export);
 			try {
 				const canvas = this.requireCanvas("exportImageBase64");
 				const multiplier = resolved.multiplier;
@@ -8215,11 +8246,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await ((_a = this.plugins) === null || _a === void 0 ? void 0 : _a.emitCommitted("geometry:committed", descriptor.result));
 				return;
 			}
-			if (descriptor.operationId === "core:commit-load-image" && isCoreImageInfo(descriptor.result)) {
+			if (descriptor.operationId === coreOperationIds.commitLoadImage && isCoreImageInfo(descriptor.result)) {
 				await ((_b = this.plugins) === null || _b === void 0 ? void 0 : _b.emitCommitted("image:loaded", descriptor.result));
 				return;
 			}
-			if (descriptor.operationId === "core:load-state") {
+			if (descriptor.operationId === coreOperationIds.loadState) {
 				await ((_c = this.plugins) === null || _c === void 0 ? void 0 : _c.emitCommitted("state:loaded", { schemaVersion: 3 }));
 				return;
 			}
@@ -12960,7 +12991,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		commit(record) {
 			if (!this.isEnabled) return;
-			if (record.operationId === "core:load-image" || record.operationId === "core:commit-load-image" || record.operationId === "core:load-state") {
+			if (record.operationId === coreOperationIds.loadImage || record.operationId === coreOperationIds.commitLoadImage || record.operationId === coreOperationIds.loadState) {
 				const changed = this.resetTimeline();
 				this.baseline = record.after;
 				if (changed) this.emitChange();
@@ -13030,7 +13061,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		undo() {
 			this.assertActive("undo");
 			if (!this.canUndo()) return Promise.resolve();
-			return this.operations.run("history:undo", async () => {
+			return this.operations.run(historyOperationIds.undo, async () => {
 				const entry = this.records[this.position - 1];
 				if (!entry) return;
 				await this.restoreTransactionally(entry.record.before, "undo");
@@ -13041,7 +13072,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo() {
 			this.assertActive("redo");
 			if (!this.canRedo()) return Promise.resolve();
-			return this.operations.run("history:redo", async () => {
+			return this.operations.run(historyOperationIds.redo, async () => {
 				const entry = this.records[this.position];
 				if (!entry) return;
 				await this.restoreTransactionally(entry.record.after, "redo");
@@ -13165,13 +13196,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const diagnostics = context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY);
 				const state = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
 				context.operations.register({
-					id: "history:undo",
+					id: historyOperationIds.undo,
 					mode: "mutation",
 					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				context.operations.register({
-					id: "history:redo",
+					id: historyOperationIds.redo,
 					mode: "mutation",
 					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
@@ -16187,7 +16218,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (removeIds.length === 0) return;
 		await overlay.mutate({
 			id: `${mutationId}:overlay`,
-			operationId: "crop:apply",
+			operationId: cropOperationIds.apply,
 			action: "delete",
 			objectIds: removeIds,
 			parent,
@@ -16608,7 +16639,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const state = session.state;
 			const selectionIds = session.selectionIds;
 			this.closeSession(true);
-			const mutationId = `crop:apply:${++this.mutationSequence}`;
+			const mutationId = `${cropOperationIds.apply}:${++this.mutationSequence}`;
 			const resources = {
 				replacement: null,
 				replacedSource: null
@@ -16618,7 +16649,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await this.geometry.run({
 					id: mutationId,
 					kind: "crop",
-					operationId: "crop:apply",
+					operationId: cropOperationIds.apply,
 					sourceRect: {
 						left: rect.leftPx,
 						top: rect.topPx,
@@ -17025,11 +17056,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return controller;
 				};
 				for (const operationId of [
-					"crop:enter",
-					"crop:update-rect",
-					"crop:set-aspect-ratio",
-					"crop:set-rotation",
-					"crop:cancel"
+					cropOperationIds.enter,
+					cropOperationIds.updateRect,
+					cropOperationIds.setAspectRatio,
+					cropOperationIds.setRotation,
+					cropOperationIds.cancel
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
@@ -17037,7 +17068,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.operations.register({
-					id: "crop:apply",
+					id: cropOperationIds.apply,
 					mode: "mutation",
 					conflictDomains: cropMutationDomains,
 					reentrancy: "queue"
@@ -17048,7 +17079,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					exit: () => {
 						if (controller === null || controller === void 0 ? void 0 : controller.isActive) controller.cancel();
 					},
-					canRunOperation: (operationId) => operationId.startsWith("crop:") || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("crop:") || operationId === mosaicOperationIds.enter || operationId === coreOperationIds.loadImage || operationId === coreOperationIds.commitLoadImage || operationId === coreOperationIds.loadState || operationId === coreOperationIds.export
 				}));
 				context.disposables.add(snapshots.registerTransientObject(cropPluginRef.id, (object) => {
 					var _a;
@@ -17059,7 +17090,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					get isActive() {
 						return requireController().isActive;
 					},
-					enter: (enterOptions) => runPreviewOperation("crop:enter", enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (crop, value) => {
+					enter: (enterOptions) => runPreviewOperation(cropOperationIds.enter, enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (crop, value) => {
 						if (crop.isActive) {
 							crop.enter(value);
 							return;
@@ -17072,9 +17103,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							throw error;
 						}
 					}),
-					updateRect: (rect) => runPreviewOperation("crop:update-rect", rect, (crop, value) => crop.updateRect(value)),
-					setAspectRatio: (ratio) => runPreviewOperation("crop:set-aspect-ratio", ratio, (crop, value) => crop.setAspectRatio(value)),
-					setRotation: (degrees) => runPreviewOperation("crop:set-rotation", degrees, (crop, value) => crop.setRotation(value)),
+					updateRect: (rect) => runPreviewOperation(cropOperationIds.updateRect, rect, (crop, value) => crop.updateRect(value)),
+					setAspectRatio: (ratio) => runPreviewOperation(cropOperationIds.setAspectRatio, ratio, (crop, value) => crop.setAspectRatio(value)),
+					setRotation: (degrees) => runPreviewOperation(cropOperationIds.setRotation, degrees, (crop, value) => crop.setRotation(value)),
 					apply: async (applyOptions) => {
 						try {
 							await requireController().apply(applyOptions);
@@ -17082,7 +17113,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							if (context.tools.getActiveToolId() === CROP_TOOL_ID) await context.tools.exit("operation");
 						}
 					},
-					cancel: () => runPreviewOperation("crop:cancel", void 0, async (crop) => {
+					cancel: () => runPreviewOperation(cropOperationIds.cancel, void 0, async (crop) => {
 						crop.cancel();
 						if (context.tools.getActiveToolId() === CROP_TOOL_ID) await context.tools.exit("requested");
 					}),
@@ -17749,7 +17780,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return;
 			}
 			this.hideBrushPreview(session);
-			const mutationId = `mosaic:commit:${++this.mutationSequence}`;
+			const mutationId = `${mosaicOperationIds.commit}:${++this.mutationSequence}`;
 			const resources = {
 				cache: null,
 				replacement: null,
@@ -17760,7 +17791,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await this.geometry.run({
 					id: mutationId,
 					kind: "raster-replace",
-					operationId: "mosaic:commit",
+					operationId: mosaicOperationIds.commit,
 					targetSize: {
 						width: state.sourceWidthPx,
 						height: state.sourceHeightPx
@@ -18098,12 +18129,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return controller;
 				};
 				for (const operationId of [
-					"mosaic:enter",
-					"mosaic:begin-stroke",
-					"mosaic:append-stroke",
-					"mosaic:end-stroke",
-					"mosaic:cancel",
-					"mosaic:configure"
+					mosaicOperationIds.enter,
+					mosaicOperationIds.beginStroke,
+					mosaicOperationIds.appendStroke,
+					mosaicOperationIds.endStroke,
+					mosaicOperationIds.cancel,
+					mosaicOperationIds.configure
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
@@ -18111,7 +18142,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.operations.register({
-					id: "mosaic:commit",
+					id: mosaicOperationIds.commit,
 					mode: "mutation",
 					conflictDomains: mosaicMutationDomains,
 					reentrancy: "queue"
@@ -18122,7 +18153,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					exit: () => {
 						if (controller === null || controller === void 0 ? void 0 : controller.isActive) controller.cancel();
 					},
-					canRunOperation: (operationId) => operationId.startsWith("mosaic:") || operationId === "crop:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("mosaic:") || operationId === cropOperationIds.enter || operationId === coreOperationIds.loadImage || operationId === coreOperationIds.commitLoadImage || operationId === coreOperationIds.loadState || operationId === coreOperationIds.export
 				}));
 				context.disposables.add(snapshots.registerTransientObject(mosaicPluginRef.id, (object) => {
 					var _a;
@@ -18133,7 +18164,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					get isActive() {
 						return requireController().isActive;
 					},
-					enter: (enterOptions) => runPreviewOperation("mosaic:enter", enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (mosaic, value) => {
+					enter: (enterOptions) => runPreviewOperation(mosaicOperationIds.enter, enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (mosaic, value) => {
 						if (mosaic.isActive) {
 							mosaic.enter(value);
 							return;
@@ -18146,9 +18177,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							throw error;
 						}
 					}),
-					beginStroke: (point) => runPreviewOperation("mosaic:begin-stroke", point, (mosaic, value) => mosaic.beginStroke(value)),
-					appendStroke: (point) => runPreviewOperation("mosaic:append-stroke", point, (mosaic, value) => mosaic.appendStroke(value)),
-					endStroke: () => runPreviewOperation("mosaic:end-stroke", void 0, (mosaic) => mosaic.endStroke()),
+					beginStroke: (point) => runPreviewOperation(mosaicOperationIds.beginStroke, point, (mosaic, value) => mosaic.beginStroke(value)),
+					appendStroke: (point) => runPreviewOperation(mosaicOperationIds.appendStroke, point, (mosaic, value) => mosaic.appendStroke(value)),
+					endStroke: () => runPreviewOperation(mosaicOperationIds.endStroke, void 0, (mosaic) => mosaic.endStroke()),
 					commit: async (commitOptions) => {
 						try {
 							await requireController().commit(commitOptions);
@@ -18156,11 +18187,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							if (context.tools.getActiveToolId() === MOSAIC_TOOL_ID$1) await context.tools.exit("operation");
 						}
 					},
-					cancel: () => runPreviewOperation("mosaic:cancel", void 0, async (mosaic) => {
+					cancel: () => runPreviewOperation(mosaicOperationIds.cancel, void 0, async (mosaic) => {
 						mosaic.cancel();
 						if (context.tools.getActiveToolId() === MOSAIC_TOOL_ID$1) await context.tools.exit("requested");
 					}),
-					configure: (patch) => runPreviewOperation("mosaic:configure", patch, (mosaic, value) => mosaic.configure(value)),
+					configure: (patch) => runPreviewOperation(mosaicOperationIds.configure, patch, (mosaic, value) => mosaic.configure(value)),
 					getConfiguration: () => requireController().getConfiguration(),
 					getSession: () => requireController().getSession(),
 					subscribe: (listener) => requireController().subscribe(listener)
@@ -18793,7 +18824,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: TEXT_TOOL_ID$1,
 					enter: () => void 0,
 					exit: () => controller === null || controller === void 0 ? void 0 : controller.cancelEditing(),
-					canRunOperation: (operationId) => operationId.startsWith("annotation-text:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("annotation-text:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === coreOperationIds.loadImage || operationId === coreOperationIds.commitLoadImage || operationId === coreOperationIds.loadState || operationId === coreOperationIds.export
 				}));
 				context.disposables.add(annotations.subscribe((status) => {
 					const session = controller === null || controller === void 0 ? void 0 : controller.getEditingSession();
@@ -19474,7 +19505,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: SHAPE_TOOL_ID$1,
 					enter: () => void 0,
 					exit: () => controller === null || controller === void 0 ? void 0 : controller.cancel(),
-					canRunOperation: (operationId) => operationId.startsWith("annotation-shape:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("annotation-shape:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === coreOperationIds.loadImage || operationId === coreOperationIds.commitLoadImage || operationId === coreOperationIds.loadState || operationId === coreOperationIds.export
 				}));
 				const requireController = () => {
 					if (!controller) throw new PluginNotInstalledError(shapeAnnotationPluginRef.id);
@@ -20146,7 +20177,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: DRAW_TOOL_ID$1,
 					enter: () => void 0,
 					exit: () => controller === null || controller === void 0 ? void 0 : controller.exit(),
-					canRunOperation: (operationId) => operationId.startsWith("annotation-draw:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export" || operationId === "history:undo" || operationId === "history:redo"
+					canRunOperation: (operationId) => operationId.startsWith("annotation-draw:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === coreOperationIds.loadImage || operationId === coreOperationIds.commitLoadImage || operationId === coreOperationIds.loadState || operationId === coreOperationIds.export || operationId === historyOperationIds.undo || operationId === historyOperationIds.redo
 				}));
 				const requireController = () => {
 					if (!controller) throw new PluginNotInstalledError(drawAnnotationPluginRef.id);
@@ -21520,14 +21551,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (key === "z" && event.shiftKey || key === "y" && !event.shiftKey) {
 					if (!((_a = apis.history) === null || _a === void 0 ? void 0 : _a.canRedo())) return null;
 					return Object.freeze({
-						name: "history:redo",
+						name: historyOperationIds.redo,
 						run: () => apis.history.redo()
 					});
 				}
 				if (key === "z" && !event.shiftKey) {
 					if (!((_b = apis.history) === null || _b === void 0 ? void 0 : _b.canUndo())) return null;
 					return Object.freeze({
-						name: "history:undo",
+						name: historyOperationIds.undo,
 						run: () => apis.history.undo()
 					});
 				}
@@ -23293,9 +23324,11 @@ exports.canvasInteractionsPlugin = canvasInteractionsPlugin;
 exports.canvasInteractionsPluginRef = canvasInteractionsPluginRef;
 exports.captureOverlayStateBounds = captureOverlayStateBounds;
 exports.composePlugins = composePlugins;
+exports.coreOperationIds = coreOperationIds;
 exports.createCapabilityToken = createCapabilityToken;
 exports.createDisposable = createDisposable;
 exports.createFullPreset = createFullPreset;
+exports.cropOperationIds = cropOperationIds;
 exports.cropPlugin = cropPlugin;
 exports.cropPluginRef = cropPluginRef;
 exports.definePlugin = definePlugin;
@@ -23307,6 +23340,7 @@ exports.drawAnnotationPlugin = drawAnnotationPlugin;
 exports.drawAnnotationPluginRef = drawAnnotationPluginRef;
 exports.filtersPlugin = filtersPlugin;
 exports.filtersPluginRef = filtersPluginRef;
+exports.historyOperationIds = historyOperationIds;
 exports.historyPlugin = historyPlugin;
 exports.historyPluginRef = historyPluginRef;
 exports.isOverlayStateBoundsGeometry = isOverlayStateBoundsGeometry;
@@ -23314,6 +23348,7 @@ exports.isRuntimeIdentifier = isRuntimeIdentifier;
 exports.isValidSemVer = isValidSemVer;
 exports.maskPlugin = maskPlugin;
 exports.maskPluginRef = maskPluginRef;
+exports.mosaicOperationIds = mosaicOperationIds;
 exports.mosaicPlugin = mosaicPlugin;
 exports.mosaicPluginRef = mosaicPluginRef;
 exports.normalizeFilterDefinitions = normalizeFilterDefinitions;

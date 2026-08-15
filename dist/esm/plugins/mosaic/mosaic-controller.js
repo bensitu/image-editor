@@ -1,4 +1,4 @@
-import { createDisposable, observePromise, } from '../../sdk/index.js';
+import { createDisposable, mosaicOperationIds, observePromise, } from '../../sdk/index.js';
 import { markSessionObject, placeSessionObject } from '../../utils/internal-layer-placement.js';
 import { applyCircularMosaic, interpolateMosaicPoints, mergeDirtyRectangles, } from './mosaic-brush.js';
 import { MosaicIntegrationError, MosaicSessionError, MosaicValidationError, } from './mosaic-errors.js';
@@ -409,14 +409,14 @@ export class MosaicController {
             return;
         }
         this.hideBrushPreview(session);
-        const mutationId = `mosaic:commit:${++this.mutationSequence}`;
+        const mutationId = `${mosaicOperationIds.commit}:${++this.mutationSequence}`;
         const resources = { cache: null, replacement: null, replacedSource: null };
         let committed = false;
         try {
             await this.geometry.run({
                 id: mutationId,
                 kind: 'raster-replace',
-                operationId: 'mosaic:commit',
+                operationId: mosaicOperationIds.commit,
                 targetSize: { width: state.sourceWidthPx, height: state.sourceHeightPx },
                 metadata: Object.freeze({
                     sourceRevision: state.sourceRevision,

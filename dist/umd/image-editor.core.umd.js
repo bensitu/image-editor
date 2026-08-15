@@ -1587,6 +1587,37 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region dist/esm/plugin-kernel/operation-ids.js
+	const coreOperationIds = Object.freeze({
+		loadImage: "core:load-image",
+		commitLoadImage: "core:commit-load-image",
+		loadState: "core:load-state",
+		export: "core:export",
+		relayout: "core:relayout"
+	});
+	const cropOperationIds = Object.freeze({
+		enter: "crop:enter",
+		updateRect: "crop:update-rect",
+		setAspectRatio: "crop:set-aspect-ratio",
+		setRotation: "crop:set-rotation",
+		apply: "crop:apply",
+		cancel: "crop:cancel"
+	});
+	const mosaicOperationIds = Object.freeze({
+		enter: "mosaic:enter",
+		beginStroke: "mosaic:begin-stroke",
+		appendStroke: "mosaic:append-stroke",
+		endStroke: "mosaic:end-stroke",
+		commit: "mosaic:commit",
+		cancel: "mosaic:cancel",
+		configure: "mosaic:configure"
+	});
+	const historyOperationIds = Object.freeze({
+		undo: "history:undo",
+		redo: "history:redo"
+	});
+
+//#endregion
 //#region dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
@@ -7267,7 +7298,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (options.concurrency && options.concurrency !== "replace-pending") throw new CoreRuntimeError("[ImageEditor] Unsupported load concurrency policy.");
 			const preprocessing = resolveImagePreprocessing(options.preprocessing, this.options.imagePreprocessing);
 			try {
-				await this.plugins.runOperationForHost("core:load-image", source, async (loadSource, operationContext) => {
+				await this.plugins.runOperationForHost(coreOperationIds.loadImage, source, async (loadSource, operationContext) => {
 					const sequence = ++this.loadSequence;
 					this.latestLoadSequence = sequence;
 					const dimensions = encodedImage.dimensions;
@@ -7311,7 +7342,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						await this.documentMutations.run({
 							id: `core:load-image-transaction:${sequence}`,
 							kind: "raster",
-							operationId: "core:commit-load-image",
+							operationId: coreOperationIds.commitLoadImage,
 							conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 							signal: operationContext.signal,
 							metadata: Object.freeze({
@@ -7436,7 +7467,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await this.documentMutations.run({
 					id: `core:load-state-transaction:${sequence}`,
 					kind: "compound",
-					operationId: "core:load-state",
+					operationId: coreOperationIds.loadState,
 					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					...options.signal ? { signal: options.signal } : {},
 					metadata: Object.freeze({ sequence }),
@@ -7595,7 +7626,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			await this.geometry.run({
 				id: `core:relayout:${++this.relayoutSequence}`,
 				kind: "transform",
-				operationId: "core:relayout",
+				operationId: coreOperationIds.relayout,
 				metadata: Object.freeze({ mode }),
 				mutateBase: () => {
 					this.layoutMode = mode;
@@ -7883,25 +7914,25 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				]
 			});
 			manager.registerHostOperation({
-				id: "core:load-image",
+				id: coreOperationIds.loadImage,
 				mode: "busy",
 				conflictDomains: ["image-decode"],
 				reentrancy: "replace"
 			});
 			manager.registerHostOperation({
-				id: "core:commit-load-image",
+				id: coreOperationIds.commitLoadImage,
 				mode: "mutation",
 				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "queue"
 			});
 			manager.registerHostOperation({
-				id: "core:load-state",
+				id: coreOperationIds.loadState,
 				mode: "mutation",
 				conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 				reentrancy: "reject"
 			});
 			manager.registerHostOperation({
-				id: "core:export",
+				id: coreOperationIds.export,
 				mode: "read",
 				conflictDomains: [
 					"document",
@@ -7913,7 +7944,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				reentrancy: "queue"
 			});
 			manager.registerHostOperation({
-				id: "core:relayout",
+				id: coreOperationIds.relayout,
 				mode: "mutation",
 				conflictDomains: [
 					"document",
@@ -8186,7 +8217,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a;
 			this.assertReady("export an image");
 			const resolved = resolveExportOptions(options, this.options.exportDefaults);
-			const operation = this.plugins.beginOperationForHost("core:export");
+			const operation = this.plugins.beginOperationForHost(coreOperationIds.export);
 			try {
 				const canvas = this.requireCanvas("exportImageBase64");
 				const multiplier = resolved.multiplier;
@@ -8248,11 +8279,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await ((_a = this.plugins) === null || _a === void 0 ? void 0 : _a.emitCommitted("geometry:committed", descriptor.result));
 				return;
 			}
-			if (descriptor.operationId === "core:commit-load-image" && isCoreImageInfo(descriptor.result)) {
+			if (descriptor.operationId === coreOperationIds.commitLoadImage && isCoreImageInfo(descriptor.result)) {
 				await ((_b = this.plugins) === null || _b === void 0 ? void 0 : _b.emitCommitted("image:loaded", descriptor.result));
 				return;
 			}
-			if (descriptor.operationId === "core:load-state") {
+			if (descriptor.operationId === coreOperationIds.loadState) {
 				await ((_c = this.plugins) === null || _c === void 0 ? void 0 : _c.emitCommitted("state:loaded", { schemaVersion: 3 }));
 				return;
 			}
@@ -8500,17 +8531,21 @@ exports.classifyCoreError = classifyCoreError;
 exports.cloneStateValue = cloneStateValue;
 exports.composePlugins = composePlugins;
 exports.computeAffineDelta = computeAffineDelta;
+exports.coreOperationIds = coreOperationIds;
 exports.createCapabilityToken = createCapabilityToken;
 exports.createDisposable = createDisposable;
+exports.cropOperationIds = cropOperationIds;
 exports.definePlugin = definePlugin;
 exports.definePluginRef = definePluginRef;
 exports.disposeInReverseSync = disposeInReverseSync;
 exports.hasAffineReflection = hasAffineReflection;
+exports.historyOperationIds = historyOperationIds;
 exports.invertAffine = invertAffine;
 exports.isDangerousStateKey = isDangerousStateKey;
 exports.isFiniteAffineMatrix = isFiniteAffineMatrix;
 exports.isRuntimeIdentifier = isRuntimeIdentifier;
 exports.isValidSemVer = isValidSemVer;
+exports.mosaicOperationIds = mosaicOperationIds;
 exports.multiplyAffine = multiplyAffine;
 exports.observePromise = observePromise;
 exports.sanitizeAffineMatrix = sanitizeAffineMatrix;

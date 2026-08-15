@@ -298,7 +298,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (removeIds.length === 0) return;
 		await overlay.mutate({
 			id: `${mutationId}:overlay`,
-			operationId: "crop:apply",
+			operationId: _bensitu_image_editor_sdk.cropOperationIds.apply,
 			action: "delete",
 			objectIds: removeIds,
 			parent,
@@ -778,7 +778,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const state = session.state;
 			const selectionIds = session.selectionIds;
 			this.closeSession(true);
-			const mutationId = `crop:apply:${++this.mutationSequence}`;
+			const mutationId = `${_bensitu_image_editor_sdk.cropOperationIds.apply}:${++this.mutationSequence}`;
 			const resources = {
 				replacement: null,
 				replacedSource: null
@@ -788,7 +788,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await this.geometry.run({
 					id: mutationId,
 					kind: "crop",
-					operationId: "crop:apply",
+					operationId: _bensitu_image_editor_sdk.cropOperationIds.apply,
 					sourceRect: {
 						left: rect.leftPx,
 						top: rect.topPx,
@@ -1195,11 +1195,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return controller;
 				};
 				for (const operationId of [
-					"crop:enter",
-					"crop:update-rect",
-					"crop:set-aspect-ratio",
-					"crop:set-rotation",
-					"crop:cancel"
+					_bensitu_image_editor_sdk.cropOperationIds.enter,
+					_bensitu_image_editor_sdk.cropOperationIds.updateRect,
+					_bensitu_image_editor_sdk.cropOperationIds.setAspectRatio,
+					_bensitu_image_editor_sdk.cropOperationIds.setRotation,
+					_bensitu_image_editor_sdk.cropOperationIds.cancel
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
@@ -1207,7 +1207,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.operations.register({
-					id: "crop:apply",
+					id: _bensitu_image_editor_sdk.cropOperationIds.apply,
 					mode: "mutation",
 					conflictDomains: cropMutationDomains,
 					reentrancy: "queue"
@@ -1218,7 +1218,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					exit: () => {
 						if (controller === null || controller === void 0 ? void 0 : controller.isActive) controller.cancel();
 					},
-					canRunOperation: (operationId) => operationId.startsWith("crop:") || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("crop:") || operationId === _bensitu_image_editor_sdk.mosaicOperationIds.enter || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.commitLoadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadState || operationId === _bensitu_image_editor_sdk.coreOperationIds.export
 				}));
 				context.disposables.add(snapshots.registerTransientObject(cropPluginRef.id, (object) => {
 					var _a;
@@ -1229,7 +1229,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					get isActive() {
 						return requireController().isActive;
 					},
-					enter: (enterOptions) => runPreviewOperation("crop:enter", enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (crop, value) => {
+					enter: (enterOptions) => runPreviewOperation(_bensitu_image_editor_sdk.cropOperationIds.enter, enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (crop, value) => {
 						if (crop.isActive) {
 							crop.enter(value);
 							return;
@@ -1242,9 +1242,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							throw error;
 						}
 					}),
-					updateRect: (rect) => runPreviewOperation("crop:update-rect", rect, (crop, value) => crop.updateRect(value)),
-					setAspectRatio: (ratio) => runPreviewOperation("crop:set-aspect-ratio", ratio, (crop, value) => crop.setAspectRatio(value)),
-					setRotation: (degrees) => runPreviewOperation("crop:set-rotation", degrees, (crop, value) => crop.setRotation(value)),
+					updateRect: (rect) => runPreviewOperation(_bensitu_image_editor_sdk.cropOperationIds.updateRect, rect, (crop, value) => crop.updateRect(value)),
+					setAspectRatio: (ratio) => runPreviewOperation(_bensitu_image_editor_sdk.cropOperationIds.setAspectRatio, ratio, (crop, value) => crop.setAspectRatio(value)),
+					setRotation: (degrees) => runPreviewOperation(_bensitu_image_editor_sdk.cropOperationIds.setRotation, degrees, (crop, value) => crop.setRotation(value)),
 					apply: async (applyOptions) => {
 						try {
 							await requireController().apply(applyOptions);
@@ -1252,7 +1252,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							if (context.tools.getActiveToolId() === CROP_TOOL_ID) await context.tools.exit("operation");
 						}
 					},
-					cancel: () => runPreviewOperation("crop:cancel", void 0, async (crop) => {
+					cancel: () => runPreviewOperation(_bensitu_image_editor_sdk.cropOperationIds.cancel, void 0, async (crop) => {
 						crop.cancel();
 						if (context.tools.getActiveToolId() === CROP_TOOL_ID) await context.tools.exit("requested");
 					}),

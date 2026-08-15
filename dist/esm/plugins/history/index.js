@@ -1,4 +1,4 @@
-import { CORE_DIAGNOSTICS_CAPABILITY, MEMENTO_HISTORY_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { CORE_DIAGNOSTICS_CAPABILITY, MEMENTO_HISTORY_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, historyOperationIds, } from '../../sdk/index.js';
 import { DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS } from '../../utils/internal-operation-conflict-domains.js';
 import { HistoryPluginController, } from './history-controller.js';
 export const HISTORY_CAPABILITY = createCapabilityToken('plugin:history', '1.0.0');
@@ -22,13 +22,13 @@ export function historyPlugin(options = {}) {
             const diagnostics = context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY);
             const state = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
             context.operations.register({
-                id: 'history:undo',
+                id: historyOperationIds.undo,
                 mode: 'mutation',
                 conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             context.operations.register({
-                id: 'history:redo',
+                id: historyOperationIds.redo,
                 mode: 'mutation',
                 conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',

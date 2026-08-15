@@ -9,6 +9,7 @@ import type * as FabricNS from 'fabric';
 import type { GeometryMutationPort } from '../../core/index.js';
 import {
     createDisposable,
+    mosaicOperationIds,
     observePromise,
     type BaseImageReadPort,
     type CanvasReadPort,
@@ -498,7 +499,7 @@ export class MosaicController {
             return;
         }
         this.hideBrushPreview(session);
-        const mutationId = `mosaic:commit:${++this.mutationSequence}`;
+        const mutationId = `${mosaicOperationIds.commit}:${++this.mutationSequence}`;
         const resources: {
             cache: MosaicRasterCache | null;
             replacement: FabricNS.FabricImage | null;
@@ -509,7 +510,7 @@ export class MosaicController {
             await this.geometry.run({
                 id: mutationId,
                 kind: 'raster-replace',
-                operationId: 'mosaic:commit',
+                operationId: mosaicOperationIds.commit,
                 targetSize: { width: state.sourceWidthPx, height: state.sourceHeightPx },
                 metadata: Object.freeze({
                     sourceRevision: state.sourceRevision,

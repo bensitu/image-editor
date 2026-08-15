@@ -18,8 +18,10 @@ import {
     CORE_DIAGNOSTICS_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
     PluginNotInstalledError,
+    coreOperationIds,
     definePlugin,
     definePluginRef,
+    historyOperationIds,
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
@@ -119,14 +121,12 @@ export function drawAnnotationPlugin(
                         operationId.startsWith('annotation-draw:') ||
                         operationId.startsWith('annotation:') ||
                         operationId.endsWith(':enter') ||
-                        operationId === 'crop:enter' ||
-                        operationId === 'mosaic:enter' ||
-                        operationId === 'core:load-image' ||
-                        operationId === 'core:commit-load-image' ||
-                        operationId === 'core:load-state' ||
-                        operationId === 'core:export' ||
-                        operationId === 'history:undo' ||
-                        operationId === 'history:redo',
+                        operationId === coreOperationIds.loadImage ||
+                        operationId === coreOperationIds.commitLoadImage ||
+                        operationId === coreOperationIds.loadState ||
+                        operationId === coreOperationIds.export ||
+                        operationId === historyOperationIds.undo ||
+                        operationId === historyOperationIds.redo,
                 }),
             );
             const requireController = (): DrawAnnotationController => {

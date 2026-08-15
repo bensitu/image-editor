@@ -1,3 +1,4 @@
+import { cropOperationIds } from '../../sdk/index.js';
 import { CropValidationError } from './crop-errors.js';
 const DEFAULT_OVERLAY_POLICY = Object.freeze({
     preview: 'keep',
@@ -108,7 +109,7 @@ export async function applyCropOverlayPolicy(overlay, canvas, parent, policy, ca
         return;
     await overlay.mutate({
         id: `${mutationId}:overlay`,
-        operationId: 'crop:apply',
+        operationId: cropOperationIds.apply,
         action: 'delete',
         objectIds: removeIds,
         parent,

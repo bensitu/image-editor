@@ -139,6 +139,12 @@ reentrancy policy. Call it through `context.operations.run()` so Core can reject
 queue, or replace overlapping work and propagate an `AbortSignal`. Do not invent
 a second busy flag or transaction registry.
 
+When an operation policy references an editor-host or installed Feature operation,
+use the SDK exports `coreOperationIds`, `cropOperationIds`, `mosaicOperationIds`,
+and `historyOperationIds`. The same constants are used by the corresponding
+registration sites, so an identifier change remains type-linked across Plugin
+boundaries.
+
 Tools coordinate mutually exclusive modes such as Crop, Mosaic, Shape, or Draw.
 A Tool registration owns `enter`, `exit`, and its operation allow-list. A session
 keeps previews and pointer state transient; cancel and Tool exit must remove

@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 const require_plugin_identifier = require('../chunks/plugin-identifier-DhlVh5SQ.cjs');
-const require_core_capabilities = require('../chunks/core-capabilities-DPdoMgAf.cjs');
-const require_sdk = require('../chunks/sdk-CkdOSZDn.cjs');
+const require_core_capabilities = require('../chunks/core-capabilities-BJafsEkA.cjs');
+const require_sdk = require('../chunks/sdk-DFCNfN_D.cjs');
 
 exports.BASE_IMAGE_INFO_CAPABILITY = require_core_capabilities.BASE_IMAGE_INFO_CAPABILITY;
 exports.BASE_IMAGE_READ_CAPABILITY = require_core_capabilities.BASE_IMAGE_READ_CAPABILITY;
@@ -38,12 +38,16 @@ exports.RENDER_REQUEST_CAPABILITY = require_core_capabilities.RENDER_REQUEST_CAP
 exports.SNAPSHOT_REGISTRATION_CAPABILITY = require_core_capabilities.SNAPSHOT_REGISTRATION_CAPABILITY;
 exports.VISIBLE_RASTER_BAKE_CAPABILITY = require_sdk.VISIBLE_RASTER_BAKE_CAPABILITY;
 exports.composePlugins = require_core_capabilities.composePlugins;
+exports.coreOperationIds = require_core_capabilities.coreOperationIds;
 exports.createCapabilityToken = require_core_capabilities.createCapabilityToken;
 exports.createDisposable = require_core_capabilities.createDisposable;
+exports.cropOperationIds = require_core_capabilities.cropOperationIds;
 exports.definePlugin = require_sdk.definePlugin;
 exports.definePluginRef = require_core_capabilities.definePluginRef;
 exports.disposeInReverseSync = require_core_capabilities.disposeInReverseSync;
+exports.historyOperationIds = require_core_capabilities.historyOperationIds;
 exports.isRuntimeIdentifier = require_plugin_identifier.isRuntimeIdentifier;
 exports.isValidSemVer = require_core_capabilities.isValidSemVer;
+exports.mosaicOperationIds = require_core_capabilities.mosaicOperationIds;
 exports.observePromise = require_core_capabilities.observePromise;
 exports.validatePluginManifest = require_core_capabilities.validatePluginManifest;

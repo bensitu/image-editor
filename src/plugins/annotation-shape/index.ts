@@ -18,6 +18,7 @@ import {
     CORE_DIAGNOSTICS_CAPABILITY,
     FABRIC_RUNTIME_CAPABILITY,
     PluginNotInstalledError,
+    coreOperationIds,
     definePlugin,
     definePluginRef,
     type PluginSetupContext,
@@ -108,12 +109,10 @@ export function shapeAnnotationPlugin(
                         operationId.startsWith('annotation-shape:') ||
                         operationId.startsWith('annotation:') ||
                         operationId.endsWith(':enter') ||
-                        operationId === 'crop:enter' ||
-                        operationId === 'mosaic:enter' ||
-                        operationId === 'core:load-image' ||
-                        operationId === 'core:commit-load-image' ||
-                        operationId === 'core:load-state' ||
-                        operationId === 'core:export',
+                        operationId === coreOperationIds.loadImage ||
+                        operationId === coreOperationIds.commitLoadImage ||
+                        operationId === coreOperationIds.loadState ||
+                        operationId === coreOperationIds.export,
                 }),
             );
             const requireController = (): ShapeAnnotationController => {

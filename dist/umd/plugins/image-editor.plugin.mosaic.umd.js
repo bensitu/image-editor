@@ -744,7 +744,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				return;
 			}
 			this.hideBrushPreview(session);
-			const mutationId = `mosaic:commit:${++this.mutationSequence}`;
+			const mutationId = `${_bensitu_image_editor_sdk.mosaicOperationIds.commit}:${++this.mutationSequence}`;
 			const resources = {
 				cache: null,
 				replacement: null,
@@ -755,7 +755,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				await this.geometry.run({
 					id: mutationId,
 					kind: "raster-replace",
-					operationId: "mosaic:commit",
+					operationId: _bensitu_image_editor_sdk.mosaicOperationIds.commit,
 					targetSize: {
 						width: state.sourceWidthPx,
 						height: state.sourceHeightPx
@@ -1093,12 +1093,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					return controller;
 				};
 				for (const operationId of [
-					"mosaic:enter",
-					"mosaic:begin-stroke",
-					"mosaic:append-stroke",
-					"mosaic:end-stroke",
-					"mosaic:cancel",
-					"mosaic:configure"
+					_bensitu_image_editor_sdk.mosaicOperationIds.enter,
+					_bensitu_image_editor_sdk.mosaicOperationIds.beginStroke,
+					_bensitu_image_editor_sdk.mosaicOperationIds.appendStroke,
+					_bensitu_image_editor_sdk.mosaicOperationIds.endStroke,
+					_bensitu_image_editor_sdk.mosaicOperationIds.cancel,
+					_bensitu_image_editor_sdk.mosaicOperationIds.configure
 				]) context.disposables.add(context.operations.register({
 					id: operationId,
 					mode: "busy",
@@ -1106,7 +1106,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					reentrancy: "queue"
 				}));
 				context.disposables.add(context.operations.register({
-					id: "mosaic:commit",
+					id: _bensitu_image_editor_sdk.mosaicOperationIds.commit,
 					mode: "mutation",
 					conflictDomains: mosaicMutationDomains,
 					reentrancy: "queue"
@@ -1117,7 +1117,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					exit: () => {
 						if (controller === null || controller === void 0 ? void 0 : controller.isActive) controller.cancel();
 					},
-					canRunOperation: (operationId) => operationId.startsWith("mosaic:") || operationId === "crop:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("mosaic:") || operationId === _bensitu_image_editor_sdk.cropOperationIds.enter || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.commitLoadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadState || operationId === _bensitu_image_editor_sdk.coreOperationIds.export
 				}));
 				context.disposables.add(snapshots.registerTransientObject(mosaicPluginRef.id, (object) => {
 					var _a;
@@ -1128,7 +1128,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					get isActive() {
 						return requireController().isActive;
 					},
-					enter: (enterOptions) => runPreviewOperation("mosaic:enter", enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (mosaic, value) => {
+					enter: (enterOptions) => runPreviewOperation(_bensitu_image_editor_sdk.mosaicOperationIds.enter, enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (mosaic, value) => {
 						if (mosaic.isActive) {
 							mosaic.enter(value);
 							return;
@@ -1141,9 +1141,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							throw error;
 						}
 					}),
-					beginStroke: (point) => runPreviewOperation("mosaic:begin-stroke", point, (mosaic, value) => mosaic.beginStroke(value)),
-					appendStroke: (point) => runPreviewOperation("mosaic:append-stroke", point, (mosaic, value) => mosaic.appendStroke(value)),
-					endStroke: () => runPreviewOperation("mosaic:end-stroke", void 0, (mosaic) => mosaic.endStroke()),
+					beginStroke: (point) => runPreviewOperation(_bensitu_image_editor_sdk.mosaicOperationIds.beginStroke, point, (mosaic, value) => mosaic.beginStroke(value)),
+					appendStroke: (point) => runPreviewOperation(_bensitu_image_editor_sdk.mosaicOperationIds.appendStroke, point, (mosaic, value) => mosaic.appendStroke(value)),
+					endStroke: () => runPreviewOperation(_bensitu_image_editor_sdk.mosaicOperationIds.endStroke, void 0, (mosaic) => mosaic.endStroke()),
 					commit: async (commitOptions) => {
 						try {
 							await requireController().commit(commitOptions);
@@ -1151,11 +1151,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							if (context.tools.getActiveToolId() === MOSAIC_TOOL_ID) await context.tools.exit("operation");
 						}
 					},
-					cancel: () => runPreviewOperation("mosaic:cancel", void 0, async (mosaic) => {
+					cancel: () => runPreviewOperation(_bensitu_image_editor_sdk.mosaicOperationIds.cancel, void 0, async (mosaic) => {
 						mosaic.cancel();
 						if (context.tools.getActiveToolId() === MOSAIC_TOOL_ID) await context.tools.exit("requested");
 					}),
-					configure: (patch) => runPreviewOperation("mosaic:configure", patch, (mosaic, value) => mosaic.configure(value)),
+					configure: (patch) => runPreviewOperation(_bensitu_image_editor_sdk.mosaicOperationIds.configure, patch, (mosaic, value) => mosaic.configure(value)),
 					getConfiguration: () => requireController().getConfiguration(),
 					getSession: () => requireController().getSession(),
 					subscribe: (listener) => requireController().subscribe(listener)

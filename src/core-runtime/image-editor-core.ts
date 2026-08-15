@@ -13,6 +13,7 @@ import {
     type SynchronousEditorPlugin,
 } from '../plugin-kernel/index.js';
 import { PluginManager } from '../plugin-kernel/plugin-manager.js';
+import { coreOperationIds } from '../plugin-kernel/operation-ids.js';
 import type { PluginDefinitionInput } from '../plugin-kernel/plugin-types.js';
 import {
     isPluginPlan,
@@ -948,7 +949,7 @@ export class ImageEditorCore {
         );
         try {
             await this.plugins.runOperationForHost(
-                'core:load-image',
+                coreOperationIds.loadImage,
                 source,
                 async (loadSource, operationContext) => {
                     const sequence = ++this.loadSequence;
@@ -1021,7 +1022,7 @@ export class ImageEditorCore {
                         await this.documentMutations.run({
                             id: `core:load-image-transaction:${sequence}`,
                             kind: 'raster',
-                            operationId: 'core:commit-load-image',
+                            operationId: coreOperationIds.commitLoadImage,
                             conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                             signal: operationContext.signal,
                             metadata: Object.freeze({
@@ -1194,7 +1195,7 @@ export class ImageEditorCore {
             await this.documentMutations.run({
                 id: `core:load-state-transaction:${sequence}`,
                 kind: 'compound',
-                operationId: 'core:load-state',
+                operationId: coreOperationIds.loadState,
                 conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 ...(options.signal ? { signal: options.signal } : {}),
                 metadata: Object.freeze({ sequence }),
@@ -1413,7 +1414,7 @@ export class ImageEditorCore {
         await this.geometry.run({
             id: `core:relayout:${++this.relayoutSequence}`,
             kind: 'transform',
-            operationId: 'core:relayout',
+            operationId: coreOperationIds.relayout,
             metadata: Object.freeze({ mode }),
             mutateBase: () => {
                 this.layoutMode = mode;
@@ -1820,31 +1821,31 @@ export class ImageEditorCore {
             ],
         });
         manager.registerHostOperation({
-            id: 'core:load-image',
+            id: coreOperationIds.loadImage,
             mode: 'busy',
             conflictDomains: ['image-decode'],
             reentrancy: 'replace',
         });
         manager.registerHostOperation({
-            id: 'core:commit-load-image',
+            id: coreOperationIds.commitLoadImage,
             mode: 'mutation',
             conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
             reentrancy: 'queue',
         });
         manager.registerHostOperation({
-            id: 'core:load-state',
+            id: coreOperationIds.loadState,
             mode: 'mutation',
             conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
             reentrancy: 'reject',
         });
         manager.registerHostOperation({
-            id: 'core:export',
+            id: coreOperationIds.export,
             mode: 'read',
             conflictDomains: ['document', 'base-image', 'overlay', 'export', 'state'],
             reentrancy: 'queue',
         });
         manager.registerHostOperation({
-            id: 'core:relayout',
+            id: coreOperationIds.relayout,
             mode: 'mutation',
             conflictDomains: [
                 'document',
@@ -2222,7 +2223,7 @@ export class ImageEditorCore {
     private async runExport(options: CoreExportOptions): Promise<string> {
         this.assertReady('export an image');
         const resolved = resolveExportOptions(options, this.options.exportDefaults);
-        const operation = this.plugins.beginOperationForHost('core:export');
+        const operation = this.plugins.beginOperationForHost(coreOperationIds.export);
         try {
             const canvas = this.requireCanvas('exportImageBase64');
             const multiplier = resolved.multiplier;
@@ -2285,13 +2286,13 @@ export class ImageEditorCore {
             return;
         }
         if (
-            descriptor.operationId === 'core:commit-load-image' &&
+            descriptor.operationId === coreOperationIds.commitLoadImage &&
             isCoreImageInfo(descriptor.result)
         ) {
             await this.plugins?.emitCommitted('image:loaded', descriptor.result);
             return;
         }
-        if (descriptor.operationId === 'core:load-state') {
+        if (descriptor.operationId === coreOperationIds.loadState) {
             await this.plugins?.emitCommitted('state:loaded', { schemaVersion: 3 });
             return;
         }

@@ -11,6 +11,7 @@ import {
     createCapabilityToken,
     definePlugin,
     definePluginRef,
+    historyOperationIds,
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
@@ -45,13 +46,13 @@ export function historyPlugin(
             const diagnostics = context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY);
             const state = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
             context.operations.register({
-                id: 'history:undo',
+                id: historyOperationIds.undo,
                 mode: 'mutation',
                 conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',
             });
             context.operations.register({
-                id: 'history:redo',
+                id: historyOperationIds.redo,
                 mode: 'mutation',
                 conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
                 reentrancy: 'queue',

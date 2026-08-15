@@ -1699,6 +1699,12 @@
                     ]
                 },
                 {
+                    "name": "coreOperationIds",
+                    "kinds": [
+                        "VariableDeclaration"
+                    ]
+                },
+                {
                     "name": "CorePresentationPort",
                     "kinds": [
                         "InterfaceDeclaration"
@@ -1720,6 +1726,12 @@
                     "name": "createDisposable",
                     "kinds": [
                         "FunctionDeclaration"
+                    ]
+                },
+                {
+                    "name": "cropOperationIds",
+                    "kinds": [
+                        "VariableDeclaration"
                     ]
                 },
                 {
@@ -1789,6 +1801,12 @@
                     ]
                 },
                 {
+                    "name": "historyOperationIds",
+                    "kinds": [
+                        "VariableDeclaration"
+                    ]
+                },
+                {
                     "name": "IMAGE_RESOURCE_POLICY_CAPABILITY",
                     "kinds": [
                         "VariableDeclaration"
@@ -1828,6 +1846,12 @@
                     "name": "MementoHistoryPort",
                     "kinds": [
                         "InterfaceDeclaration"
+                    ]
+                },
+                {
+                    "name": "mosaicOperationIds",
+                    "kinds": [
+                        "VariableDeclaration"
                     ]
                 },
                 {
@@ -2095,13 +2119,17 @@
                 "SNAPSHOT_REGISTRATION_CAPABILITY",
                 "VISIBLE_RASTER_BAKE_CAPABILITY",
                 "composePlugins",
+                "coreOperationIds",
                 "createCapabilityToken",
                 "createDisposable",
+                "cropOperationIds",
                 "definePlugin",
                 "definePluginRef",
                 "disposeInReverseSync",
+                "historyOperationIds",
                 "isRuntimeIdentifier",
                 "isValidSemVer",
+                "mosaicOperationIds",
                 "observePromise",
                 "validatePluginManifest"
             ]
@@ -4576,7 +4604,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "46560bf91f66d671c53855d5d4b785f9aad2a2641cfb435e334c94360e37e9a6",
+        "graphSha256": "a0a98854db0f7d556ac3aaece5f016a9b51caefcee662871b0498aa56bad928d",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4724,7 +4752,11 @@
             },
             {
                 "file": "dist/types/plugin-kernel/index.d.ts",
-                "sha256": "05648edf5ce73d37e91888f15f711a3ff7326fd6659aa7c69bf17162ec124bfa"
+                "sha256": "efba8753b6e2d4da93094e8ce01a4bbc6eb2b6bdba87a7e2b20f4dd619618dab"
+            },
+            {
+                "file": "dist/types/plugin-kernel/operation-ids.d.ts",
+                "sha256": "c4c1fa58a8aa4b46ec5c9fb26e665360ee490174bf094f9f70343b3538a953d7"
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
@@ -4824,7 +4856,7 @@
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-controller.d.ts",
-                "sha256": "bd0fa5f0f683bac7a33745b7e47e0a9b5bc9c0ef736ad688182155040dc02a69"
+                "sha256": "04918aaf6e3c844b0bbdd4b669057f103a965c708bbbdf5b0f94d874c919306d"
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-types.d.ts",
@@ -4856,7 +4888,7 @@
             },
             {
                 "file": "dist/types/plugins/history/history-controller.d.ts",
-                "sha256": "15b3844496cc1c73e931daa2b2c4e91e2b15c1b07272efda318b07b701cf1651"
+                "sha256": "e89b40f25563a7bb55ef2a119262cc6d6156e0e44a0fc3ee58629f659b041c1b"
             },
             {
                 "file": "dist/types/plugins/history/index.d.ts",
@@ -4936,7 +4968,7 @@
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "8fe234bce616f31b11e89011353b5064e0891df5a3bb64a989a8e98c5f7b16a9"
+                "sha256": "55746dbb8b3f547726b4661a12e9a0124e5fc85e7a4c9a93529a85778c9289ab"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",
@@ -5259,9 +5291,11 @@
             "canvasInteractionsPluginRef",
             "captureOverlayStateBounds",
             "composePlugins",
+            "coreOperationIds",
             "createCapabilityToken",
             "createDisposable",
             "createFullPreset",
+            "cropOperationIds",
             "cropPlugin",
             "cropPluginRef",
             "definePlugin",
@@ -5273,6 +5307,7 @@
             "drawAnnotationPluginRef",
             "filtersPlugin",
             "filtersPluginRef",
+            "historyOperationIds",
             "historyPlugin",
             "historyPluginRef",
             "isOverlayStateBoundsGeometry",
@@ -5280,6 +5315,7 @@
             "isValidSemVer",
             "maskPlugin",
             "maskPluginRef",
+            "mosaicOperationIds",
             "mosaicPlugin",
             "mosaicPluginRef",
             "normalizeFilterDefinitions",
@@ -5714,6 +5750,12 @@
                 ]
             },
             {
+                "name": "coreOperationIds",
+                "kinds": [
+                    "VariableDeclaration"
+                ]
+            },
+            {
                 "name": "CorePresentationPort",
                 "kinds": [
                     "InterfaceDeclaration"
@@ -5783,6 +5825,12 @@
                 "name": "CropIntegrationError",
                 "kinds": [
                     "ClassDeclaration"
+                ]
+            },
+            {
+                "name": "cropOperationIds",
+                "kinds": [
+                    "VariableDeclaration"
                 ]
             },
             {
@@ -6290,6 +6338,12 @@
                 ]
             },
             {
+                "name": "historyOperationIds",
+                "kinds": [
+                    "VariableDeclaration"
+                ]
+            },
+            {
                 "name": "historyPlugin",
                 "kinds": [
                     "FunctionDeclaration"
@@ -6509,6 +6563,12 @@
                 "name": "MosaicIntegrationError",
                 "kinds": [
                     "ClassDeclaration"
+                ]
+            },
+            {
+                "name": "mosaicOperationIds",
+                "kinds": [
+                    "VariableDeclaration"
                 ]
             },
             {

@@ -5,7 +5,7 @@
  */
 
 import { CoreRuntimeError, type CoreHistoryRecord } from '../../core/index.js';
-import type { MementoHistoryPort } from '../../sdk/index.js';
+import { coreOperationIds, historyOperationIds, type MementoHistoryPort } from '../../sdk/index.js';
 import { estimateRetainedBytes } from './retained-size-estimator.js';
 
 const DEFAULT_MAX_HISTORY_BYTES = 128 * 1024 * 1024;
@@ -137,9 +137,9 @@ export class HistoryPluginController implements HistoryPort {
     commit(record: CoreHistoryRecord): void {
         if (!this.isEnabled) return;
         if (
-            record.operationId === 'core:load-image' ||
-            record.operationId === 'core:commit-load-image' ||
-            record.operationId === 'core:load-state'
+            record.operationId === coreOperationIds.loadImage ||
+            record.operationId === coreOperationIds.commitLoadImage ||
+            record.operationId === coreOperationIds.loadState
         ) {
             const changed = this.resetTimeline();
             this.baseline = record.after;
@@ -231,7 +231,7 @@ export class HistoryPluginController implements HistoryPort {
     undo(): Promise<void> {
         this.assertActive('undo');
         if (!this.canUndo()) return Promise.resolve();
-        return this.operations.run('history:undo', async () => {
+        return this.operations.run(historyOperationIds.undo, async () => {
             const entry = this.records[this.position - 1];
             if (!entry) return;
             await this.restoreTransactionally(entry.record.before, 'undo');
@@ -243,7 +243,7 @@ export class HistoryPluginController implements HistoryPort {
     redo(): Promise<void> {
         this.assertActive('redo');
         if (!this.canRedo()) return Promise.resolve();
-        return this.operations.run('history:redo', async () => {
+        return this.operations.run(historyOperationIds.redo, async () => {
             const entry = this.records[this.position];
             if (!entry) return;
             await this.restoreTransactionally(entry.record.after, 'redo');

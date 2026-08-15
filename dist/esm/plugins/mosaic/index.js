@@ -1,4 +1,4 @@
-import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_STATUS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, PluginNotInstalledError, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, VISIBLE_RASTER_BAKE_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
+import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_STATUS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, PluginNotInstalledError, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, VISIBLE_RASTER_BAKE_CAPABILITY, coreOperationIds, cropOperationIds, definePlugin, definePluginRef, mosaicOperationIds, } from '../../sdk/index.js';
 import { MosaicController, resolveMosaicConfiguration } from './mosaic-controller.js';
 const MOSAIC_TOOL_ID = 'plugin:mosaic';
 const mosaicPreviewDomains = ['base-image', 'overlay', 'selection', 'state'];
@@ -70,12 +70,12 @@ export function mosaicPlugin(options = {}) {
                 return controller;
             };
             for (const operationId of [
-                'mosaic:enter',
-                'mosaic:begin-stroke',
-                'mosaic:append-stroke',
-                'mosaic:end-stroke',
-                'mosaic:cancel',
-                'mosaic:configure',
+                mosaicOperationIds.enter,
+                mosaicOperationIds.beginStroke,
+                mosaicOperationIds.appendStroke,
+                mosaicOperationIds.endStroke,
+                mosaicOperationIds.cancel,
+                mosaicOperationIds.configure,
             ]) {
                 context.disposables.add(context.operations.register({
                     id: operationId,
@@ -85,7 +85,7 @@ export function mosaicPlugin(options = {}) {
                 }));
             }
             context.disposables.add(context.operations.register({
-                id: 'mosaic:commit',
+                id: mosaicOperationIds.commit,
                 mode: 'mutation',
                 conflictDomains: mosaicMutationDomains,
                 reentrancy: 'queue',
@@ -98,11 +98,11 @@ export function mosaicPlugin(options = {}) {
                         controller.cancel();
                 },
                 canRunOperation: (operationId) => operationId.startsWith('mosaic:') ||
-                    operationId === 'crop:enter' ||
-                    operationId === 'core:load-image' ||
-                    operationId === 'core:commit-load-image' ||
-                    operationId === 'core:load-state' ||
-                    operationId === 'core:export',
+                    operationId === cropOperationIds.enter ||
+                    operationId === coreOperationIds.loadImage ||
+                    operationId === coreOperationIds.commitLoadImage ||
+                    operationId === coreOperationIds.loadState ||
+                    operationId === coreOperationIds.export,
             }));
             context.disposables.add(snapshots.registerTransientObject(mosaicPluginRef.id, (object) => { var _a; return (_a = controller === null || controller === void 0 ? void 0 : controller.ownsPreview(object)) !== null && _a !== void 0 ? _a : false; }));
             const runPreviewOperation = (operationId, value, task) => context.operations.run(operationId, value, (args) => task(requireController(), args));
@@ -110,7 +110,7 @@ export function mosaicPlugin(options = {}) {
                 get isActive() {
                     return requireController().isActive;
                 },
-                enter: (enterOptions) => runPreviewOperation('mosaic:enter', enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (mosaic, value) => {
+                enter: (enterOptions) => runPreviewOperation(mosaicOperationIds.enter, enterOptions !== null && enterOptions !== void 0 ? enterOptions : {}, async (mosaic, value) => {
                     if (mosaic.isActive) {
                         mosaic.enter(value);
                         return;
@@ -124,9 +124,9 @@ export function mosaicPlugin(options = {}) {
                         throw error;
                     }
                 }),
-                beginStroke: (point) => runPreviewOperation('mosaic:begin-stroke', point, (mosaic, value) => mosaic.beginStroke(value)),
-                appendStroke: (point) => runPreviewOperation('mosaic:append-stroke', point, (mosaic, value) => mosaic.appendStroke(value)),
-                endStroke: () => runPreviewOperation('mosaic:end-stroke', undefined, (mosaic) => mosaic.endStroke()),
+                beginStroke: (point) => runPreviewOperation(mosaicOperationIds.beginStroke, point, (mosaic, value) => mosaic.beginStroke(value)),
+                appendStroke: (point) => runPreviewOperation(mosaicOperationIds.appendStroke, point, (mosaic, value) => mosaic.appendStroke(value)),
+                endStroke: () => runPreviewOperation(mosaicOperationIds.endStroke, undefined, (mosaic) => mosaic.endStroke()),
                 commit: async (commitOptions) => {
                     try {
                         await requireController().commit(commitOptions);
@@ -137,13 +137,13 @@ export function mosaicPlugin(options = {}) {
                         }
                     }
                 },
-                cancel: () => runPreviewOperation('mosaic:cancel', undefined, async (mosaic) => {
+                cancel: () => runPreviewOperation(mosaicOperationIds.cancel, undefined, async (mosaic) => {
                     mosaic.cancel();
                     if (context.tools.getActiveToolId() === MOSAIC_TOOL_ID) {
                         await context.tools.exit('requested');
                     }
                 }),
-                configure: (patch) => runPreviewOperation('mosaic:configure', patch, (mosaic, value) => mosaic.configure(value)),
+                configure: (patch) => runPreviewOperation(mosaicOperationIds.configure, patch, (mosaic, value) => mosaic.configure(value)),
                 getConfiguration: () => requireController().getConfiguration(),
                 getSession: () => requireController().getSession(),
                 subscribe: (listener) => requireController().subscribe(listener),

@@ -4,7 +4,7 @@
  * @module
  */
 import { type CoreHistoryRecord } from '../../core/index.js';
-import type { MementoHistoryPort } from '../../sdk/index.js';
+import { type MementoHistoryPort } from '../../sdk/index.js';
 /** Immutable History availability, position, and retained-memory status. */
 export interface HistoryStatus {
     readonly isEnabled: boolean;

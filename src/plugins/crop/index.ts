@@ -19,8 +19,11 @@ import {
     RENDER_REQUEST_CAPABILITY,
     SNAPSHOT_REGISTRATION_CAPABILITY,
     VISIBLE_RASTER_BAKE_CAPABILITY,
+    coreOperationIds,
+    cropOperationIds,
     definePlugin,
     definePluginRef,
+    mosaicOperationIds,
     type PluginSetupContext,
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
@@ -119,11 +122,11 @@ export function cropPlugin(
                 return controller;
             };
             for (const operationId of [
-                'crop:enter',
-                'crop:update-rect',
-                'crop:set-aspect-ratio',
-                'crop:set-rotation',
-                'crop:cancel',
+                cropOperationIds.enter,
+                cropOperationIds.updateRect,
+                cropOperationIds.setAspectRatio,
+                cropOperationIds.setRotation,
+                cropOperationIds.cancel,
             ]) {
                 context.disposables.add(
                     context.operations.register({
@@ -136,7 +139,7 @@ export function cropPlugin(
             }
             context.disposables.add(
                 context.operations.register({
-                    id: 'crop:apply',
+                    id: cropOperationIds.apply,
                     mode: 'mutation',
                     conflictDomains: cropMutationDomains,
                     reentrancy: 'queue',
@@ -151,11 +154,11 @@ export function cropPlugin(
                     },
                     canRunOperation: (operationId) =>
                         operationId.startsWith('crop:') ||
-                        operationId === 'mosaic:enter' ||
-                        operationId === 'core:load-image' ||
-                        operationId === 'core:commit-load-image' ||
-                        operationId === 'core:load-state' ||
-                        operationId === 'core:export',
+                        operationId === mosaicOperationIds.enter ||
+                        operationId === coreOperationIds.loadImage ||
+                        operationId === coreOperationIds.commitLoadImage ||
+                        operationId === coreOperationIds.loadState ||
+                        operationId === coreOperationIds.export,
                 }),
             );
             context.disposables.add(
@@ -177,29 +180,33 @@ export function cropPlugin(
                     return requireController().isActive;
                 },
                 enter: (enterOptions?: CropEnterOptions) =>
-                    runPreviewOperation('crop:enter', enterOptions ?? {}, async (crop, value) => {
-                        if (crop.isActive) {
-                            crop.enter(value);
-                            return;
-                        }
-                        await context.tools.enter(CROP_TOOL_ID);
-                        try {
-                            crop.enter(value);
-                        } catch (error) {
-                            await context.tools.exit('operation');
-                            throw error;
-                        }
-                    }),
+                    runPreviewOperation(
+                        cropOperationIds.enter,
+                        enterOptions ?? {},
+                        async (crop, value) => {
+                            if (crop.isActive) {
+                                crop.enter(value);
+                                return;
+                            }
+                            await context.tools.enter(CROP_TOOL_ID);
+                            try {
+                                crop.enter(value);
+                            } catch (error) {
+                                await context.tools.exit('operation');
+                                throw error;
+                            }
+                        },
+                    ),
                 updateRect: (rect: CropRect) =>
-                    runPreviewOperation('crop:update-rect', rect, (crop, value) =>
+                    runPreviewOperation(cropOperationIds.updateRect, rect, (crop, value) =>
                         crop.updateRect(value),
                     ),
                 setAspectRatio: (ratio: CropAspectRatio) =>
-                    runPreviewOperation('crop:set-aspect-ratio', ratio, (crop, value) =>
+                    runPreviewOperation(cropOperationIds.setAspectRatio, ratio, (crop, value) =>
                         crop.setAspectRatio(value),
                     ),
                 setRotation: (degrees: number) =>
-                    runPreviewOperation('crop:set-rotation', degrees, (crop, value) =>
+                    runPreviewOperation(cropOperationIds.setRotation, degrees, (crop, value) =>
                         crop.setRotation(value),
                     ),
                 apply: async (applyOptions?: CropApplyOptions) => {
@@ -212,7 +219,7 @@ export function cropPlugin(
                     }
                 },
                 cancel: () =>
-                    runPreviewOperation('crop:cancel', undefined, async (crop) => {
+                    runPreviewOperation(cropOperationIds.cancel, undefined, async (crop) => {
                         crop.cancel();
                         if (context.tools.getActiveToolId() === CROP_TOOL_ID) {
                             await context.tools.exit('requested');

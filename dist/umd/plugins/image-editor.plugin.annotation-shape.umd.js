@@ -831,7 +831,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: SHAPE_TOOL_ID,
 					enter: () => void 0,
 					exit: () => controller === null || controller === void 0 ? void 0 : controller.cancel(),
-					canRunOperation: (operationId) => operationId.startsWith("annotation-shape:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("annotation-shape:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.commitLoadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadState || operationId === _bensitu_image_editor_sdk.coreOperationIds.export
 				}));
 				const requireController = () => {
 					if (!controller) throw new _bensitu_image_editor_sdk.PluginNotInstalledError(shapeAnnotationPluginRef.id);

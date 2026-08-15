@@ -192,7 +192,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		commit(record) {
 			if (!this.isEnabled) return;
-			if (record.operationId === "core:load-image" || record.operationId === "core:commit-load-image" || record.operationId === "core:load-state") {
+			if (record.operationId === _bensitu_image_editor_sdk.coreOperationIds.loadImage || record.operationId === _bensitu_image_editor_sdk.coreOperationIds.commitLoadImage || record.operationId === _bensitu_image_editor_sdk.coreOperationIds.loadState) {
 				const changed = this.resetTimeline();
 				this.baseline = record.after;
 				if (changed) this.emitChange();
@@ -262,7 +262,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		undo() {
 			this.assertActive("undo");
 			if (!this.canUndo()) return Promise.resolve();
-			return this.operations.run("history:undo", async () => {
+			return this.operations.run(_bensitu_image_editor_sdk.historyOperationIds.undo, async () => {
 				const entry = this.records[this.position - 1];
 				if (!entry) return;
 				await this.restoreTransactionally(entry.record.before, "undo");
@@ -273,7 +273,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo() {
 			this.assertActive("redo");
 			if (!this.canRedo()) return Promise.resolve();
-			return this.operations.run("history:redo", async () => {
+			return this.operations.run(_bensitu_image_editor_sdk.historyOperationIds.redo, async () => {
 				const entry = this.records[this.position];
 				if (!entry) return;
 				await this.restoreTransactionally(entry.record.after, "redo");
@@ -397,13 +397,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const diagnostics = context.capabilities.require(_bensitu_image_editor_sdk.CORE_DIAGNOSTICS_CAPABILITY);
 				const state = context.capabilities.require(_bensitu_image_editor_sdk.MEMENTO_HISTORY_CAPABILITY);
 				context.operations.register({
-					id: "history:undo",
+					id: _bensitu_image_editor_sdk.historyOperationIds.undo,
 					mode: "mutation",
 					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"
 				});
 				context.operations.register({
-					id: "history:redo",
+					id: _bensitu_image_editor_sdk.historyOperationIds.redo,
 					mode: "mutation",
 					conflictDomains: DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS,
 					reentrancy: "queue"

@@ -828,7 +828,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					id: TEXT_TOOL_ID,
 					enter: () => void 0,
 					exit: () => controller === null || controller === void 0 ? void 0 : controller.cancelEditing(),
-					canRunOperation: (operationId) => operationId.startsWith("annotation-text:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === "crop:enter" || operationId === "mosaic:enter" || operationId === "core:load-image" || operationId === "core:commit-load-image" || operationId === "core:load-state" || operationId === "core:export"
+					canRunOperation: (operationId) => operationId.startsWith("annotation-text:") || operationId.startsWith("annotation:") || operationId.endsWith(":enter") || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.commitLoadImage || operationId === _bensitu_image_editor_sdk.coreOperationIds.loadState || operationId === _bensitu_image_editor_sdk.coreOperationIds.export
 				}));
 				context.disposables.add(annotations.subscribe((status) => {
 					const session = controller === null || controller === void 0 ? void 0 : controller.getEditingSession();
