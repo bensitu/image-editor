@@ -57,6 +57,7 @@ export class StablePluginApiHandle {
             },
             get: (shadow, property) => {
                 void shadow;
+                // Promise resolution probes `then`; an absent member keeps the API a plain value.
                 if (property === 'then' && (!this.target || !Reflect.has(this.target, property))) {
                     return undefined;
                 }
