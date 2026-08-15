@@ -5,78 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
 ## [3.0.0] - 2026-08-16
 
-### Added
+### 🚨 Major Release: Complete Architectural Rewrite
 
-- Add `ImageEditorCore` with explicit lifecycle, document transactions, Mementos, Snapshot validation, Plugin installation, and rollback-safe image/export APIs.
-- Add the public Plugin SDK with typed Plugin references, validated manifests, dependency-aware plans, versioned Capabilities, permissions, Operations, Tools, State Slices, disposable ownership, and committed events.
-- Add public Overlay and Annotation Foundations plus official Transform, History, Mask, Filters, Crop, Mosaic, Text, Shape, Draw/Eraser, Overlay State, DOM Controls, and Canvas Interactions Plugins.
-- Add typed Minimal, Redaction, Annotation, and Full Presets with optional adapter factories and method-level result inference.
-- Add synchronous Tool status subscriptions for Plugins and a ready Text Tool state without an active editing session.
-- Add the isolated public Testing entry, conformance profile `3.0`, deterministic host fixtures, package/bundle assertions, and independently packable Watermark, Metadata, Grid/Guide, and Blur Region reference Plugins.
-- Add explicit unsupported-Snapshot detection and generic Snapshot migration handlers that revalidate migrated output before mutation.
-- Add the isolated `@bensitu/image-editor/migrate-v2` entry for strict detection, conversion, explicit loading, lossy-warning opt-in, and bounded frozen fixtures.
-- Add the separate `@bensitu/image-editor-codemod` package and `migrate` CLI with dry-run, diff, write, idempotency, and unresolved-pattern reporting.
-- Add ESM, CommonJS, ESM declarations, CommonJS declarations, and NodeNext conditions for every formal package entry.
-- Add a Full Preset UMD under the `ImageEditorFull` global while keeping Fabric external, plus browser smoke coverage and permanent size attribution.
-- Add modular Core and per-Plugin UMD artifacts for script-tag consumers.
-- Add shared-runtime boundary checks, per-module gzip budgets, deterministic artifact governance, and browser composition coverage for Modular UMD.
-- Add public Vanilla, React, Vue, Svelte, and Next examples, a Plugin package template, and an executable pure-Fabric versus Framework redaction comparison.
-- Add durable source, architecture, package-consumer, browser, security, bundle-isolation, and release-artifact validation profiles.
+This release represents a ground-up rewrite of the library. We have transitioned from a monolithic Facade API to a **TypeScript-first, capability-based microkernel architecture** built on Fabric.js v7. Core lifecycle is now fully decoupled from DOM and feature plugins, providing unprecedented modularity, type safety, and SSR compatibility.
 
-### Changed
+> **Warning:** This release contains significant breaking changes. The legacy v2 Facade API has been completely removed. Please read the [v2 to v3 Migration Guide](docs/guides/migration-from-v2.md) and utilize our automated migration tools before upgrading.
 
-- Migrate directly compatible Node product, unit, property, release, and Codemod tests to checked `.test.ts` files while retaining JavaScript only for compiled-consumer proofs and test doubles that still require it.
-- Replace the root Facade with a Core-only public root. Feature methods are available through installed Plugin APIs or typed Preset results.
-- Require applications to pass the Fabric module explicitly and split flat configuration by Core or Feature ownership.
-- Accept the current `image-editor.state@3` Snapshot schema in Core; recognizable older schemas require an explicitly imported migration handler.
-- Require persistent Overlay kinds to install versioned Codecs atomically and privileged Capability consumers to declare exact permissions before setup.
-- Lease each concrete Plugin Definition to one live Host at a time, fail cross-Editor reuse with `PluginDefinitionAlreadyBoundError`, and release the lease after rollback or disposal.
-- Keep public Plugin and Preset API object references stable when Core replays Plugin definitions during initialization recovery or emergency reset.
-- Delegate Mask registrations to the Plugin scope so asynchronous and thenable cleanup failures are awaited, aggregated, and reported by Core disposal.
-- Limit the public Plugin factory contract to synchronous definitions while retaining asynchronous lifecycle primitives inside the Plugin Kernel.
-- Make `disposeAsync()` the authoritative observable cleanup path and deprecate the best-effort `dispose()` starter, which can return before cleanup settles.
-- Bound each committed-event listener to a documented five-second execution window so stalled observers cannot starve later listeners or emissions.
-- Make a configured initial image and its Plugin hooks part of the awaited `init()` contract, with complete rollback and retry after recoverable failure.
-- Replace the stale flat-options reference and transform-binding guide with supported Core, Plugin, and Preset contracts, and enforce documented boundaries for runtime, migration, and explicitly archived material.
-- Preserve the Full Preset UMD as the CDN default while adding a separate, mutually exclusive Modular UMD mode; DOM Controls remain opt-in.
-- Require Fabric `>=7.4.0 <8` as an external peer.
-- Replace Rollup and its plugin stack with pinned Rolldown for distribution, reference Plugin and template packages, and consumer bundle integrity measurement.
-- Align Mask numeric and custom Fabric factory callbacks with the documented Mask runtime subset through `MaskFactoryOptions`.
-- Remove the ignored `saveHistory` option from `MaskPluginApi.removeAll()` so all Mask removals consistently use the shared Overlay transaction and History policy.
+### ⚠️ Breaking Changes
+* **Facade API Removed:** The root `ImageEditor` facade has been replaced by `ImageEditorCore`. Feature methods (e.g., `rotate`, `addMask`) are no longer available directly on the core instance. You must explicitly install and access them via typed Plugin APIs (e.g., `transformPlugin`, `maskPlugin`) or use typed Presets.
+* **Peer Dependency Injection:** `fabric` is now a strict peer dependency (`>=7.4.0 <8`). You must install it and pass the `fabric` module explicitly to the `ImageEditorCore` constructor.
+* **Configuration Split:** The flat, monolithic options object is removed. Configuration is now strictly split by ownership: `core` options go to the Core constructor, and feature options go to their respective Plugin factories.
+* **Async Disposal:** The synchronous `dispose()` method is deprecated and replaced by the authoritative `disposeAsync()` to ensure proper cleanup of Fabric resources and async transactions.
+* **State Snapshots:** The internal serialization schema (`image-editor.state@3`) has changed. Recognizable older v2 schemas require the explicitly imported `migrate-v2` handler to restore.
 
-### Security
+### ✨ New Architecture Features
+* **Plugin SDK:** Introduced a formal Plugin SDK with typed Plugin references, validated manifests, dependency-aware plans, versioned Capabilities, permissions, Operations, Tools, State Slices, and committed events.
+* **Official Plugins:** Released independently packable official plugins: Transform, History, Mask, Filters, Crop, Mosaic, Text, Shape, Draw/Eraser, Overlay State, DOM Controls, and Canvas Interactions.
+* **Typed Presets:** Added typed Minimal, Redaction, Annotation, and Full Presets with optional adapter factories and method-level result inference.
+* **Modular Bundles:** Added per-plugin Modular UMD artifacts alongside the Full UMD, allowing script-tag consumers to load only the exact features they need without downloading the full editor.
+* **SSR/Headless Safe:** Core composition is now DOM-independent and safe to import in SSR/Node.js environments. Canvas initialization remains a client-side operation.
 
-- Validate Snapshot, Overlay State, migration, Codec, image, raster, and package inputs against resource limits and dangerous object keys before mutation.
-- Apply the active Core dimension and pixel budgets consistently to encoded and decoded image input, external State restore, Canvas resize, export, and Overlay flatten allocations before creating browser raster resources.
-- Keep failed setup, image load, State restore, geometry, raster, Overlay, Crop, Mosaic, and migration operations atomic with zero committed partial state.
-- Keep Testing, migration conversion, Codemod, DOM, Preset, and Fabric runtime modules out of entries that do not select them.
+### 🛠️ Migration Tooling
+To assist with the upgrade, we have released the dedicated tools:
+* **`@bensitu/image-editor-codemod`**: A CLI tool that automatically rewrites common v2 integration patterns in your codebase with dry-run, diff, and idempotency support.
 
-### Fixed
+### 🗑️ Removed
+* Removed all v2 Facade methods and private controller paths. There are no runtime compatibility aliases; use the Codemod report and migration guide instead.
+* Removed the ignored `saveHistory` option from Mask removal APIs; all mask removals now consistently use the shared Overlay transaction and History policy.
 
-- Preserve the committed document and active Plugin state when image loading, state restoration, export, interaction, or lifecycle work fails or overlaps.
-- Bound Plugin installation, setup, disposal, committed-event listeners, and host operations so stalled extensions cannot block the runtime indefinitely.
-- Release operation, Tool, listener, and disposable registrations deterministically across Plugin rollback, replacement, and editor cleanup.
-- Keep gesture replacement, Annotation editing, Overlay labels, selection targeting, and raster preview sessions synchronized with committed History and events.
-- Make package, reference Plugin, example, security, and release checks deterministic and portable across supported operating systems and package-manager environments.
-- Publish typed Plugin availability errors and consumer-facing TSDoc through the generated declaration files.
-- Share host and cross-Plugin operation identifiers through typed SDK constants used by both registration and Tool policies.
-- Reject incomplete Canvas interaction and DOM control bindings at factory creation with typed configuration errors.
+### 🔒 Security
+* Validate Snapshot, Overlay State, migration, Codec, image, raster, and package inputs against resource limits and dangerous object keys before mutation.
+* Apply active Core dimension and pixel budgets consistently across all image inputs, external State restores, Canvas resize, and export allocations.
+* Keep failed setup, image load, State restore, and migration operations atomic with zero committed partial state.
 
-### Deprecated
+### 🐛 Fixed & Hardened
+* Preserve the committed document and active Plugin state when image loading, state restoration, export, interaction, or lifecycle work fails or overlaps.
+* Bound Plugin installation, setup, disposal, and committed-event listeners to documented execution windows so stalled extensions cannot starve the runtime.
+* Release operation, Tool, listener, and disposable registrations deterministically across Plugin rollback, replacement, and editor cleanup.
+* Keep gesture replacement, Annotation editing, and raster preview sessions perfectly synchronized with committed History and events.
+* Publish typed Plugin availability errors and consumer-facing TSDoc through the generated declaration files.
 
-- None. Removed facade methods and private controller paths have no runtime compatibility aliases; use the migration guide and Codemod report instead.
-
-### Known limitations
-
-- Draw Eraser removes whole intersected Draw objects; it does not split or partially erase paths.
-- The isolated 2.x migration entry supports the documented frozen Snapshot inventory, not arbitrary application-private fields or transient runtime objects.
-- Plugin permissions provide an auditable authority boundary, not a sandbox for untrusted JavaScript.
-- Full UMD intentionally includes every official Feature; use ESM or Modular UMD composition when transfer size and selected Features matter.
-- Public imports and types are SSR-safe, but Canvas initialization, browser image decoding, and browser export remain client-side operations.
+### ⚠️ Known Limitations
+* **Draw Eraser:** Removes whole intersected Draw objects; it does not split or partially erase paths.
+* **v2 Migration:** The isolated `migrate-v2` entry supports the documented frozen Snapshot inventory, not arbitrary application-private fields or transient runtime objects.
+* **Permissions:** Plugin permissions provide an auditable authority boundary, not a sandbox for untrusted JavaScript.
+* **Full UMD:** Intentionally includes every official Feature; use ESM or Modular UMD composition when transfer size and selected Features matter.
 
 ## [2.9.1] - 2026-08-11
 

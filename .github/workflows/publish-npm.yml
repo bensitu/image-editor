@@ -156,6 +156,30 @@ jobs:
                       "${MAIN_PACKAGE_TARBALL}" "${MAIN_PACKAGE_NAME}" "${VERSION}"
                   } > package-artifacts.tsv
 
+            - name: Bootstrap Codemod package on npm
+              shell: bash
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_CODEMOD_BOOTSTRAP_TOKEN }}
+                  INPUT_NPM_TAG: ${{ inputs.npm_tag }}
+              run: |
+                  CODEMOD_TARBALL="$(
+                    awk -F '\t' \
+                      '$2 == "@bensitu/image-editor-codemod" { print $1 }' \
+                      package-artifacts.tsv
+                  )"
+
+                  if [[ -z "${CODEMOD_TARBALL}" ]]; then
+                    echo "Codemod tarball was not found." >&2
+                    exit 1
+                  fi
+
+                  npm publish \
+                    "${CODEMOD_TARBALL}" \
+                    --access public \
+                    --tag "${INPUT_NPM_TAG}" \
+                    --provenance \
+                    --registry https://registry.npmjs.org
+
             - name: Publish or verify release artifacts on npm
               env:
                   INPUT_NPM_TAG: ${{ inputs.npm_tag }}
