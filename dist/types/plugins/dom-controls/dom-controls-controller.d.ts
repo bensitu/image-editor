@@ -7,6 +7,7 @@ import { type CoreDiagnosticsPort, type Disposable } from '../../sdk/index.js';
 import type { DomControlsOptions, DomControlsStatus } from './dom-controls-types.js';
 export declare class DomControlsConfigurationError extends Error {
     readonly name = "DomControlsConfigurationError";
+    constructor(message: string);
 }
 export declare class DomControlsController implements Disposable {
     private readonly diagnostics;

@@ -4220,6 +4220,12 @@
                     ]
                 },
                 {
+                    "name": "CanvasInteractionsConfigurationError",
+                    "kinds": [
+                        "ClassDeclaration"
+                    ]
+                },
+                {
                     "name": "canvasInteractionsPlugin",
                     "kinds": [
                         "FunctionDeclaration"
@@ -4299,6 +4305,7 @@
                 }
             ],
             "runtimeExports": [
+                "CanvasInteractionsConfigurationError",
                 "canvasInteractionsPlugin",
                 "canvasInteractionsPluginRef",
                 "default"
@@ -4604,7 +4611,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "a0a98854db0f7d556ac3aaece5f016a9b51caefcee662871b0498aa56bad928d",
+        "graphSha256": "fd353c06267d8dbf9edd93b4abd772b749baa41fffb6bc079ec79b152b73785b",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4831,12 +4838,16 @@
                 "sha256": "a1a8c5c7d1a061eebb1c413fc8a94c797b9007eee6d8efe8697ac8917824243d"
             },
             {
+                "file": "dist/types/plugins/canvas-interactions/canvas-interactions-error.d.ts",
+                "sha256": "bcf8b684e72a2ca3c6cf427d07aa6398b74238fcafef4d06a55ba3bbae235cc2"
+            },
+            {
                 "file": "dist/types/plugins/canvas-interactions/canvas-interactions-types.d.ts",
                 "sha256": "ba85c9c7e31d33ac839cdc349bbbe81f87116d167c76064939eaac59f9040a46"
             },
             {
                 "file": "dist/types/plugins/canvas-interactions/index.d.ts",
-                "sha256": "6748672ea3589b41f6e75ab6ca4f582a9cdeaa54e2998838904394da27c10055"
+                "sha256": "a13f1eb8f323bc0d1c6d56efd9c61eb7dc63facaf11af03c376200818b540dcf"
             },
             {
                 "file": "dist/types/plugins/crop/crop-errors.d.ts",
@@ -4856,7 +4867,7 @@
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-controller.d.ts",
-                "sha256": "04918aaf6e3c844b0bbdd4b669057f103a965c708bbbdf5b0f94d874c919306d"
+                "sha256": "0b13ba998d607bf12d949795bfd25ceccdd02c86aad74d73e2cb63e37f92b2f0"
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-types.d.ts",
@@ -5228,6 +5239,7 @@
             "CORE_DIAGNOSTICS_CAPABILITY",
             "CORE_PRESENTATION_CAPABILITY",
             "CORE_STATUS_CAPABILITY",
+            "CanvasInteractionsConfigurationError",
             "CapabilityConflictError",
             "CapabilityMissingError",
             "CapabilityVersionError",
@@ -5597,6 +5609,12 @@
                 "name": "CanvasInteractionErrorContext",
                 "kinds": [
                     "InterfaceDeclaration"
+                ]
+            },
+            {
+                "name": "CanvasInteractionsConfigurationError",
+                "kinds": [
+                    "ClassDeclaration"
                 ]
             },
             {

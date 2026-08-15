@@ -2,27 +2,44 @@ import { CORE_DIAGNOSTICS_CAPABILITY, definePlugin, definePluginRef, } from '../
 import { DomControlsConfigurationError, DomControlsController } from './dom-controls-controller.js';
 export const domControlsPluginRef = definePluginRef('plugin:dom-controls', '1.0.0');
 function collectPluginDependencies(options) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
-    const bindings = [
-        (_a = options.transform) === null || _a === void 0 ? void 0 : _a.plugin,
-        (_b = options.history) === null || _b === void 0 ? void 0 : _b.plugin,
-        (_c = options.masks) === null || _c === void 0 ? void 0 : _c.plugin,
-        (_d = options.filters) === null || _d === void 0 ? void 0 : _d.plugin,
-        (_e = options.crop) === null || _e === void 0 ? void 0 : _e.plugin,
-        (_f = options.mosaic) === null || _f === void 0 ? void 0 : _f.plugin,
-        (_g = options.annotations) === null || _g === void 0 ? void 0 : _g.plugin,
-        (_h = options.text) === null || _h === void 0 ? void 0 : _h.plugin,
-        (_j = options.shape) === null || _j === void 0 ? void 0 : _j.plugin,
-        (_k = options.draw) === null || _k === void 0 ? void 0 : _k.plugin,
-        (_l = options.keyboard) === null || _l === void 0 ? void 0 : _l.overlays,
-    ];
+    var _a;
+    if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+        throw new DomControlsConfigurationError('DOM Controls options must be an object.');
+    }
+    const bindings = [];
+    const addBinding = (value, label) => {
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new DomControlsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+        }
+        const binding = value;
+        if (!binding.ref || typeof binding.resolve !== 'function') {
+            throw new DomControlsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+        }
+        bindings.push(binding);
+    };
+    const addSection = (value, label) => {
+        if (value === undefined)
+            return;
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new DomControlsConfigurationError(`${label} must be an object.`);
+        }
+        addBinding(value.plugin, `${label}.plugin`);
+    };
+    addSection(options.transform, 'transform');
+    addSection(options.history, 'history');
+    addSection(options.masks, 'masks');
+    addSection(options.filters, 'filters');
+    addSection(options.crop, 'crop');
+    addSection(options.mosaic, 'mosaic');
+    addSection(options.annotations, 'annotations');
+    addSection(options.text, 'text');
+    addSection(options.shape, 'shape');
+    addSection(options.draw, 'draw');
+    if (((_a = options.keyboard) === null || _a === void 0 ? void 0 : _a.overlays) !== undefined) {
+        addBinding(options.keyboard.overlays, 'keyboard.overlays');
+    }
     const dependencies = new Map();
     for (const binding of bindings) {
-        if (!binding)
-            continue;
-        if (!binding.ref || typeof binding.resolve !== 'function') {
-            throw new DomControlsConfigurationError('Each configured DOM section requires a PluginRef and API resolver.');
-        }
         const existing = dependencies.get(binding.ref.id);
         if (existing && existing !== binding.ref) {
             throw new DomControlsConfigurationError(`DOM Controls received conflicting PluginRef objects for "${binding.ref.id}".`);

@@ -31,6 +31,15 @@ function tick() {
     return new Promise((resolve) => setTimeout(resolve, 25));
 }
 
+test('DOM control sections reject incomplete Plugin resolvers at factory creation', () => {
+    assert.throws(
+        () => domControlsPlugin({ transform: {} }),
+        (error) =>
+            error instanceof DomControlsConfigurationError &&
+            /transform\.plugin/u.test(error.message),
+    );
+});
+
 async function dispose(editor) {
     await editor.disposeAsync();
     document.body.innerHTML = '';

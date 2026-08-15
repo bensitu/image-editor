@@ -1,7 +1,7 @@
 import { historyOperationIds } from '../../sdk/index.js';
 export class DomControlsConfigurationError extends Error {
-    constructor() {
-        super(...arguments);
+    constructor(message) {
+        super(`[ImageEditor] ${message}`);
         Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,

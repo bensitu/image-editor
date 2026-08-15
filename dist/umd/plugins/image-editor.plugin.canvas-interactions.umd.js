@@ -656,6 +656,20 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 	};
 
 //#endregion
+//#region dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
+	var CanvasInteractionsConfigurationError = class extends Error {
+		constructor(message) {
+			super(`[ImageEditor] ${message}`);
+			Object.defineProperty(this, "name", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: "CanvasInteractionsConfigurationError"
+			});
+		}
+	};
+
+//#endregion
 //#region dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
 	var LatestValueScheduler = class {
 		constructor(worker) {
@@ -1299,20 +1313,32 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 //#region dist/esm/plugins/canvas-interactions/index.js
 	const canvasInteractionsPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:canvas-interactions", "1.0.0");
 	function collectPluginDependencies(options) {
-		const bindings = [
-			options.text ? options.text.plugin : void 0,
-			options.text ? options.text.overlays : void 0,
-			options.text ? options.text.annotations : void 0,
-			options.shape ? options.shape.plugin : void 0,
-			options.draw ? options.draw.plugin : void 0,
-			options.mosaic ? options.mosaic.plugin : void 0
-		];
+		if (typeof options !== "object" || options === null || Array.isArray(options)) throw new CanvasInteractionsConfigurationError("Canvas Interactions options must be an object.");
+		const bindings = [];
+		const addBinding = (value, label) => {
+			if (typeof value !== "object" || value === null || Array.isArray(value)) throw new CanvasInteractionsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+			const binding = value;
+			if (!binding.ref || typeof binding.resolve !== "function") throw new CanvasInteractionsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+			bindings.push(binding);
+		};
+		const addSection = (value, label, bindingNames) => {
+			if (value === void 0 || value === false) return;
+			if (typeof value !== "object" || value === null || Array.isArray(value)) throw new CanvasInteractionsConfigurationError(`${label} must be an object or false.`);
+			const section = value;
+			for (const bindingName of bindingNames) addBinding(section[bindingName], `${label}.${bindingName}`);
+		};
+		addSection(options.text, "text", [
+			"plugin",
+			"overlays",
+			"annotations"
+		]);
+		addSection(options.shape, "shape", ["plugin"]);
+		addSection(options.draw, "draw", ["plugin"]);
+		addSection(options.mosaic, "mosaic", ["plugin"]);
 		const dependencies = /* @__PURE__ */ new Map();
 		for (const binding of bindings) {
-			if (!binding) continue;
-			if (!binding.ref || typeof binding.resolve !== "function") throw new TypeError("[ImageEditor] Each Canvas interaction requires a PluginRef and API resolver.");
 			const existing = dependencies.get(binding.ref.id);
-			if (existing && existing !== binding.ref) throw new TypeError(`[ImageEditor] Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`);
+			if (existing && existing !== binding.ref) throw new CanvasInteractionsConfigurationError(`Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`);
 			dependencies.set(binding.ref.id, binding.ref);
 		}
 		return Object.freeze([...dependencies.values()]);
@@ -1373,6 +1399,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 	}
 
 //#endregion
+exports.CanvasInteractionsConfigurationError = CanvasInteractionsConfigurationError;
 exports.canvasInteractionsPlugin = canvasInteractionsPlugin;
 exports.default = canvasInteractionsPlugin;
 exports.canvasInteractionsPluginRef = canvasInteractionsPluginRef;

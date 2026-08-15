@@ -80,7 +80,9 @@ await editor.init({ canvas: 'canvas', canvasContainer: 'container' });
 ```
 
 Omit any interaction whose Feature is not part of the application. Plugin
-installation validates every configured reference before setup.
+installation validates every configured reference before setup. Factory creation
+throws `CanvasInteractionsConfigurationError` when a configured interaction is
+missing a required `PluginRef` or resolver.
 
 ## Feature behavior
 

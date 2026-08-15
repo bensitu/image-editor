@@ -9,4 +9,5 @@ import type { CanvasInteractionsPluginApi, CanvasInteractionsPluginOptions } fro
 export declare const canvasInteractionsPluginRef: PluginRef<CanvasInteractionsPluginApi>;
 export declare function canvasInteractionsPlugin(options?: CanvasInteractionsPluginOptions): SynchronousEditorPlugin<CanvasInteractionsPluginApi, CoreEventMap>;
 export type { CanvasCursorOptions, CanvasInteractionErrorContext, CanvasInteractionsPluginApi, CanvasInteractionsPluginOptions, CanvasInteractionsStatus, CanvasInteractionsStatusListener, CanvasPluginBinding, DrawCanvasInteractionOptions, InteractionCancelReason, MosaicCanvasInteractionOptions, ShapeCanvasInteractionOptions, TextCanvasInteractionOptions, } from './canvas-interactions-types.js';
+export { CanvasInteractionsConfigurationError } from './canvas-interactions-error.js';
 export default canvasInteractionsPlugin;

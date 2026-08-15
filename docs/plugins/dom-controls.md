@@ -65,7 +65,9 @@ await editor.init({ canvas: 'canvas', canvasContainer: 'container' });
 
 Plugin installation verifies every configured `PluginRef` before setup. A section
 cannot bind when its exact Feature Plugin is absent or incompatible. Omitted
-sections and omitted controls create no listeners.
+sections and omitted controls create no listeners. Factory creation throws
+`DomControlsConfigurationError` when a configured section is missing its required
+`PluginRef` or resolver.
 
 Available sections are `transform`, `history`, `masks`, `filters`, `crop`,
 `mosaic`, `annotations`, `text`, `shape`, and `draw`. They call the documented

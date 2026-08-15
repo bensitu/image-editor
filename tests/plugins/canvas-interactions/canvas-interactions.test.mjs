@@ -5,6 +5,7 @@ import { ImageEditorCore } from '../../../src/core/index.js';
 import { createFullPreset } from '../../../src/presets/full/index.js';
 import { shapeAnnotationPluginRef } from '../../../src/plugins/annotation-shape/index.js';
 import {
+    CanvasInteractionsConfigurationError,
     canvasInteractionsPlugin,
     canvasInteractionsPluginRef,
 } from '../../../src/plugins/canvas-interactions/index.js';
@@ -23,6 +24,21 @@ async function waitFor(predicate, message) {
     }
     assert.fail(message);
 }
+
+test('Canvas interaction bindings reject incomplete Plugin resolvers at factory creation', () => {
+    assert.throws(
+        () => canvasInteractionsPlugin({ shape: {} }),
+        (error) =>
+            error instanceof CanvasInteractionsConfigurationError &&
+            /shape\.plugin/u.test(error.message),
+    );
+    assert.throws(
+        () => canvasInteractionsPlugin({ text: { plugin: {} } }),
+        (error) =>
+            error instanceof CanvasInteractionsConfigurationError &&
+            /text\.plugin/u.test(error.message),
+    );
+});
 
 test('Canvas Interactions installs as an optional Plugin with an isolated status lifecycle', async () => {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });

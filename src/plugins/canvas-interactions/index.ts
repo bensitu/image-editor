@@ -16,6 +16,7 @@ import {
     type SynchronousEditorPlugin,
 } from '../../sdk/index.js';
 import { CanvasInteractionsController } from './canvas-interactions-controller.js';
+import { CanvasInteractionsConfigurationError } from './canvas-interactions-error.js';
 import { createCanvasInteractionBindings } from './bindings/create-bindings.js';
 import type {
     CanvasInteractionsPluginApi,
@@ -31,26 +32,46 @@ export const canvasInteractionsPluginRef = definePluginRef<CanvasInteractionsPlu
 function collectPluginDependencies(
     options: CanvasInteractionsPluginOptions,
 ): readonly PluginRef<unknown>[] {
-    const bindings: Array<CanvasPluginBinding<unknown> | undefined> = [
-        options.text ? options.text.plugin : undefined,
-        options.text ? options.text.overlays : undefined,
-        options.text ? options.text.annotations : undefined,
-        options.shape ? options.shape.plugin : undefined,
-        options.draw ? options.draw.plugin : undefined,
-        options.mosaic ? options.mosaic.plugin : undefined,
-    ];
-    const dependencies = new Map<string, PluginRef<unknown>>();
-    for (const binding of bindings) {
-        if (!binding) continue;
-        if (!binding.ref || typeof binding.resolve !== 'function') {
-            throw new TypeError(
-                '[ImageEditor] Each Canvas interaction requires a PluginRef and API resolver.',
+    if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+        throw new CanvasInteractionsConfigurationError(
+            'Canvas Interactions options must be an object.',
+        );
+    }
+    const bindings: CanvasPluginBinding<unknown>[] = [];
+    const addBinding = (value: unknown, label: string): void => {
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new CanvasInteractionsConfigurationError(
+                `${label} requires a PluginRef and API resolver.`,
             );
         }
+        const binding = value as Partial<CanvasPluginBinding<unknown>>;
+        if (!binding.ref || typeof binding.resolve !== 'function') {
+            throw new CanvasInteractionsConfigurationError(
+                `${label} requires a PluginRef and API resolver.`,
+            );
+        }
+        bindings.push(binding as CanvasPluginBinding<unknown>);
+    };
+    const addSection = (value: unknown, label: string, bindingNames: readonly string[]): void => {
+        if (value === undefined || value === false) return;
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new CanvasInteractionsConfigurationError(`${label} must be an object or false.`);
+        }
+        const section = value as Record<string, unknown>;
+        for (const bindingName of bindingNames) {
+            addBinding(section[bindingName], `${label}.${bindingName}`);
+        }
+    };
+    addSection(options.text, 'text', ['plugin', 'overlays', 'annotations']);
+    addSection(options.shape, 'shape', ['plugin']);
+    addSection(options.draw, 'draw', ['plugin']);
+    addSection(options.mosaic, 'mosaic', ['plugin']);
+    const dependencies = new Map<string, PluginRef<unknown>>();
+    for (const binding of bindings) {
         const existing = dependencies.get(binding.ref.id);
         if (existing && existing !== binding.ref) {
-            throw new TypeError(
-                `[ImageEditor] Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`,
+            throw new CanvasInteractionsConfigurationError(
+                `Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`,
             );
         }
         dependencies.set(binding.ref.id, binding.ref);
@@ -129,5 +150,6 @@ export type {
     ShapeCanvasInteractionOptions,
     TextCanvasInteractionOptions,
 } from './canvas-interactions-types.js';
+export { CanvasInteractionsConfigurationError } from './canvas-interactions-error.js';
 
 export default canvasInteractionsPlugin;

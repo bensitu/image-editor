@@ -26,27 +26,46 @@ export const domControlsPluginRef = definePluginRef<DomControlsPluginApi>(
 );
 
 function collectPluginDependencies(options: DomControlsOptions): readonly PluginRef<unknown>[] {
-    const bindings: Array<DomPluginBinding<unknown> | undefined> = [
-        options.transform?.plugin,
-        options.history?.plugin,
-        options.masks?.plugin,
-        options.filters?.plugin,
-        options.crop?.plugin,
-        options.mosaic?.plugin,
-        options.annotations?.plugin,
-        options.text?.plugin,
-        options.shape?.plugin,
-        options.draw?.plugin,
-        options.keyboard?.overlays,
-    ];
-    const dependencies = new Map<string, PluginRef<unknown>>();
-    for (const binding of bindings) {
-        if (!binding) continue;
-        if (!binding.ref || typeof binding.resolve !== 'function') {
+    if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+        throw new DomControlsConfigurationError('DOM Controls options must be an object.');
+    }
+    const bindings: DomPluginBinding<unknown>[] = [];
+    const addBinding = (value: unknown, label: string): void => {
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
             throw new DomControlsConfigurationError(
-                'Each configured DOM section requires a PluginRef and API resolver.',
+                `${label} requires a PluginRef and API resolver.`,
             );
         }
+        const binding = value as Partial<DomPluginBinding<unknown>>;
+        if (!binding.ref || typeof binding.resolve !== 'function') {
+            throw new DomControlsConfigurationError(
+                `${label} requires a PluginRef and API resolver.`,
+            );
+        }
+        bindings.push(binding as DomPluginBinding<unknown>);
+    };
+    const addSection = (value: unknown, label: string): void => {
+        if (value === undefined) return;
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new DomControlsConfigurationError(`${label} must be an object.`);
+        }
+        addBinding((value as Record<string, unknown>).plugin, `${label}.plugin`);
+    };
+    addSection(options.transform, 'transform');
+    addSection(options.history, 'history');
+    addSection(options.masks, 'masks');
+    addSection(options.filters, 'filters');
+    addSection(options.crop, 'crop');
+    addSection(options.mosaic, 'mosaic');
+    addSection(options.annotations, 'annotations');
+    addSection(options.text, 'text');
+    addSection(options.shape, 'shape');
+    addSection(options.draw, 'draw');
+    if (options.keyboard?.overlays !== undefined) {
+        addBinding(options.keyboard.overlays, 'keyboard.overlays');
+    }
+    const dependencies = new Map<string, PluginRef<unknown>>();
+    for (const binding of bindings) {
         const existing = dependencies.get(binding.ref.id);
         if (existing && existing !== binding.ref) {
             throw new DomControlsConfigurationError(

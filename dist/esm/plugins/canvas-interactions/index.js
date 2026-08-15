@@ -1,26 +1,43 @@
 import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { CanvasInteractionsController } from './canvas-interactions-controller.js';
+import { CanvasInteractionsConfigurationError } from './canvas-interactions-error.js';
 import { createCanvasInteractionBindings } from './bindings/create-bindings.js';
 export const canvasInteractionsPluginRef = definePluginRef('plugin:canvas-interactions', '1.0.0');
 function collectPluginDependencies(options) {
-    const bindings = [
-        options.text ? options.text.plugin : undefined,
-        options.text ? options.text.overlays : undefined,
-        options.text ? options.text.annotations : undefined,
-        options.shape ? options.shape.plugin : undefined,
-        options.draw ? options.draw.plugin : undefined,
-        options.mosaic ? options.mosaic.plugin : undefined,
-    ];
+    if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+        throw new CanvasInteractionsConfigurationError('Canvas Interactions options must be an object.');
+    }
+    const bindings = [];
+    const addBinding = (value, label) => {
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new CanvasInteractionsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+        }
+        const binding = value;
+        if (!binding.ref || typeof binding.resolve !== 'function') {
+            throw new CanvasInteractionsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+        }
+        bindings.push(binding);
+    };
+    const addSection = (value, label, bindingNames) => {
+        if (value === undefined || value === false)
+            return;
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+            throw new CanvasInteractionsConfigurationError(`${label} must be an object or false.`);
+        }
+        const section = value;
+        for (const bindingName of bindingNames) {
+            addBinding(section[bindingName], `${label}.${bindingName}`);
+        }
+    };
+    addSection(options.text, 'text', ['plugin', 'overlays', 'annotations']);
+    addSection(options.shape, 'shape', ['plugin']);
+    addSection(options.draw, 'draw', ['plugin']);
+    addSection(options.mosaic, 'mosaic', ['plugin']);
     const dependencies = new Map();
     for (const binding of bindings) {
-        if (!binding)
-            continue;
-        if (!binding.ref || typeof binding.resolve !== 'function') {
-            throw new TypeError('[ImageEditor] Each Canvas interaction requires a PluginRef and API resolver.');
-        }
         const existing = dependencies.get(binding.ref.id);
         if (existing && existing !== binding.ref) {
-            throw new TypeError(`[ImageEditor] Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`);
+            throw new CanvasInteractionsConfigurationError(`Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`);
         }
         dependencies.set(binding.ref.id, binding.ref);
     }
@@ -71,5 +88,6 @@ export function canvasInteractionsPlugin(options = {}) {
         },
     });
 }
+export { CanvasInteractionsConfigurationError } from './canvas-interactions-error.js';
 export default canvasInteractionsPlugin;
 //# sourceMappingURL=index.js.map

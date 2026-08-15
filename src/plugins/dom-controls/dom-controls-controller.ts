@@ -28,6 +28,10 @@ import type {
 
 export class DomControlsConfigurationError extends Error {
     override readonly name = 'DomControlsConfigurationError';
+
+    constructor(message: string) {
+        super(`[ImageEditor] ${message}`);
+    }
 }
 
 interface ResolvedApis {

@@ -21122,8 +21122,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#endregion
 //#region dist/esm/plugins/dom-controls/dom-controls-controller.js
 	var DomControlsConfigurationError = class extends Error {
-		constructor() {
-			super(...arguments);
+		constructor(message) {
+			super(`[ImageEditor] ${message}`);
 			Object.defineProperty(this, "name", {
 				enumerable: true,
 				configurable: true,
@@ -21689,24 +21689,33 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#region dist/esm/plugins/dom-controls/index.js
 	const domControlsPluginRef = definePluginRef("plugin:dom-controls", "1.0.0");
 	function collectPluginDependencies$1(options) {
-		var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
-		const bindings = [
-			(_a = options.transform) === null || _a === void 0 ? void 0 : _a.plugin,
-			(_b = options.history) === null || _b === void 0 ? void 0 : _b.plugin,
-			(_c = options.masks) === null || _c === void 0 ? void 0 : _c.plugin,
-			(_d = options.filters) === null || _d === void 0 ? void 0 : _d.plugin,
-			(_e = options.crop) === null || _e === void 0 ? void 0 : _e.plugin,
-			(_f = options.mosaic) === null || _f === void 0 ? void 0 : _f.plugin,
-			(_g = options.annotations) === null || _g === void 0 ? void 0 : _g.plugin,
-			(_h = options.text) === null || _h === void 0 ? void 0 : _h.plugin,
-			(_j = options.shape) === null || _j === void 0 ? void 0 : _j.plugin,
-			(_k = options.draw) === null || _k === void 0 ? void 0 : _k.plugin,
-			(_l = options.keyboard) === null || _l === void 0 ? void 0 : _l.overlays
-		];
+		var _a;
+		if (typeof options !== "object" || options === null || Array.isArray(options)) throw new DomControlsConfigurationError("DOM Controls options must be an object.");
+		const bindings = [];
+		const addBinding = (value, label) => {
+			if (typeof value !== "object" || value === null || Array.isArray(value)) throw new DomControlsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+			const binding = value;
+			if (!binding.ref || typeof binding.resolve !== "function") throw new DomControlsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+			bindings.push(binding);
+		};
+		const addSection = (value, label) => {
+			if (value === void 0) return;
+			if (typeof value !== "object" || value === null || Array.isArray(value)) throw new DomControlsConfigurationError(`${label} must be an object.`);
+			addBinding(value.plugin, `${label}.plugin`);
+		};
+		addSection(options.transform, "transform");
+		addSection(options.history, "history");
+		addSection(options.masks, "masks");
+		addSection(options.filters, "filters");
+		addSection(options.crop, "crop");
+		addSection(options.mosaic, "mosaic");
+		addSection(options.annotations, "annotations");
+		addSection(options.text, "text");
+		addSection(options.shape, "shape");
+		addSection(options.draw, "draw");
+		if (((_a = options.keyboard) === null || _a === void 0 ? void 0 : _a.overlays) !== void 0) addBinding(options.keyboard.overlays, "keyboard.overlays");
 		const dependencies = /* @__PURE__ */ new Map();
 		for (const binding of bindings) {
-			if (!binding) continue;
-			if (!binding.ref || typeof binding.resolve !== "function") throw new DomControlsConfigurationError("Each configured DOM section requires a PluginRef and API resolver.");
 			const existing = dependencies.get(binding.ref.id);
 			if (existing && existing !== binding.ref) throw new DomControlsConfigurationError(`DOM Controls received conflicting PluginRef objects for "${binding.ref.id}".`);
 			dependencies.set(binding.ref.id, binding.ref);
@@ -22420,6 +22429,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 //#endregion
+//#region dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
+	var CanvasInteractionsConfigurationError = class extends Error {
+		constructor(message) {
+			super(`[ImageEditor] ${message}`);
+			Object.defineProperty(this, "name", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: "CanvasInteractionsConfigurationError"
+			});
+		}
+	};
+
+//#endregion
 //#region dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
 	var LatestValueScheduler = class {
 		constructor(worker) {
@@ -23063,20 +23086,32 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 //#region dist/esm/plugins/canvas-interactions/index.js
 	const canvasInteractionsPluginRef = definePluginRef("plugin:canvas-interactions", "1.0.0");
 	function collectPluginDependencies(options) {
-		const bindings = [
-			options.text ? options.text.plugin : void 0,
-			options.text ? options.text.overlays : void 0,
-			options.text ? options.text.annotations : void 0,
-			options.shape ? options.shape.plugin : void 0,
-			options.draw ? options.draw.plugin : void 0,
-			options.mosaic ? options.mosaic.plugin : void 0
-		];
+		if (typeof options !== "object" || options === null || Array.isArray(options)) throw new CanvasInteractionsConfigurationError("Canvas Interactions options must be an object.");
+		const bindings = [];
+		const addBinding = (value, label) => {
+			if (typeof value !== "object" || value === null || Array.isArray(value)) throw new CanvasInteractionsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+			const binding = value;
+			if (!binding.ref || typeof binding.resolve !== "function") throw new CanvasInteractionsConfigurationError(`${label} requires a PluginRef and API resolver.`);
+			bindings.push(binding);
+		};
+		const addSection = (value, label, bindingNames) => {
+			if (value === void 0 || value === false) return;
+			if (typeof value !== "object" || value === null || Array.isArray(value)) throw new CanvasInteractionsConfigurationError(`${label} must be an object or false.`);
+			const section = value;
+			for (const bindingName of bindingNames) addBinding(section[bindingName], `${label}.${bindingName}`);
+		};
+		addSection(options.text, "text", [
+			"plugin",
+			"overlays",
+			"annotations"
+		]);
+		addSection(options.shape, "shape", ["plugin"]);
+		addSection(options.draw, "draw", ["plugin"]);
+		addSection(options.mosaic, "mosaic", ["plugin"]);
 		const dependencies = /* @__PURE__ */ new Map();
 		for (const binding of bindings) {
-			if (!binding) continue;
-			if (!binding.ref || typeof binding.resolve !== "function") throw new TypeError("[ImageEditor] Each Canvas interaction requires a PluginRef and API resolver.");
 			const existing = dependencies.get(binding.ref.id);
-			if (existing && existing !== binding.ref) throw new TypeError(`[ImageEditor] Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`);
+			if (existing && existing !== binding.ref) throw new CanvasInteractionsConfigurationError(`Canvas Interactions received conflicting PluginRef objects for "${binding.ref.id}".`);
 			dependencies.set(binding.ref.id, binding.ref);
 		}
 		return Object.freeze([...dependencies.values()]);
@@ -23261,6 +23296,7 @@ exports.CORE_API_VERSION = CORE_API_VERSION;
 exports.CORE_DIAGNOSTICS_CAPABILITY = CORE_DIAGNOSTICS_CAPABILITY;
 exports.CORE_PRESENTATION_CAPABILITY = CORE_PRESENTATION_CAPABILITY;
 exports.CORE_STATUS_CAPABILITY = CORE_STATUS_CAPABILITY;
+exports.CanvasInteractionsConfigurationError = CanvasInteractionsConfigurationError;
 exports.CapabilityConflictError = CapabilityConflictError;
 exports.CapabilityMissingError = CapabilityMissingError;
 exports.CapabilityVersionError = CapabilityVersionError;
