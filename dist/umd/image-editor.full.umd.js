@@ -21135,7 +21135,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const runtimeRefreshStates = /* @__PURE__ */ new WeakMap();
 	function getRuntimeRefreshState(owner) {
 		const state = runtimeRefreshStates.get(owner);
-		if (!state) throw new Error("DOM Controls runtime refresh state is unavailable.");
+		if (!state) throw new Error("[ImageEditor] DOM Controls runtime refresh state is unavailable.");
 		return state;
 	}
 	function invalidatePendingRuntimeRefresh(owner) {

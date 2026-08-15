@@ -14,7 +14,7 @@ const runtimeRefreshStates = new WeakMap();
 function getRuntimeRefreshState(owner) {
     const state = runtimeRefreshStates.get(owner);
     if (!state) {
-        throw new Error('DOM Controls runtime refresh state is unavailable.');
+        throw new Error('[ImageEditor] DOM Controls runtime refresh state is unavailable.');
     }
     return state;
 }
