@@ -497,7 +497,7 @@ function assertSliceMigration(source) {
 //#endregion
 //#region dist/esm/testing/plugin-conformance.js
 const CONFORMANCE_PROFILE = "3.0";
-const PACKAGE_VERSION = "3.0.0-rc.1";
+const PACKAGE_VERSION = "3.0.0";
 function describeError(error) {
 	if (error instanceof Error) return `${error.name}: ${error.message}`;
 	return String(error);

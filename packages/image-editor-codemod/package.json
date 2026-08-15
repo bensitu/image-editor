@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor-codemod",
-    "version": "3.0.0-rc.1",
+    "version": "3.0.0",
     "description": "Conservative source migration tools for Image Editor applications",
     "license": "MIT",
     "author": "Ben Situ",

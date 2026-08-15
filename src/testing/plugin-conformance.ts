@@ -49,7 +49,7 @@ export type {
     ConformanceAssertionStatus,
 } from './conformance-types.js';
 
-const PACKAGE_VERSION = '3.0.0-rc.1';
+const PACKAGE_VERSION = '3.0.0';
 
 export interface PluginConformanceReport {
     readonly schemaVersion: 1;

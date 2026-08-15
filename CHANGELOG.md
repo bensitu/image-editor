@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-16
+
 ### Added
 
 - Add `ImageEditorCore` with explicit lifecycle, document transactions, Mementos, Snapshot validation, Plugin installation, and rollback-safe image/export APIs.
@@ -35,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lease each concrete Plugin Definition to one live Host at a time, fail cross-Editor reuse with `PluginDefinitionAlreadyBoundError`, and release the lease after rollback or disposal.
 - Keep public Plugin and Preset API object references stable when Core replays Plugin definitions during initialization recovery or emergency reset.
 - Delegate Mask registrations to the Plugin scope so asynchronous and thenable cleanup failures are awaited, aggregated, and reported by Core disposal.
-- Limit the public RC Plugin factory contract to synchronous definitions while retaining asynchronous lifecycle primitives inside the Plugin Kernel.
+- Limit the public Plugin factory contract to synchronous definitions while retaining asynchronous lifecycle primitives inside the Plugin Kernel.
 - Make `disposeAsync()` the authoritative observable cleanup path and deprecate the best-effort `dispose()` starter, which can return before cleanup settles.
 - Bound each committed-event listener to a documented five-second execution window so stalled observers cannot starve later listeners or emissions.
 - Make a configured initial image and its Plugin hooks part of the awaited `init()` contract, with complete rollback and retry after recoverable failure.

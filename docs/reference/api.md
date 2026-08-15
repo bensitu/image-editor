@@ -109,7 +109,7 @@ creation, click simulation, or download permission policy; hosts can download th
 
 `definePluginRef<TApi>(id, apiVersion)` creates a typed identity.
 `definePlugin()` validates and returns a synchronous Plugin definition; the
-public RC contract requires `setupMode: 'sync'`.
+public contract requires `setupMode: 'sync'`.
 `composePlugins()` creates a dependency-aware plan without erasing tuple API
 types. Manifests declare implementation version, API version, Core engine range,
 required/optional Plugins, required/optional Capabilities, and privileged

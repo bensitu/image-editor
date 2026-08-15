@@ -30,7 +30,7 @@ one Fabric runtime:
     "files": ["dist", "README.md", "LICENSE"],
     "sideEffects": false,
     "peerDependencies": {
-        "@bensitu/image-editor": "^3.0.0-0",
+        "@bensitu/image-editor": "^3.0.0",
         "fabric": ">=7.4.0 <8"
     }
 }

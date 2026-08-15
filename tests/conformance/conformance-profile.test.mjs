@@ -102,7 +102,7 @@ function conformanceOptions() {
             },
             peerDependencyContract: {
                 peerDependencies: {
-                    '@bensitu/image-editor': '^3.0.0-0',
+                    '@bensitu/image-editor': '^3.0.0',
                     fabric: '>=7.4.0 <8',
                 },
             },

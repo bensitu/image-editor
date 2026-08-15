@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "3.0.0-rc.1",
+    "version": "3.0.0",
     "packageManager": "npm@11.15.0",
     "description": "TypeScript-first Fabric.js v7 image editor with masks, annotations, crop, mosaic, history, and export APIs",
     "license": "MIT",

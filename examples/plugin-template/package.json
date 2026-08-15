@@ -23,7 +23,7 @@
         "test": "node --test tests/package.test.mjs"
     },
     "peerDependencies": {
-        "@bensitu/image-editor": "^3.0.0-0",
+        "@bensitu/image-editor": "^3.0.0",
         "fabric": ">=7.4.0 <8"
     },
     "devDependencies": {

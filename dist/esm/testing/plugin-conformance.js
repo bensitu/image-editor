@@ -5,7 +5,7 @@ import { normalizeThrownError } from '../plugin-kernel/thrown-error.js';
 import { createPluginTestHost, } from './plugin-test-host.js';
 import { assertBaseImageInvariant, assertBundleIsolation, assertCompoundTransaction, assertNoUndeclaredFabricGlobalMutation, assertOverlayMutationHistory, assertPackageDoesNotBundleCoreOrFabric, assertPeerDependencyContract, assertSliceMigration, assertStrongMultiInstanceIsolation, } from './responsibility-assertions.js';
 export const CONFORMANCE_PROFILE = '3.0';
-const PACKAGE_VERSION = '3.0.0-rc.1';
+const PACKAGE_VERSION = '3.0.0';
 function describeError(error) {
     if (error instanceof Error)
         return `${error.name}: ${error.message}`;
