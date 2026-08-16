@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const browserTestPort = 4175;
 const browserTestBaseUrl = `http://127.0.0.1:${browserTestPort}`;
+const ciVisualSnapshotMaxDiffPixelRatio = 0.002;
 
 export default defineConfig({
     testDir: './tests/browser',
@@ -10,6 +11,12 @@ export default defineConfig({
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     outputDir: 'test-results/browser',
     snapshotPathTemplate: '{testDir}/__snapshots__/{testFilePath}/{arg}{ext}',
+    expect: {
+        toHaveScreenshot: {
+            // Permit minor operating-system rasterization differences in CI while keeping local baselines exact.
+            maxDiffPixelRatio: process.env.CI ? ciVisualSnapshotMaxDiffPixelRatio : 0,
+        },
+    },
     use: {
         baseURL: browserTestBaseUrl,
         trace: 'on-first-retry',
