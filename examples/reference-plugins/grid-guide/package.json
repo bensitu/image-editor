@@ -30,7 +30,7 @@
         "@bensitu/image-editor": "file:../../..",
         "fabric": "7.4.0",
         "rolldown": "1.2.4",
-        "typescript": "6.0.3"
+        "typescript": "7.0.2"
     },
     "engines": {
         "node": ">=22.12.0"
