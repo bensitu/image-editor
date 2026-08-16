@@ -279,6 +279,7 @@
         "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && npm run build:umd && npm run build:prune",
         "prepack": "npm run build",
         "prepublishOnly": "npm run check:release",
+        "release:publish-artifacts": "node scripts/publish-release-artifacts.mjs",
         "build:bundle-fixtures": "npm run build --workspace @bensitu/reference-blur-region --workspace @bensitu/reference-watermark",
         "package:pages": "node scripts/package-pages-site.mjs",
         "demo:local": "npm run build && vite --host 127.0.0.1 --open /docs/",
