@@ -24,6 +24,7 @@ jobs:
     publish:
         name: Publish release artifact
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         environment:
             name: npm
 

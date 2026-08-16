@@ -20,6 +20,7 @@ jobs:
     build:
         name: Package demo site
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         outputs:
             pages_artifact_name: ${{ steps.pages_artifact.outputs.name }}
 
@@ -33,20 +34,8 @@ jobs:
                   node-version: '24.x'
                   package-manager-cache: false
 
-            - name: Activate repository package manager
-              working-directory: ${{ runner.temp }}
-              run: |
-                  npm install --global corepack@0.35.0
-                  corepack enable npm
-                  cd "$GITHUB_WORKSPACE"
-                  corepack install
-                  npm --version
-
-            - name: Install dependencies
-              run: npm ci
-
             - name: Package explicit modular demo pages
-              run: npm run package:pages
+              run: node scripts/package-pages-site.mjs
 
             - name: Resolve Pages artifact name
               id: pages_artifact
@@ -63,6 +52,7 @@ jobs:
         name: Deploy demo site
         needs: build
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         permissions:
             pages: write
             id-token: write
