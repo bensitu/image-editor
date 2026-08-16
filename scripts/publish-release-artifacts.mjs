@@ -13,6 +13,8 @@ import { pathToFileURL } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
+const DEFAULT_PUBLISHED_INSPECTION_ATTEMPTS = 12;
+const DEFAULT_PUBLISHED_INSPECTION_DELAY_MS = 5_000;
 const VALID_DIST_TAG = /^[a-z][a-z0-9._-]{0,63}$/u;
 const SEMVER_PATTERN =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
@@ -80,9 +82,26 @@ export function verifyPublishedArtifact(artifact, metadata) {
     }
 }
 
+function delay(durationMs) {
+    return new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+
+async function inspectPublishedArtifact(artifact, inspect, options) {
+    const attempts = options.attempts ?? DEFAULT_PUBLISHED_INSPECTION_ATTEMPTS;
+    const delayMs = options.delayMs ?? DEFAULT_PUBLISHED_INSPECTION_DELAY_MS;
+    const wait = options.wait ?? delay;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const metadata = await inspect(artifact);
+        if (metadata) return metadata;
+        if (attempt < attempts) await wait(delayMs);
+    }
+    return null;
+}
+
 export async function publishReleaseArtifacts(
     artifacts,
-    { inspect, publish, onStatus = () => undefined },
+    { inspect, publish, onStatus = () => undefined, publishedInspection = {} },
 ) {
     if (!Array.isArray(artifacts) || artifacts.length !== 2) {
         throw new Error('Exactly two release artifacts are required.');
@@ -107,7 +126,11 @@ export async function publishReleaseArtifacts(
             }
 
             await publish(artifact);
-            const published = await inspect(artifact);
+            const published = await inspectPublishedArtifact(
+                artifact,
+                inspect,
+                publishedInspection,
+            );
             verifyPublishedArtifact(artifact, published);
             const status = Object.freeze({ artifact, status: 'published' });
             statuses.push(status);
@@ -121,7 +144,10 @@ export async function publishReleaseArtifacts(
     }
 
     for (const artifact of artifacts) {
-        verifyPublishedArtifact(artifact, await inspect(artifact));
+        verifyPublishedArtifact(
+            artifact,
+            await inspectPublishedArtifact(artifact, inspect, publishedInspection),
+        );
     }
     return Object.freeze(statuses);
 }

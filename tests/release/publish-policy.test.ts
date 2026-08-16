@@ -93,6 +93,38 @@ test('dual-package publish is safe to rerun after a partial failure', async () =
     );
 });
 
+test('dual-package publish waits for newly published versions to become visible', async () => {
+    const releaseArtifacts = artifacts();
+    const published = new Set<string>();
+    const inspectionAttempts = new Map<string, number>();
+    let waits = 0;
+
+    const statuses = await publishReleaseArtifacts(releaseArtifacts, {
+        inspect: async (artifact: ReleaseArtifact) => {
+            if (!published.has(artifact.name)) return null;
+            const attempts = (inspectionAttempts.get(artifact.name) ?? 0) + 1;
+            inspectionAttempts.set(artifact.name, attempts);
+            return attempts >= 3 ? metadataFor(artifact) : null;
+        },
+        publish: async (artifact: ReleaseArtifact) => {
+            published.add(artifact.name);
+        },
+        publishedInspection: {
+            attempts: 3,
+            delayMs: 0,
+            wait: async () => {
+                waits += 1;
+            },
+        },
+    });
+
+    assert.deepEqual(
+        statuses.map(({ status }) => status),
+        ['published', 'published'],
+    );
+    assert.equal(waits, 4);
+});
+
 test('an existing package with different integrity is a hard failure', async () => {
     const releaseArtifacts = artifacts();
     let publishCalls = 0;
