@@ -188,7 +188,9 @@ export default function ImageEditorClient() {
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
                     disabled={!ready || running}
-                    onChange={(event) => void handleFileChange(event)}
+                    onChange={(event) => {
+                        handleFileChange(event).catch(console.error);
+                    }}
                 />
             </header>
 
