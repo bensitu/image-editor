@@ -155,7 +155,9 @@ export default function App() {
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
                     disabled={!ready || running}
-                    onChange={(event) => void handleFileChange(event)}
+                    onChange={(event) => {
+                        handleFileChange(event).catch(console.error);
+                    }}
                 />
             </header>
 
@@ -202,7 +204,12 @@ export default function App() {
                         >
                             Redo
                         </button>
-                        <button disabled={!canEdit} onClick={() => void run(exportPng)}>
+                        <button
+                            disabled={!canEdit}
+                            onClick={() => {
+                                run(exportPng).catch(console.error);
+                            }}
+                        >
                             Export PNG
                         </button>
                     </div>
