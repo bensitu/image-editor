@@ -367,7 +367,7 @@
         "fast-check": "^4.9.0",
         "globals": "^17.11.0",
         "jsdom": "^28.1.0",
-        "prettier": "3.9.6",
+        "prettier": "3.9.9",
         "prettier-plugin-svelte": "^4.1.1",
         "publint": "^0.3.23",
         "rimraf": "^6.1.3",
