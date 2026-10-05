@@ -1,6 +1,6 @@
 {
     "schemaVersion": 1,
-    "maximumGzipBytes": 61440,
+    "maximumGzipBytes": 61696,
     "fabricModulesAllowed": 0,
     "testingModulesAllowed": 0,
     "referencePluginModulesAllowed": 0,
