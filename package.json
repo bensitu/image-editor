@@ -389,7 +389,7 @@
         "typescript"
     ],
     "engines": {
-        "node": ">=22.22.2"
+        "node": ">=20.0.0"
     },
     "devEngines": {
         "runtime": {

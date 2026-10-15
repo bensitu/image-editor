@@ -4,7 +4,8 @@ This project is a TypeScript-first package that builds ESM, CommonJS, UMD, and
 declaration outputs from the same source tree.
 
 - Recommended local/release Node: 24.
-- Minimum supported Node: 22.22.2.
+- Development Node: `^22.22.2 || ^24.15.0 || >=26.0.0`.
+- Published package Node: `>=20.0.0`.
 
 Run `nvm use` to select the repository's recommended version from `.nvmrc`.
 
@@ -112,7 +113,7 @@ test, durable architecture boundaries, official Plugin checks, the directly
 consumable package surface, security checks, public type fixtures, and Chromium
 E2E. Tests focus on observable behavior and supported contracts; repository file
 layout, comment wording, workflow text, and Demo wiring are reviewed without
-dedicated meta-gates. CI checks the minimum supported Node.js 22.22 runtime,
+dedicated meta-gates. CI checks the minimum development Node.js 22.22 runtime,
 the primary checks on Node.js 24, and package entry compatibility on Node.js 26.
 
 For distribution and release responsibilities, run from a clean commit:
