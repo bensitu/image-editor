@@ -14,10 +14,10 @@
         "vue": "^3.5.43"
     },
     "devDependencies": {
-        "@vitejs/plugin-vue": "^6.0.9",
+        "@vitejs/plugin-vue": "^6.0.10",
         "typescript": "^6.0.3",
         "vite": "^8.2.1",
-        "vue-tsc": "^3.3.12"
+        "vue-tsc": "^3.3.13"
     },
     "engines": {
         "node": ">=22.22.2"
