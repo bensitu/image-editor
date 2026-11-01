@@ -35,21 +35,21 @@ when someone officially represents the project in other spaces or events.
 
 ## Reporting a concern
 
-Report concerns privately to the project maintainer, Ben Situ, at
-[sito163@163.com](mailto:sito163@163.com), with the subject **Image Editor Code of
-Conduct**. Include relevant links, what happened, when it happened, and any steps
-needed to protect participants. You do not need to confront the person involved
-before reporting.
+For abuse or harassment on GitHub, use
+[GitHub's reporting tools](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam).
+GitHub handles these reports under its own policies; they are not private reports
+to project maintainers. Include relevant links, what happened, and when it
+happened. You do not need to confront the person involved before reporting.
+
+To contact project maintainers about a concern, open a
+[GitHub issue](https://github.com/bensitu/image-editor/issues) titled
+**Moderation contact request**, asking for a suitable private reporting channel.
+Include no incident details or identifying information in that public request.
 
 Do not post personal information or sensitive evidence in public issues.
 Maintainers will limit access to report details to people needed to assess and
 address the concern, sharing identifying information only when necessary for
 safety or resolution. Absolute confidentiality cannot be guaranteed.
-
-If a concern involves the maintainer, or if you prefer an independent channel for
-conduct on GitHub, you can
-[report abuse to GitHub](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam).
-GitHub handles these reports under its own policies.
 
 ## Enforcement and review
 
@@ -62,9 +62,10 @@ behavior, a warning, removal of content, or a temporary or permanent restriction
 on participation. Serious threats or harassment may result in immediate removal;
 these measures do not have to occur in sequence.
 
-A person affected by a moderation decision may request a review through the same
-private email channel, including relevant new information. Reviews and responses
-depend on maintainer availability; no response deadline is guaranteed.
+A person affected by a project moderation decision may request a review using the
+moderation contact process above. Share sensitive details only after a private
+channel has been arranged. Reviews and responses depend on maintainer
+availability; no response deadline is guaranteed.
 
 This project policy complements the
 [GitHub Community Guidelines](https://docs.github.com/en/site-policy/github-terms/github-community-guidelines).

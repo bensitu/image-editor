@@ -61,10 +61,10 @@ in the pull request; do not describe untested combinations as supported.
 ## Reporting an accessibility barrier
 
 Open a [GitHub issue](https://github.com/bensitu/image-editor/issues) with
-**[Accessibility]** in the title. If GitHub's issue form is itself a barrier, or
-if the report contains private information, email the project maintainer at
-[sito163@163.com](mailto:sito163@163.com) with the subject **Image Editor
-Accessibility**.
+**[Accessibility]** in the title. If GitHub's issue form is itself a barrier, you
+may ask someone you trust to submit a report on your behalf. If a report requires
+private information, first open an issue asking for a suitable private reporting
+channel without including that information.
 
 Where possible, include:
 
