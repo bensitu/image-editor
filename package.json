@@ -378,6 +378,12 @@
         "typescript-eslint": "^8.67.0",
         "vite": "^8.2.1"
     },
+    "overrides": {
+        "minimatch": "11.0.1",
+        "rimraf": {
+            "glob": "14.0.2"
+        }
+    },
     "keywords": [
         "canvas",
         "fabric",
