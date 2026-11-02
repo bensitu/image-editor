@@ -199,21 +199,22 @@ export function satisfiesSemVer(version: string, range: string): boolean {
     const parsedVersion = semVerPattern.exec(version);
     const normalized = normalizeRange(range);
     if (!parsedVersion || !normalized) return false;
-    const prereleaseTuple = parsedVersion[4]
-        ? `${parsedVersion[1]}.${parsedVersion[2]}.${parsedVersion[3]}`
-        : null;
     return normalized.split(' || ').some((comparatorSet) => {
-        if (
-            !comparatorSet
-                .split(' ')
-                .every((comparator) => satisfiesComparator(parsedVersion, comparator))
-        ) {
+        const comparators = comparatorSet.split(' ');
+        if (!comparators.every((comparator) => satisfiesComparator(parsedVersion, comparator))) {
             return false;
         }
-        if (prereleaseTuple === null) return true;
-        return new RegExp(
-            `(?:^|[<>=])${prereleaseTuple.replace(/\./gu, '\\.')}-[0-9A-Za-z-]`,
-            'u',
-        ).test(comparatorSet);
+        if (parsedVersion[4] === undefined) return true;
+        return comparators.some((comparator) => {
+            const match = comparatorPattern.exec(comparator);
+            const target = match && semVerPattern.exec(match[2]!);
+            return (
+                target !== null &&
+                target[4] !== undefined &&
+                target[1] === parsedVersion[1] &&
+                target[2] === parsedVersion[2] &&
+                target[3] === parsedVersion[3]
+            );
+        });
     });
 }

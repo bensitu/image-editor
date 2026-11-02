@@ -100,6 +100,28 @@ Visual tests compare deterministic exported-image screenshots. Run
 the updated snapshots before committing them. Visual tests are intentionally
 Chromium-only unless browser-specific snapshots are added.
 
+## Dependency security maintenance
+
+The root workspace temporarily overrides `minimatch` to `11.0.1` and Rimraf's
+`glob` dependency to `14.0.2` to address
+[pattern amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249) and
+[cancellation bypass](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4).
+The current ESLint, typescript-eslint, and Rimraf dependency ranges do not yet
+include these fixed major versions. These overrides affect the development
+toolchain, so changes require `npm run check:pr` and `npm run check:examples` to
+verify the consumers. Remove the overrides when the upstream ranges include
+patched versions.
+
+The Svelte Vite plugin still depends on `deepmerge@4.3.1`, which has an
+[unpatched development dependency advisory](https://github.com/advisories/GHSA-gcqx-w48m-w2h4).
+Keep the alert visible and use trusted build configuration while awaiting an
+upstream fix. Do not substitute an API-incompatible merge implementation or
+disable security checks to clear the audit.
+
+Malformed Codemod fixtures are stored as `.ts.txt` data and passed to the parser
+with a `.ts` filename. This preserves invalid-input coverage without presenting
+the fixture as executable TypeScript to code scanning tools.
+
 ## Validation Profiles
 
 For pull-request responsibilities, run:

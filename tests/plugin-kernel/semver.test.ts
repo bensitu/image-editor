@@ -78,6 +78,38 @@ test('invalid and padded ranges are rejected without throwing', () => {
     }
 });
 
+test('prerelease admission is independent of comparator position and stays within each set', () => {
+    const cases = [
+        ['1.2.3-beta.0', '>=1.0.0 1.2.3-beta.0', true],
+        ['1.2.3-beta.0', '1.2.3-beta.0 >=1.0.0', true],
+        ['1.2.3-beta.0', '>=1.0.0 =1.2.3-beta.0', true],
+        ['1.2.3-beta.1', '>=1.2.3-beta.0 <2.0.0', true],
+        ['1.2.4-beta.0', '>=1.2.3-beta.0 <2.0.0', false],
+        ['1.2.3-beta.0', '>=1.0.0 || >=2.0.0-alpha.0', false],
+        ['1.2.3-beta.0', '>=2.0.0 || >=1.0.0 1.2.3-beta.0', true],
+    ] as const;
+    for (const [version, range, expected] of cases) {
+        assert.equal(semver.satisfies(version, range), expected, `${version} in ${range}`);
+        assert.equal(satisfiesSemVer(version, range), expected, `${version} in ${range}`);
+    }
+});
+
+test('regex metacharacters in versions and comparator targets are rejected', () => {
+    const invalid = [
+        '1.2.3\\-alpha',
+        '1.2.3-alpha\\',
+        '1.2.3-(alpha)',
+        '1.2.3-alpha|evil',
+        '1.2.3-alpha[0]',
+    ];
+    for (const version of invalid) {
+        assert.equal(isValidSemVer(version), false, version);
+        assert.equal(satisfiesSemVer(version, '>=1.2.3-alpha'), false, version);
+        assert.equal(isValidSemVerRange(`>=${version}`), false, version);
+        assert.equal(satisfiesSemVer('1.2.3-alpha', `>=${version}`), false, version);
+    }
+});
+
 test('SemVer inputs enforce a bounded parser budget', () => {
     const oversizedVersion = `1.0.0-${'a'.repeat(256)}`;
     const oversizedRange = `>=1.0.0 ${'>=1.0.0 '.repeat(32)}`;

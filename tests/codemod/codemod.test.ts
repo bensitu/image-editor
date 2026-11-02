@@ -274,7 +274,6 @@ test('reports every ambiguous syntax class without changing source', async () =>
         ['reflection.input.ts', 'EDITOR_REFLECTION'],
         ['mixed-versions.input.ts', 'MIXED_EDITOR_VERSIONS'],
         ['namespace-import.input.ts', 'NAMESPACE_IMPORT'],
-        ['invalid-syntax.input.ts', 'INVALID_SYNTAX'],
     ];
     for (const [name, expectedCode] of cases) {
         const source = await fixture(name);
@@ -286,6 +285,15 @@ test('reports every ambiguous syntax class without changing source', async () =>
             name + ' did not report ' + expectedCode + ': ' + JSON.stringify(result.unresolved),
         );
     }
+});
+
+test('reports invalid TypeScript fixture data without changing source', async () => {
+    const fileName = 'invalid-syntax.input.ts';
+    const source = await fixture(`${fileName}.txt`);
+    const result = transformSource(source, fileName);
+    assert.equal(result.code, source);
+    assert.equal(result.changed, false);
+    assert.ok(result.unresolved.some((value) => value.code === 'INVALID_SYNTAX'));
 });
 
 test('runner supports multi-file dry-run, diff, write, and stable reports', async () => {
