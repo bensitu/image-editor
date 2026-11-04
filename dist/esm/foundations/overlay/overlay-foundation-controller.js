@@ -1349,7 +1349,10 @@ export class OverlayFoundationController {
         this.preservedRecords = [];
     }
     beginGesture(target, action) {
+        var _a, _b;
         if (this.disposed)
+            return;
+        if (((_b = (_a = this.host).canRunOperation) === null || _b === void 0 ? void 0 : _b.call(_a, 'overlay:gesture')) === false)
             return;
         const targets = this.resolveOverlayTargets(target);
         if (targets.length === 0)

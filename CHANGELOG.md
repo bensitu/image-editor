@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - Unreleased
+
+### Fixed
+
+- Validate serialized Canvas properties, image dimensions, external resource URLs, custom mask geometry, and raster encoding results before applying state or allocating image resources.
+- Preserve mask corner radii, selected mask appearance, annotation transforms, and legacy overlay geometry on rectangular images.
+- Serialize queued transforms and overlay mutations against the current document, exclude transient objects from flattened output, and roll back every prepared geometry participant.
+- Complete asynchronous initialization cleanup, retain annotation drafts after failed commits, close text editing on focus loss, and recover interrupted overlay gestures.
+- Reduce retained image strings and History memory estimates, avoid duplicate restoration captures, and combine Filter and freehand preview updates per animation frame.
+- Release temporary image and Canvas resources, account for display pixel density, reject unsupported explicit export formats, and use an opaque default background for JPEG output.
+- Handle semantic version range boundaries and large numeric identifiers consistently, and reject unsupported legacy geometry explicitly.
+- Restore DOM control bindings after element replacement, support keyboard layouts, ignore empty numeric input and handled keyboard events, and wait for active interaction workers during flush.
+- Make source migration writes recoverable, preserve byte order marks and line endings, and report ambiguous constructors and symbolic links without unsafe rewrites.
+- Correct framework event lifetimes and editor cleanup, serialize reference Plugin configuration updates, and serve documentation demos with fixed assets and integrity hashes.
+
 ## [3.0.0] - 2026-08-16
 
 ### 🚨 Major Release: Complete Architectural Rewrite

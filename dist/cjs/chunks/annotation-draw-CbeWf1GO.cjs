@@ -1,10 +1,10 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
-const require_annotation = require("./annotation-DsiEPhWO.cjs");
+const require_annotation = require("./annotation-MKF6oE8N.cjs");
 const require_core_capabilities = require("./core-capabilities-BtgLLuX2.cjs");
 const require_plugin_identifier = require("./plugin-identifier-7NKI_vMS.cjs");
 const require_sdk = require("./sdk-CSVlKrlK.cjs");
-const require_core = require("./core-CuZsMxw0.cjs");
-const require_overlay = require("./overlay-BnDCqVed.cjs");
+const require_core = require("./core-BBpWXwyA.cjs");
+const require_overlay = require("./overlay-BG7Q7h_n.cjs");
 
 // dist/esm/plugins/annotation-draw/draw-path.js
 const MAX_DRAW_COORDINATE = 1e7;
@@ -735,4 +735,4 @@ Object.defineProperty(exports, "drawAnnotationPluginRef", {
     return drawAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-draw-mgv8WyoS.cjs.map
+//# sourceMappingURL=annotation-draw-CbeWf1GO.cjs.map

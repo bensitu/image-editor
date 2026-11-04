@@ -5,7 +5,7 @@ export const MAX_ANNOTATION_METADATA_DEPTH = 4;
 export const MAX_ANNOTATION_METADATA_KEYS = 32;
 export const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
 const normalizedMetadata = new WeakSet();
-const textEncoder = new TextEncoder();
+let textEncoder;
 function isPlainRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
         return false;
@@ -22,7 +22,7 @@ function cloneMetadataValue(value, depth, budget) {
         return value;
     }
     if (typeof value === 'string') {
-        budget.stringBytes += textEncoder.encode(value).byteLength;
+        budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : (textEncoder = new TextEncoder())).encode(value).byteLength;
         if (budget.stringBytes > MAX_ANNOTATION_METADATA_STRING_BYTES) {
             throw new AnnotationValidationError('Annotation metadata string data is too large.');
         }
@@ -58,7 +58,7 @@ function cloneMetadataValue(value, depth, budget) {
             if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
                 throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
             }
-            budget.stringBytes += textEncoder.encode(key).byteLength;
+            budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : (textEncoder = new TextEncoder())).encode(key).byteLength;
             clone[key] = cloneMetadataValue(entry, depth + 1, budget);
         }
         return Object.freeze(clone);

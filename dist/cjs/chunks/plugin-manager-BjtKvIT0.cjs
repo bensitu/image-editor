@@ -1,4 +1,3 @@
-const require_abortable_promise = require("./abortable-promise-brVLi25s.cjs");
 const require_core_capabilities = require("./core-capabilities-BtgLLuX2.cjs");
 const require_plugin_identifier = require("./plugin-identifier-7NKI_vMS.cjs");
 
@@ -1468,15 +1467,22 @@ var ToolCoordinator = class {
 const LIFECYCLE_TIMEOUT_MS = 15e3;
 async function runLifecycleHook(task, parentSignal) {
 	const controller = new AbortController();
+	let rejectAborted = () => void 0;
+	const aborted = new Promise((_resolve, reject) => {
+		rejectAborted = reject;
+	});
+	const rejectOnAbort = () => rejectAborted(controller.signal.reason);
 	const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
 	parentSignal === null || parentSignal === void 0 || parentSignal.addEventListener("abort", abort, { once: true });
 	if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted) abort();
 	const timeout = setTimeout(() => controller.abort(/* @__PURE__ */ new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
 	try {
 		controller.signal.throwIfAborted();
-		await require_abortable_promise.settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+		controller.signal.addEventListener("abort", rejectOnAbort, { once: true });
+		await Promise.race([new Promise((resolve) => resolve(task(controller.signal))), aborted]);
 	} finally {
 		clearTimeout(timeout);
+		controller.signal.removeEventListener("abort", rejectOnAbort);
 		parentSignal === null || parentSignal === void 0 || parentSignal.removeEventListener("abort", abort);
 	}
 }
@@ -2349,4 +2355,4 @@ Object.defineProperty(exports, "normalizeThrownError", {
     return normalizeThrownError;
   }
 });
-//# sourceMappingURL=plugin-manager-B1jkAv40.cjs.map
+//# sourceMappingURL=plugin-manager-BjtKvIT0.cjs.map

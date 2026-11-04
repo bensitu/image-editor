@@ -70,10 +70,10 @@ export const DEFAULT_SNAPSHOT_LIMITS: SnapshotLimits = Object.freeze({
     externalUrlPolicy: 'reject',
 });
 
-const textEncoder = new TextEncoder();
+let textEncoder: TextEncoder | undefined;
 
 function byteLength(value: string): number {
-    return textEncoder.encode(value).byteLength;
+    return (textEncoder ??= new TextEncoder()).encode(value).byteLength;
 }
 
 function normalizeResourceUrl(value: string): string {

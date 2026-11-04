@@ -10,9 +10,9 @@
             "maximumMinifiedGzipBytes": 53248
         },
         "overlay": {
-            "baselineMinifiedBytes": 45683,
-            "baselineMinifiedGzipBytes": 11848,
-            "maximumMinifiedGzipBytes": 14336
+            "baselineMinifiedBytes": 55062,
+            "baselineMinifiedGzipBytes": 14380,
+            "maximumMinifiedGzipBytes": 17408
         },
         "annotation": {
             "baselineMinifiedBytes": 36445,

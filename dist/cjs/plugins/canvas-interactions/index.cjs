@@ -1,7 +1,7 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
 const require_core_capabilities = require("../../chunks/core-capabilities-BtgLLuX2.cjs");
 const require_sdk = require("../../chunks/sdk-CSVlKrlK.cjs");
-const require_core = require("../../chunks/core-CuZsMxw0.cjs");
+const require_core = require("../../chunks/core-BBpWXwyA.cjs");
 
 // dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
 function finiteNumber(value) {
@@ -110,6 +110,7 @@ var FabricPointerSource = class {
 	}
 	handleNativeUp(event) {
 		if (this.disposed || !this.pointerActive || !samePointer(this.activePointerId, event)) return;
+		if (event.target === this.canvas.upperCanvasEl) return;
 		const scenePoint = this.canvas.getScenePoint(event);
 		const sample = this.createSample(scenePoint, null, event);
 		this.clearPointer();

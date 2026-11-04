@@ -1,4 +1,3 @@
-import { settleAbortable } from '../utils/abortable-promise.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import { CommittedEventBus, } from './committed-event-bus.js';
 import { isPromiseLike } from './disposable.js';
@@ -15,6 +14,11 @@ import { ToolCoordinator } from './tool-coordinator.js';
 const LIFECYCLE_TIMEOUT_MS = 15000;
 async function runLifecycleHook(task, parentSignal) {
     const controller = new AbortController();
+    let rejectAborted = () => undefined;
+    const aborted = new Promise((_resolve, reject) => {
+        rejectAborted = reject;
+    });
+    const rejectOnAbort = () => rejectAborted(controller.signal.reason);
     const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
     parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.addEventListener('abort', abort, { once: true });
     if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted)
@@ -22,10 +26,15 @@ async function runLifecycleHook(task, parentSignal) {
     const timeout = setTimeout(() => controller.abort(new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
     try {
         controller.signal.throwIfAborted();
-        await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+        controller.signal.addEventListener('abort', rejectOnAbort, { once: true });
+        await Promise.race([
+            new Promise((resolve) => resolve(task(controller.signal))),
+            aborted,
+        ]);
     }
     finally {
         clearTimeout(timeout);
+        controller.signal.removeEventListener('abort', rejectOnAbort);
         parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.removeEventListener('abort', abort);
     }
 }

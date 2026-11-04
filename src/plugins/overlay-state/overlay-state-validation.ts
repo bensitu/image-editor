@@ -4,8 +4,7 @@
  * @module
  */
 
-import { isRuntimeIdentifier } from '../../sdk/index.js';
-import { isValidSemVer } from '../../plugin-kernel/semver.js';
+import { isRuntimeIdentifier, isValidSemVer } from '../../sdk/index.js';
 import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 
 import {

@@ -1654,34 +1654,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo: "history:redo"
 	});
 
-// dist/esm/utils/abortable-promise.js
-	function settleAbortable(task, signal, disposeLateResult) {
-		return new Promise((resolve, reject) => {
-			let settled = false;
-			const finish = (body) => {
-				if (settled) return;
-				settled = true;
-				signal.removeEventListener("abort", abort);
-				body();
-			};
-			const abort = () => finish(() => {
-				var _a;
-				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
-			});
-			signal.addEventListener("abort", abort, { once: true });
-			if (signal.aborted) abort();
-			task.then((value) => {
-				if (settled) {
-					try {
-						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
-					} catch {}
-					return;
-				}
-				finish(() => resolve(value));
-			}, (error) => finish(() => reject(error)));
-		});
-	}
-
 // dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
@@ -2253,15 +2225,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const LIFECYCLE_TIMEOUT_MS = 15e3;
 	async function runLifecycleHook(task, parentSignal) {
 		const controller = new AbortController();
+		let rejectAborted = () => void 0;
+		const aborted = new Promise((_resolve, reject) => {
+			rejectAborted = reject;
+		});
+		const rejectOnAbort = () => rejectAborted(controller.signal.reason);
 		const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
 		parentSignal === null || parentSignal === void 0 || parentSignal.addEventListener("abort", abort, { once: true });
 		if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted) abort();
 		const timeout = setTimeout(() => controller.abort(/* @__PURE__ */ new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
 		try {
 			controller.signal.throwIfAborted();
-			await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+			controller.signal.addEventListener("abort", rejectOnAbort, { once: true });
+			await Promise.race([new Promise((resolve) => resolve(task(controller.signal))), aborted]);
 		} finally {
 			clearTimeout(timeout);
+			controller.signal.removeEventListener("abort", rejectOnAbort);
 			parentSignal === null || parentSignal === void 0 || parentSignal.removeEventListener("abort", abort);
 		}
 	}
@@ -6432,9 +6411,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		maxImageDimension: 32768,
 		externalUrlPolicy: "reject"
 	});
-	const textEncoder$1 = new TextEncoder();
+	let textEncoder$1;
 	function byteLength(value) {
-		return textEncoder$1.encode(value).byteLength;
+		return (textEncoder$1 !== null && textEncoder$1 !== void 0 ? textEncoder$1 : textEncoder$1 = new TextEncoder()).encode(value).byteLength;
 	}
 	function normalizeResourceUrl(value) {
 		let start = 0;
@@ -8784,7 +8763,35 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}));
 	}
 
-// dist/esm/foundations/overlay/overlay-transform-delta.js
+// dist/esm/utils/abortable-promise.js
+	function settleAbortable(task, signal, disposeLateResult) {
+		return new Promise((resolve, reject) => {
+			let settled = false;
+			const finish = (body) => {
+				if (settled) return;
+				settled = true;
+				signal.removeEventListener("abort", abort);
+				body();
+			};
+			const abort = () => finish(() => {
+				var _a;
+				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
+			});
+			signal.addEventListener("abort", abort, { once: true });
+			if (signal.aborted) abort();
+			task.then((value) => {
+				if (settled) {
+					try {
+						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
+					} catch {}
+					return;
+				}
+				finish(() => resolve(value));
+			}, (error) => finish(() => reject(error)));
+		});
+	}
+
+// dist/esm/fabric/fabric-transform-delta.js
 	function isFiniteTransformMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
@@ -10007,7 +10014,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.preservedRecords = [];
 		}
 		beginGesture(target, action) {
+			var _a, _b;
 			if (this.disposed) return;
+			if (((_b = (_a = this.host).canRunOperation) === null || _b === void 0 ? void 0 : _b.call(_a, "overlay:gesture")) === false) return;
 			const targets = this.resolveOverlayTargets(target);
 			if (targets.length === 0) return;
 			let supersededTransaction = null;
@@ -10818,6 +10827,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...render,
 					...raster,
 					...imageResources,
+					canRunOperation: (operationId) => context.tools.canRunOperation(operationId),
 					runOperation: (operationId, task) => context.operations.run(operationId, null, () => task())
 				});
 				context.operations.register({
@@ -10983,7 +10993,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
 	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
 	const normalizedMetadata = /* @__PURE__ */ new WeakSet();
-	const textEncoder = new TextEncoder();
+	let textEncoder;
 	function isPlainRecord$7(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -10996,7 +11006,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return value;
 		}
 		if (typeof value === "string") {
-			budget.stringBytes += textEncoder.encode(value).byteLength;
+			budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(value).byteLength;
 			if (budget.stringBytes > 8192) throw new AnnotationValidationError("Annotation metadata string data is too large.");
 			return value;
 		}
@@ -11016,7 +11026,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const clone = {};
 			for (const [key, entry] of entries) {
 				if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
-				budget.stringBytes += textEncoder.encode(key).byteLength;
+				budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(key).byteLength;
 				clone[key] = cloneMetadataValue(entry, depth + 1, budget);
 			}
 			return Object.freeze(clone);
@@ -15541,6 +15551,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.assertImageLoaded("preview Filters");
 				const baseImage = this.host.getBaseImage();
 				if (!baseImage) throw new Error("[ImageEditor] Cannot preview Filters without a Base Image.");
+				if (definitions.length > 0) await this.waitForPreviewFrame(operationSignal);
 				const candidate = definitions.length === 0 ? null : await createFilteredImageClone(this.host.fabric, baseImage, definitions, operationSignal, this.host.backgroundColor);
 				if (this.disposed || operationSignal.aborted || sequence !== this.previewSequence) {
 					disposeFabricImage(candidate);
@@ -15552,6 +15563,31 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					disposeFabricImage(candidate);
 					throw error;
 				}
+			});
+		}
+		waitForPreviewFrame(signal) {
+			var _a;
+			const view = (_a = this.host.getCanvas()) === null || _a === void 0 ? void 0 : _a.getElement().ownerDocument.defaultView;
+			if (!(view === null || view === void 0 ? void 0 : view.requestAnimationFrame)) return Promise.resolve();
+			return new Promise((resolve, reject) => {
+				let frame = null;
+				const cleanup = () => {
+					if (frame !== null) view.cancelAnimationFrame(frame);
+					clearTimeout(timeout);
+					signal.removeEventListener("abort", abort);
+				};
+				const finish = () => {
+					cleanup();
+					resolve();
+				};
+				const abort = () => {
+					cleanup();
+					reject(operationAbortReason(signal, "Filter preview was aborted."));
+				};
+				const timeout = setTimeout(finish, 50);
+				signal.addEventListener("abort", abort, { once: true });
+				if (signal.aborted) abort();
+				else frame = view.requestAnimationFrame(finish);
 			});
 		}
 		cancelPreview() {
@@ -18803,9 +18839,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				previewId,
 				preview,
 				visibility,
-				editingExited
+				stopEditingListener: preview.on("editing:exited", editingExited)
 			});
-			preview.on("editing:exited", editingExited);
 			this.emitStatus();
 		}
 		commitEditing() {
@@ -18952,7 +18987,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.session;
 			if (!session) return;
 			this.session = null;
-			session.preview.off("editing:exited", session.editingExited);
+			session.stopEditingListener();
 			(_b = (_a = session.preview).exitEditing) === null || _b === void 0 || _b.call(_a);
 			this.authoring.removePreview([session.previewId]);
 			observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
@@ -21825,7 +21860,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const target = this.resolveKeyboardTarget(ownerDocument, keyboard.target);
 			this.listen(target, "keydown", (event) => {
 				const keyboardEvent = event;
-				if (keyboardEvent.defaultPrevented || keyboardEvent.repeat) return;
+				if (keyboardEvent.defaultPrevented || keyboardEvent.repeat || keyboardEvent.isComposing) return;
 				if (keyboard.allowInEditable !== true && isEditableNode(keyboardEvent.target, ownerDocument)) return;
 				try {
 					const action = this.keyboardAction(keyboardEvent, options);
@@ -21842,7 +21877,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const keyboard = options.keyboard;
 			const apis = this.requireApis();
 			const modifier = event.ctrlKey || event.metaKey;
-			const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
+			const logicalKey = typeof event.key === "string" ? event.key.toLowerCase() : "";
+			const key = logicalKey && !/\p{ASCII}/u.test(logicalKey) && /^Key[ZY]$/u.test(event.code) ? event.code.slice(3).toLowerCase() : logicalKey;
 			if (keyboard.historyActions !== false && modifier && !event.altKey) {
 				if (key === "z" && event.shiftKey || key === "y" && !event.shiftKey) {
 					if (!((_a = apis.history) === null || _a === void 0 ? void 0 : _a.canRedo())) return null;
@@ -22179,6 +22215,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		handleNativeUp(event) {
 			if (this.disposed || !this.pointerActive || !samePointer(this.activePointerId, event)) return;
+			if (event.target === this.canvas.upperCanvasEl) return;
 			const scenePoint = this.canvas.getScenePoint(event);
 			const sample = this.createSample(scenePoint, null, event);
 			this.clearPointer();

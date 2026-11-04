@@ -156,6 +156,8 @@ export function overlayFoundationPlugin(): SynchronousEditorPlugin<
                 ...render,
                 ...raster,
                 ...imageResources,
+                canRunOperation: (operationId: string) =>
+                    context.tools.canRunOperation(operationId),
                 runOperation: (operationId: string, task: () => void | Promise<void>) =>
                     context.operations.run(operationId, null, () => task()),
             });

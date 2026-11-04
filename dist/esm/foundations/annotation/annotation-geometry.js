@@ -1,4 +1,4 @@
-import { applyDeltaToObject } from '../overlay/overlay-transform-delta.js';
+import { applyDeltaToObject } from '../../fabric/fabric-transform-delta.js';
 export function applyAnnotationGeometry(object, mutation, fabricModule, preserveReadable) {
     if (mutation.kind !== 'transform' || !mutation.affineDelta)
         return;

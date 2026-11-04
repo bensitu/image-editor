@@ -86,6 +86,7 @@ export declare class FiltersController {
     getConfiguration(): Readonly<FiltersConfiguration>;
     subscribe(listener: FiltersStatusListener): Disposable;
     preview(filters: readonly FilterDefinition[]): Promise<void>;
+    private waitForPreviewFrame;
     cancelPreview(): Promise<void>;
     commit(filters?: readonly FilterDefinition[]): Promise<void>;
     clear(): Promise<void>;

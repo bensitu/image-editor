@@ -182,6 +182,15 @@ test('Pointer source owns one primary pointer and detaches every listener', () =
     assert.ok(Object.isFrozen(received[0][1].canvasPoint));
     assert.equal(received[0][1].geometryRevision, 4);
 
+    document.body.append(upperCanvasEl);
+    upperCanvasEl.dispatchEvent(new window.Event('pointerup', { bubbles: true }));
+    assert.equal(received.at(-1)[0], 'move');
+    listeners.get('mouse:up')(event(2, 30, 50));
+    assert.deepEqual(received.at(-1)[1].canvasPoint, { x: 30, y: 50 });
+    listeners.get('mouse:down')(event(4, 20, 40));
+    window.dispatchEvent(new window.Event('pointerup'));
+    assert.deepEqual(received.at(-1)[1].canvasPoint, { x: 90, y: 70 });
+    listeners.get('mouse:down')(event(5, 20, 40));
     window.dispatchEvent(new window.Event('blur'));
     assert.equal(cancelled, 1);
     source.dispose();

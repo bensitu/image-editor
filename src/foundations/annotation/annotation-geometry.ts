@@ -8,7 +8,7 @@ import type * as FabricNS from 'fabric';
 
 import type { FabricModule, GeometryMutationDescriptor } from '../../core/index.js';
 
-import { applyDeltaToObject } from '../overlay/overlay-transform-delta.js';
+import { applyDeltaToObject } from '../../fabric/fabric-transform-delta.js';
 
 export function applyAnnotationGeometry(
     object: FabricNS.FabricObject,

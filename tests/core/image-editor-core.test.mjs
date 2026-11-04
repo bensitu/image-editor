@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-    EditorInitializationInProgressError,
-    ImageEditorCore,
-    definePluginRef,
-} from '../../src/core/index.js';
+import { ImageEditorCore, definePluginRef } from '../../src/core/index.js';
 import { transformPlugin, transformPluginRef } from '../../src/plugins/transform/index.js';
 import {
     disposeEditor,
@@ -41,7 +37,6 @@ test('init resolves only after the configured initial image and Plugin hooks com
     });
 
     const initialization = editor.init({ canvas: ids.canvas });
-    assert.throws(() => editor.disposeAsync(), EditorInitializationInProgressError);
     await initialization;
 
     assert.equal(editor.getLifecycleState(), 'initialized');

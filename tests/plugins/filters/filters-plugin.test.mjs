@@ -260,6 +260,40 @@ test('failed active-preview commit preserves the exact preview session', async (
     await dispose(editor);
 });
 
+test('preview requests in one animation frame clone only the latest definitions', async (context) => {
+    const { editor, filters } = await createEditor();
+    const baseImage = editor.getCanvas().getObjects()[0];
+    const ownerWindow = editor.getCanvas().getElement().ownerDocument.defaultView;
+    const callbacks = new Map();
+    let nextHandle = 1;
+    context.mock.method(ownerWindow, 'requestAnimationFrame', (callback) => {
+        const handle = nextHandle++;
+        callbacks.set(handle, callback);
+        return handle;
+    });
+    context.mock.method(ownerWindow, 'cancelAnimationFrame', (handle) => callbacks.delete(handle));
+    const clone = context.mock.method(baseImage, 'clone', baseImage.clone.bind(baseImage));
+    const results = Promise.allSettled(
+        [0.1, 0.2, 0.3].map((value) => filters.preview([{ type: 'brightness', value }])),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(clone.mock.callCount(), 0);
+    const frameCallbacks = [...callbacks.values()];
+    callbacks.clear();
+    for (const callback of frameCallbacks) callback(0);
+    const settled = await results;
+    assert.deepEqual(
+        settled.map((result) => result.status),
+        ['rejected', 'rejected', 'fulfilled'],
+    );
+    assert.equal(clone.mock.callCount(), 1);
+    context.mock.restoreAll();
+    for (const callback of [...callbacks.values()]) callback(0);
+    await filters.commit();
+    assert.deepEqual(filters.getState().filters, [{ type: 'brightness', value: 0.3 }]);
+    await dispose(editor);
+});
+
 test('latest preview wins when an earlier clone completes late', async () => {
     const { editor, filters } = await createEditor();
     const baseImage = editor.getCanvas().getObjects()[0];
@@ -279,6 +313,7 @@ test('latest preview wins when an earlier clone completes late', async () => {
     baseImage.clone = () => pending.shift();
 
     const first = filters.preview([{ type: 'brightness', value: 0.2 }]);
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
     const second = filters.preview([{ type: 'contrast', value: 0.6 }]);
     resolveSecond();
     await second;
@@ -303,6 +338,7 @@ test('explicit commit retires an active preview and publishes only the committed
     };
 
     const preview = filters.preview([{ type: 'brightness', value: 0.2 }]);
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
     const commit = filters.commit([{ type: 'contrast', value: 0.4 }]);
     previewGate.resolve(previewClone);
     const [previewResult, commitResult] = await Promise.allSettled([preview, commit]);
@@ -347,6 +383,7 @@ test('dispose during preview suppresses the late clone and releases Canvas state
     baseImage.clone = () => previewGate.promise;
 
     const preview = filters.preview([{ type: 'sepia' }]);
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
     const disposal = editor.disposeAsync();
     previewGate.resolve(candidate);
     const [previewResult, disposalResult] = await Promise.allSettled([preview, disposal]);

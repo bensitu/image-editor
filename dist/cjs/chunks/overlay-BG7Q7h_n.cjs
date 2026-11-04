@@ -2,11 +2,11 @@ const require_core_capabilities = require("./core-capabilities-BtgLLuX2.cjs");
 const require_sdk = require("./sdk-CSVlKrlK.cjs");
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 const require_image_budget = require("./image-budget-BAyRgd0r.cjs");
-const require_core = require("./core-CuZsMxw0.cjs");
+const require_core = require("./core-BBpWXwyA.cjs");
 const require_abortable_promise = require("./abortable-promise-brVLi25s.cjs");
 const require_plugin_identifier = require("./plugin-identifier-7NKI_vMS.cjs");
 
-// dist/esm/foundations/overlay/overlay-transform-delta.js
+// dist/esm/fabric/fabric-transform-delta.js
 function isFiniteTransformMatrix(matrix) {
 	return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 }
@@ -1229,7 +1229,9 @@ var OverlayFoundationController = class {
 		this.preservedRecords = [];
 	}
 	beginGesture(target, action) {
+		var _a, _b;
 		if (this.disposed) return;
+		if (((_b = (_a = this.host).canRunOperation) === null || _b === void 0 ? void 0 : _b.call(_a, "overlay:gesture")) === false) return;
 		const targets = this.resolveOverlayTargets(target);
 		if (targets.length === 0) return;
 		let supersededTransaction = null;
@@ -2040,6 +2042,7 @@ function overlayFoundationPlugin() {
 				...render,
 				...raster,
 				...imageResources,
+				canRunOperation: (operationId) => context.tools.canRunOperation(operationId),
 				runOperation: (operationId, task) => context.operations.run(operationId, null, () => task())
 			});
 			context.operations.register({
@@ -2150,4 +2153,4 @@ Object.defineProperty(exports, "restoreOverlayStateBounds", {
     return restoreOverlayStateBounds;
   }
 });
-//# sourceMappingURL=overlay-BnDCqVed.cjs.map
+//# sourceMappingURL=overlay-BG7Q7h_n.cjs.map

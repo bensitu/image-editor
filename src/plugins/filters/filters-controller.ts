@@ -237,6 +237,7 @@ export class FiltersController {
             const baseImage = this.host.getBaseImage();
             if (!baseImage)
                 throw new Error('[ImageEditor] Cannot preview Filters without a Base Image.');
+            if (definitions.length > 0) await this.waitForPreviewFrame(operationSignal);
             const candidate =
                 definitions.length === 0
                     ? null
@@ -257,6 +258,31 @@ export class FiltersController {
                 disposeFabricImage(candidate);
                 throw error;
             }
+        });
+    }
+
+    private waitForPreviewFrame(signal: AbortSignal): Promise<void> {
+        const view = this.host.getCanvas()?.getElement().ownerDocument.defaultView;
+        if (!view?.requestAnimationFrame) return Promise.resolve();
+        return new Promise<void>((resolve, reject) => {
+            let frame: number | null = null;
+            const cleanup = (): void => {
+                if (frame !== null) view.cancelAnimationFrame(frame);
+                clearTimeout(timeout);
+                signal.removeEventListener('abort', abort);
+            };
+            const finish = (): void => {
+                cleanup();
+                resolve();
+            };
+            const abort = (): void => {
+                cleanup();
+                reject(operationAbortReason(signal, 'Filter preview was aborted.'));
+            };
+            const timeout = setTimeout(finish, 50);
+            signal.addEventListener('abort', abort, { once: true });
+            if (signal.aborted) abort();
+            else frame = view.requestAnimationFrame(finish);
         });
     }
 

@@ -6,8 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
-import { isValidSemVer } from '../../plugin-kernel/semver.js';
-import { isRuntimeIdentifier } from '../../sdk/index.js';
+import { isRuntimeIdentifier, isValidSemVer } from '../../sdk/index.js';
 
 import type {
     OverlayRuntimeApi,

@@ -81,7 +81,7 @@ interface TextRuntimeSession {
     readonly previewId: string;
     readonly preview: TextObject;
     readonly visibility: Disposable;
-    readonly editingExited: () => void;
+    readonly stopEditingListener: () => void;
 }
 
 interface TextStateData {
@@ -667,9 +667,8 @@ export class TextAnnotationController implements Disposable {
             previewId,
             preview,
             visibility,
-            editingExited,
+            stopEditingListener: preview.on('editing:exited', editingExited),
         });
-        preview.on('editing:exited', editingExited);
         this.emitStatus();
     }
 
@@ -840,7 +839,7 @@ export class TextAnnotationController implements Disposable {
         const session = this.session;
         if (!session) return;
         this.session = null;
-        session.preview.off('editing:exited', session.editingExited);
+        session.stopEditingListener();
         session.preview.exitEditing?.();
         this.authoring.removePreview([session.previewId]);
         observePromise(Promise.resolve(session.visibility.dispose()), (error) => {

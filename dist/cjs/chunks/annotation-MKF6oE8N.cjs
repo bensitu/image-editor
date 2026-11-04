@@ -1,7 +1,7 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 const require_core_capabilities = require("./core-capabilities-BtgLLuX2.cjs");
 const require_sdk = require("./sdk-CSVlKrlK.cjs");
-const require_overlay = require("./overlay-BnDCqVed.cjs");
+const require_overlay = require("./overlay-BG7Q7h_n.cjs");
 const require_internal_layer_placement = require("./internal-layer-placement-BVTXDv2N.cjs");
 const require_safe_object_key = require("./safe-object-key-B_cQ-6i9.cjs");
 
@@ -45,7 +45,7 @@ const MAX_ANNOTATION_METADATA_DEPTH = 4;
 const MAX_ANNOTATION_METADATA_KEYS = 32;
 const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
 const normalizedMetadata = /* @__PURE__ */ new WeakSet();
-const textEncoder = new TextEncoder();
+let textEncoder;
 function isPlainRecord$2(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
@@ -58,7 +58,7 @@ function cloneMetadataValue(value, depth, budget) {
 		return value;
 	}
 	if (typeof value === "string") {
-		budget.stringBytes += textEncoder.encode(value).byteLength;
+		budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(value).byteLength;
 		if (budget.stringBytes > 8192) throw new AnnotationValidationError("Annotation metadata string data is too large.");
 		return value;
 	}
@@ -78,7 +78,7 @@ function cloneMetadataValue(value, depth, budget) {
 		const clone = {};
 		for (const [key, entry] of entries) {
 			if (require_safe_object_key.isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
-			budget.stringBytes += textEncoder.encode(key).byteLength;
+			budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(key).byteLength;
 			clone[key] = cloneMetadataValue(entry, depth + 1, budget);
 		}
 		return Object.freeze(clone);
@@ -1591,4 +1591,4 @@ Object.defineProperty(exports, "annotationFoundationRef", {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-DsiEPhWO.cjs.map
+//# sourceMappingURL=annotation-MKF6oE8N.cjs.map

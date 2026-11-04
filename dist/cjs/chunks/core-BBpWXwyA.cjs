@@ -1,6 +1,6 @@
 const require_image_budget = require("./image-budget-BAyRgd0r.cjs");
 const require_plugin_identifier = require("./plugin-identifier-7NKI_vMS.cjs");
-const require_plugin_manager = require("./plugin-manager-B1jkAv40.cjs");
+const require_plugin_manager = require("./plugin-manager-BjtKvIT0.cjs");
 const require_core_capabilities = require("./core-capabilities-BtgLLuX2.cjs");
 const require_safe_object_key = require("./safe-object-key-B_cQ-6i9.cjs");
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
@@ -3253,9 +3253,9 @@ const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
 	maxImageDimension: 32768,
 	externalUrlPolicy: "reject"
 });
-const textEncoder = new TextEncoder();
+let textEncoder;
 function byteLength(value) {
-	return textEncoder.encode(value).byteLength;
+	return (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(value).byteLength;
 }
 function normalizeResourceUrl(value) {
 	let start = 0;
@@ -5793,4 +5793,4 @@ Object.defineProperty(exports, "transformRectBounds", {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-CuZsMxw0.cjs.map
+//# sourceMappingURL=core-BBpWXwyA.cjs.map

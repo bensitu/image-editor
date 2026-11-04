@@ -1,10 +1,10 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
-const require_annotation = require("./annotation-DsiEPhWO.cjs");
+const require_annotation = require("./annotation-MKF6oE8N.cjs");
 const require_core_capabilities = require("./core-capabilities-BtgLLuX2.cjs");
 const require_plugin_identifier = require("./plugin-identifier-7NKI_vMS.cjs");
 const require_sdk = require("./sdk-CSVlKrlK.cjs");
-const require_core = require("./core-CuZsMxw0.cjs");
-const require_overlay = require("./overlay-BnDCqVed.cjs");
+const require_core = require("./core-BBpWXwyA.cjs");
+const require_overlay = require("./overlay-BG7Q7h_n.cjs");
 
 // dist/esm/plugins/annotation-text/text-controller.js
 const TEXT_ANNOTATION_KIND = "annotation:text";
@@ -451,9 +451,8 @@ var TextAnnotationController = class {
 			previewId,
 			preview,
 			visibility,
-			editingExited
+			stopEditingListener: preview.on("editing:exited", editingExited)
 		});
-		preview.on("editing:exited", editingExited);
 		this.emitStatus();
 	}
 	commitEditing() {
@@ -600,7 +599,7 @@ var TextAnnotationController = class {
 		const session = this.session;
 		if (!session) return;
 		this.session = null;
-		session.preview.off("editing:exited", session.editingExited);
+		session.stopEditingListener();
 		(_b = (_a = session.preview).exitEditing) === null || _b === void 0 || _b.call(_a);
 		this.authoring.removePreview([session.previewId]);
 		require_core_capabilities.observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
@@ -776,4 +775,4 @@ Object.defineProperty(exports, "textAnnotationPluginRef", {
     return textAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-text-BZmt7IGJ.cjs.map
+//# sourceMappingURL=annotation-text-BkpJaP0V.cjs.map

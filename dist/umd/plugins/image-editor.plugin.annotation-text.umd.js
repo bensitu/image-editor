@@ -667,9 +667,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				previewId,
 				preview,
 				visibility,
-				editingExited
+				stopEditingListener: preview.on("editing:exited", editingExited)
 			});
-			preview.on("editing:exited", editingExited);
 			this.emitStatus();
 		}
 		commitEditing() {
@@ -816,7 +815,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.session;
 			if (!session) return;
 			this.session = null;
-			session.preview.off("editing:exited", session.editingExited);
+			session.stopEditingListener();
 			(_b = (_a = session.preview).exitEditing) === null || _b === void 0 || _b.call(_a);
 			this.authoring.removePreview([session.previewId]);
 			(0, _bensitu_image_editor_sdk.observePromise)(Promise.resolve(session.visibility.dispose()), (error) => {

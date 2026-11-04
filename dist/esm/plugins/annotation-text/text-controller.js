@@ -536,9 +536,8 @@ export class TextAnnotationController {
             previewId,
             preview,
             visibility,
-            editingExited,
+            stopEditingListener: preview.on('editing:exited', editingExited),
         });
-        preview.on('editing:exited', editingExited);
         this.emitStatus();
     }
     commitEditing() {
@@ -702,7 +701,7 @@ export class TextAnnotationController {
         if (!session)
             return;
         this.session = null;
-        session.preview.off('editing:exited', session.editingExited);
+        session.stopEditingListener();
         (_b = (_a = session.preview).exitEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         this.authoring.removePreview([session.previewId]);
         observePromise(Promise.resolve(session.visibility.dispose()), (error) => {

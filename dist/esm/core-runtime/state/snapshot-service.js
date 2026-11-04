@@ -22,9 +22,9 @@ export const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
     maxImageDimension: 32768,
     externalUrlPolicy: 'reject',
 });
-const textEncoder = new TextEncoder();
+let textEncoder;
 function byteLength(value) {
-    return textEncoder.encode(value).byteLength;
+    return (textEncoder !== null && textEncoder !== void 0 ? textEncoder : (textEncoder = new TextEncoder())).encode(value).byteLength;
 }
 function normalizeResourceUrl(value) {
     let start = 0;

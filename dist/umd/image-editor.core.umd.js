@@ -1654,34 +1654,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo: "history:redo"
 	});
 
-// dist/esm/utils/abortable-promise.js
-	function settleAbortable(task, signal, disposeLateResult) {
-		return new Promise((resolve, reject) => {
-			let settled = false;
-			const finish = (body) => {
-				if (settled) return;
-				settled = true;
-				signal.removeEventListener("abort", abort);
-				body();
-			};
-			const abort = () => finish(() => {
-				var _a;
-				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
-			});
-			signal.addEventListener("abort", abort, { once: true });
-			if (signal.aborted) abort();
-			task.then((value) => {
-				if (settled) {
-					try {
-						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
-					} catch {}
-					return;
-				}
-				finish(() => resolve(value));
-			}, (error) => finish(() => reject(error)));
-		});
-	}
-
 // dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
@@ -2253,15 +2225,22 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const LIFECYCLE_TIMEOUT_MS = 15e3;
 	async function runLifecycleHook(task, parentSignal) {
 		const controller = new AbortController();
+		let rejectAborted = () => void 0;
+		const aborted = new Promise((_resolve, reject) => {
+			rejectAborted = reject;
+		});
+		const rejectOnAbort = () => rejectAborted(controller.signal.reason);
 		const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
 		parentSignal === null || parentSignal === void 0 || parentSignal.addEventListener("abort", abort, { once: true });
 		if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted) abort();
 		const timeout = setTimeout(() => controller.abort(/* @__PURE__ */ new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
 		try {
 			controller.signal.throwIfAborted();
-			await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+			controller.signal.addEventListener("abort", rejectOnAbort, { once: true });
+			await Promise.race([new Promise((resolve) => resolve(task(controller.signal))), aborted]);
 		} finally {
 			clearTimeout(timeout);
+			controller.signal.removeEventListener("abort", rejectOnAbort);
 			parentSignal === null || parentSignal === void 0 || parentSignal.removeEventListener("abort", abort);
 		}
 	}
@@ -6465,9 +6444,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		maxImageDimension: 32768,
 		externalUrlPolicy: "reject"
 	});
-	const textEncoder = new TextEncoder();
+	let textEncoder;
 	function byteLength(value) {
-		return textEncoder.encode(value).byteLength;
+		return (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(value).byteLength;
 	}
 	function normalizeResourceUrl(value) {
 		let start = 0;

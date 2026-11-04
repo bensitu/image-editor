@@ -4,8 +4,6 @@
  * @module
  */
 
-import { settleAbortable } from '../utils/abortable-promise.js';
-
 import type { CapabilityToken } from './capability-token.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import {
@@ -78,6 +76,11 @@ async function runLifecycleHook(
     parentSignal?: AbortSignal,
 ): Promise<void> {
     const controller = new AbortController();
+    let rejectAborted: (reason: unknown) => void = () => undefined;
+    const aborted = new Promise<never>((_resolve, reject) => {
+        rejectAborted = reject;
+    });
+    const rejectOnAbort = (): void => rejectAborted(controller.signal.reason);
     const abort = (): void => controller.abort(parentSignal?.reason);
     parentSignal?.addEventListener('abort', abort, { once: true });
     if (parentSignal?.aborted) abort();
@@ -90,9 +93,14 @@ async function runLifecycleHook(
     );
     try {
         controller.signal.throwIfAborted();
-        await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+        controller.signal.addEventListener('abort', rejectOnAbort, { once: true });
+        await Promise.race([
+            new Promise<unknown>((resolve) => resolve(task(controller.signal))),
+            aborted,
+        ]);
     } finally {
         clearTimeout(timeout);
+        controller.signal.removeEventListener('abort', rejectOnAbort);
         parentSignal?.removeEventListener('abort', abort);
     }
 }

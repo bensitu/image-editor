@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 const require_plugin_identifier = require("../chunks/plugin-identifier-7NKI_vMS.cjs");
 const require_core_capabilities = require("../chunks/core-capabilities-BtgLLuX2.cjs");
-const require_plugin_manager = require("../chunks/plugin-manager-B1jkAv40.cjs");
+const require_plugin_manager = require("../chunks/plugin-manager-BjtKvIT0.cjs");
 
 // dist/esm/testing/deferred-operation.js
 function createDeferredOperation() {
@@ -492,7 +492,7 @@ function assertSliceMigration(source) {
 
 // dist/esm/testing/plugin-conformance.js
 const CONFORMANCE_PROFILE = "3.0";
-const PACKAGE_VERSION = "3.0.0";
+const PACKAGE_VERSION = "3.0.1";
 function describeError(error) {
 	if (error instanceof Error) return `${error.name}: ${error.message}`;
 	return String(error);

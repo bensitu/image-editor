@@ -109,7 +109,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return allocation !== null && Number.isSafeInteger(budget.maxDimension) && Number.isSafeInteger(budget.maxPixels) && budget.maxDimension > 0 && budget.maxPixels > 0 && allocation.width <= budget.maxDimension && allocation.height <= budget.maxDimension && allocation.width <= Math.floor(budget.maxPixels / allocation.height);
 	}
 
-// dist/esm/foundations/overlay/overlay-transform-delta.js
+// dist/esm/fabric/fabric-transform-delta.js
 	function isFiniteTransformMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
@@ -1332,7 +1332,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.preservedRecords = [];
 		}
 		beginGesture(target, action) {
+			var _a, _b;
 			if (this.disposed) return;
+			if (((_b = (_a = this.host).canRunOperation) === null || _b === void 0 ? void 0 : _b.call(_a, "overlay:gesture")) === false) return;
 			const targets = this.resolveOverlayTargets(target);
 			if (targets.length === 0) return;
 			let supersededTransaction = null;
@@ -2143,6 +2145,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					...render,
 					...raster,
 					...imageResources,
+					canRunOperation: (operationId) => context.tools.canRunOperation(operationId),
 					runOperation: (operationId, task) => context.operations.run(operationId, null, () => task())
 				});
 				context.operations.register({

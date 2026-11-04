@@ -216,6 +216,7 @@ type OverlayCoreAccess = CoreDiagnosticsPort &
     RenderRequestPort &
     RasterMutationPort & {
         runOperation(operationId: string, task: () => void | Promise<void>): Promise<void>;
+        canRunOperation?(operationId: string): boolean;
     };
 
 class OverlayFlattenError extends CoreRuntimeError {
@@ -1550,6 +1551,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     private beginGesture(target: FabricNS.FabricObject, action: OverlayMutationAction): void {
         if (this.disposed) return;
+        if (this.host.canRunOperation?.('overlay:gesture') === false) return;
         const targets = this.resolveOverlayTargets(target);
         if (targets.length === 0) return;
         let supersededTransaction: Promise<void> | null = null;

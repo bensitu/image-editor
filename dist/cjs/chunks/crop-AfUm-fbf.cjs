@@ -1,4 +1,4 @@
-const require_overlay = require("./overlay-BnDCqVed.cjs");
+const require_overlay = require("./overlay-BG7Q7h_n.cjs");
 const require_core_capabilities = require("./core-capabilities-BtgLLuX2.cjs");
 const require_plugin_identifier = require("./plugin-identifier-7NKI_vMS.cjs");
 const require_sdk = require("./sdk-CSVlKrlK.cjs");
@@ -1206,4 +1206,4 @@ Object.defineProperty(exports, "cropPluginRef", {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-D_JWt3xT.cjs.map
+//# sourceMappingURL=crop-AfUm-fbf.cjs.map

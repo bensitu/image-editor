@@ -65,7 +65,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
-// dist/esm/foundations/overlay/overlay-transform-delta.js
+// dist/esm/fabric/fabric-transform-delta.js
 	function isFiniteTransformMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
@@ -205,7 +205,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
 	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
 	const normalizedMetadata = /* @__PURE__ */ new WeakSet();
-	const textEncoder = new TextEncoder();
+	let textEncoder;
 	function isPlainRecord$2(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -218,7 +218,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return value;
 		}
 		if (typeof value === "string") {
-			budget.stringBytes += textEncoder.encode(value).byteLength;
+			budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(value).byteLength;
 			if (budget.stringBytes > 8192) throw new AnnotationValidationError("Annotation metadata string data is too large.");
 			return value;
 		}
@@ -238,7 +238,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const clone = {};
 			for (const [key, entry] of entries) {
 				if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
-				budget.stringBytes += textEncoder.encode(key).byteLength;
+				budget.stringBytes += (textEncoder !== null && textEncoder !== void 0 ? textEncoder : textEncoder = new TextEncoder()).encode(key).byteLength;
 				clone[key] = cloneMetadataValue(entry, depth + 1, budget);
 			}
 			return Object.freeze(clone);

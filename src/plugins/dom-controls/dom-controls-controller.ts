@@ -739,7 +739,8 @@ export class DomControlsController implements Disposable {
         const target = this.resolveKeyboardTarget(ownerDocument, keyboard.target);
         this.listen(target, 'keydown', (event) => {
             const keyboardEvent = event as KeyboardEvent;
-            if (keyboardEvent.defaultPrevented || keyboardEvent.repeat) return;
+            if (keyboardEvent.defaultPrevented || keyboardEvent.repeat || keyboardEvent.isComposing)
+                return;
             if (
                 keyboard.allowInEditable !== true &&
                 isEditableNode(keyboardEvent.target, ownerDocument)
@@ -764,7 +765,11 @@ export class DomControlsController implements Disposable {
         const keyboard = options.keyboard!;
         const apis = this.requireApis();
         const modifier = event.ctrlKey || event.metaKey;
-        const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+        const logicalKey = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+        const key =
+            logicalKey && !/\p{ASCII}/u.test(logicalKey) && /^Key[ZY]$/u.test(event.code)
+                ? event.code.slice(3).toLowerCase()
+                : logicalKey;
 
         if (keyboard.historyActions !== false && modifier && !event.altKey) {
             if ((key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey)) {

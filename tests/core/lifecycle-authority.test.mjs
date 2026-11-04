@@ -259,4 +259,5 @@ test('asynchronous disposal waits for initialization and then releases the edito
     complete();
     await Promise.all([initializing, disposal]);
     assert.equal(editor.getLifecycleState(), 'disposed');
+    assert.equal(editor.getCanvas(), null);
 });

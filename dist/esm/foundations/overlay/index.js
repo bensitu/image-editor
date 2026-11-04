@@ -100,6 +100,7 @@ export function overlayFoundationPlugin() {
                 ...render,
                 ...raster,
                 ...imageResources,
+                canRunOperation: (operationId) => context.tools.canRunOperation(operationId),
                 runOperation: (operationId, task) => context.operations.run(operationId, null, () => task()),
             });
             context.operations.register({

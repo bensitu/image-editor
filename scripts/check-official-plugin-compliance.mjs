@@ -35,6 +35,7 @@ const publicSourceEntries = new Set([
 ]);
 const publicSafeUtilities = new Set([
     'src/fabric/fabric-animation.ts',
+    'src/fabric/fabric-transform-delta.ts',
     'src/fabric/safe-fabric-serialization.ts',
     'src/mask/mask-factory.ts',
     'src/mask/mask-label-manager.ts',
@@ -45,6 +46,7 @@ const publicSafeUtilities = new Set([
     'src/utils/image-budget.ts',
     'src/utils/internal-layer-placement.ts',
     'src/utils/internal-operation-conflict-domains.ts',
+    'src/utils/raster-output.ts',
     'src/utils/safe-object-key.ts',
 ]);
 const permissionRequirements = new Map([

@@ -95,9 +95,9 @@ function isRecord(value) {
 function isFiniteNumber(value) {
     return typeof value === 'number' && Number.isFinite(value);
 }
-const textEncoder = new TextEncoder();
+let textEncoder;
 function byteLength(value) {
-    return textEncoder.encode(value).byteLength;
+    return (textEncoder !== null && textEncoder !== void 0 ? textEncoder : (textEncoder = new TextEncoder())).encode(value).byteLength;
 }
 function limit(value, fallback, label) {
     if (value === undefined)

@@ -1,5 +1,4 @@
-import { isValidSemVer } from '../../plugin-kernel/semver.js';
-import { isRuntimeIdentifier } from '../../sdk/index.js';
+import { isRuntimeIdentifier, isValidSemVer } from '../../sdk/index.js';
 import { OverlayStateCodecError, OverlayStateIdConflictError, OverlayStatePluginDisposedError, OverlayStateValidationError, } from './overlay-state-errors.js';
 import { createOverlayStateContext } from './overlay-state-coordinate.js';
 import { OVERLAY_STATE_COORDINATE_SPACE, OVERLAY_STATE_SCHEMA, OVERLAY_STATE_WIRE_VERSION, } from './overlay-state-types.js';

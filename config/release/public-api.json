@@ -4611,7 +4611,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "fd353c06267d8dbf9edd93b4abd772b749baa41fffb6bc079ec79b152b73785b",
+        "graphSha256": "758473d2cc2f064ef418268ce18e18689f254f04c50e84192d2db7e14b123500",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4635,7 +4635,7 @@
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "2f8c812eb0ab7df5846e1794ec9cb62ab8d20bf912a2280449ea94c5cbacc50f"
+                "sha256": "dc16e6ffb745b9e64fe4683af065ede30bfcf5b6ead24fdca0ba72c13e2754d6"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
@@ -4695,7 +4695,7 @@
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
-                "sha256": "f8c83586439c1ef3e02d7c58397c9044762c4135a02941037c92341bce22184c"
+                "sha256": "f8300456efca2e7783b111af37a22c3691db9d8bef7e13ac8480f6fac76ac3e4"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-definition.d.ts",
@@ -4867,7 +4867,7 @@
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-controller.d.ts",
-                "sha256": "0b13ba998d607bf12d949795bfd25ceccdd02c86aad74d73e2cb63e37f92b2f0"
+                "sha256": "131386c609c2d6213e652f1ddc47add08195ca9321b0e04cbd555ee150b56e8d"
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-types.d.ts",
@@ -4887,7 +4887,7 @@
             },
             {
                 "file": "dist/types/plugins/filters/filters-controller.d.ts",
-                "sha256": "9169c98736210bae93e69368fd4fc6e3136919e94827de9c0d2e375c137e1468"
+                "sha256": "63b342147c138f757cb6d72ad4dcf8b7afb36bca75717a1380734217f96e1f96"
             },
             {
                 "file": "dist/types/plugins/filters/filters-errors.d.ts",
@@ -4899,7 +4899,7 @@
             },
             {
                 "file": "dist/types/plugins/history/history-controller.d.ts",
-                "sha256": "e89b40f25563a7bb55ef2a119262cc6d6156e0e44a0fc3ee58629f659b041c1b"
+                "sha256": "72bb529ace5630c7577b28239202378f47c7fe48d66922bdbff78158993a7c85"
             },
             {
                 "file": "dist/types/plugins/history/index.d.ts",

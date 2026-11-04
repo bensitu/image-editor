@@ -33,16 +33,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-// dist/esm/plugin-kernel/semver.js
-	const numericIdentifier = "(?:0|[1-9]\\d*)";
-	const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
-	const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, "u");
-	const partialVersionPattern = new RegExp(`^(${numericIdentifier})(?:\\.(${numericIdentifier}|[xX*]))?(?:\\.(${numericIdentifier}|[xX*]))?$`, "u");
-	const MAX_SEMVER_INPUT_LENGTH = 256;
-	function isValidSemVer(version) {
-		return version.length <= MAX_SEMVER_INPUT_LENGTH && version.trim() === version && semVerPattern.test(version);
-	}
-
 // dist/esm/plugins/overlay-state/overlay-state-errors.js
 	var OverlayStateValidationError = class extends TypeError {
 		constructor(issues) {
@@ -486,7 +476,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		else {
 			hasOnlyKeys(value.codec, CODEC_KEYS, `${path}.codec`, issues);
 			validIdentifier(value.codec.type, `${path}.codec.type`, limits, issues);
-			if (typeof value.codec.version !== "string" || value.codec.version.length > limits.maxIdentifierLength || !isValidSemVer(value.codec.version)) addIssue(issues, "codec.versionInvalid", `${path}.codec.version`, "Codec version must be valid semantic versioning.");
+			if (typeof value.codec.version !== "string" || value.codec.version.length > limits.maxIdentifierLength || !(0, _bensitu_image_editor_sdk.isValidSemVer)(value.codec.version)) addIssue(issues, "codec.versionInvalid", `${path}.codec.version`, "Codec version must be valid semantic versioning.");
 		}
 		if (!Object.prototype.hasOwnProperty.call(value, "geometry")) addIssue(issues, "overlay.geometryMissing", `${path}.geometry`, "Geometry is required.");
 		if (!Object.prototype.hasOwnProperty.call(value, "data")) addIssue(issues, "overlay.dataMissing", `${path}.data`, "Codec data is required.");
@@ -591,7 +581,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function resolveStateKind(overlay, kind) {
 		const adapter = overlay.getStateKind(kind);
 		const codec = adapter === null || adapter === void 0 ? void 0 : adapter.stateCodec;
-		if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== "persistent" || !codec || typeof codec.type !== "string" || !(0, _bensitu_image_editor_sdk.isRuntimeIdentifier)(codec.type) || typeof codec.version !== "string" || !isValidSemVer(codec.version) || typeof codec.serialize !== "function" || typeof codec.validate !== "function" || typeof codec.deserialize !== "function") return null;
+		if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== "persistent" || !codec || typeof codec.type !== "string" || !(0, _bensitu_image_editor_sdk.isRuntimeIdentifier)(codec.type) || typeof codec.version !== "string" || !(0, _bensitu_image_editor_sdk.isValidSemVer)(codec.version) || typeof codec.serialize !== "function" || typeof codec.validate !== "function" || typeof codec.deserialize !== "function") return null;
 		return Object.freeze({
 			adapter,
 			codec

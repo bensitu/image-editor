@@ -9,6 +9,9 @@ export Features, Presets, DOM Controls, or migration code.
 This reference describes the modular public API. The Core and Feature contracts
 replace the Facade contract.
 
+See [Runtime behavior](runtime-behavior.md) for resource ownership, History,
+transaction, coordinate, and integration contracts.
+
 ## Formal package entries
 
 Every main-package entry below provides ESM, CommonJS, ESM declarations,

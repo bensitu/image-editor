@@ -699,6 +699,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.assertImageLoaded("preview Filters");
 				const baseImage = this.host.getBaseImage();
 				if (!baseImage) throw new Error("[ImageEditor] Cannot preview Filters without a Base Image.");
+				if (definitions.length > 0) await this.waitForPreviewFrame(operationSignal);
 				const candidate = definitions.length === 0 ? null : await createFilteredImageClone(this.host.fabric, baseImage, definitions, operationSignal, this.host.backgroundColor);
 				if (this.disposed || operationSignal.aborted || sequence !== this.previewSequence) {
 					disposeFabricImage(candidate);
@@ -710,6 +711,31 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					disposeFabricImage(candidate);
 					throw error;
 				}
+			});
+		}
+		waitForPreviewFrame(signal) {
+			var _a;
+			const view = (_a = this.host.getCanvas()) === null || _a === void 0 ? void 0 : _a.getElement().ownerDocument.defaultView;
+			if (!(view === null || view === void 0 ? void 0 : view.requestAnimationFrame)) return Promise.resolve();
+			return new Promise((resolve, reject) => {
+				let frame = null;
+				const cleanup = () => {
+					if (frame !== null) view.cancelAnimationFrame(frame);
+					clearTimeout(timeout);
+					signal.removeEventListener("abort", abort);
+				};
+				const finish = () => {
+					cleanup();
+					resolve();
+				};
+				const abort = () => {
+					cleanup();
+					reject(operationAbortReason(signal, "Filter preview was aborted."));
+				};
+				const timeout = setTimeout(finish, 50);
+				signal.addEventListener("abort", abort, { once: true });
+				if (signal.aborted) abort();
+				else frame = view.requestAnimationFrame(finish);
 			});
 		}
 		cancelPreview() {

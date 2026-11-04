@@ -112,6 +112,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 		handleNativeUp(event) {
 			if (this.disposed || !this.pointerActive || !samePointer(this.activePointerId, event)) return;
+			if (event.target === this.canvas.upperCanvasEl) return;
 			const scenePoint = this.canvas.getScenePoint(event);
 			const sample = this.createSample(scenePoint, null, event);
 			this.clearPointer();

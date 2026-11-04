@@ -209,6 +209,7 @@ test('keyboard actions guard editable targets, locked overlays, and handled defa
 
     const undo = new window.KeyboardEvent('keydown', {
         key: 'z',
+        code: 'KeyW',
         ctrlKey: true,
         bubbles: true,
         cancelable: true,
@@ -216,6 +217,26 @@ test('keyboard actions guard editable targets, locked overlays, and handled defa
     document.dispatchEvent(undo);
     await tick();
     assert.equal(undo.defaultPrevented, true);
+    assert.equal(context.transform.getState().scale, 1);
+
+    const redo = new window.KeyboardEvent('keydown', {
+        key: 'y',
+        code: 'KeyY',
+        ctrlKey: true,
+        cancelable: true,
+    });
+    document.dispatchEvent(redo);
+    await tick();
+    const localizedUndo = new window.KeyboardEvent('keydown', {
+        key: 'я',
+        code: 'KeyZ',
+        ctrlKey: true,
+        cancelable: true,
+    });
+    document.dispatchEvent(localizedUndo);
+    await tick();
+    assert.equal(redo.defaultPrevented, true);
+    assert.equal(localizedUndo.defaultPrevented, true);
     assert.equal(context.transform.getState().scale, 1);
 
     await context.crop.enter();

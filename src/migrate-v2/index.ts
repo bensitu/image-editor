@@ -146,10 +146,10 @@ function isFiniteNumber(value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
 }
 
-const textEncoder = new TextEncoder();
+let textEncoder: TextEncoder | undefined;
 
 function byteLength(value: string): number {
-    return textEncoder.encode(value).byteLength;
+    return (textEncoder ??= new TextEncoder()).encode(value).byteLength;
 }
 
 function limit(value: number | undefined, fallback: number, label: string): number {

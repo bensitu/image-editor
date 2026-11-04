@@ -114,6 +114,8 @@ export class FabricPointerSource implements Disposable {
         if (this.disposed || !this.pointerActive || !samePointer(this.activePointerId, event)) {
             return;
         }
+        // Let Fabric complete its object handlers before starting an editing session on the Canvas.
+        if (event.target === this.canvas.upperCanvasEl) return;
         const scenePoint = this.canvas.getScenePoint(event);
         const sample = this.createSample(scenePoint, null, event);
         this.clearPointer();
