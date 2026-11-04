@@ -41,10 +41,11 @@ npm run demo:local
 This command builds the current checkout and serves the repository root, so
 the current Demo pages load Fabric from `node_modules` and Image Editor Core and
 Plugins directly from `dist/umd`. Keep the explicit script tags in each page:
-`npm run package:pages` copies the documentation into `.pages-site` and rewrites
-those local sources to the versioned jsDelivr URLs used by GitHub Pages.
-Production integrations should still pin one exact package version for Core
-and every Plugin.
+`npm run package:pages` copies the documentation and current UMD distribution
+into `.pages-site`, then adds integrity hashes to the packaged script references.
+Fabric is loaded from an exact-version jsDelivr URL with an integrity hash.
+Production integrations should pin one exact package version for Core and every
+Plugin.
 
 Use this Vite command instead of a live-reload server that injects inline
 scripts. The reviewed Content Security Policy intentionally blocks inline
