@@ -333,3 +333,27 @@ test('operation token is released when initial memento capture fails', async () 
     );
     assert.equal(releases, 1);
 });
+
+test('failed geometry preparation releases already prepared participants in reverse order', async () => {
+    const harness = createHarness();
+    const released = [];
+    for (let index = 0; index < 3; index += 1) {
+        harness.coordinator.registerParticipant({
+            id: `participant-${index}`,
+            order: index,
+            supports: () => true,
+            prepare: () => {
+                if (index === 2) throw new Error('prepare failed');
+                return index;
+            },
+            apply: () => {},
+            rollback: (_descriptor, prepared, context) => {
+                assert.equal(context.signal.aborted, false);
+                released.push(prepared);
+            },
+        });
+    }
+    await assert.rejects(harness.coordinator.run(mutation(harness)), /prepare failed/);
+    assert.deepEqual(released, [1, 0]);
+    assert.equal(harness.getValue(), 1);
+});

@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.Filters = global.ImageEditorPlugins.Filters || {}), global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "filtersPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,14 +33,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/core/public-types.js
+// dist/esm/core/public-types.js
 	function isBaseImageObject(object) {
 		return !!object && typeof object === "object" && object.editorObjectKind === "baseImage";
 	}
 
-//#endregion
-//#region dist/esm/utils/internal-layer-placement.js
+// dist/esm/utils/internal-layer-placement.js
 	function isRasterVisualObject(object) {
 		return object.editorLayerRole === "rasterVisual";
 	}
@@ -75,14 +73,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, markedVisual, objects.filter(isBaseImageObject).length + objects.filter(isRasterVisualObject).length);
 	}
 
-//#endregion
-//#region dist/esm/utils/safe-object-key.js
+// dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/filters-errors.js
+// dist/esm/plugins/filters/filters-errors.js
 	var FilterDefinitionError = class extends TypeError {
 		constructor(message, path = "$") {
 			super(`[ImageEditor] ${message}`);
@@ -164,8 +160,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/filters/filter-definitions.js
+// dist/esm/plugins/filters/filter-definitions.js
 	const MAX_SUPPORTED_FILTER_COUNT = 8;
 	const SUPPORTED_FILTER_TYPES = Object.freeze([
 		"brightness",
@@ -250,8 +245,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/fabric-filter-factory.js
+// dist/esm/plugins/filters/fabric-filter-factory.js
 	function getFilterRegistry(fabric) {
 		var _a;
 		return (_a = fabric.filters) !== null && _a !== void 0 ? _a : {};
@@ -327,8 +321,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/utils/abortable-promise.js
+// dist/esm/utils/abortable-promise.js
 	function settleAbortable(task, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
 			let settled = false;
@@ -356,8 +349,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/utils/base64-payload.js
+// dist/esm/utils/base64-payload.js
 	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
 	function base64PayloadByteLength(payload) {
 		const firstPaddingIndex = payload.indexOf("=");
@@ -369,8 +361,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Math.floor(payload.length * 3 / 4) - padding.length;
 	}
 
-//#endregion
-//#region dist/esm/utils/error.js
+// dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
 		try {
@@ -380,14 +371,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/utils/image-budget.js
+// dist/esm/utils/image-budget.js
 	function isPixelAreaWithinBudget(width, height, maxPixels) {
 		return Number.isSafeInteger(width) && Number.isSafeInteger(height) && Number.isSafeInteger(maxPixels) && width > 0 && height > 0 && maxPixels > 0 && width <= Math.floor(maxPixels / height);
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/filtered-image-renderer.js
+// dist/esm/plugins/filters/filtered-image-renderer.js
 	function abortError$1(message) {
 		return new DOMException(message, "AbortError");
 	}
@@ -534,8 +523,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/filters-controller.js
+// dist/esm/plugins/filters/filters-controller.js
 	const FILTERS_STATE_SCHEMA = "image-editor.filters";
 	const FILTERS_STATE_VERSION = 1;
 	function createState(definitions) {
@@ -1093,8 +1081,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/filters/index.js
+// dist/esm/plugins/filters/index.js
 	const filtersPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:filters", "1.0.0");
 	function filtersPlugin(options = {}) {
 		let controller = null;
@@ -1288,7 +1275,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.FilterBakeValidationError = FilterBakeValidationError;
 exports.FilterDefinitionError = FilterDefinitionError;
 exports.FilterImplementationError = FilterImplementationError;

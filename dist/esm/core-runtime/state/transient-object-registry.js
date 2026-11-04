@@ -56,9 +56,10 @@ export class TransientObjectRegistry {
             catch (error) {
                 (_a = this.warningSink) === null || _a === void 0 ? void 0 : _a.call(this, {
                     code: 'TRANSIENT_PREDICATE_FAILED',
-                    message: `Transient object predicate owned by "${record.owner}" failed and was ignored.`,
+                    message: `Transient object predicate owned by "${record.owner}" failed.`,
                     details: Object.freeze({ owner: record.owner, cause: error }),
                 });
+                throw new StateRegistrationError(`Transient object classification failed for "${record.owner}".`);
             }
         }
         return false;

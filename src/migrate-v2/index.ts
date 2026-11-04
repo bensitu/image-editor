@@ -146,8 +146,10 @@ function isFiniteNumber(value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
 }
 
+const textEncoder = new TextEncoder();
+
 function byteLength(value: string): number {
-    return new TextEncoder().encode(value).byteLength;
+    return textEncoder.encode(value).byteLength;
 }
 
 function limit(value: number | undefined, fallback: number, label: string): number {
@@ -461,7 +463,12 @@ function findBaseImage(
         }
         return image;
     }
-    const images = objects.filter((object) => objectType(object) === 'image');
+    const images = objects.filter(
+        (object) =>
+            objectType(object) === 'image' &&
+            object.isMosaicPreview !== true &&
+            object.editorObjectKind !== 'session',
+    );
     if (images.length > 1) {
         throw new SnapshotMigrationError(
             'base.ambiguous',
@@ -670,8 +677,14 @@ function pathPoints(value: unknown): readonly Readonly<{ x: number; y: number }>
     const points: Readonly<{ x: number; y: number }>[] = [];
     for (const segment of value) {
         if (!Array.isArray(segment) || typeof segment[0] !== 'string') continue;
-        const command = segment[0].toUpperCase();
-        if (!['M', 'L', 'T', 'Q', 'S', 'C'].includes(command)) continue;
+        const command = segment[0];
+        if (!['M', 'L', 'T', 'Q', 'S', 'C'].includes(command)) {
+            throw new SnapshotMigrationError(
+                'path.command',
+                'Unsupported draw path command.',
+                '$.objects.path',
+            );
+        }
         const x = segment[segment.length - 2];
         const y = segment[segment.length - 1];
         if (!isFiniteNumber(x) || !isFiniteNumber(y)) continue;

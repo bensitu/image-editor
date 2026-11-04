@@ -53,6 +53,17 @@ const MASK_INTERACTION_PROPERTIES = new Set([
     'transparentCorners',
 ]);
 const ROOT_TYPE_PROPERTIES: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
+    image: new Set([
+        'src',
+        'crossOrigin',
+        'cropX',
+        'cropY',
+        'filters',
+        'resizeFilter',
+        'minimumScaleTrigger',
+        'imageSmoothing',
+        'editorObjectKind',
+    ]),
     rect: new Set(['rx', 'ry']),
     circle: new Set(['counterClockwise', 'endAngle', 'radius', 'startAngle']),
     ellipse: new Set(['rx', 'ry']),
@@ -88,6 +99,7 @@ const ROOT_TYPE_PROPERTIES: Readonly<Record<string, ReadonlySet<string>>> = Obje
 
 export interface SerializedFabricValidationOptions {
     readonly rootTypes: readonly string[];
+    readonly additionalRootProperties?: readonly string[];
     readonly maxDepth?: number;
     readonly maxNodes?: number;
     readonly maxArrayLength?: number;
@@ -190,6 +202,7 @@ export function isSafeSerializedFabricObject(
                 root &&
                 !COMMON_ROOT_PROPERTIES.has(key) &&
                 !MASK_INTERACTION_PROPERTIES.has(key) &&
+                !options.additionalRootProperties?.includes(key) &&
                 !ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]?.has(key)
             ) {
                 return false;
@@ -199,6 +212,12 @@ export function isSafeSerializedFabricObject(
             if (key === 'clipPath' && descriptor.value !== null && descriptor.value !== undefined) {
                 return false;
             }
+            if (
+                key === 'resizeFilter' &&
+                descriptor.value !== null &&
+                descriptor.value !== undefined
+            )
+                return false;
             if (
                 key === 'filters' &&
                 (!Array.isArray(descriptor.value) || descriptor.value.length > 0)

@@ -70,8 +70,10 @@ export const DEFAULT_SNAPSHOT_LIMITS: SnapshotLimits = Object.freeze({
     externalUrlPolicy: 'reject',
 });
 
+const textEncoder = new TextEncoder();
+
 function byteLength(value: string): number {
-    return new TextEncoder().encode(value).byteLength;
+    return textEncoder.encode(value).byteLength;
 }
 
 function inspectTree(
@@ -97,7 +99,7 @@ function inspectTree(
                     path,
                 );
             }
-            if (value.startsWith('data:')) {
+            if (/^data:/iu.test(value)) {
                 const inspection = inspectEncodedImageDataUrl(value);
                 if (!inspection) {
                     throw new SnapshotValidationError(
@@ -108,6 +110,12 @@ function inspectTree(
                 if (inspection.encodedBytes > limits.maxDataUrlBytes) {
                     throw new SnapshotValidationError(
                         `Data URL exceeds ${limits.maxDataUrlBytes} bytes.`,
+                        path,
+                    );
+                }
+                if (!inspection.dimensions) {
+                    throw new SnapshotValidationError(
+                        'Image dimensions could not be determined.',
                         path,
                     );
                 }
@@ -129,7 +137,7 @@ function inspectTree(
             } else if (
                 limits.externalUrlPolicy === 'reject' &&
                 isExternalResourceKey(propertyName) &&
-                /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(value)
+                value.length > 0
             ) {
                 throw new SnapshotValidationError('external URL references are forbidden.', path);
             }

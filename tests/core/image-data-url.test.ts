@@ -99,3 +99,23 @@ test('data URL inspection retains case-insensitive PNG, JPEG, and WebP dimension
         );
     }
 });
+
+test('JPEG dimension inspection skips metadata beyond the initial header probe', () => {
+    const segment = Buffer.alloc(65_537);
+    segment.set([0xff, 0xe1, 0xff, 0xff]);
+    const source = Buffer.concat([
+        Buffer.from([0xff, 0xd8]),
+        ...Array(5).fill(segment),
+        Buffer.from(jpegHeader(12000, 9000), 'base64').subarray(2),
+    ]);
+    assert.deepEqual(
+        inspectEncodedImageDataUrl(`data:image/jpeg;base64,${source.toString('base64')}`)
+            ?.dimensions,
+        { width: 12000, height: 9000 },
+    );
+    assert.equal(
+        inspectEncodedImageDataUrl(`data:image/png;base64,${source.toString('base64')}`)
+            ?.dimensions,
+        null,
+    );
+});

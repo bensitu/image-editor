@@ -58,9 +58,12 @@ export class TransientObjectRegistry<TObject = unknown> implements Disposable {
             } catch (error) {
                 this.warningSink?.({
                     code: 'TRANSIENT_PREDICATE_FAILED',
-                    message: `Transient object predicate owned by "${record.owner}" failed and was ignored.`,
+                    message: `Transient object predicate owned by "${record.owner}" failed.`,
                     details: Object.freeze({ owner: record.owner, cause: error }),
                 });
+                throw new StateRegistrationError(
+                    `Transient object classification failed for "${record.owner}".`,
+                );
             }
         }
         return false;

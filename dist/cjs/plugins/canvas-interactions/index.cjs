@@ -1,9 +1,9 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
-const require_core_capabilities = require('../../chunks/core-capabilities-BJafsEkA.cjs');
-const require_core = require('../../chunks/core-jSdV4FnB.cjs');
-const require_sdk = require('../../chunks/sdk-DFCNfN_D.cjs');
+const require_core_capabilities = require("../../chunks/core-capabilities-DaGyFp12.cjs");
+const require_sdk = require("../../chunks/sdk-ClcNYrYa.cjs");
+const require_core = require("../../chunks/core-GR9aQ4Ip.cjs");
 
-//#region dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
+// dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
 function finiteNumber(value) {
 	return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -149,8 +149,7 @@ var FabricPointerSource = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/interaction-runtime.js
+// dist/esm/plugins/canvas-interactions/interaction-runtime.js
 function isPromiseLike(value) {
 	return (typeof value === "object" || typeof value === "function") && value !== null && typeof value.then === "function";
 }
@@ -382,8 +381,7 @@ var InteractionRuntime = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/pointer-coordinate-mapper.js
+// dist/esm/plugins/canvas-interactions/pointer-coordinate-mapper.js
 var PointerCoordinateMapper = class {
 	constructor(baseImage) {
 		Object.defineProperty(this, "baseImage", {
@@ -413,8 +411,7 @@ var PointerCoordinateMapper = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-property-lease.js
+// dist/esm/plugins/canvas-interactions/canvas-property-lease.js
 var CanvasPropertyLease = class {
 	constructor(target, key, owned) {
 		Object.defineProperty(this, "target", {
@@ -487,8 +484,7 @@ var CanvasPropertyLeaseGroup = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-interactions-controller.js
+// dist/esm/plugins/canvas-interactions/canvas-interactions-controller.js
 var CanvasInteractionsController = class {
 	constructor(host, tools, options, bindings = []) {
 		Object.defineProperty(this, "host", {
@@ -653,8 +649,7 @@ var CanvasInteractionsController = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
+// dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
 var CanvasInteractionsConfigurationError = class extends Error {
 	constructor(message) {
 		super(`[ImageEditor] ${message}`);
@@ -667,8 +662,7 @@ var CanvasInteractionsConfigurationError = class extends Error {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
+// dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
 var LatestValueScheduler = class {
 	constructor(worker) {
 		Object.defineProperty(this, "worker", {
@@ -773,8 +767,7 @@ var LatestValueScheduler = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/shape-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/shape-interaction-binding.js
 const SHAPE_TOOL_ID = "annotation:shape";
 const DEFAULT_MINIMUM_DRAG_DISTANCE = 2;
 function geometry(kind, start, end) {
@@ -881,8 +874,7 @@ var ShapeInteractionBinding = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/schedulers/ordered-sample-scheduler.js
+// dist/esm/plugins/canvas-interactions/schedulers/ordered-sample-scheduler.js
 var OrderedSampleScheduler = class {
 	constructor(worker) {
 		Object.defineProperty(this, "worker", {
@@ -980,8 +972,7 @@ var OrderedSampleScheduler = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/draw-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/draw-interaction-binding.js
 const DRAW_TOOL_ID = "annotation:draw";
 var DrawInteractionBinding = class {
 	constructor(options) {
@@ -1058,8 +1049,7 @@ var DrawInteractionBinding = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/mosaic-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/mosaic-interaction-binding.js
 const MOSAIC_TOOL_ID = "plugin:mosaic";
 function mosaicPoint(point) {
 	return Object.freeze({
@@ -1142,8 +1132,7 @@ var MosaicInteractionBinding = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/text-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/text-interaction-binding.js
 const TEXT_TOOL_ID = "annotation:text";
 const TEXT_KIND = "annotation:text";
 function textClassification(overlays, sample) {
@@ -1296,8 +1285,7 @@ var TextInteractionBinding = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/create-bindings.js
+// dist/esm/plugins/canvas-interactions/bindings/create-bindings.js
 function createCanvasInteractionBindings(options) {
 	const bindings = [];
 	if (options.text) bindings.push(new TextInteractionBinding(options.text));
@@ -1307,8 +1295,7 @@ function createCanvasInteractionBindings(options) {
 	return Object.freeze(bindings);
 }
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/index.js
+// dist/esm/plugins/canvas-interactions/index.js
 const canvasInteractionsPluginRef = require_core_capabilities.definePluginRef("plugin:canvas-interactions", "1.0.0");
 function collectPluginDependencies(options) {
 	if (typeof options !== "object" || options === null || Array.isArray(options)) throw new CanvasInteractionsConfigurationError("Canvas Interactions options must be an object.");
@@ -1396,7 +1383,6 @@ function canvasInteractionsPlugin(options = {}) {
 	});
 }
 
-//#endregion
 exports.CanvasInteractionsConfigurationError = CanvasInteractionsConfigurationError;
 exports.canvasInteractionsPlugin = canvasInteractionsPlugin;
 exports.default = canvasInteractionsPlugin;

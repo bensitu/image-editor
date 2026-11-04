@@ -4,7 +4,7 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditor = global.ImageEditor || {})));
 })(this, function(exports) {
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/plugin-kernel/errors.js
+// dist/esm/plugin-kernel/errors.js
 	function createPluginErrorOptions(pluginId, cause) {
 		return {
 			...pluginId ? { pluginId } : {},
@@ -252,8 +252,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-identifier.js
+// dist/esm/plugin-kernel/plugin-identifier.js
 	const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 	function isDangerousStateKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
@@ -266,8 +265,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return pluginId;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/semver.js
+// dist/esm/plugin-kernel/semver.js
 	const numericIdentifier = "(?:0|[1-9]\\d*)";
 	const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
 	const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, "u");
@@ -277,9 +275,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function parseRangeVersion(value) {
 		const exact = semVerPattern.exec(value);
 		if (exact) return {
-			major: Number(exact[1]),
-			minor: Number(exact[2]),
-			patch: Number(exact[3]),
+			major: exact[1],
+			minor: exact[2],
+			patch: exact[3],
 			exact: value
 		};
 		const partial = partialVersionPattern.exec(value);
@@ -287,23 +285,34 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const minor = partial[2];
 		const patch = partial[3];
 		return {
-			major: Number(partial[1]),
-			minor: minor === void 0 || /[xX*]/u.test(minor) ? null : Number(minor),
-			patch: patch === void 0 || /[xX*]/u.test(patch) ? null : Number(patch),
+			major: partial[1],
+			minor: minor === void 0 || /[xX*]/u.test(minor) ? null : minor,
+			patch: patch === void 0 || /[xX*]/u.test(patch) ? null : patch,
 			exact: null
 		};
+	}
+	function incrementNumeric(value) {
+		const digits = value.split("");
+		for (let index = digits.length - 1; index >= 0; index -= 1) {
+			if (digits[index] !== "9") {
+				digits[index] = String(Number(digits[index]) + 1);
+				return digits.join("");
+			}
+			digits[index] = "0";
+		}
+		return `1${digits.join("")}`;
 	}
 	function lowerBound(version) {
 		var _a, _b;
 		return `${version.major}.${(_a = version.minor) !== null && _a !== void 0 ? _a : 0}.${(_b = version.patch) !== null && _b !== void 0 ? _b : 0}`;
 	}
 	function exclusiveUpperBound(version) {
-		return version.minor === null ? `${version.major + 1}.0.0` : `${version.major}.${version.minor + 1}.0`;
+		return version.minor === null ? `${incrementNumeric(version.major)}.0.0` : `${version.major}.${incrementNumeric(version.minor)}.0`;
 	}
 	function caretUpperBound(version) {
-		if (version.major > 0 || version.minor === null) return `${version.major + 1}.0.0`;
-		if (version.minor > 0 || version.patch === null) return `0.${version.minor + 1}.0`;
-		return `0.0.${version.patch + 1}`;
+		if (version.major !== "0" || version.minor === null) return `${incrementNumeric(version.major)}.0.0`;
+		if (version.minor !== "0" || version.patch === null) return `0.${incrementNumeric(version.minor)}.0`;
+		return `0.0.${incrementNumeric(version.patch)}`;
 	}
 	function normalizeComparator(token) {
 		var _a, _b;
@@ -311,26 +320,28 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const match = comparatorPattern.exec(token);
 		if (!match) return null;
 		const operator = (_a = match[1]) !== null && _a !== void 0 ? _a : "";
+		if (/^[xX*]$/u.test(match[2])) return ["<", ">"].includes(operator) ? ["<0.0.0-0"] : [">=0.0.0"];
 		const version = parseRangeVersion(match[2]);
 		if (!version) return null;
 		const lower = (_b = version.exact) !== null && _b !== void 0 ? _b : lowerBound(version);
-		if (operator === "^") return [`>=${lower}`, `<${caretUpperBound(version)}`];
-		if (operator === "~") return [`>=${lower}`, `<${exclusiveUpperBound(version)}`];
+		if (operator === "^") return [`>=${lower}`, `<${caretUpperBound(version)}-0`];
+		if (operator === "~") return [`>=${lower}`, `<${exclusiveUpperBound(version)}-0`];
 		if (version.exact !== null) return [`${operator}${version.exact}`];
 		const upper = exclusiveUpperBound(version);
 		if (operator === ">") return [`>=${upper}`];
-		if (operator === "<=") return [`<${upper}`];
-		if (operator === "<") return [`<${lower}`];
+		if (operator === "<=") return [`<${upper}-0`];
+		if (operator === "<") return [`<${lower}-0`];
 		if (operator === ">=") return [`>=${lower}`];
-		return [`>=${lower}`, `<${upper}`];
+		return [`>=${lower}`, `<${upper}-0`];
 	}
 	function normalizeComparatorSet(value) {
+		var _a;
 		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(value);
 		if (hyphen) {
 			const lower = parseRangeVersion(hyphen[1]);
 			const upper = parseRangeVersion(hyphen[2]);
 			if (!lower || !upper) return null;
-			return `>=${lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}` : `<=${upper.exact}`}`;
+			return `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`}`;
 		}
 		const normalized = [];
 		for (const token of value.split(/\s+/u).filter(Boolean)) {
@@ -348,9 +359,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return normalized.some((entry) => entry === null) ? null : normalized.join(" || ");
 	}
 	function compareNumeric(left, right) {
-		const leftNumber = Number(left);
-		const rightNumber = Number(right);
-		return leftNumber === rightNumber ? 0 : leftNumber < rightNumber ? -1 : 1;
+		return left.length === right.length ? left === right ? 0 : left < right ? -1 : 1 : left.length < right.length ? -1 : 1;
 	}
 	function compareSemVer(left, right) {
 		var _a, _b, _c, _d;
@@ -399,16 +408,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const parsedVersion = semVerPattern.exec(version);
 		const normalized = normalizeRange(range);
 		if (!parsedVersion || !normalized) return false;
-		const prereleaseTuple = parsedVersion[4] ? `${parsedVersion[1]}.${parsedVersion[2]}.${parsedVersion[3]}` : null;
 		return normalized.split(" || ").some((comparatorSet) => {
-			if (!comparatorSet.split(" ").every((comparator) => satisfiesComparator(parsedVersion, comparator))) return false;
-			if (prereleaseTuple === null) return true;
-			return new RegExp(`(?:^|[<>=])${prereleaseTuple.replace(/\./gu, "\\.")}-[0-9A-Za-z-]`, "u").test(comparatorSet);
+			const comparators = comparatorSet.split(" ");
+			if (!comparators.every((comparator) => satisfiesComparator(parsedVersion, comparator))) return false;
+			if (parsedVersion[4] === void 0) return true;
+			return comparators.some((comparator) => {
+				const match = comparatorPattern.exec(comparator);
+				const target = match && semVerPattern.exec(match[2]);
+				return target !== null && target[4] !== void 0 && target[1] === parsedVersion[1] && target[2] === parsedVersion[2] && target[3] === parsedVersion[3];
+			});
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/capability-token.js
+// dist/esm/plugin-kernel/capability-token.js
 	const capabilityTokenBrand = Symbol("ImageEditorCapabilityToken");
 	function createCapabilityToken(id, version) {
 		if (!isRuntimeIdentifier(id)) throw new InvalidPluginDefinitionError("CapabilityToken id must use namespace:kebab-case and be at most 128 characters.");
@@ -430,8 +442,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!isValidSemVerRange(requirement.range)) throw new InvalidCapabilityVersionError(token.id, requirement.range, "range");
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/reporting.js
+// dist/esm/plugin-kernel/reporting.js
 	function reportErrorSafely(errorSink, error) {
 		if (!errorSink) return;
 		try {
@@ -447,8 +458,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/disposable.js
+// dist/esm/plugin-kernel/disposable.js
 	function isPromiseLike(value) {
 		return (typeof value === "object" || typeof value === "function") && value !== null && typeof value.then === "function";
 	}
@@ -538,8 +548,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return errors;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-ref.js
+// dist/esm/plugin-kernel/plugin-ref.js
 	const pluginRefBrand = Symbol("ImageEditorPluginRef");
 	function definePluginRef(id, apiVersion) {
 		assertPluginIdentifier(id, "PluginRef id");
@@ -555,8 +564,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return value[pluginRefBrand] === true;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-manifest.js
+// dist/esm/plugin-kernel/plugin-manifest.js
 	const CORE_API_VERSION = "3.0.0";
 	const MAX_VERSION_LENGTH = 64;
 	const MAX_PLUGIN_DEPENDENCIES = 64;
@@ -653,8 +661,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/capability-registry.js
+// dist/esm/plugin-kernel/capability-registry.js
 	function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
 		var _a, _b;
 		if (!isCapabilityToken(token) || !isValidSemVer(token.version)) throw new InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : "unknown", (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : "", "version");
@@ -850,8 +857,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/committed-event-bus.js
+// dist/esm/plugin-kernel/committed-event-bus.js
 	const DEFAULT_COMMITTED_EVENT_LISTENER_TIMEOUT_MS = 5e3;
 	const DISPOSED_LISTENER_OUTCOME = Symbol("disposed-listener-outcome");
 	const eventBusDisposalStates = /* @__PURE__ */ new WeakMap();
@@ -1055,8 +1061,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/thrown-error.js
+// dist/esm/plugin-kernel/thrown-error.js
 	function normalizeThrownError(cause, message) {
 		try {
 			if (cause instanceof Error) return cause;
@@ -1069,8 +1074,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return error;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/operation-registry.js
+// dist/esm/plugin-kernel/operation-registry.js
 	const OPERATION_MODES = [
 		"read",
 		"busy",
@@ -1586,8 +1590,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/operation-ids.js
+// dist/esm/plugin-kernel/operation-ids.js
 	const coreOperationIds = Object.freeze({
 		loadImage: "core:load-image",
 		commitLoadImage: "core:commit-load-image",
@@ -1617,8 +1620,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo: "history:redo"
 	});
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-definition-lease.js
+// dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
 	function resolvePluginDefinitionIdentity(definition) {
@@ -1652,8 +1654,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (definitionLeases.get(identity) === host) definitionLeases.delete(identity);
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/official-plugin-package-hints.js
+// dist/esm/plugin-kernel/official-plugin-package-hints.js
 	const OFFICIAL_PLUGIN_PACKAGE_HINTS = Object.freeze([
 		Object.freeze({
 			pluginId: "foundation:overlay",
@@ -1717,8 +1718,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return packageHintsByPluginId.get(pluginId);
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-state-store.js
+// dist/esm/plugin-kernel/plugin-state-store.js
 	function assertStateKey(key) {
 		if (key.trim().length === 0 || key.trim() !== key) throw new InvalidPluginDefinitionError("Plugin state keys must be non-empty trimmed strings.");
 	}
@@ -1825,8 +1825,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/registration-scope.js
+// dist/esm/plugin-kernel/registration-scope.js
 	var RegistrationScope = class {
 		constructor(pluginId, options = {}) {
 			Object.defineProperty(this, "pluginId", {
@@ -1954,8 +1953,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/tool-coordinator.js
+// dist/esm/plugin-kernel/tool-coordinator.js
 	var ToolCoordinator = class {
 		constructor(options = {}) {
 			Object.defineProperty(this, "options", {
@@ -2188,8 +2186,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-manager.js
+// dist/esm/plugin-kernel/plugin-manager.js
 	function createPluginCleanupTraversal(installationOrder, installed, toolCoordinator, operationRegistry, eventBus, capabilityRegistry, stateStore) {
 		const records = [...installationOrder].reverse().map((pluginId) => installed.get(pluginId)).filter((record) => record !== void 0);
 		const kernelTargets = Object.freeze([
@@ -3023,8 +3020,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-plan.js
+// dist/esm/plugin-kernel/plugin-plan.js
 	const pluginPlanDefinition = Symbol("image-editor.plugin-plan.definition");
 	function isPluginPlan(value) {
 		return typeof value === "object" && value !== null && pluginPlanDefinition in value && Array.isArray(value.plugins);
@@ -3055,15 +3051,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Object.freeze(result);
 	}
 
-//#endregion
-//#region dist/esm/utils/dom.js
+// dist/esm/utils/dom.js
 	function forceReflow(element) {
 		if (!element) return;
 		element.offsetWidth;
 	}
 
-//#endregion
-//#region dist/esm/image/layout-manager.js
+// dist/esm/image/layout-manager.js
 	function selectLayoutStrategy(mode) {
 		return mode;
 	}
@@ -3278,8 +3272,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		forceReflow(containerElement);
 	}
 
-//#endregion
-//#region dist/esm/image/image-preprocessor.js
+// dist/esm/image/image-preprocessor.js
 	function uint16(bytes, offset, littleEndian) {
 		if (offset < 0 || offset + 2 > bytes.length) return null;
 		return littleEndian ? bytes[offset] | bytes[offset + 1] << 8 : bytes[offset] << 8 | bytes[offset + 1];
@@ -3632,8 +3625,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/errors.js
+// dist/esm/core-runtime/errors.js
 	function severityFor(behavior) {
 		if (behavior === "operation-cancelled") return "cancelled";
 		if (behavior === "recoverable-object" || behavior === "recoverable-optional-capability" || behavior === "operation-conflict") return "recoverable";
@@ -3964,8 +3956,196 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/utils/image-budget.js
+// dist/esm/utils/safe-object-key.js
+	function isUnsafeObjectKey(key) {
+		return key === "__proto__" || key === "constructor" || key === "prototype";
+	}
+
+// dist/esm/fabric/safe-fabric-serialization.js
+	const SAFE_NESTED_FABRIC_TYPES = /* @__PURE__ */ new Set([
+		"linear",
+		"pattern",
+		"radial",
+		"shadow"
+	]);
+	const RESOURCE_KEYS = /* @__PURE__ */ new Set([
+		"href",
+		"source",
+		"src",
+		"url"
+	]);
+	const DATA_IMAGE_PATTERN = /^data:image\/(?:jpeg|png|webp);base64,[a-z\d+/]+={0,2}$/iu;
+	const COMMON_ROOT_PROPERTIES = /* @__PURE__ */ new Set([
+		"angle",
+		"backgroundColor",
+		"fill",
+		"fillRule",
+		"flipX",
+		"flipY",
+		"globalCompositeOperation",
+		"height",
+		"left",
+		"opacity",
+		"originX",
+		"originY",
+		"paintFirst",
+		"scaleX",
+		"scaleY",
+		"shadow",
+		"skewX",
+		"skewY",
+		"stroke",
+		"strokeDashArray",
+		"strokeDashOffset",
+		"strokeLineCap",
+		"strokeLineJoin",
+		"strokeMiterLimit",
+		"strokeUniform",
+		"strokeWidth",
+		"top",
+		"type",
+		"version",
+		"visible",
+		"width"
+	]);
+	const MASK_INTERACTION_PROPERTIES = /* @__PURE__ */ new Set([
+		"borderColor",
+		"cornerColor",
+		"cornerSize",
+		"evented",
+		"hasControls",
+		"lockRotation",
+		"selectable",
+		"transparentCorners"
+	]);
+	const ROOT_TYPE_PROPERTIES = Object.freeze({
+		image: /* @__PURE__ */ new Set([
+			"src",
+			"crossOrigin",
+			"cropX",
+			"cropY",
+			"filters",
+			"resizeFilter",
+			"minimumScaleTrigger",
+			"imageSmoothing",
+			"editorObjectKind"
+		]),
+		rect: /* @__PURE__ */ new Set(["rx", "ry"]),
+		circle: /* @__PURE__ */ new Set([
+			"counterClockwise",
+			"endAngle",
+			"radius",
+			"startAngle"
+		]),
+		ellipse: /* @__PURE__ */ new Set(["rx", "ry"]),
+		line: /* @__PURE__ */ new Set([
+			"x1",
+			"x2",
+			"y1",
+			"y2"
+		]),
+		path: /* @__PURE__ */ new Set(["path"]),
+		polygon: /* @__PURE__ */ new Set(["points"]),
+		polyline: /* @__PURE__ */ new Set(["points"]),
+		textbox: /* @__PURE__ */ new Set([
+			"charSpacing",
+			"direction",
+			"editable",
+			"fontFamily",
+			"fontSize",
+			"fontStyle",
+			"fontWeight",
+			"lineHeight",
+			"linethrough",
+			"minWidth",
+			"overline",
+			"path",
+			"pathAlign",
+			"pathSide",
+			"pathStartOffset",
+			"splitByGrapheme",
+			"styles",
+			"text",
+			"textAlign",
+			"textBackgroundColor",
+			"textDecorationThickness",
+			"underline"
+		])
+	});
+	function isPlainRecord(value) {
+		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+		const prototype = Object.getPrototypeOf(value);
+		return prototype === Object.prototype || prototype === null;
+	}
+	function isSafeSerializedFabricObject(value, options) {
+		var _a, _b, _c;
+		if (!isPlainRecord(value)) return false;
+		const rootTypeDescriptor = Object.getOwnPropertyDescriptor(value, "type");
+		const rootType = rootTypeDescriptor && "value" in rootTypeDescriptor ? rootTypeDescriptor.value : void 0;
+		if (typeof rootType !== "string" || !options.rootTypes.some((type) => type.toLowerCase() === rootType.toLowerCase())) return false;
+		const maxDepth = (_a = options.maxDepth) !== null && _a !== void 0 ? _a : 24;
+		const maxNodes = (_b = options.maxNodes) !== null && _b !== void 0 ? _b : 2e4;
+		const maxArrayLength = (_c = options.maxArrayLength) !== null && _c !== void 0 ? _c : 65536;
+		const ancestors = /* @__PURE__ */ new WeakSet();
+		let nodes = 0;
+		const inspect = (entry, depth, root, propertyName) => {
+			var _a, _b;
+			if (entry === null || entry === void 0 || typeof entry === "string" || typeof entry === "boolean") {
+				if (typeof entry === "string" && propertyName && (RESOURCE_KEYS.has(propertyName.toLowerCase()) || propertyName.toLowerCase().endsWith("url"))) return DATA_IMAGE_PATTERN.test(entry);
+				return true;
+			}
+			if (typeof entry === "number") return Number.isFinite(entry);
+			if (typeof entry !== "object" || depth > maxDepth || ancestors.has(entry)) return false;
+			nodes += 1;
+			if (nodes > maxNodes) return false;
+			if (Array.isArray(entry)) {
+				if (entry.length > maxArrayLength) return false;
+				ancestors.add(entry);
+				if (Object.getOwnPropertySymbols(entry).some((key) => {
+					var _a;
+					return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true;
+				})) return false;
+				if (Object.keys(entry).some((key) => !/^(?:0|[1-9]\d*)$/u.test(key) || Number(key) >= entry.length)) return false;
+				for (let index = 0; index < entry.length; index += 1) {
+					const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
+					if (!descriptor || !("value" in descriptor)) return false;
+					if (!inspect(descriptor.value, depth + 1, false)) return false;
+				}
+				ancestors.delete(entry);
+				return true;
+			}
+			if (!isPlainRecord(entry)) return false;
+			const typeDescriptor = Object.getOwnPropertyDescriptor(entry, "type");
+			const entryType = typeDescriptor && "value" in typeDescriptor ? typeDescriptor.value : void 0;
+			if (!root && typeof entryType === "string") {
+				const nestedType = entryType.toLowerCase();
+				if (!SAFE_NESTED_FABRIC_TYPES.has(nestedType)) return false;
+			}
+			if (Object.getOwnPropertySymbols(entry).some((key) => {
+				var _a;
+				return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true;
+			})) return false;
+			ancestors.add(entry);
+			for (const key of Object.keys(entry)) {
+				if (isUnsafeObjectKey(key)) return false;
+				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = options.additionalRootProperties) === null || _a === void 0 ? void 0 : _a.includes(key)) && !((_b = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _b === void 0 ? void 0 : _b.has(key))) return false;
+				const descriptor = Object.getOwnPropertyDescriptor(entry, key);
+				if (!descriptor || !("value" in descriptor)) return false;
+				if (key === "clipPath" && descriptor.value !== null && descriptor.value !== void 0) return false;
+				if (key === "resizeFilter" && descriptor.value !== null && descriptor.value !== void 0) return false;
+				if (key === "filters" && (!Array.isArray(descriptor.value) || descriptor.value.length > 0)) return false;
+				if (!inspect(descriptor.value, depth + 1, false, key)) return false;
+			}
+			ancestors.delete(entry);
+			return true;
+		};
+		if (!inspect(value, 0, true)) return false;
+		if (rootType.toLowerCase() === "path" && !Array.isArray(value.path)) return false;
+		if (rootType.toLowerCase() === "textbox" && value.path !== null && value.path !== void 0) return false;
+		return true;
+	}
+
+// dist/esm/utils/image-budget.js
 	function resolveRasterAllocation(width, height, multiplier = 1) {
 		if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(multiplier) || width <= 0 || height <= 0 || multiplier <= 0) return null;
 		const allocationWidth = Math.ceil(width * multiplier);
@@ -3984,8 +4164,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return allocation !== null && Number.isSafeInteger(budget.maxDimension) && Number.isSafeInteger(budget.maxPixels) && budget.maxDimension > 0 && budget.maxPixels > 0 && allocation.width <= budget.maxDimension && allocation.height <= budget.maxDimension && allocation.width <= Math.floor(budget.maxPixels / allocation.height);
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/core-state-adapter.js
+// dist/esm/core-runtime/core-state-adapter.js
 	const DEFAULT_SECURITY_LIMITS = Object.freeze({
 		maxDecodedPixels: 5e7,
 		maxImageDimension: 32768,
@@ -4082,7 +4261,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!isRecord$1(serializedValue)) throw new SnapshotValidationError("Fabric canvas serialization must be an object.");
 			const serialized = { ...serializedValue };
 			const serializedObjects = Array.isArray(serialized.objects) ? serialized.objects : [];
-			const liveObjects = canvas.getObjects();
+			const liveObjects = canvas.getObjects().filter((object) => !object.excludeFromExport);
+			if (serializedObjects.length !== liveObjects.length) throw new SnapshotValidationError("Canvas serialization object count is inconsistent.");
 			const propertyKeys = this.properties.listKeys();
 			for (let index = 0; index < serializedObjects.length; index += 1) {
 				const serializedObject = serializedObjects[index];
@@ -4217,6 +4397,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				path: "$.core.canvas"
 			};
 			if (publicInput) {
+				if (Object.keys(value.canvas).some((key) => ![
+					"version",
+					"objects",
+					"background",
+					"width",
+					"height"
+				].includes(key)) || value.canvas.background !== void 0 && typeof value.canvas.background !== "string") return {
+					valid: false,
+					message: "Unsupported Canvas property.",
+					path: "$.core.canvas"
+				};
 				const objects = value.canvas.objects;
 				if (!Array.isArray(objects)) return {
 					valid: false,
@@ -4244,6 +4435,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						valid: false,
 						message: "Base Image Fabric filters are not accepted in public Snapshots.",
 						path: `$.core.canvas.objects.${index}.filters`
+					};
+					if (!isSafeSerializedFabricObject(object, {
+						rootTypes: ["image"],
+						additionalRootProperties: this.properties.listKeys()
+					})) return {
+						valid: false,
+						message: "Base image contains unsupported Fabric properties.",
+						path: `$.core.canvas.objects.${index}`
 					};
 				}
 				if (objects.length > 1) return {
@@ -4277,8 +4476,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/export-contributor-registry.js
+// dist/esm/core-runtime/export-contributor-registry.js
 	var ExportContributorRegistry = class {
 		constructor() {
 			Object.defineProperty(this, "contributors", {
@@ -4351,8 +4549,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/geometry/affine-matrix.js
+// dist/esm/core-runtime/geometry/affine-matrix.js
 	const IDENTITY_AFFINE_MATRIX = Object.freeze([
 		1,
 		0,
@@ -4445,8 +4642,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return sanitizeAffineMatrix(multiplyAffine(after, invertAffine(before)));
 	}
 
-//#endregion
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -4474,8 +4670,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/core-runtime/state/clone-state-value.js
+// dist/esm/core-runtime/state/clone-state-value.js
 	function isObject(value) {
 		return typeof value === "object" && value !== null;
 	}
@@ -4495,6 +4690,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return;
 		}
 		if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return;
+		const prototype = Object.getPrototypeOf(value);
+		if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) throw new StateCloneError(`State at ${path} contains an unsupported object type.`);
 		for (const key of Object.getOwnPropertySymbols(value)) if ((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.enumerable) throw new StateCloneError(`State at ${path} contains an enumerable symbol key.`);
 		const descriptors = Object.getOwnPropertyDescriptors(value);
 		for (const [key, descriptor] of Object.entries(descriptors)) {
@@ -4515,6 +4712,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (value instanceof Date) return new Date(value.getTime());
 		if (value instanceof ArrayBuffer) return value.slice(0);
 		if (ArrayBuffer.isView(value)) {
+			if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(value);
 			const source = value;
 			return new Uint8Array(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength));
 		}
@@ -4538,7 +4736,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		const prototype = Object.getPrototypeOf(value);
 		if (prototype !== Object.prototype && prototype !== null) throw new StateCloneError(`State contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : "unknown"}".`);
-		const result = Object.create(null);
+		const result = Object.create(prototype);
 		seen.set(value, result);
 		for (const key of Object.keys(value)) {
 			if (isDangerousStateKey(key)) throw new StateCloneError(`State contains dangerous key "${key}".`);
@@ -4563,8 +4761,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function cloneStateValue(value) {
 		try {
 			assertSafeStateValue(value);
-			const structuredCloneFunction = globalThis.structuredClone;
-			return deepFreeze(typeof structuredCloneFunction === "function" ? structuredCloneFunction(value) : cloneFallback(value, /* @__PURE__ */ new Map()));
+			return deepFreeze(cloneFallback(value, /* @__PURE__ */ new Map()));
 		} catch (error) {
 			if (error instanceof StateCloneError) throw error;
 			throw new StateCloneError("State could not be cloned safely.", error);
@@ -4587,8 +4784,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		seen.delete(value);
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/mutation/bounded-replay-id-tracker.js
+// dist/esm/core-runtime/mutation/bounded-replay-id-tracker.js
 	const DEFAULT_RECENT_REPLAY_ID_LIMIT = 1e4;
 	var BoundedReplayIdTracker = class {
 		constructor(recentLimit = DEFAULT_RECENT_REPLAY_ID_LIMIT) {
@@ -4641,8 +4837,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/geometry/geometry-mutation-coordinator.js
+// dist/esm/core-runtime/geometry/geometry-mutation-coordinator.js
 	function assertIdentifier$2(value, label) {
 		if (value.trim().length === 0 || value.trim() !== value) throw new GeometryMutationError(value || "unknown", `${label} must be non-empty and trimmed.`);
 	}
@@ -4781,72 +4976,50 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a, _b;
 			let before = null;
 			let provisional = null;
-			const participantSnapshot = Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order || left.registrationOrder - right.registrationOrder));
-			const geometryParticipant = Object.freeze({
-				id: "core:geometry-participants",
+			const geometryParticipants = [{
+				id: "core:geometry-state",
 				order: 0,
+				prepare: () => {
+					before = freezeGeometry(this.options.state.captureGeometry());
+					provisional = createDescriptor(request, before, before, metadata, true);
+				}
+			}, ...Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order || left.registrationOrder - right.registrationOrder)).map(({ participant }, index) => ({
+				id: participant.id,
+				order: index + 1,
 				prepare: async (context) => {
-					const capturedBefore = freezeGeometry(this.options.state.captureGeometry());
-					const provisionalDescriptor = createDescriptor(request, capturedBefore, capturedBefore, metadata, true);
-					before = capturedBefore;
-					provisional = provisionalDescriptor;
-					const participantContext = this.createParticipantContext(request.id, context.signal);
-					const entries = [];
-					for (const record of participantSnapshot) {
-						if (!record.participant.supports(provisionalDescriptor)) continue;
-						const prepared = record.participant.prepare ? await record.participant.prepare(provisionalDescriptor, participantContext) : void 0;
-						entries.push({
-							record,
-							prepared
-						});
-					}
-					return Object.freeze({
-						entries: Object.freeze(entries),
-						context: participantContext
-					});
+					var _a;
+					const descriptor = provisional;
+					if (!participant.supports(descriptor)) return { supported: false };
+					return {
+						supported: true,
+						value: await ((_a = participant.prepare) === null || _a === void 0 ? void 0 : _a.call(participant, descriptor, this.createParticipantContext(request.id, context.signal)))
+					};
 				},
-				apply: async (descriptor, prepared) => {
-					for (const entry of prepared.entries) try {
-						await entry.record.participant.apply(descriptor, entry.prepared, prepared.context);
+				apply: async (descriptor, prepared, context) => {
+					if (!prepared.supported) return;
+					try {
+						await participant.apply(descriptor, prepared.value, this.createParticipantContext(request.id, context.signal));
 					} catch (error) {
-						if (error instanceof GeometryRecoverableObjectError) {
-							this.warnRecoverable(request.id, entry.record.participant.id, error);
-							continue;
-						}
-						throw error;
+						if (!(error instanceof GeometryRecoverableObjectError)) throw error;
+						this.warnRecoverable(request.id, participant.id, error);
 					}
 				},
-				synchronize: async (descriptor, prepared) => {
+				synchronize: async (descriptor, prepared, context) => {
+					var _a;
+					if (!prepared.supported) return;
+					try {
+						await ((_a = participant.synchronize) === null || _a === void 0 ? void 0 : _a.call(participant, descriptor, this.createParticipantContext(request.id, context.signal)));
+					} catch (error) {
+						if (!(error instanceof GeometryRecoverableObjectError)) throw error;
+						this.warnRecoverable(request.id, participant.id, error);
+					}
+				},
+				...participant.rollback ? { rollback: async (prepared, context) => {
 					var _a, _b;
-					for (const entry of prepared.entries) try {
-						await ((_b = (_a = entry.record.participant).synchronize) === null || _b === void 0 ? void 0 : _b.call(_a, descriptor, prepared.context));
-					} catch (error) {
-						if (error instanceof GeometryRecoverableObjectError) {
-							this.warn({
-								code: "GEOMETRY_SYNCHRONIZE_WARNING",
-								message: error.message,
-								mutationId: request.id,
-								participantId: entry.record.participant.id,
-								...error.objectIdentity === void 0 ? {} : { objectIdentity: error.objectIdentity },
-								...error.objectKind === void 0 ? {} : { objectKind: error.objectKind },
-								cause: error.cause
-							});
-							continue;
-						}
-						throw error;
-					}
-				},
-				...participantSnapshot.some(({ participant }) => participant.rollback) ? { rollback: async (prepared, rollbackContext) => {
-					var _a, _b, _c;
-					const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
-					if (!descriptor) return;
-					for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
-						const entry = prepared.entries[index];
-						if (!entry) continue;
-						await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
-					}
+					const descriptor = (_a = context.result) !== null && _a !== void 0 ? _a : provisional;
+					if (prepared.supported && descriptor) await ((_b = participant.rollback) === null || _b === void 0 ? void 0 : _b.call(participant, descriptor, prepared.value, this.createParticipantContext(request.id, context.signal)));
 				} } : {}
-			});
+			}))];
 			try {
 				return await this.options.mutations.run({
 					id: request.id,
@@ -4856,7 +5029,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					signal,
 					...request.parent ? { parent: request.parent } : {},
 					metadata,
-					participants: [geometryParticipant],
+					participants: geometryParticipants,
 					mutate: async (context) => {
 						const capturedBefore = before;
 						if (!capturedBefore) throw new GeometryMutationError(request.id, "geometry preparation did not capture the before state.");
@@ -4948,8 +5121,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/history-commit-router.js
+// dist/esm/core-runtime/history-commit-router.js
 	const unavailableHistory = Object.freeze({
 		isAvailable: () => false,
 		commit: () => void 0
@@ -4995,8 +5167,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/sdk/core-capabilities.js
+// dist/esm/sdk/core-capabilities.js
 	const CORE_STATUS_CAPABILITY = createCapabilityToken("core:status", "1.0.0");
 	const CORE_DIAGNOSTICS_CAPABILITY = createCapabilityToken("core:diagnostics", "1.0.0");
 	const CORE_PRESENTATION_CAPABILITY = createCapabilityToken("core:presentation", "1.0.0");
@@ -5014,12 +5185,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const DOCUMENT_MUTATION_CAPABILITY = createCapabilityToken("core:document-mutation", "1.0.0");
 	const EXPORT_CONTRIBUTION_CAPABILITY = createCapabilityToken("core:export", "1.0.0");
 
-//#endregion
-//#region dist/esm/core-runtime/internal-capabilities.js
+// dist/esm/core-runtime/internal-capabilities.js
 	const CORE_ENVIRONMENT_CAPABILITY = createCapabilityToken("core:environment", "1.0.0");
 
-//#endregion
-//#region dist/esm/core-runtime/lifecycle.js
+// dist/esm/core-runtime/lifecycle.js
 	const ALLOWED_TRANSITIONS = {
 		configured: ["initializing", "disposing"],
 		initializing: [
@@ -5113,8 +5282,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/plugin-api-handle.js
+// dist/esm/core-runtime/plugin-api-handle.js
 	function isProxyablePluginApi(value) {
 		return typeof value === "object" && value !== null || typeof value === "function";
 	}
@@ -5222,8 +5390,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/mutation/document-mutation-coordinator.js
+// dist/esm/core-runtime/mutation/document-mutation-coordinator.js
 	const DEFAULT_ROLLBACK_TIMEOUT_MS$1 = 3e4;
 	const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for("@bensitu/image-editor/internal-interactive-mutation-boundary/v1");
 	function getInteractiveMutationBoundary(request) {
@@ -5659,8 +5826,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/memento-service.js
+// dist/esm/core-runtime/state/memento-service.js
 	const DEFAULT_ROLLBACK_TIMEOUT_MS = 3e4;
 	function createAbortError(message) {
 		if (typeof DOMException === "function") return new DOMException(message, "AbortError");
@@ -5885,8 +6051,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/object-property-registry.js
+// dist/esm/core-runtime/state/object-property-registry.js
 	function assertIdentifier(value, label) {
 		if (value.trim().length === 0 || value.trim() !== value) throw new StateRegistrationError(`${label} must be a non-empty trimmed string.`);
 	}
@@ -5966,8 +6131,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/image-data-url.js
+// dist/esm/core-runtime/state/image-data-url.js
 	const PNG_SIGNATURE = [
 		137,
 		80,
@@ -6029,6 +6193,32 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (length === null || length < 2 || offset + length > bytes.length) return null;
 			if (isJpegStartOfFrame(marker) && length >= 7) return positiveDimensions(uint16BE(bytes, offset + 5), uint16BE(bytes, offset + 3));
 			offset += length;
+		}
+		return null;
+	}
+	function readEncodedJpegDimensions(value, payloadOffset) {
+		const payload = value.slice(payloadOffset).replace(/\s/gu, "");
+		const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+		const length = Math.floor(payload.length * 3 / 4) - (payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0);
+		const byte = (index) => {
+			const offset = Math.floor(index / 3) * 4;
+			const position = index % 3;
+			const left = alphabet.indexOf(payload[offset + position]);
+			const right = alphabet.indexOf(payload[offset + position + 1]);
+			return position === 0 ? left << 2 | right >> 4 : position === 1 ? (left & 15) << 4 | right >> 2 : (left & 3) << 6 | right;
+		};
+		if (length < 4 || byte(0) !== 255 || byte(1) !== 216) return null;
+		let offset = 2;
+		while (offset + 3 < length) {
+			if (byte(offset) !== 255) return null;
+			while (offset < length && byte(offset) === 255) offset += 1;
+			const marker = byte(offset++);
+			if (marker === 218 || marker === 217) return null;
+			if (marker === 1 || marker >= 208 && marker <= 215) continue;
+			const segmentLength = byte(offset) << 8 | byte(offset + 1);
+			if (segmentLength < 2 || offset + segmentLength > length) return null;
+			if (isJpegStartOfFrame(marker) && segmentLength >= 7) return positiveDimensions(byte(offset + 5) << 8 | byte(offset + 6), byte(offset + 3) << 8 | byte(offset + 4));
+			offset += segmentLength;
 		}
 		return null;
 	}
@@ -6103,7 +6293,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 	function inspectEncodedImageDataUrl(value) {
-		var _a, _b;
+		var _a;
 		const commaIndex = value.indexOf(",");
 		if (commaIndex < 0 || commaIndex > MAX_DATA_URL_HEADER_LENGTH) return null;
 		const header = value.slice(0, commaIndex).toLowerCase();
@@ -6115,7 +6305,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const payload = scanBase64Payload(value, commaIndex + 1);
 		if (!payload) return null;
 		const decodedPrefix = decodePrefix(payload.prefix);
-		const dimensions = decodedPrefix ? (_b = (_a = readPngDimensions(decodedPrefix)) !== null && _a !== void 0 ? _a : readJpegDimensions(decodedPrefix)) !== null && _b !== void 0 ? _b : readWebpDimensions(decodedPrefix) : null;
+		const dimensions = decodedPrefix ? mimeType === "image/png" ? readPngDimensions(decodedPrefix) : mimeType === "image/webp" ? readWebpDimensions(decodedPrefix) : (_a = readJpegDimensions(decodedPrefix)) !== null && _a !== void 0 ? _a : readEncodedJpegDimensions(value, commaIndex + 1) : null;
 		return Object.freeze({
 			mimeType,
 			encodedBytes: payload.encodedBytes,
@@ -6123,8 +6313,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/state/snapshot-service.js
+// dist/esm/core-runtime/state/snapshot-service.js
 	const EXTERNAL_RESOURCE_KEYS = /* @__PURE__ */ new Set([
 		"href",
 		"source",
@@ -6149,8 +6338,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		maxImageDimension: 32768,
 		externalUrlPolicy: "reject"
 	});
+	const textEncoder = new TextEncoder();
 	function byteLength(value) {
-		return new TextEncoder().encode(value).byteLength;
+		return textEncoder.encode(value).byteLength;
 	}
 	function inspectTree(value, limits, path = "$", depth = 0, ancestors = /* @__PURE__ */ new WeakSet(), counter = { count: 0 }, propertyName) {
 		if (depth > limits.maxDepth) throw new SnapshotValidationError(`nesting exceeds ${limits.maxDepth}.`, path);
@@ -6158,16 +6348,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (typeof value === "number" && !Number.isFinite(value)) throw new SnapshotValidationError("number must be finite.", path);
 			if (typeof value === "string") {
 				if (value.length > limits.maxStringLength) throw new SnapshotValidationError(`string length exceeds ${limits.maxStringLength}.`, path);
-				if (value.startsWith("data:")) {
+				if (/^data:/iu.test(value)) {
 					const inspection = inspectEncodedImageDataUrl(value);
 					if (!inspection) throw new SnapshotValidationError("Data URL must be a base64 PNG, JPEG, or WebP image.", path);
 					if (inspection.encodedBytes > limits.maxDataUrlBytes) throw new SnapshotValidationError(`Data URL exceeds ${limits.maxDataUrlBytes} bytes.`, path);
+					if (!inspection.dimensions) throw new SnapshotValidationError("Image dimensions could not be determined.", path);
 					if (inspection.dimensions) {
 						const { width, height } = inspection.dimensions;
 						if (width * height > limits.maxDecodedPixels) throw new SnapshotValidationError(`decoded pixel count exceeds ${limits.maxDecodedPixels}.`, path);
 						if (width > limits.maxImageDimension || height > limits.maxImageDimension) throw new SnapshotValidationError(`image dimensions exceed ${limits.maxImageDimension}.`, path);
 					}
-				} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(value)) throw new SnapshotValidationError("external URL references are forbidden.", path);
+				} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && value.length > 0) throw new SnapshotValidationError("external URL references are forbidden.", path);
 			}
 			if (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint") throw new SnapshotValidationError(`unsupported ${typeof value} value.`, path);
 			return;
@@ -6449,8 +6640,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/state-slice-registry.js
+// dist/esm/core-runtime/state/state-slice-registry.js
 	function assertDefinition(definition) {
 		if (!isRuntimeIdentifier(definition.id)) throw new StateRegistrationError("Invalid State Slice Runtime ID.", definition.id);
 		if (!Number.isSafeInteger(definition.version) || definition.version <= 0) throw new StateRegistrationError(`State slice "${definition.id}" must use a positive integer version.`, definition.id);
@@ -6513,8 +6703,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/transient-object-registry.js
+// dist/esm/core-runtime/state/transient-object-registry.js
 	var TransientObjectRegistry = class {
 		constructor(warningSink) {
 			Object.defineProperty(this, "warningSink", {
@@ -6565,12 +6754,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} catch (error) {
 				(_a = this.warningSink) === null || _a === void 0 || _a.call(this, {
 					code: "TRANSIENT_PREDICATE_FAILED",
-					message: `Transient object predicate owned by "${record.owner}" failed and was ignored.`,
+					message: `Transient object predicate owned by "${record.owner}" failed.`,
 					details: Object.freeze({
 						owner: record.owner,
 						cause: error
 					})
 				});
+				throw new StateRegistrationError(`Transient object classification failed for "${record.owner}".`);
 			}
 			return false;
 		}
@@ -6585,8 +6775,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/image-editor-core.js
+// dist/esm/core-runtime/image-editor-core.js
 	const DEFAULT_EXPORT_FILE_NAME = "edited_image";
 	const DEFAULT_CORE_OPTIONS = Object.freeze({
 		canvasWidth: 800,
@@ -7294,6 +7483,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const sourceMimeType = inferMimeType(source);
 			if (!sourceMimeType || !encodedImage) throw new CoreRuntimeError("[ImageEditor] Unsupported image Data URL.");
 			if (encodedImage.encodedBytes > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image input exceeds maxInputBytes.");
+			if (!encodedImage.dimensions) throw new CoreRuntimeError("[ImageEditor] Image dimensions could not be determined.");
 			if (encodedImage.dimensions && !this.isInputRasterWithinBudget(encodedImage.dimensions.width, encodedImage.dimensions.height)) throw new CoreRuntimeError("[ImageEditor] Image input dimensions exceed the configured budget.");
 			if (options.concurrency && options.concurrency !== "replace-pending") throw new CoreRuntimeError("[ImageEditor] Unsupported load concurrency policy.");
 			const preprocessing = resolveImagePreprocessing(options.preprocessing, this.options.imagePreprocessing);
@@ -8450,12 +8640,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/sdk/visible-raster-bake.js
+// dist/esm/sdk/visible-raster-bake.js
 	const VISIBLE_RASTER_BAKE_CAPABILITY = createCapabilityToken("raster:visible-bake", "1.0.0");
 
-//#endregion
-//#region dist/esm/sdk/plugin-definition.js
+// dist/esm/sdk/plugin-definition.js
 	function definePlugin(definition) {
 		if (typeof definition !== "object" || definition === null) throw new InvalidPluginDefinitionError("Plugin definition must be an object.");
 		if (!isPluginRef(definition.ref)) throw new InvalidPluginDefinitionError("Plugin definition must use a PluginRef created by definePluginRef().");
@@ -8468,7 +8656,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}));
 	}
 
-//#endregion
 exports.AFFINE_EPSILON = AFFINE_EPSILON;
 exports.BASE_IMAGE_INFO_CAPABILITY = BASE_IMAGE_INFO_CAPABILITY;
 exports.BASE_IMAGE_READ_CAPABILITY = BASE_IMAGE_READ_CAPABILITY;

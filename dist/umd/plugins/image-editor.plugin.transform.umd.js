@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.Transform = global.ImageEditorPlugins.Transform || {}), global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "transformPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,8 +33,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/fabric/fabric-animation.js
+// dist/esm/fabric/fabric-animation.js
 	const ANIMATION_SETTLE_GRACE_MS = 1e3;
 	const ANIMATION_ABORT_QUIESCENCE_MS = 50;
 	function animateProps(object, props, options, control) {
@@ -152,8 +151,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		} catch {}
 	}
 
-//#endregion
-//#region dist/esm/plugins/transform/transform-controller.js
+// dist/esm/plugins/transform/transform-controller.js
 	const DEFAULT_OPTIONS = Object.freeze({
 		animationDuration: 300,
 		minScale: .1,
@@ -571,8 +569,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/transform/index.js
+// dist/esm/plugins/transform/index.js
 	const transformPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:transform", "1.0.0");
 	function isTransformState(value) {
 		if (typeof value !== "object" || value === null) return false;
@@ -694,7 +691,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.transformPlugin = transformPlugin;
 exports.transformPluginRef = transformPluginRef;
 });

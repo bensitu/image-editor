@@ -5,9 +5,9 @@
  */
 
 interface ParsedRangeVersion {
-    readonly major: number;
-    readonly minor: number | null;
-    readonly patch: number | null;
+    readonly major: string;
+    readonly minor: string | null;
+    readonly patch: string | null;
     readonly exact: string | null;
 }
 
@@ -28,9 +28,9 @@ function parseRangeVersion(value: string): ParsedRangeVersion | null {
     const exact = semVerPattern.exec(value);
     if (exact) {
         return {
-            major: Number(exact[1]),
-            minor: Number(exact[2]),
-            patch: Number(exact[3]),
+            major: exact[1]!,
+            minor: exact[2]!,
+            patch: exact[3]!,
             exact: value,
         };
     }
@@ -39,11 +39,23 @@ function parseRangeVersion(value: string): ParsedRangeVersion | null {
     const minor = partial[2];
     const patch = partial[3];
     return {
-        major: Number(partial[1]),
-        minor: minor === undefined || /[xX*]/u.test(minor) ? null : Number(minor),
-        patch: patch === undefined || /[xX*]/u.test(patch) ? null : Number(patch),
+        major: partial[1]!,
+        minor: minor === undefined || /[xX*]/u.test(minor) ? null : minor,
+        patch: patch === undefined || /[xX*]/u.test(patch) ? null : patch,
         exact: null,
     };
+}
+
+function incrementNumeric(value: string): string {
+    const digits = value.split('');
+    for (let index = digits.length - 1; index >= 0; index -= 1) {
+        if (digits[index] !== '9') {
+            digits[index] = String(Number(digits[index]) + 1);
+            return digits.join('');
+        }
+        digits[index] = '0';
+    }
+    return `1${digits.join('')}`;
 }
 
 function lowerBound(version: ParsedRangeVersion): string {
@@ -52,14 +64,16 @@ function lowerBound(version: ParsedRangeVersion): string {
 
 function exclusiveUpperBound(version: ParsedRangeVersion): string {
     return version.minor === null
-        ? `${version.major + 1}.0.0`
-        : `${version.major}.${version.minor + 1}.0`;
+        ? `${incrementNumeric(version.major)}.0.0`
+        : `${version.major}.${incrementNumeric(version.minor)}.0`;
 }
 
 function caretUpperBound(version: ParsedRangeVersion): string {
-    if (version.major > 0 || version.minor === null) return `${version.major + 1}.0.0`;
-    if (version.minor > 0 || version.patch === null) return `0.${version.minor + 1}.0`;
-    return `0.0.${version.patch + 1}`;
+    if (version.major !== '0' || version.minor === null)
+        return `${incrementNumeric(version.major)}.0.0`;
+    if (version.minor !== '0' || version.patch === null)
+        return `0.${incrementNumeric(version.minor)}.0`;
+    return `0.0.${incrementNumeric(version.patch)}`;
 }
 
 function normalizeComparator(token: string): readonly string[] | null {
@@ -67,18 +81,20 @@ function normalizeComparator(token: string): readonly string[] | null {
     const match = comparatorPattern.exec(token);
     if (!match) return null;
     const operator = match[1] ?? '';
+    if (/^[xX*]$/u.test(match[2]!))
+        return ['<', '>'].includes(operator) ? ['<0.0.0-0'] : ['>=0.0.0'];
     const version = parseRangeVersion(match[2]!);
     if (!version) return null;
     const lower = version.exact ?? lowerBound(version);
-    if (operator === '^') return [`>=${lower}`, `<${caretUpperBound(version)}`];
-    if (operator === '~') return [`>=${lower}`, `<${exclusiveUpperBound(version)}`];
+    if (operator === '^') return [`>=${lower}`, `<${caretUpperBound(version)}-0`];
+    if (operator === '~') return [`>=${lower}`, `<${exclusiveUpperBound(version)}-0`];
     if (version.exact !== null) return [`${operator}${version.exact}`];
     const upper = exclusiveUpperBound(version);
     if (operator === '>') return [`>=${upper}`];
-    if (operator === '<=') return [`<${upper}`];
-    if (operator === '<') return [`<${lower}`];
+    if (operator === '<=') return [`<${upper}-0`];
+    if (operator === '<') return [`<${lower}-0`];
     if (operator === '>=') return [`>=${lower}`];
-    return [`>=${lower}`, `<${upper}`];
+    return [`>=${lower}`, `<${upper}-0`];
 }
 
 function normalizeComparatorSet(value: string): string | null {
@@ -87,8 +103,8 @@ function normalizeComparatorSet(value: string): string | null {
         const lower = parseRangeVersion(hyphen[1]!);
         const upper = parseRangeVersion(hyphen[2]!);
         if (!lower || !upper) return null;
-        return `>=${lowerBound(lower)} ${
-            upper.exact === null ? `<${exclusiveUpperBound(upper)}` : `<=${upper.exact}`
+        return `>=${lower.exact ?? lowerBound(lower)} ${
+            upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`
         }`;
     }
     const normalized: string[] = [];
@@ -112,9 +128,15 @@ function normalizeRange(range: string): string | null {
 }
 
 function compareNumeric(left: string, right: string): number {
-    const leftNumber = Number(left);
-    const rightNumber = Number(right);
-    return leftNumber === rightNumber ? 0 : leftNumber < rightNumber ? -1 : 1;
+    return left.length === right.length
+        ? left === right
+            ? 0
+            : left < right
+              ? -1
+              : 1
+        : left.length < right.length
+          ? -1
+          : 1;
 }
 
 function compareSemVer(left: RegExpExecArray, right: RegExpExecArray): number {

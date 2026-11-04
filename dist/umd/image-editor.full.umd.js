@@ -4,7 +4,7 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorFull = {})));
 })(this, function(exports) {
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/plugin-kernel/errors.js
+// dist/esm/plugin-kernel/errors.js
 	function createPluginErrorOptions(pluginId, cause) {
 		return {
 			...pluginId ? { pluginId } : {},
@@ -252,8 +252,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-identifier.js
+// dist/esm/plugin-kernel/plugin-identifier.js
 	const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 	function isDangerousStateKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
@@ -266,8 +265,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return pluginId;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/semver.js
+// dist/esm/plugin-kernel/semver.js
 	const numericIdentifier = "(?:0|[1-9]\\d*)";
 	const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
 	const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, "u");
@@ -277,9 +275,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function parseRangeVersion(value) {
 		const exact = semVerPattern.exec(value);
 		if (exact) return {
-			major: Number(exact[1]),
-			minor: Number(exact[2]),
-			patch: Number(exact[3]),
+			major: exact[1],
+			minor: exact[2],
+			patch: exact[3],
 			exact: value
 		};
 		const partial = partialVersionPattern.exec(value);
@@ -287,23 +285,34 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const minor = partial[2];
 		const patch = partial[3];
 		return {
-			major: Number(partial[1]),
-			minor: minor === void 0 || /[xX*]/u.test(minor) ? null : Number(minor),
-			patch: patch === void 0 || /[xX*]/u.test(patch) ? null : Number(patch),
+			major: partial[1],
+			minor: minor === void 0 || /[xX*]/u.test(minor) ? null : minor,
+			patch: patch === void 0 || /[xX*]/u.test(patch) ? null : patch,
 			exact: null
 		};
+	}
+	function incrementNumeric(value) {
+		const digits = value.split("");
+		for (let index = digits.length - 1; index >= 0; index -= 1) {
+			if (digits[index] !== "9") {
+				digits[index] = String(Number(digits[index]) + 1);
+				return digits.join("");
+			}
+			digits[index] = "0";
+		}
+		return `1${digits.join("")}`;
 	}
 	function lowerBound(version) {
 		var _a, _b;
 		return `${version.major}.${(_a = version.minor) !== null && _a !== void 0 ? _a : 0}.${(_b = version.patch) !== null && _b !== void 0 ? _b : 0}`;
 	}
 	function exclusiveUpperBound(version) {
-		return version.minor === null ? `${version.major + 1}.0.0` : `${version.major}.${version.minor + 1}.0`;
+		return version.minor === null ? `${incrementNumeric(version.major)}.0.0` : `${version.major}.${incrementNumeric(version.minor)}.0`;
 	}
 	function caretUpperBound(version) {
-		if (version.major > 0 || version.minor === null) return `${version.major + 1}.0.0`;
-		if (version.minor > 0 || version.patch === null) return `0.${version.minor + 1}.0`;
-		return `0.0.${version.patch + 1}`;
+		if (version.major !== "0" || version.minor === null) return `${incrementNumeric(version.major)}.0.0`;
+		if (version.minor !== "0" || version.patch === null) return `0.${incrementNumeric(version.minor)}.0`;
+		return `0.0.${incrementNumeric(version.patch)}`;
 	}
 	function normalizeComparator(token) {
 		var _a, _b;
@@ -311,26 +320,28 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const match = comparatorPattern.exec(token);
 		if (!match) return null;
 		const operator = (_a = match[1]) !== null && _a !== void 0 ? _a : "";
+		if (/^[xX*]$/u.test(match[2])) return ["<", ">"].includes(operator) ? ["<0.0.0-0"] : [">=0.0.0"];
 		const version = parseRangeVersion(match[2]);
 		if (!version) return null;
 		const lower = (_b = version.exact) !== null && _b !== void 0 ? _b : lowerBound(version);
-		if (operator === "^") return [`>=${lower}`, `<${caretUpperBound(version)}`];
-		if (operator === "~") return [`>=${lower}`, `<${exclusiveUpperBound(version)}`];
+		if (operator === "^") return [`>=${lower}`, `<${caretUpperBound(version)}-0`];
+		if (operator === "~") return [`>=${lower}`, `<${exclusiveUpperBound(version)}-0`];
 		if (version.exact !== null) return [`${operator}${version.exact}`];
 		const upper = exclusiveUpperBound(version);
 		if (operator === ">") return [`>=${upper}`];
-		if (operator === "<=") return [`<${upper}`];
-		if (operator === "<") return [`<${lower}`];
+		if (operator === "<=") return [`<${upper}-0`];
+		if (operator === "<") return [`<${lower}-0`];
 		if (operator === ">=") return [`>=${lower}`];
-		return [`>=${lower}`, `<${upper}`];
+		return [`>=${lower}`, `<${upper}-0`];
 	}
 	function normalizeComparatorSet(value) {
+		var _a;
 		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(value);
 		if (hyphen) {
 			const lower = parseRangeVersion(hyphen[1]);
 			const upper = parseRangeVersion(hyphen[2]);
 			if (!lower || !upper) return null;
-			return `>=${lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}` : `<=${upper.exact}`}`;
+			return `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`}`;
 		}
 		const normalized = [];
 		for (const token of value.split(/\s+/u).filter(Boolean)) {
@@ -348,9 +359,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return normalized.some((entry) => entry === null) ? null : normalized.join(" || ");
 	}
 	function compareNumeric(left, right) {
-		const leftNumber = Number(left);
-		const rightNumber = Number(right);
-		return leftNumber === rightNumber ? 0 : leftNumber < rightNumber ? -1 : 1;
+		return left.length === right.length ? left === right ? 0 : left < right ? -1 : 1 : left.length < right.length ? -1 : 1;
 	}
 	function compareSemVer(left, right) {
 		var _a, _b, _c, _d;
@@ -399,16 +408,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const parsedVersion = semVerPattern.exec(version);
 		const normalized = normalizeRange(range);
 		if (!parsedVersion || !normalized) return false;
-		const prereleaseTuple = parsedVersion[4] ? `${parsedVersion[1]}.${parsedVersion[2]}.${parsedVersion[3]}` : null;
 		return normalized.split(" || ").some((comparatorSet) => {
-			if (!comparatorSet.split(" ").every((comparator) => satisfiesComparator(parsedVersion, comparator))) return false;
-			if (prereleaseTuple === null) return true;
-			return new RegExp(`(?:^|[<>=])${prereleaseTuple.replace(/\./gu, "\\.")}-[0-9A-Za-z-]`, "u").test(comparatorSet);
+			const comparators = comparatorSet.split(" ");
+			if (!comparators.every((comparator) => satisfiesComparator(parsedVersion, comparator))) return false;
+			if (parsedVersion[4] === void 0) return true;
+			return comparators.some((comparator) => {
+				const match = comparatorPattern.exec(comparator);
+				const target = match && semVerPattern.exec(match[2]);
+				return target !== null && target[4] !== void 0 && target[1] === parsedVersion[1] && target[2] === parsedVersion[2] && target[3] === parsedVersion[3];
+			});
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/capability-token.js
+// dist/esm/plugin-kernel/capability-token.js
 	const capabilityTokenBrand = Symbol("ImageEditorCapabilityToken");
 	function createCapabilityToken(id, version) {
 		if (!isRuntimeIdentifier(id)) throw new InvalidPluginDefinitionError("CapabilityToken id must use namespace:kebab-case and be at most 128 characters.");
@@ -430,8 +442,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!isValidSemVerRange(requirement.range)) throw new InvalidCapabilityVersionError(token.id, requirement.range, "range");
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/reporting.js
+// dist/esm/plugin-kernel/reporting.js
 	function reportErrorSafely(errorSink, error) {
 		if (!errorSink) return;
 		try {
@@ -447,8 +458,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/disposable.js
+// dist/esm/plugin-kernel/disposable.js
 	function isPromiseLike$1(value) {
 		return (typeof value === "object" || typeof value === "function") && value !== null && typeof value.then === "function";
 	}
@@ -538,8 +548,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return errors;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-ref.js
+// dist/esm/plugin-kernel/plugin-ref.js
 	const pluginRefBrand = Symbol("ImageEditorPluginRef");
 	function definePluginRef(id, apiVersion) {
 		assertPluginIdentifier(id, "PluginRef id");
@@ -555,8 +564,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return value[pluginRefBrand] === true;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-manifest.js
+// dist/esm/plugin-kernel/plugin-manifest.js
 	const CORE_API_VERSION = "3.0.0";
 	const MAX_VERSION_LENGTH = 64;
 	const MAX_PLUGIN_DEPENDENCIES = 64;
@@ -653,8 +661,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/capability-registry.js
+// dist/esm/plugin-kernel/capability-registry.js
 	function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
 		var _a, _b;
 		if (!isCapabilityToken(token) || !isValidSemVer(token.version)) throw new InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : "unknown", (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : "", "version");
@@ -850,8 +857,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/committed-event-bus.js
+// dist/esm/plugin-kernel/committed-event-bus.js
 	const DEFAULT_COMMITTED_EVENT_LISTENER_TIMEOUT_MS = 5e3;
 	const DISPOSED_LISTENER_OUTCOME = Symbol("disposed-listener-outcome");
 	const eventBusDisposalStates = /* @__PURE__ */ new WeakMap();
@@ -1055,8 +1061,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/thrown-error.js
+// dist/esm/plugin-kernel/thrown-error.js
 	function normalizeThrownError(cause, message) {
 		try {
 			if (cause instanceof Error) return cause;
@@ -1069,8 +1074,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return error;
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/operation-registry.js
+// dist/esm/plugin-kernel/operation-registry.js
 	const OPERATION_MODES = [
 		"read",
 		"busy",
@@ -1586,8 +1590,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/operation-ids.js
+// dist/esm/plugin-kernel/operation-ids.js
 	const coreOperationIds = Object.freeze({
 		loadImage: "core:load-image",
 		commitLoadImage: "core:commit-load-image",
@@ -1617,8 +1620,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo: "history:redo"
 	});
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-definition-lease.js
+// dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
 	function resolvePluginDefinitionIdentity(definition) {
@@ -1652,8 +1654,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (definitionLeases.get(identity) === host) definitionLeases.delete(identity);
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/official-plugin-package-hints.js
+// dist/esm/plugin-kernel/official-plugin-package-hints.js
 	const OFFICIAL_PLUGIN_PACKAGE_HINTS = Object.freeze([
 		Object.freeze({
 			pluginId: "foundation:overlay",
@@ -1717,8 +1718,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return packageHintsByPluginId.get(pluginId);
 	}
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-state-store.js
+// dist/esm/plugin-kernel/plugin-state-store.js
 	function assertStateKey(key) {
 		if (key.trim().length === 0 || key.trim() !== key) throw new InvalidPluginDefinitionError("Plugin state keys must be non-empty trimmed strings.");
 	}
@@ -1825,8 +1825,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/registration-scope.js
+// dist/esm/plugin-kernel/registration-scope.js
 	var RegistrationScope = class {
 		constructor(pluginId, options = {}) {
 			Object.defineProperty(this, "pluginId", {
@@ -1954,8 +1953,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/tool-coordinator.js
+// dist/esm/plugin-kernel/tool-coordinator.js
 	var ToolCoordinator = class {
 		constructor(options = {}) {
 			Object.defineProperty(this, "options", {
@@ -2188,8 +2186,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-manager.js
+// dist/esm/plugin-kernel/plugin-manager.js
 	function createPluginCleanupTraversal(installationOrder, installed, toolCoordinator, operationRegistry, eventBus, capabilityRegistry, stateStore) {
 		const records = [...installationOrder].reverse().map((pluginId) => installed.get(pluginId)).filter((record) => record !== void 0);
 		const kernelTargets = Object.freeze([
@@ -3023,8 +3020,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugin-kernel/plugin-plan.js
+// dist/esm/plugin-kernel/plugin-plan.js
 	const pluginPlanDefinition = Symbol("image-editor.plugin-plan.definition");
 	function isPluginPlan(value) {
 		return typeof value === "object" && value !== null && pluginPlanDefinition in value && Array.isArray(value.plugins);
@@ -3055,15 +3051,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Object.freeze(result);
 	}
 
-//#endregion
-//#region dist/esm/utils/dom.js
+// dist/esm/utils/dom.js
 	function forceReflow(element) {
 		if (!element) return;
 		element.offsetWidth;
 	}
 
-//#endregion
-//#region dist/esm/image/layout-manager.js
+// dist/esm/image/layout-manager.js
 	function selectLayoutStrategy(mode) {
 		return mode;
 	}
@@ -3278,8 +3272,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		forceReflow(containerElement);
 	}
 
-//#endregion
-//#region dist/esm/image/image-preprocessor.js
+// dist/esm/image/image-preprocessor.js
 	function uint16(bytes, offset, littleEndian) {
 		if (offset < 0 || offset + 2 > bytes.length) return null;
 		return littleEndian ? bytes[offset] | bytes[offset + 1] << 8 : bytes[offset] << 8 | bytes[offset + 1];
@@ -3632,8 +3625,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/errors.js
+// dist/esm/core-runtime/errors.js
 	function severityFor(behavior) {
 		if (behavior === "operation-cancelled") return "cancelled";
 		if (behavior === "recoverable-object" || behavior === "recoverable-optional-capability" || behavior === "operation-conflict") return "recoverable";
@@ -3964,8 +3956,196 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/utils/image-budget.js
+// dist/esm/utils/safe-object-key.js
+	function isUnsafeObjectKey(key) {
+		return key === "__proto__" || key === "constructor" || key === "prototype";
+	}
+
+// dist/esm/fabric/safe-fabric-serialization.js
+	const SAFE_NESTED_FABRIC_TYPES = /* @__PURE__ */ new Set([
+		"linear",
+		"pattern",
+		"radial",
+		"shadow"
+	]);
+	const RESOURCE_KEYS = /* @__PURE__ */ new Set([
+		"href",
+		"source",
+		"src",
+		"url"
+	]);
+	const DATA_IMAGE_PATTERN = /^data:image\/(?:jpeg|png|webp);base64,[a-z\d+/]+={0,2}$/iu;
+	const COMMON_ROOT_PROPERTIES = /* @__PURE__ */ new Set([
+		"angle",
+		"backgroundColor",
+		"fill",
+		"fillRule",
+		"flipX",
+		"flipY",
+		"globalCompositeOperation",
+		"height",
+		"left",
+		"opacity",
+		"originX",
+		"originY",
+		"paintFirst",
+		"scaleX",
+		"scaleY",
+		"shadow",
+		"skewX",
+		"skewY",
+		"stroke",
+		"strokeDashArray",
+		"strokeDashOffset",
+		"strokeLineCap",
+		"strokeLineJoin",
+		"strokeMiterLimit",
+		"strokeUniform",
+		"strokeWidth",
+		"top",
+		"type",
+		"version",
+		"visible",
+		"width"
+	]);
+	const MASK_INTERACTION_PROPERTIES = /* @__PURE__ */ new Set([
+		"borderColor",
+		"cornerColor",
+		"cornerSize",
+		"evented",
+		"hasControls",
+		"lockRotation",
+		"selectable",
+		"transparentCorners"
+	]);
+	const ROOT_TYPE_PROPERTIES = Object.freeze({
+		image: /* @__PURE__ */ new Set([
+			"src",
+			"crossOrigin",
+			"cropX",
+			"cropY",
+			"filters",
+			"resizeFilter",
+			"minimumScaleTrigger",
+			"imageSmoothing",
+			"editorObjectKind"
+		]),
+		rect: /* @__PURE__ */ new Set(["rx", "ry"]),
+		circle: /* @__PURE__ */ new Set([
+			"counterClockwise",
+			"endAngle",
+			"radius",
+			"startAngle"
+		]),
+		ellipse: /* @__PURE__ */ new Set(["rx", "ry"]),
+		line: /* @__PURE__ */ new Set([
+			"x1",
+			"x2",
+			"y1",
+			"y2"
+		]),
+		path: /* @__PURE__ */ new Set(["path"]),
+		polygon: /* @__PURE__ */ new Set(["points"]),
+		polyline: /* @__PURE__ */ new Set(["points"]),
+		textbox: /* @__PURE__ */ new Set([
+			"charSpacing",
+			"direction",
+			"editable",
+			"fontFamily",
+			"fontSize",
+			"fontStyle",
+			"fontWeight",
+			"lineHeight",
+			"linethrough",
+			"minWidth",
+			"overline",
+			"path",
+			"pathAlign",
+			"pathSide",
+			"pathStartOffset",
+			"splitByGrapheme",
+			"styles",
+			"text",
+			"textAlign",
+			"textBackgroundColor",
+			"textDecorationThickness",
+			"underline"
+		])
+	});
+	function isPlainRecord$8(value) {
+		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+		const prototype = Object.getPrototypeOf(value);
+		return prototype === Object.prototype || prototype === null;
+	}
+	function isSafeSerializedFabricObject(value, options) {
+		var _a, _b, _c;
+		if (!isPlainRecord$8(value)) return false;
+		const rootTypeDescriptor = Object.getOwnPropertyDescriptor(value, "type");
+		const rootType = rootTypeDescriptor && "value" in rootTypeDescriptor ? rootTypeDescriptor.value : void 0;
+		if (typeof rootType !== "string" || !options.rootTypes.some((type) => type.toLowerCase() === rootType.toLowerCase())) return false;
+		const maxDepth = (_a = options.maxDepth) !== null && _a !== void 0 ? _a : 24;
+		const maxNodes = (_b = options.maxNodes) !== null && _b !== void 0 ? _b : 2e4;
+		const maxArrayLength = (_c = options.maxArrayLength) !== null && _c !== void 0 ? _c : 65536;
+		const ancestors = /* @__PURE__ */ new WeakSet();
+		let nodes = 0;
+		const inspect = (entry, depth, root, propertyName) => {
+			var _a, _b;
+			if (entry === null || entry === void 0 || typeof entry === "string" || typeof entry === "boolean") {
+				if (typeof entry === "string" && propertyName && (RESOURCE_KEYS.has(propertyName.toLowerCase()) || propertyName.toLowerCase().endsWith("url"))) return DATA_IMAGE_PATTERN.test(entry);
+				return true;
+			}
+			if (typeof entry === "number") return Number.isFinite(entry);
+			if (typeof entry !== "object" || depth > maxDepth || ancestors.has(entry)) return false;
+			nodes += 1;
+			if (nodes > maxNodes) return false;
+			if (Array.isArray(entry)) {
+				if (entry.length > maxArrayLength) return false;
+				ancestors.add(entry);
+				if (Object.getOwnPropertySymbols(entry).some((key) => {
+					var _a;
+					return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true;
+				})) return false;
+				if (Object.keys(entry).some((key) => !/^(?:0|[1-9]\d*)$/u.test(key) || Number(key) >= entry.length)) return false;
+				for (let index = 0; index < entry.length; index += 1) {
+					const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
+					if (!descriptor || !("value" in descriptor)) return false;
+					if (!inspect(descriptor.value, depth + 1, false)) return false;
+				}
+				ancestors.delete(entry);
+				return true;
+			}
+			if (!isPlainRecord$8(entry)) return false;
+			const typeDescriptor = Object.getOwnPropertyDescriptor(entry, "type");
+			const entryType = typeDescriptor && "value" in typeDescriptor ? typeDescriptor.value : void 0;
+			if (!root && typeof entryType === "string") {
+				const nestedType = entryType.toLowerCase();
+				if (!SAFE_NESTED_FABRIC_TYPES.has(nestedType)) return false;
+			}
+			if (Object.getOwnPropertySymbols(entry).some((key) => {
+				var _a;
+				return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true;
+			})) return false;
+			ancestors.add(entry);
+			for (const key of Object.keys(entry)) {
+				if (isUnsafeObjectKey(key)) return false;
+				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = options.additionalRootProperties) === null || _a === void 0 ? void 0 : _a.includes(key)) && !((_b = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _b === void 0 ? void 0 : _b.has(key))) return false;
+				const descriptor = Object.getOwnPropertyDescriptor(entry, key);
+				if (!descriptor || !("value" in descriptor)) return false;
+				if (key === "clipPath" && descriptor.value !== null && descriptor.value !== void 0) return false;
+				if (key === "resizeFilter" && descriptor.value !== null && descriptor.value !== void 0) return false;
+				if (key === "filters" && (!Array.isArray(descriptor.value) || descriptor.value.length > 0)) return false;
+				if (!inspect(descriptor.value, depth + 1, false, key)) return false;
+			}
+			ancestors.delete(entry);
+			return true;
+		};
+		if (!inspect(value, 0, true)) return false;
+		if (rootType.toLowerCase() === "path" && !Array.isArray(value.path)) return false;
+		if (rootType.toLowerCase() === "textbox" && value.path !== null && value.path !== void 0) return false;
+		return true;
+	}
+
+// dist/esm/utils/image-budget.js
 	function resolveRasterAllocation(width, height, multiplier = 1) {
 		if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(multiplier) || width <= 0 || height <= 0 || multiplier <= 0) return null;
 		const allocationWidth = Math.ceil(width * multiplier);
@@ -3987,8 +4167,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Number.isSafeInteger(width) && Number.isSafeInteger(height) && Number.isSafeInteger(maxPixels) && width > 0 && height > 0 && maxPixels > 0 && width <= Math.floor(maxPixels / height);
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/core-state-adapter.js
+// dist/esm/core-runtime/core-state-adapter.js
 	const DEFAULT_SECURITY_LIMITS = Object.freeze({
 		maxDecodedPixels: 5e7,
 		maxImageDimension: 32768,
@@ -4085,7 +4264,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!isRecord$10(serializedValue)) throw new SnapshotValidationError("Fabric canvas serialization must be an object.");
 			const serialized = { ...serializedValue };
 			const serializedObjects = Array.isArray(serialized.objects) ? serialized.objects : [];
-			const liveObjects = canvas.getObjects();
+			const liveObjects = canvas.getObjects().filter((object) => !object.excludeFromExport);
+			if (serializedObjects.length !== liveObjects.length) throw new SnapshotValidationError("Canvas serialization object count is inconsistent.");
 			const propertyKeys = this.properties.listKeys();
 			for (let index = 0; index < serializedObjects.length; index += 1) {
 				const serializedObject = serializedObjects[index];
@@ -4220,6 +4400,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				path: "$.core.canvas"
 			};
 			if (publicInput) {
+				if (Object.keys(value.canvas).some((key) => ![
+					"version",
+					"objects",
+					"background",
+					"width",
+					"height"
+				].includes(key)) || value.canvas.background !== void 0 && typeof value.canvas.background !== "string") return {
+					valid: false,
+					message: "Unsupported Canvas property.",
+					path: "$.core.canvas"
+				};
 				const objects = value.canvas.objects;
 				if (!Array.isArray(objects)) return {
 					valid: false,
@@ -4247,6 +4438,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						valid: false,
 						message: "Base Image Fabric filters are not accepted in public Snapshots.",
 						path: `$.core.canvas.objects.${index}.filters`
+					};
+					if (!isSafeSerializedFabricObject(object, {
+						rootTypes: ["image"],
+						additionalRootProperties: this.properties.listKeys()
+					})) return {
+						valid: false,
+						message: "Base image contains unsupported Fabric properties.",
+						path: `$.core.canvas.objects.${index}`
 					};
 				}
 				if (objects.length > 1) return {
@@ -4280,8 +4479,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/export-contributor-registry.js
+// dist/esm/core-runtime/export-contributor-registry.js
 	var ExportContributorRegistry = class {
 		constructor() {
 			Object.defineProperty(this, "contributors", {
@@ -4354,8 +4552,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/geometry/affine-matrix.js
+// dist/esm/core-runtime/geometry/affine-matrix.js
 	const IDENTITY_AFFINE_MATRIX = Object.freeze([
 		1,
 		0,
@@ -4412,8 +4609,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return sanitizeAffineMatrix(multiplyAffine(after, invertAffine(before)));
 	}
 
-//#endregion
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -4441,8 +4637,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/core-runtime/state/clone-state-value.js
+// dist/esm/core-runtime/state/clone-state-value.js
 	function isObject$1(value) {
 		return typeof value === "object" && value !== null;
 	}
@@ -4462,6 +4657,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return;
 		}
 		if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return;
+		const prototype = Object.getPrototypeOf(value);
+		if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) throw new StateCloneError(`State at ${path} contains an unsupported object type.`);
 		for (const key of Object.getOwnPropertySymbols(value)) if ((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.enumerable) throw new StateCloneError(`State at ${path} contains an enumerable symbol key.`);
 		const descriptors = Object.getOwnPropertyDescriptors(value);
 		for (const [key, descriptor] of Object.entries(descriptors)) {
@@ -4482,6 +4679,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (value instanceof Date) return new Date(value.getTime());
 		if (value instanceof ArrayBuffer) return value.slice(0);
 		if (ArrayBuffer.isView(value)) {
+			if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(value);
 			const source = value;
 			return new Uint8Array(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength));
 		}
@@ -4505,7 +4703,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		const prototype = Object.getPrototypeOf(value);
 		if (prototype !== Object.prototype && prototype !== null) throw new StateCloneError(`State contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : "unknown"}".`);
-		const result = Object.create(null);
+		const result = Object.create(prototype);
 		seen.set(value, result);
 		for (const key of Object.keys(value)) {
 			if (isDangerousStateKey(key)) throw new StateCloneError(`State contains dangerous key "${key}".`);
@@ -4530,8 +4728,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function cloneStateValue(value) {
 		try {
 			assertSafeStateValue(value);
-			const structuredCloneFunction = globalThis.structuredClone;
-			return deepFreeze(typeof structuredCloneFunction === "function" ? structuredCloneFunction(value) : cloneFallback(value, /* @__PURE__ */ new Map()));
+			return deepFreeze(cloneFallback(value, /* @__PURE__ */ new Map()));
 		} catch (error) {
 			if (error instanceof StateCloneError) throw error;
 			throw new StateCloneError("State could not be cloned safely.", error);
@@ -4554,8 +4751,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		seen.delete(value);
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/mutation/bounded-replay-id-tracker.js
+// dist/esm/core-runtime/mutation/bounded-replay-id-tracker.js
 	const DEFAULT_RECENT_REPLAY_ID_LIMIT = 1e4;
 	var BoundedReplayIdTracker = class {
 		constructor(recentLimit = DEFAULT_RECENT_REPLAY_ID_LIMIT) {
@@ -4608,8 +4804,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/geometry/geometry-mutation-coordinator.js
+// dist/esm/core-runtime/geometry/geometry-mutation-coordinator.js
 	function assertIdentifier$2(value, label) {
 		if (value.trim().length === 0 || value.trim() !== value) throw new GeometryMutationError(value || "unknown", `${label} must be non-empty and trimmed.`);
 	}
@@ -4748,72 +4943,50 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a, _b;
 			let before = null;
 			let provisional = null;
-			const participantSnapshot = Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order || left.registrationOrder - right.registrationOrder));
-			const geometryParticipant = Object.freeze({
-				id: "core:geometry-participants",
+			const geometryParticipants = [{
+				id: "core:geometry-state",
 				order: 0,
+				prepare: () => {
+					before = freezeGeometry(this.options.state.captureGeometry());
+					provisional = createDescriptor(request, before, before, metadata, true);
+				}
+			}, ...Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order || left.registrationOrder - right.registrationOrder)).map(({ participant }, index) => ({
+				id: participant.id,
+				order: index + 1,
 				prepare: async (context) => {
-					const capturedBefore = freezeGeometry(this.options.state.captureGeometry());
-					const provisionalDescriptor = createDescriptor(request, capturedBefore, capturedBefore, metadata, true);
-					before = capturedBefore;
-					provisional = provisionalDescriptor;
-					const participantContext = this.createParticipantContext(request.id, context.signal);
-					const entries = [];
-					for (const record of participantSnapshot) {
-						if (!record.participant.supports(provisionalDescriptor)) continue;
-						const prepared = record.participant.prepare ? await record.participant.prepare(provisionalDescriptor, participantContext) : void 0;
-						entries.push({
-							record,
-							prepared
-						});
-					}
-					return Object.freeze({
-						entries: Object.freeze(entries),
-						context: participantContext
-					});
+					var _a;
+					const descriptor = provisional;
+					if (!participant.supports(descriptor)) return { supported: false };
+					return {
+						supported: true,
+						value: await ((_a = participant.prepare) === null || _a === void 0 ? void 0 : _a.call(participant, descriptor, this.createParticipantContext(request.id, context.signal)))
+					};
 				},
-				apply: async (descriptor, prepared) => {
-					for (const entry of prepared.entries) try {
-						await entry.record.participant.apply(descriptor, entry.prepared, prepared.context);
+				apply: async (descriptor, prepared, context) => {
+					if (!prepared.supported) return;
+					try {
+						await participant.apply(descriptor, prepared.value, this.createParticipantContext(request.id, context.signal));
 					} catch (error) {
-						if (error instanceof GeometryRecoverableObjectError) {
-							this.warnRecoverable(request.id, entry.record.participant.id, error);
-							continue;
-						}
-						throw error;
+						if (!(error instanceof GeometryRecoverableObjectError)) throw error;
+						this.warnRecoverable(request.id, participant.id, error);
 					}
 				},
-				synchronize: async (descriptor, prepared) => {
+				synchronize: async (descriptor, prepared, context) => {
+					var _a;
+					if (!prepared.supported) return;
+					try {
+						await ((_a = participant.synchronize) === null || _a === void 0 ? void 0 : _a.call(participant, descriptor, this.createParticipantContext(request.id, context.signal)));
+					} catch (error) {
+						if (!(error instanceof GeometryRecoverableObjectError)) throw error;
+						this.warnRecoverable(request.id, participant.id, error);
+					}
+				},
+				...participant.rollback ? { rollback: async (prepared, context) => {
 					var _a, _b;
-					for (const entry of prepared.entries) try {
-						await ((_b = (_a = entry.record.participant).synchronize) === null || _b === void 0 ? void 0 : _b.call(_a, descriptor, prepared.context));
-					} catch (error) {
-						if (error instanceof GeometryRecoverableObjectError) {
-							this.warn({
-								code: "GEOMETRY_SYNCHRONIZE_WARNING",
-								message: error.message,
-								mutationId: request.id,
-								participantId: entry.record.participant.id,
-								...error.objectIdentity === void 0 ? {} : { objectIdentity: error.objectIdentity },
-								...error.objectKind === void 0 ? {} : { objectKind: error.objectKind },
-								cause: error.cause
-							});
-							continue;
-						}
-						throw error;
-					}
-				},
-				...participantSnapshot.some(({ participant }) => participant.rollback) ? { rollback: async (prepared, rollbackContext) => {
-					var _a, _b, _c;
-					const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
-					if (!descriptor) return;
-					for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
-						const entry = prepared.entries[index];
-						if (!entry) continue;
-						await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
-					}
+					const descriptor = (_a = context.result) !== null && _a !== void 0 ? _a : provisional;
+					if (prepared.supported && descriptor) await ((_b = participant.rollback) === null || _b === void 0 ? void 0 : _b.call(participant, descriptor, prepared.value, this.createParticipantContext(request.id, context.signal)));
 				} } : {}
-			});
+			}))];
 			try {
 				return await this.options.mutations.run({
 					id: request.id,
@@ -4823,7 +4996,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					signal,
 					...request.parent ? { parent: request.parent } : {},
 					metadata,
-					participants: [geometryParticipant],
+					participants: geometryParticipants,
 					mutate: async (context) => {
 						const capturedBefore = before;
 						if (!capturedBefore) throw new GeometryMutationError(request.id, "geometry preparation did not capture the before state.");
@@ -4915,8 +5088,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/history-commit-router.js
+// dist/esm/core-runtime/history-commit-router.js
 	const unavailableHistory = Object.freeze({
 		isAvailable: () => false,
 		commit: () => void 0
@@ -4962,8 +5134,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/sdk/core-capabilities.js
+// dist/esm/sdk/core-capabilities.js
 	const CORE_STATUS_CAPABILITY = createCapabilityToken("core:status", "1.0.0");
 	const CORE_DIAGNOSTICS_CAPABILITY = createCapabilityToken("core:diagnostics", "1.0.0");
 	const CORE_PRESENTATION_CAPABILITY = createCapabilityToken("core:presentation", "1.0.0");
@@ -4981,12 +5152,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const DOCUMENT_MUTATION_CAPABILITY = createCapabilityToken("core:document-mutation", "1.0.0");
 	const EXPORT_CONTRIBUTION_CAPABILITY = createCapabilityToken("core:export", "1.0.0");
 
-//#endregion
-//#region dist/esm/core-runtime/internal-capabilities.js
+// dist/esm/core-runtime/internal-capabilities.js
 	const CORE_ENVIRONMENT_CAPABILITY = createCapabilityToken("core:environment", "1.0.0");
 
-//#endregion
-//#region dist/esm/core-runtime/lifecycle.js
+// dist/esm/core-runtime/lifecycle.js
 	const ALLOWED_TRANSITIONS = {
 		configured: ["initializing", "disposing"],
 		initializing: [
@@ -5080,8 +5249,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/plugin-api-handle.js
+// dist/esm/core-runtime/plugin-api-handle.js
 	function isProxyablePluginApi(value) {
 		return typeof value === "object" && value !== null || typeof value === "function";
 	}
@@ -5189,8 +5357,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/mutation/document-mutation-coordinator.js
+// dist/esm/core-runtime/mutation/document-mutation-coordinator.js
 	const DEFAULT_ROLLBACK_TIMEOUT_MS$1 = 3e4;
 	const INTERACTIVE_MUTATION_BOUNDARY$1 = Symbol.for("@bensitu/image-editor/internal-interactive-mutation-boundary/v1");
 	function getInteractiveMutationBoundary(request) {
@@ -5626,8 +5793,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/memento-service.js
+// dist/esm/core-runtime/state/memento-service.js
 	const DEFAULT_ROLLBACK_TIMEOUT_MS = 3e4;
 	function createAbortError(message) {
 		if (typeof DOMException === "function") return new DOMException(message, "AbortError");
@@ -5852,8 +6018,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/object-property-registry.js
+// dist/esm/core-runtime/state/object-property-registry.js
 	function assertIdentifier(value, label) {
 		if (value.trim().length === 0 || value.trim() !== value) throw new StateRegistrationError(`${label} must be a non-empty trimmed string.`);
 	}
@@ -5933,8 +6098,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/image-data-url.js
+// dist/esm/core-runtime/state/image-data-url.js
 	const PNG_SIGNATURE = [
 		137,
 		80,
@@ -5996,6 +6160,32 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (length === null || length < 2 || offset + length > bytes.length) return null;
 			if (isJpegStartOfFrame(marker) && length >= 7) return positiveDimensions(uint16BE(bytes, offset + 5), uint16BE(bytes, offset + 3));
 			offset += length;
+		}
+		return null;
+	}
+	function readEncodedJpegDimensions(value, payloadOffset) {
+		const payload = value.slice(payloadOffset).replace(/\s/gu, "");
+		const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+		const length = Math.floor(payload.length * 3 / 4) - (payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0);
+		const byte = (index) => {
+			const offset = Math.floor(index / 3) * 4;
+			const position = index % 3;
+			const left = alphabet.indexOf(payload[offset + position]);
+			const right = alphabet.indexOf(payload[offset + position + 1]);
+			return position === 0 ? left << 2 | right >> 4 : position === 1 ? (left & 15) << 4 | right >> 2 : (left & 3) << 6 | right;
+		};
+		if (length < 4 || byte(0) !== 255 || byte(1) !== 216) return null;
+		let offset = 2;
+		while (offset + 3 < length) {
+			if (byte(offset) !== 255) return null;
+			while (offset < length && byte(offset) === 255) offset += 1;
+			const marker = byte(offset++);
+			if (marker === 218 || marker === 217) return null;
+			if (marker === 1 || marker >= 208 && marker <= 215) continue;
+			const segmentLength = byte(offset) << 8 | byte(offset + 1);
+			if (segmentLength < 2 || offset + segmentLength > length) return null;
+			if (isJpegStartOfFrame(marker) && segmentLength >= 7) return positiveDimensions(byte(offset + 5) << 8 | byte(offset + 6), byte(offset + 3) << 8 | byte(offset + 4));
+			offset += segmentLength;
 		}
 		return null;
 	}
@@ -6070,7 +6260,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 	function inspectEncodedImageDataUrl(value) {
-		var _a, _b;
+		var _a;
 		const commaIndex = value.indexOf(",");
 		if (commaIndex < 0 || commaIndex > MAX_DATA_URL_HEADER_LENGTH) return null;
 		const header = value.slice(0, commaIndex).toLowerCase();
@@ -6082,7 +6272,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const payload = scanBase64Payload(value, commaIndex + 1);
 		if (!payload) return null;
 		const decodedPrefix = decodePrefix(payload.prefix);
-		const dimensions = decodedPrefix ? (_b = (_a = readPngDimensions(decodedPrefix)) !== null && _a !== void 0 ? _a : readJpegDimensions(decodedPrefix)) !== null && _b !== void 0 ? _b : readWebpDimensions(decodedPrefix) : null;
+		const dimensions = decodedPrefix ? mimeType === "image/png" ? readPngDimensions(decodedPrefix) : mimeType === "image/webp" ? readWebpDimensions(decodedPrefix) : (_a = readJpegDimensions(decodedPrefix)) !== null && _a !== void 0 ? _a : readEncodedJpegDimensions(value, commaIndex + 1) : null;
 		return Object.freeze({
 			mimeType,
 			encodedBytes: payload.encodedBytes,
@@ -6090,8 +6280,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/core-runtime/state/snapshot-service.js
+// dist/esm/core-runtime/state/snapshot-service.js
 	const EXTERNAL_RESOURCE_KEYS = /* @__PURE__ */ new Set([
 		"href",
 		"source",
@@ -6116,8 +6305,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		maxImageDimension: 32768,
 		externalUrlPolicy: "reject"
 	});
+	const textEncoder = new TextEncoder();
 	function byteLength(value) {
-		return new TextEncoder().encode(value).byteLength;
+		return textEncoder.encode(value).byteLength;
 	}
 	function inspectTree(value, limits, path = "$", depth = 0, ancestors = /* @__PURE__ */ new WeakSet(), counter = { count: 0 }, propertyName) {
 		if (depth > limits.maxDepth) throw new SnapshotValidationError(`nesting exceeds ${limits.maxDepth}.`, path);
@@ -6125,16 +6315,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (typeof value === "number" && !Number.isFinite(value)) throw new SnapshotValidationError("number must be finite.", path);
 			if (typeof value === "string") {
 				if (value.length > limits.maxStringLength) throw new SnapshotValidationError(`string length exceeds ${limits.maxStringLength}.`, path);
-				if (value.startsWith("data:")) {
+				if (/^data:/iu.test(value)) {
 					const inspection = inspectEncodedImageDataUrl(value);
 					if (!inspection) throw new SnapshotValidationError("Data URL must be a base64 PNG, JPEG, or WebP image.", path);
 					if (inspection.encodedBytes > limits.maxDataUrlBytes) throw new SnapshotValidationError(`Data URL exceeds ${limits.maxDataUrlBytes} bytes.`, path);
+					if (!inspection.dimensions) throw new SnapshotValidationError("Image dimensions could not be determined.", path);
 					if (inspection.dimensions) {
 						const { width, height } = inspection.dimensions;
 						if (width * height > limits.maxDecodedPixels) throw new SnapshotValidationError(`decoded pixel count exceeds ${limits.maxDecodedPixels}.`, path);
 						if (width > limits.maxImageDimension || height > limits.maxImageDimension) throw new SnapshotValidationError(`image dimensions exceed ${limits.maxImageDimension}.`, path);
 					}
-				} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(value)) throw new SnapshotValidationError("external URL references are forbidden.", path);
+				} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && value.length > 0) throw new SnapshotValidationError("external URL references are forbidden.", path);
 			}
 			if (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint") throw new SnapshotValidationError(`unsupported ${typeof value} value.`, path);
 			return;
@@ -6416,8 +6607,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/state-slice-registry.js
+// dist/esm/core-runtime/state/state-slice-registry.js
 	function assertDefinition(definition) {
 		if (!isRuntimeIdentifier(definition.id)) throw new StateRegistrationError("Invalid State Slice Runtime ID.", definition.id);
 		if (!Number.isSafeInteger(definition.version) || definition.version <= 0) throw new StateRegistrationError(`State slice "${definition.id}" must use a positive integer version.`, definition.id);
@@ -6480,8 +6670,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/state/transient-object-registry.js
+// dist/esm/core-runtime/state/transient-object-registry.js
 	var TransientObjectRegistry = class {
 		constructor(warningSink) {
 			Object.defineProperty(this, "warningSink", {
@@ -6532,12 +6721,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} catch (error) {
 				(_a = this.warningSink) === null || _a === void 0 || _a.call(this, {
 					code: "TRANSIENT_PREDICATE_FAILED",
-					message: `Transient object predicate owned by "${record.owner}" failed and was ignored.`,
+					message: `Transient object predicate owned by "${record.owner}" failed.`,
 					details: Object.freeze({
 						owner: record.owner,
 						cause: error
 					})
 				});
+				throw new StateRegistrationError(`Transient object classification failed for "${record.owner}".`);
 			}
 			return false;
 		}
@@ -6552,8 +6742,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/core-runtime/image-editor-core.js
+// dist/esm/core-runtime/image-editor-core.js
 	const DEFAULT_EXPORT_FILE_NAME = "edited_image";
 	const DEFAULT_CORE_OPTIONS = Object.freeze({
 		canvasWidth: 800,
@@ -7261,6 +7450,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const sourceMimeType = inferMimeType(source);
 			if (!sourceMimeType || !encodedImage) throw new CoreRuntimeError("[ImageEditor] Unsupported image Data URL.");
 			if (encodedImage.encodedBytes > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image input exceeds maxInputBytes.");
+			if (!encodedImage.dimensions) throw new CoreRuntimeError("[ImageEditor] Image dimensions could not be determined.");
 			if (encodedImage.dimensions && !this.isInputRasterWithinBudget(encodedImage.dimensions.width, encodedImage.dimensions.height)) throw new CoreRuntimeError("[ImageEditor] Image input dimensions exceed the configured budget.");
 			if (options.concurrency && options.concurrency !== "replace-pending") throw new CoreRuntimeError("[ImageEditor] Unsupported load concurrency policy.");
 			const preprocessing = resolveImagePreprocessing(options.preprocessing, this.options.imagePreprocessing);
@@ -8417,12 +8607,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/sdk/visible-raster-bake.js
+// dist/esm/sdk/visible-raster-bake.js
 	const VISIBLE_RASTER_BAKE_CAPABILITY = createCapabilityToken("raster:visible-bake", "1.0.0");
 
-//#endregion
-//#region dist/esm/sdk/plugin-definition.js
+// dist/esm/sdk/plugin-definition.js
 	function definePlugin(definition) {
 		if (typeof definition !== "object" || definition === null) throw new InvalidPluginDefinitionError("Plugin definition must be an object.");
 		if (!isPluginRef(definition.ref)) throw new InvalidPluginDefinitionError("Plugin definition must use a PluginRef created by definePluginRef().");
@@ -8435,8 +8623,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}));
 	}
 
-//#endregion
-//#region dist/esm/utils/abortable-promise.js
+// dist/esm/utils/abortable-promise.js
 	function settleAbortable(task, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
 			let settled = false;
@@ -8464,8 +8651,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-transform-delta.js
+// dist/esm/foundations/overlay/overlay-transform-delta.js
 	function isFiniteTransformMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
@@ -8564,8 +8750,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-errors.js
+// dist/esm/foundations/overlay/overlay-errors.js
 	var OverlayRecoverableObjectError = class extends CoreRuntimeError {
 		constructor(message, cause) {
 			super(`[ImageEditor] Recoverable overlay object failure: ${message}`, {
@@ -8576,8 +8761,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-foundation-controller.js
+// dist/esm/foundations/overlay/overlay-foundation-controller.js
 	const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for("@bensitu/image-editor/internal-interactive-mutation-boundary/v1");
 	function withInteractiveMutationBoundary(request, boundary) {
 		return Object.assign(request, { [INTERACTIVE_MUTATION_BOUNDARY]: boundary });
@@ -10216,8 +10400,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-state-geometry.js
+// dist/esm/foundations/overlay/overlay-state-geometry.js
 	function isFinitePoint(value) {
 		if (typeof value !== "object" || value === null) return false;
 		const point = value;
@@ -10329,8 +10512,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/foundations/overlay/index.js
+// dist/esm/foundations/overlay/index.js
 	const OVERLAY_CAPABILITY = createCapabilityToken("foundation:overlay", "1.0.0");
 	const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken("foundation:overlay-registration", "1.0.0");
 	const overlayFoundationRef = definePluginRef("foundation:overlay", "1.0.0");
@@ -10519,8 +10701,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/core/public-types.js
+// dist/esm/core/public-types.js
 	function isBaseImageObject(object) {
 		return !!object && typeof object === "object" && object.editorObjectKind === "baseImage";
 	}
@@ -10533,8 +10714,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return !!candidate && candidate.editorObjectKind === "session" && typeof candidate.sessionObjectType === "string";
 	}
 
-//#endregion
-//#region dist/esm/utils/internal-layer-placement.js
+// dist/esm/utils/internal-layer-placement.js
 	function isRasterVisualObject(object) {
 		return object.editorLayerRole === "rasterVisual";
 	}
@@ -10596,8 +10776,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-geometry.js
+// dist/esm/foundations/annotation/annotation-geometry.js
 	function isFiniteMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
@@ -10670,8 +10849,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-errors.js
+// dist/esm/foundations/annotation/annotation-errors.js
 	var AnnotationError = class extends Error {
 		constructor(message) {
 			super(`[ImageEditor] ${message}`);
@@ -10691,19 +10869,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/utils/safe-object-key.js
-	function isUnsafeObjectKey(key) {
-		return key === "__proto__" || key === "constructor" || key === "prototype";
-	}
-
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-metadata.js
+// dist/esm/foundations/annotation/annotation-metadata.js
 	const MAX_ANNOTATION_NAME_LENGTH = 128;
 	const MAX_ANNOTATION_METADATA_DEPTH = 4;
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
 	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
-	function isPlainRecord$8(value) {
+	function isPlainRecord$7(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
 		return prototype === Object.prototype || prototype === null;
@@ -10728,7 +10899,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (value.length > 32) throw new AnnotationValidationError("Annotation metadata arrays are too large.");
 				return Object.freeze(value.map((entry) => cloneMetadataValue(entry, depth + 1, budget)));
 			}
-			if (!isPlainRecord$8(value)) throw new AnnotationValidationError("Annotation metadata objects must be plain.");
+			if (!isPlainRecord$7(value)) throw new AnnotationValidationError("Annotation metadata objects must be plain.");
 			const entries = Object.entries(value);
 			budget.keyCount += entries.length;
 			if (budget.keyCount > 32) throw new AnnotationValidationError("Annotation metadata contains too many keys.");
@@ -10749,7 +10920,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return candidate;
 	}
 	function normalizeAnnotationMetadata(value = {}) {
-		if (!isPlainRecord$8(value)) throw new AnnotationValidationError("Annotation metadata must be a plain object.");
+		if (!isPlainRecord$7(value)) throw new AnnotationValidationError("Annotation metadata must be a plain object.");
 		return cloneMetadataValue(value, 0, {
 			keyCount: 0,
 			stringBytes: 0,
@@ -10765,15 +10936,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-presentation-manager.js
+// dist/esm/foundations/annotation/annotation-presentation-manager.js
 	const DEFAULT_LOCK_INDICATOR = Object.freeze({
 		size: 16,
 		offset: 3,
 		backgroundColor: "#111827",
 		iconColor: "#ffffff"
 	});
-	function isPlainRecord$7(value) {
+	function isPlainRecord$6(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
 		return prototype === Object.prototype || prototype === null;
@@ -10794,7 +10964,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function resolveHoverStyle(value) {
 		if (value === void 0 || value === false) return false;
-		if (!isPlainRecord$7(value)) throw new AnnotationValidationError("Annotation hoverStyle must be an object or false.");
+		if (!isPlainRecord$6(value)) throw new AnnotationValidationError("Annotation hoverStyle must be an object or false.");
 		const allowed = /* @__PURE__ */ new Set([
 			"fill",
 			"opacity",
@@ -10811,7 +10981,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function resolveControlStyle(value) {
 		if (value === void 0) return Object.freeze({});
-		if (!isPlainRecord$7(value)) throw new AnnotationValidationError("Annotation controlStyle must be an object.");
+		if (!isPlainRecord$6(value)) throw new AnnotationValidationError("Annotation controlStyle must be an object.");
 		const allowed = /* @__PURE__ */ new Set([
 			"borderColor",
 			"cornerColor",
@@ -10836,7 +11006,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function resolveLabel(value) {
 		var _a, _b;
 		if (value === void 0 || value === false) return false;
-		if (!isPlainRecord$7(value)) throw new AnnotationValidationError("Annotation label must be an object or false.");
+		if (!isPlainRecord$6(value)) throw new AnnotationValidationError("Annotation label must be an object or false.");
 		const allowed = /* @__PURE__ */ new Set([
 			"showOn",
 			"offset",
@@ -10846,7 +11016,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (Object.keys(value).some((key) => !allowed.has(key))) throw new AnnotationValidationError("Annotation label contains unknown keys.");
 		if (value.showOn !== void 0 && value.showOn !== "selected" && value.showOn !== "always") throw new AnnotationValidationError("Annotation label.showOn must be selected or always.");
 		if (value.getText !== void 0 && typeof value.getText !== "function") throw new AnnotationValidationError("Annotation label.getText must be a function.");
-		if (value.textOptions !== void 0 && !isPlainRecord$7(value.textOptions)) throw new AnnotationValidationError("Annotation label.textOptions must be an object.");
+		if (value.textOptions !== void 0 && !isPlainRecord$6(value.textOptions)) throw new AnnotationValidationError("Annotation label.textOptions must be an object.");
 		return Object.freeze({
 			showOn: (_a = value.showOn) !== null && _a !== void 0 ? _a : "selected",
 			offset: (_b = finiteRange$2(value.offset, "Annotation label offset", 0, 256)) !== null && _b !== void 0 ? _b : 3,
@@ -10857,7 +11027,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function resolveLockIndicator(value) {
 		var _a, _b, _c, _d;
 		if (value === false) return false;
-		if (value !== void 0 && !isPlainRecord$7(value)) throw new AnnotationValidationError("Annotation lockIndicator must be an object or false.");
+		if (value !== void 0 && !isPlainRecord$6(value)) throw new AnnotationValidationError("Annotation lockIndicator must be an object or false.");
 		const config = value !== null && value !== void 0 ? value : {};
 		const allowed = /* @__PURE__ */ new Set([
 			"size",
@@ -11187,8 +11357,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return object.annotationPresentation === true;
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-runtime-state.js
+// dist/esm/foundations/annotation/annotation-runtime-state.js
 	function booleanOr(value, fallback) {
 		return typeof value === "boolean" ? value : fallback;
 	}
@@ -11226,21 +11395,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		object.setCoords();
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-controller.js
+// dist/esm/foundations/annotation/annotation-controller.js
 	const ANNOTATION_FOUNDATION_ID = "foundation:annotation";
 	const ANNOTATION_PREVIEW_KIND = "annotation:preview";
 	const FEATURE_KIND_PATTERN = /^annotation:[a-z][a-z0-9-]{0,63}$/;
 	const IDENTIFIER_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 	const DEFAULT_MAX_ANNOTATION_COUNT = 2e3;
 	const HARD_MAX_ANNOTATION_COUNT = 1e4;
-	function isPlainRecord$6(value) {
+	function isPlainRecord$5(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
 		return prototype === Object.prototype || prototype === null;
 	}
 	function isInteractionState(value) {
-		if (!isPlainRecord$6(value)) return false;
+		if (!isPlainRecord$5(value)) return false;
 		return Object.keys(value).every((key) => [
 			"selectable",
 			"evented",
@@ -11249,7 +11417,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		].includes(key)) && typeof value.selectable === "boolean" && typeof value.evented === "boolean" && typeof value.hasControls === "boolean" && (value.editable === void 0 || typeof value.editable === "boolean");
 	}
 	function isEnvelopeShape(value) {
-		if (!isPlainRecord$6(value)) return false;
+		if (!isPlainRecord$5(value)) return false;
 		return Object.keys(value).every((key) => [
 			"version",
 			"name",
@@ -11261,7 +11429,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function equalMetadata(left, right) {
 		if (Object.is(left, right)) return true;
 		if (Array.isArray(left) && Array.isArray(right)) return left.length === right.length && left.every((entry, index) => equalMetadata(entry, right[index]));
-		if (isPlainRecord$6(left) && isPlainRecord$6(right)) {
+		if (isPlainRecord$5(left) && isPlainRecord$5(right)) {
 			const leftKeys = Object.keys(left).sort();
 			const rightKeys = Object.keys(right).sort();
 			return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && equalMetadata(left[key], right[key]));
@@ -11278,7 +11446,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 	function isStateData(value) {
-		return isPlainRecord$6(value) && Object.keys(value).every((key) => [
+		return isPlainRecord$5(value) && Object.keys(value).every((key) => [
 			"version",
 			"name",
 			"interaction",
@@ -11291,7 +11459,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return value;
 	}
 	function normalizeSharedUpdate(value) {
-		if (!isPlainRecord$6(value)) throw new AnnotationValidationError("Annotation update must be a plain object.");
+		if (!isPlainRecord$5(value)) throw new AnnotationValidationError("Annotation update must be a plain object.");
 		const allowed = /* @__PURE__ */ new Set([
 			"name",
 			"metadata",
@@ -11892,7 +12060,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			};
 		}
 		normalizeQuery(query) {
-			if (!isPlainRecord$6(query)) throw new AnnotationValidationError("Annotation query must be a plain object.");
+			if (!isPlainRecord$5(query)) throw new AnnotationValidationError("Annotation query must be a plain object.");
 			const allowed = /* @__PURE__ */ new Set([
 				"kinds",
 				"ids",
@@ -11911,7 +12079,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		normalizeRemoveAllOptions(options) {
 			var _a;
-			if (!isPlainRecord$6(options)) throw new AnnotationValidationError("Annotation removeAll options must be a plain object.");
+			if (!isPlainRecord$5(options)) throw new AnnotationValidationError("Annotation removeAll options must be a plain object.");
 			const allowed = /* @__PURE__ */ new Set([
 				"kinds",
 				"ids",
@@ -12010,10 +12178,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return feature;
 		}
 		validateFeatureDefinition(definition) {
-			if (!isPlainRecord$6(definition)) throw new AnnotationValidationError("Annotation Feature definition must be an object.");
+			if (!isPlainRecord$5(definition)) throw new AnnotationValidationError("Annotation Feature definition must be an object.");
 			if (!FEATURE_KIND_PATTERN.test(definition.kind) || definition.kind === ANNOTATION_PREVIEW_KIND) throw new AnnotationValidationError("Annotation Feature kind is invalid.");
 			this.assertIdentifier(definition.ownerPluginId, "Annotation Feature owner");
-			if (typeof definition.classify !== "function" || !isPlainRecord$6(definition.codec) || !IDENTIFIER_PATTERN.test(definition.codec.type) || !/^\d+\.\d+\.\d+$/.test(definition.codec.version) || typeof definition.codec.serialize !== "function" || typeof definition.codec.validate !== "function" || typeof definition.codec.deserialize !== "function") throw new AnnotationValidationError("Annotation Feature codec is invalid.");
+			if (typeof definition.classify !== "function" || !isPlainRecord$5(definition.codec) || !IDENTIFIER_PATTERN.test(definition.codec.type) || !/^\d+\.\d+\.\d+$/.test(definition.codec.version) || typeof definition.codec.serialize !== "function" || typeof definition.codec.validate !== "function" || typeof definition.codec.deserialize !== "function") throw new AnnotationValidationError("Annotation Feature codec is invalid.");
 		}
 		assertPreviewRequest(request) {
 			this.assertIdentifier(request.id, "Annotation preview id");
@@ -12071,8 +12239,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/foundations/annotation/index.js
+// dist/esm/foundations/annotation/index.js
 	const ANNOTATION_CAPABILITY = createCapabilityToken("foundation:annotation", "1.0.0");
 	const ANNOTATION_AUTHORING_CAPABILITY = createCapabilityToken("foundation:annotation-authoring", "1.0.0");
 	const annotationFoundationRef = definePluginRef("foundation:annotation", "1.0.0");
@@ -12171,8 +12338,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/fabric/fabric-animation.js
+// dist/esm/fabric/fabric-animation.js
 	const ANIMATION_SETTLE_GRACE_MS = 1e3;
 	const ANIMATION_ABORT_QUIESCENCE_MS = 50;
 	function animateProps(object, props, options, control) {
@@ -12290,8 +12456,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		} catch {}
 	}
 
-//#endregion
-//#region dist/esm/plugins/transform/transform-controller.js
+// dist/esm/plugins/transform/transform-controller.js
 	const DEFAULT_OPTIONS = Object.freeze({
 		animationDuration: 300,
 		minScale: .1,
@@ -12709,8 +12874,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/transform/index.js
+// dist/esm/plugins/transform/index.js
 	const transformPluginRef = definePluginRef("plugin:transform", "1.0.0");
 	function isTransformState(value) {
 		if (typeof value !== "object" || value === null) return false;
@@ -12832,8 +12996,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/history/retained-size-estimator.js
+// dist/esm/plugins/history/retained-size-estimator.js
 	const BOOLEAN_BYTES = 4;
 	const DATE_BYTES = 8;
 	const NUMBER_BYTES = 8;
@@ -12908,8 +13071,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return estimateValueBytes(value, /* @__PURE__ */ new WeakSet());
 	}
 
-//#endregion
-//#region dist/esm/plugins/history/history-controller.js
+// dist/esm/plugins/history/history-controller.js
 	const DEFAULT_MAX_HISTORY_BYTES = 134217728;
 	function resolveMaxSize(value) {
 		return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 50;
@@ -13170,8 +13332,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/history/index.js
+// dist/esm/plugins/history/index.js
 	const HISTORY_CAPABILITY = createCapabilityToken("plugin:history", "1.0.0");
 	const historyPluginRef = definePluginRef("plugin:history", "1.0.0");
 	function historyPlugin(options = {}) {
@@ -13231,181 +13392,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/fabric/safe-fabric-serialization.js
-	const SAFE_NESTED_FABRIC_TYPES = /* @__PURE__ */ new Set([
-		"linear",
-		"pattern",
-		"radial",
-		"shadow"
-	]);
-	const RESOURCE_KEYS = /* @__PURE__ */ new Set([
-		"href",
-		"source",
-		"src",
-		"url"
-	]);
-	const DATA_IMAGE_PATTERN = /^data:image\/(?:jpeg|png|webp);base64,[a-z\d+/]+={0,2}$/iu;
-	const COMMON_ROOT_PROPERTIES = /* @__PURE__ */ new Set([
-		"angle",
-		"backgroundColor",
-		"fill",
-		"fillRule",
-		"flipX",
-		"flipY",
-		"globalCompositeOperation",
-		"height",
-		"left",
-		"opacity",
-		"originX",
-		"originY",
-		"paintFirst",
-		"scaleX",
-		"scaleY",
-		"shadow",
-		"skewX",
-		"skewY",
-		"stroke",
-		"strokeDashArray",
-		"strokeDashOffset",
-		"strokeLineCap",
-		"strokeLineJoin",
-		"strokeMiterLimit",
-		"strokeUniform",
-		"strokeWidth",
-		"top",
-		"type",
-		"version",
-		"visible",
-		"width"
-	]);
-	const MASK_INTERACTION_PROPERTIES = /* @__PURE__ */ new Set([
-		"borderColor",
-		"cornerColor",
-		"cornerSize",
-		"evented",
-		"hasControls",
-		"lockRotation",
-		"selectable",
-		"transparentCorners"
-	]);
-	const ROOT_TYPE_PROPERTIES = Object.freeze({
-		rect: /* @__PURE__ */ new Set(["rx", "ry"]),
-		circle: /* @__PURE__ */ new Set([
-			"counterClockwise",
-			"endAngle",
-			"radius",
-			"startAngle"
-		]),
-		ellipse: /* @__PURE__ */ new Set(["rx", "ry"]),
-		line: /* @__PURE__ */ new Set([
-			"x1",
-			"x2",
-			"y1",
-			"y2"
-		]),
-		path: /* @__PURE__ */ new Set(["path"]),
-		polygon: /* @__PURE__ */ new Set(["points"]),
-		polyline: /* @__PURE__ */ new Set(["points"]),
-		textbox: /* @__PURE__ */ new Set([
-			"charSpacing",
-			"direction",
-			"editable",
-			"fontFamily",
-			"fontSize",
-			"fontStyle",
-			"fontWeight",
-			"lineHeight",
-			"linethrough",
-			"minWidth",
-			"overline",
-			"path",
-			"pathAlign",
-			"pathSide",
-			"pathStartOffset",
-			"splitByGrapheme",
-			"styles",
-			"text",
-			"textAlign",
-			"textBackgroundColor",
-			"textDecorationThickness",
-			"underline"
-		])
-	});
-	function isPlainRecord$5(value) {
-		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-		const prototype = Object.getPrototypeOf(value);
-		return prototype === Object.prototype || prototype === null;
-	}
-	function isSafeSerializedFabricObject(value, options) {
-		var _a, _b, _c;
-		if (!isPlainRecord$5(value)) return false;
-		const rootTypeDescriptor = Object.getOwnPropertyDescriptor(value, "type");
-		const rootType = rootTypeDescriptor && "value" in rootTypeDescriptor ? rootTypeDescriptor.value : void 0;
-		if (typeof rootType !== "string" || !options.rootTypes.some((type) => type.toLowerCase() === rootType.toLowerCase())) return false;
-		const maxDepth = (_a = options.maxDepth) !== null && _a !== void 0 ? _a : 24;
-		const maxNodes = (_b = options.maxNodes) !== null && _b !== void 0 ? _b : 2e4;
-		const maxArrayLength = (_c = options.maxArrayLength) !== null && _c !== void 0 ? _c : 65536;
-		const ancestors = /* @__PURE__ */ new WeakSet();
-		let nodes = 0;
-		const inspect = (entry, depth, root, propertyName) => {
-			var _a;
-			if (entry === null || entry === void 0 || typeof entry === "string" || typeof entry === "boolean") {
-				if (typeof entry === "string" && propertyName && (RESOURCE_KEYS.has(propertyName.toLowerCase()) || propertyName.toLowerCase().endsWith("url"))) return DATA_IMAGE_PATTERN.test(entry);
-				return true;
-			}
-			if (typeof entry === "number") return Number.isFinite(entry);
-			if (typeof entry !== "object" || depth > maxDepth || ancestors.has(entry)) return false;
-			nodes += 1;
-			if (nodes > maxNodes) return false;
-			if (Array.isArray(entry)) {
-				if (entry.length > maxArrayLength) return false;
-				ancestors.add(entry);
-				if (Object.getOwnPropertySymbols(entry).some((key) => {
-					var _a;
-					return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true;
-				})) return false;
-				if (Object.keys(entry).some((key) => !/^(?:0|[1-9]\d*)$/u.test(key) || Number(key) >= entry.length)) return false;
-				for (let index = 0; index < entry.length; index += 1) {
-					const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
-					if (!descriptor || !("value" in descriptor)) return false;
-					if (!inspect(descriptor.value, depth + 1, false)) return false;
-				}
-				ancestors.delete(entry);
-				return true;
-			}
-			if (!isPlainRecord$5(entry)) return false;
-			const typeDescriptor = Object.getOwnPropertyDescriptor(entry, "type");
-			const entryType = typeDescriptor && "value" in typeDescriptor ? typeDescriptor.value : void 0;
-			if (!root && typeof entryType === "string") {
-				const nestedType = entryType.toLowerCase();
-				if (!SAFE_NESTED_FABRIC_TYPES.has(nestedType)) return false;
-			}
-			if (Object.getOwnPropertySymbols(entry).some((key) => {
-				var _a;
-				return ((_a = Object.getOwnPropertyDescriptor(entry, key)) === null || _a === void 0 ? void 0 : _a.enumerable) === true;
-			})) return false;
-			ancestors.add(entry);
-			for (const key of Object.keys(entry)) {
-				if (isUnsafeObjectKey(key)) return false;
-				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _a === void 0 ? void 0 : _a.has(key))) return false;
-				const descriptor = Object.getOwnPropertyDescriptor(entry, key);
-				if (!descriptor || !("value" in descriptor)) return false;
-				if (key === "clipPath" && descriptor.value !== null && descriptor.value !== void 0) return false;
-				if (key === "filters" && (!Array.isArray(descriptor.value) || descriptor.value.length > 0)) return false;
-				if (!inspect(descriptor.value, depth + 1, false, key)) return false;
-			}
-			ancestors.delete(entry);
-			return true;
-		};
-		if (!inspect(value, 0, true)) return false;
-		if (rootType.toLowerCase() === "path" && !Array.isArray(value.path)) return false;
-		if (rootType.toLowerCase() === "textbox" && value.path !== null && value.path !== void 0) return false;
-		return true;
-	}
-
-//#endregion
-//#region dist/esm/core/editor-object-kind.js
+// dist/esm/core/editor-object-kind.js
 	function markMaskObject(object, meta) {
 		const mask = object;
 		mask.editorObjectKind = "mask";
@@ -13418,8 +13405,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return mask;
 	}
 
-//#endregion
-//#region dist/esm/core/callback-reporter.js
+// dist/esm/core/callback-reporter.js
 	function reportWarning(options, error, message) {
 		const warningCallback = options.onWarning;
 		if (typeof warningCallback !== "function") return;
@@ -13430,8 +13416,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/core/safe-object-copy.js
+// dist/esm/core/safe-object-copy.js
 	function canCopySafeObjectKey(key) {
 		return !isUnsafeObjectKey(key);
 	}
@@ -13445,8 +13430,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return output;
 	}
 
-//#endregion
-//#region dist/esm/mask/mask-style.js
+// dist/esm/mask/mask-style.js
 	const SELECTED_STROKE = "#ff0000";
 	const SELECTED_STROKE_WIDTH = 1;
 	const HOVER_STROKE = "#ff5500";
@@ -13539,8 +13523,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		delete tagged.imageEditorMaskHandlers;
 	}
 
-//#endregion
-//#region dist/esm/utils/number.js
+// dist/esm/utils/number.js
 	function resolveNumeric(val, axis, fallback, canvas, options) {
 		if (typeof val === "number") return Number.isFinite(val) ? val : fallback;
 		if (typeof val === "function") {
@@ -13571,8 +13554,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		};
 	}
 
-//#endregion
-//#region dist/esm/mask/mask-factory.js
+// dist/esm/mask/mask-factory.js
 	const POLYGON_AREA_EPSILON = 1e-6;
 	const BUILT_IN_MASK_SHAPES = /* @__PURE__ */ new Set([
 		"rect",
@@ -13966,8 +13948,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return finalizeMaskAttachment(context, config, resolvedConfig, applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig));
 	}
 
-//#endregion
-//#region dist/esm/mask/mask-label-manager.js
+// dist/esm/mask/mask-label-manager.js
 	function removeLabelForMask(context, mask) {
 		if (!context.canvas || !mask.labelObject) return;
 		try {
@@ -14062,8 +14043,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/mask/mask-controller.js
+// dist/esm/plugins/mask/mask-controller.js
 	const MASK_PLUGIN_ID = "plugin:mask";
 	const MAX_MASK_OBJECT_BYTES = 524288;
 	const MASK_SERIALIZED_OBJECT_PROPERTIES = [
@@ -14676,8 +14656,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/mask/index.js
+// dist/esm/plugins/mask/index.js
 	const maskPluginRef = definePluginRef("plugin:mask", "1.0.0");
 	function maskPlugin(options = {}) {
 		const resolved = resolveMaskPluginOptions(options);
@@ -14785,8 +14764,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/filters-errors.js
+// dist/esm/plugins/filters/filters-errors.js
 	var FilterDefinitionError = class extends TypeError {
 		constructor(message, path = "$") {
 			super(`[ImageEditor] ${message}`);
@@ -14868,8 +14846,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/filters/filter-definitions.js
+// dist/esm/plugins/filters/filter-definitions.js
 	const MAX_SUPPORTED_FILTER_COUNT = 8;
 	const SUPPORTED_FILTER_TYPES = Object.freeze([
 		"brightness",
@@ -14954,8 +14931,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/fabric-filter-factory.js
+// dist/esm/plugins/filters/fabric-filter-factory.js
 	function getFilterRegistry(fabric) {
 		var _a;
 		return (_a = fabric.filters) !== null && _a !== void 0 ? _a : {};
@@ -15031,8 +15007,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/utils/base64-payload.js
+// dist/esm/utils/base64-payload.js
 	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
 	function base64PayloadByteLength(payload) {
 		const firstPaddingIndex = payload.indexOf("=");
@@ -15044,8 +15019,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Math.floor(payload.length * 3 / 4) - padding.length;
 	}
 
-//#endregion
-//#region dist/esm/utils/error.js
+// dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
 		try {
@@ -15055,8 +15029,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/filtered-image-renderer.js
+// dist/esm/plugins/filters/filtered-image-renderer.js
 	function abortError$1(message) {
 		return new DOMException(message, "AbortError");
 	}
@@ -15203,8 +15176,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/filters/filters-controller.js
+// dist/esm/plugins/filters/filters-controller.js
 	const FILTERS_STATE_SCHEMA = "image-editor.filters";
 	const FILTERS_STATE_VERSION = 1;
 	function createState(definitions) {
@@ -15762,8 +15734,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/filters/index.js
+// dist/esm/plugins/filters/index.js
 	const filtersPluginRef = definePluginRef("plugin:filters", "1.0.0");
 	function filtersPlugin(options = {}) {
 		let controller = null;
@@ -15957,8 +15928,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-errors.js
+// dist/esm/plugins/crop/crop-errors.js
 	var CropError = class extends Error {
 		constructor() {
 			super(...arguments);
@@ -16004,8 +15974,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-geometry.js
+// dist/esm/plugins/crop/crop-geometry.js
 	function normalizeCropRotation(value) {
 		if (typeof value !== "number" || !Number.isFinite(value)) throw new TypeError("[ImageEditor] Crop rotation must be a finite number.");
 		const normalized = (value % 360 + 360) % 360;
@@ -16126,8 +16095,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-overlay-policy.js
+// dist/esm/plugins/crop/crop-overlay-policy.js
 	const DEFAULT_OVERLAY_POLICY = Object.freeze({
 		preview: "keep",
 		apply: "keep"
@@ -16232,8 +16200,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-renderer.js
+// dist/esm/plugins/crop/crop-renderer.js
 	function isRecord$3(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -16365,8 +16332,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-controller.js
+// dist/esm/plugins/crop/crop-controller.js
 	const EMPTY_CANDIDATES = Object.freeze({
 		allIds: Object.freeze([]),
 		intersectingIds: Object.freeze([])
@@ -16943,8 +16909,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/crop/index.js
+// dist/esm/plugins/crop/index.js
 	const CROP_TOOL_ID = "plugin:crop";
 	const cropPreviewDomains = [
 		"base-image",
@@ -17132,8 +17097,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-brush.js
+// dist/esm/plugins/mosaic/mosaic-brush.js
 	function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
 		const deltaX = x - centerX;
 		const deltaY = y - centerY;
@@ -17228,8 +17192,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return changed ? dirty : null;
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-errors.js
+// dist/esm/plugins/mosaic/mosaic-errors.js
 	var MosaicError = class extends Error {
 		constructor() {
 			super(...arguments);
@@ -17275,8 +17238,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-raster-cache.js
+// dist/esm/plugins/mosaic/mosaic-raster-cache.js
 	function writeMosaicDirtyRegion(context, imageData, dirty) {
 		context.putImageData(imageData, 0, 0, dirty.leftPx, dirty.topPx, dirty.widthPx, dirty.heightPx);
 	}
@@ -17350,8 +17312,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		cache.surface.height = 0;
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-renderer.js
+// dist/esm/plugins/mosaic/mosaic-renderer.js
 	function isRecord$1(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -17448,8 +17409,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-controller.js
+// dist/esm/plugins/mosaic/mosaic-controller.js
 	const DEFAULT_CONFIGURATION = Object.freeze({
 		brushSizePx: 24,
 		pixelBlockSizePx: 8,
@@ -18020,8 +17980,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/mosaic/index.js
+// dist/esm/plugins/mosaic/index.js
 	const MOSAIC_TOOL_ID$1 = "plugin:mosaic";
 	const mosaicPreviewDomains = [
 		"base-image",
@@ -18208,8 +18167,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/annotation-text/text-controller.js
+// dist/esm/plugins/annotation-text/text-controller.js
 	const TEXT_ANNOTATION_KIND = "annotation:text";
 	const TEXT_PLUGIN_ID = "annotation:text";
 	const MAX_TEXT_LENGTH = 2e4;
@@ -18746,8 +18704,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/annotation-text/index.js
+// dist/esm/plugins/annotation-text/index.js
 	const TEXT_TOOL_ID$1 = "annotation:text";
 	const textAnnotationPluginRef = definePluginRef("annotation:text", "1.0.0");
 	function textAnnotationPlugin(options = {}) {
@@ -18886,8 +18843,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/annotation-shape/shape-controller.js
+// dist/esm/plugins/annotation-shape/shape-controller.js
 	const SHAPE_ANNOTATION_KIND = "annotation:shape";
 	const SHAPE_PLUGIN_ID = "annotation:shape";
 	const MAX_COORDINATE = 1e7;
@@ -19433,8 +19389,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/annotation-shape/index.js
+// dist/esm/plugins/annotation-shape/index.js
 	const SHAPE_TOOL_ID$1 = "annotation:shape";
 	const shapeAnnotationPluginRef = definePluginRef("annotation:shape", "1.0.0");
 	function shapeAnnotationPlugin(options = {}) {
@@ -19551,8 +19506,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/annotation-draw/draw-path.js
+// dist/esm/plugins/annotation-draw/draw-path.js
 	const MAX_DRAW_COORDINATE = 1e7;
 	function normalizeDrawPoint(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) throw new TypeError("Draw point must be an object.");
@@ -19639,8 +19593,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return false;
 	}
 
-//#endregion
-//#region dist/esm/plugins/annotation-draw/draw-controller.js
+// dist/esm/plugins/annotation-draw/draw-controller.js
 	const DRAW_ANNOTATION_KIND = "annotation:draw";
 	const DRAW_PLUGIN_ID = "annotation:draw";
 	const MAX_DRAW_OBJECT_BYTES = 524288;
@@ -20102,8 +20055,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/annotation-draw/index.js
+// dist/esm/plugins/annotation-draw/index.js
 	const DRAW_TOOL_ID$1 = "annotation:draw";
 	const drawAnnotationPluginRef = definePluginRef("annotation:draw", "1.0.0");
 	function drawAnnotationPlugin(options = {}) {
@@ -20219,8 +20171,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-errors.js
+// dist/esm/plugins/overlay-state/overlay-state-errors.js
 	var OverlayStateValidationError = class extends TypeError {
 		constructor(issues) {
 			const first = issues[0];
@@ -20290,8 +20241,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-coordinate.js
+// dist/esm/plugins/overlay-state/overlay-state-coordinate.js
 	function createOverlayStateContext(baseImagePort) {
 		const baseImage = baseImagePort.getBaseImage();
 		const imageInfo = baseImagePort.getImageInfo();
@@ -20340,14 +20290,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-types.js
+// dist/esm/plugins/overlay-state/overlay-state-types.js
 	const OVERLAY_STATE_SCHEMA = "image-editor.overlay-state";
 	const OVERLAY_STATE_WIRE_VERSION = 2;
 	const OVERLAY_STATE_COORDINATE_SPACE = "image-normalized";
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-validation.js
+// dist/esm/plugins/overlay-state/overlay-state-validation.js
 	const DEFAULT_OVERLAY_STATE_LIMITS = Object.freeze({
 		maxPayloadBytes: 5e6,
 		maxDepth: 32,
@@ -20364,7 +20312,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		maxPathCommands: 1e5
 	});
 	const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-	const SEMVER_PATTERN$1 = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 	const ROOT_KEYS = /* @__PURE__ */ new Set([
 		"schema",
 		"version",
@@ -20662,7 +20609,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		else {
 			hasOnlyKeys(value.codec, CODEC_KEYS, `${path}.codec`, issues);
 			validIdentifier(value.codec.type, `${path}.codec.type`, limits, issues);
-			if (typeof value.codec.version !== "string" || value.codec.version.length > limits.maxIdentifierLength || !SEMVER_PATTERN$1.test(value.codec.version)) addIssue(issues, "codec.versionInvalid", `${path}.codec.version`, "Codec version must be valid semantic versioning.");
+			if (typeof value.codec.version !== "string" || value.codec.version.length > limits.maxIdentifierLength || !isValidSemVer(value.codec.version)) addIssue(issues, "codec.versionInvalid", `${path}.codec.version`, "Codec version must be valid semantic versioning.");
 		}
 		if (!Object.prototype.hasOwnProperty.call(value, "geometry")) addIssue(issues, "overlay.geometryMissing", `${path}.geometry`, "Geometry is required.");
 		if (!Object.prototype.hasOwnProperty.call(value, "data")) addIssue(issues, "overlay.dataMissing", `${path}.data`, "Codec data is required.");
@@ -20732,8 +20679,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-controller.js
+// dist/esm/plugins/overlay-state/overlay-state-controller.js
 	const IMPORT_OPERATION_ID = "overlay-state:import";
 	const MAX_PERSISTENT_ID_LENGTH = 128;
 	const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -21064,8 +21010,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/index.js
+// dist/esm/plugins/overlay-state/index.js
 	const overlayStatePluginRef = definePluginRef("plugin:overlay-state", "1.0.0");
 	function overlayStatePlugin(options = {}) {
 		const limits = resolveOverlayStateLimits(options.limits);
@@ -21119,8 +21064,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/dom-controls/dom-controls-controller.js
+// dist/esm/plugins/dom-controls/dom-controls-controller.js
 	var DomControlsConfigurationError = class extends Error {
 		constructor(message) {
 			super(`[ImageEditor] ${message}`);
@@ -21685,8 +21629,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/dom-controls/index.js
+// dist/esm/plugins/dom-controls/index.js
 	const domControlsPluginRef = definePluginRef("plugin:dom-controls", "1.0.0");
 	function collectPluginDependencies$1(options) {
 		var _a;
@@ -21777,8 +21720,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
+// dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
 	function finiteNumber(value) {
 		return typeof value === "number" && Number.isFinite(value) ? value : null;
 	}
@@ -21924,8 +21866,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/interaction-runtime.js
+// dist/esm/plugins/canvas-interactions/interaction-runtime.js
 	function isPromiseLike(value) {
 		return (typeof value === "object" || typeof value === "function") && value !== null && typeof value.then === "function";
 	}
@@ -22157,8 +22098,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/pointer-coordinate-mapper.js
+// dist/esm/plugins/canvas-interactions/pointer-coordinate-mapper.js
 	var PointerCoordinateMapper = class {
 		constructor(baseImage) {
 			Object.defineProperty(this, "baseImage", {
@@ -22188,8 +22128,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-property-lease.js
+// dist/esm/plugins/canvas-interactions/canvas-property-lease.js
 	var CanvasPropertyLease = class {
 		constructor(target, key, owned) {
 			Object.defineProperty(this, "target", {
@@ -22262,8 +22201,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-interactions-controller.js
+// dist/esm/plugins/canvas-interactions/canvas-interactions-controller.js
 	var CanvasInteractionsController = class {
 		constructor(host, tools, options, bindings = []) {
 			Object.defineProperty(this, "host", {
@@ -22428,8 +22366,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
+// dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
 	var CanvasInteractionsConfigurationError = class extends Error {
 		constructor(message) {
 			super(`[ImageEditor] ${message}`);
@@ -22442,8 +22379,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
+// dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
 	var LatestValueScheduler = class {
 		constructor(worker) {
 			Object.defineProperty(this, "worker", {
@@ -22548,8 +22484,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/shape-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/shape-interaction-binding.js
 	const SHAPE_TOOL_ID = "annotation:shape";
 	const DEFAULT_MINIMUM_DRAG_DISTANCE = 2;
 	function geometry(kind, start, end) {
@@ -22656,8 +22591,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/schedulers/ordered-sample-scheduler.js
+// dist/esm/plugins/canvas-interactions/schedulers/ordered-sample-scheduler.js
 	var OrderedSampleScheduler = class {
 		constructor(worker) {
 			Object.defineProperty(this, "worker", {
@@ -22755,8 +22689,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/draw-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/draw-interaction-binding.js
 	const DRAW_TOOL_ID = "annotation:draw";
 	var DrawInteractionBinding = class {
 		constructor(options) {
@@ -22833,8 +22766,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/mosaic-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/mosaic-interaction-binding.js
 	const MOSAIC_TOOL_ID = "plugin:mosaic";
 	function mosaicPoint(point) {
 		return Object.freeze({
@@ -22917,8 +22849,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/text-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/text-interaction-binding.js
 	const TEXT_TOOL_ID = "annotation:text";
 	const TEXT_KIND = "annotation:text";
 	function textClassification(overlays, sample) {
@@ -23071,8 +23002,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/create-bindings.js
+// dist/esm/plugins/canvas-interactions/bindings/create-bindings.js
 	function createCanvasInteractionBindings(options) {
 		const bindings = [];
 		if (options.text) bindings.push(new TextInteractionBinding(options.text));
@@ -23082,8 +23012,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Object.freeze(bindings);
 	}
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/index.js
+// dist/esm/plugins/canvas-interactions/index.js
 	const canvasInteractionsPluginRef = definePluginRef("plugin:canvas-interactions", "1.0.0");
 	function collectPluginDependencies(options) {
 		if (typeof options !== "object" || options === null || Array.isArray(options)) throw new CanvasInteractionsConfigurationError("Canvas Interactions options must be an object.");
@@ -23171,8 +23100,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/presets/preset-support.js
+// dist/esm/presets/preset-support.js
 	function createDomBinding(editor, ref) {
 		return Object.freeze({
 			ref,
@@ -23198,8 +23126,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return plugin;
 	}
 
-//#endregion
-//#region dist/esm/presets/full/index.js
+// dist/esm/presets/full/index.js
 	function createFullPreset(fabric, options = {}) {
 		const editor = new ImageEditorCore(fabric, options.core);
 		const definitions = {
@@ -23282,7 +23209,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.ANNOTATION_AUTHORING_CAPABILITY = ANNOTATION_AUTHORING_CAPABILITY;
 exports.ANNOTATION_CAPABILITY = ANNOTATION_CAPABILITY;
 exports.AnnotationError = AnnotationError;

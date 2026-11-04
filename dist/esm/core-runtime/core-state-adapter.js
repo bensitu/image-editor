@@ -1,4 +1,5 @@
 import { CoreRuntimeError, SnapshotValidationError } from './errors.js';
+import { isSafeSerializedFabricObject } from '../fabric/safe-fabric-serialization.js';
 import { isRasterAllocationWithinBudget } from '../utils/image-budget.js';
 const DEFAULT_SECURITY_LIMITS = Object.freeze({
     maxDecodedPixels: 50000000,
@@ -111,7 +112,10 @@ export class CanvasCoreStateAdapter {
         }
         const serialized = { ...serializedValue };
         const serializedObjects = Array.isArray(serialized.objects) ? serialized.objects : [];
-        const liveObjects = canvas.getObjects();
+        const liveObjects = canvas.getObjects().filter((object) => !object.excludeFromExport);
+        if (serializedObjects.length !== liveObjects.length) {
+            throw new SnapshotValidationError('Canvas serialization object count is inconsistent.');
+        }
         const propertyKeys = this.properties.listKeys();
         for (let index = 0; index < serializedObjects.length; index += 1) {
             const serializedObject = serializedObjects[index];
@@ -275,6 +279,15 @@ export class CanvasCoreStateAdapter {
             return { valid: false, message: 'canvas must be an object.', path: '$.core.canvas' };
         }
         if (publicInput) {
+            if (Object.keys(value.canvas).some((key) => !['version', 'objects', 'background', 'width', 'height'].includes(key)) ||
+                (value.canvas.background !== undefined &&
+                    typeof value.canvas.background !== 'string')) {
+                return {
+                    valid: false,
+                    message: 'Unsupported Canvas property.',
+                    path: '$.core.canvas',
+                };
+            }
             const objects = value.canvas.objects;
             if (!Array.isArray(objects)) {
                 return {
@@ -312,6 +325,16 @@ export class CanvasCoreStateAdapter {
                         valid: false,
                         message: 'Base Image Fabric filters are not accepted in public Snapshots.',
                         path: `$.core.canvas.objects.${index}.filters`,
+                    };
+                }
+                if (!isSafeSerializedFabricObject(object, {
+                    rootTypes: ['image'],
+                    additionalRootProperties: this.properties.listKeys(),
+                })) {
+                    return {
+                        valid: false,
+                        message: 'Base image contains unsupported Fabric properties.',
+                        path: `$.core.canvas.objects.${index}`,
                     };
                 }
             }

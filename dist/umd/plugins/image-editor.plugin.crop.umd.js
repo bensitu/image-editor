@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/plugins/overlay'), require('@bensitu/image-editor/sdk')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/plugins/overlay', '@bensitu/image-editor/sdk'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/plugins/overlay"), require("@bensitu/image-editor/sdk")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/plugins/overlay", "@bensitu/image-editor/sdk"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.Crop = global.ImageEditorPlugins.Crop || {}), global.ImageEditorPlugins.Overlay,global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_plugins_overlay, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "cropPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-layer-placement.js
+// dist/esm/utils/internal-layer-placement.js
 	function moveObjectTo(canvas, object, index) {
 		const canvasWithLayerApi = canvas;
 		if (typeof canvasWithLayerApi.moveObjectTo === "function") {
@@ -37,8 +37,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-errors.js
+// dist/esm/plugins/crop/crop-errors.js
 	var CropError = class extends Error {
 		constructor() {
 			super(...arguments);
@@ -84,8 +83,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-geometry.js
+// dist/esm/plugins/crop/crop-geometry.js
 	function normalizeCropRotation(value) {
 		if (typeof value !== "number" || !Number.isFinite(value)) throw new TypeError("[ImageEditor] Crop rotation must be a finite number.");
 		const normalized = (value % 360 + 360) % 360;
@@ -206,8 +204,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-overlay-policy.js
+// dist/esm/plugins/crop/crop-overlay-policy.js
 	const DEFAULT_OVERLAY_POLICY = Object.freeze({
 		preview: "keep",
 		apply: "keep"
@@ -312,8 +309,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/utils/abortable-promise.js
+// dist/esm/utils/abortable-promise.js
 	function settleAbortable(task, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
 			let settled = false;
@@ -341,8 +337,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/utils/base64-payload.js
+// dist/esm/utils/base64-payload.js
 	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
 	function base64PayloadByteLength(payload) {
 		const firstPaddingIndex = payload.indexOf("=");
@@ -354,8 +349,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Math.floor(payload.length * 3 / 4) - padding.length;
 	}
 
-//#endregion
-//#region dist/esm/utils/error.js
+// dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
 		try {
@@ -365,14 +359,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/utils/image-budget.js
+// dist/esm/utils/image-budget.js
 	function isPixelAreaWithinBudget(width, height, maxPixels) {
 		return Number.isSafeInteger(width) && Number.isSafeInteger(height) && Number.isSafeInteger(maxPixels) && width > 0 && height > 0 && maxPixels > 0 && width <= Math.floor(maxPixels / height);
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-renderer.js
+// dist/esm/plugins/crop/crop-renderer.js
 	function isRecord$1(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -504,8 +496,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/crop/crop-controller.js
+// dist/esm/plugins/crop/crop-controller.js
 	const EMPTY_CANDIDATES = Object.freeze({
 		allIds: Object.freeze([]),
 		intersectingIds: Object.freeze([])
@@ -1082,8 +1073,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/crop/index.js
+// dist/esm/plugins/crop/index.js
 	const CROP_TOOL_ID = "plugin:crop";
 	const cropPreviewDomains = [
 		"base-image",
@@ -1271,7 +1261,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.CropError = CropError;
 exports.CropIntegrationError = CropIntegrationError;
 exports.CropSessionError = CropSessionError;

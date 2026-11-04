@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk'), require('@bensitu/image-editor/core')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk', '@bensitu/image-editor/core'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk"), require("@bensitu/image-editor/core")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk", "@bensitu/image-editor/core"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.Overlay = global.ImageEditorPlugins.Overlay || {}), global.ImageEditor,global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "overlayFoundationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,8 +33,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/utils/abortable-promise.js
+// dist/esm/utils/abortable-promise.js
 	function settleAbortable(task, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
 			let settled = false;
@@ -62,8 +61,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/utils/image-budget.js
+// dist/esm/utils/image-budget.js
 	function resolveRasterAllocation(width, height, multiplier = 1) {
 		if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(multiplier) || width <= 0 || height <= 0 || multiplier <= 0) return null;
 		const allocationWidth = Math.ceil(width * multiplier);
@@ -82,8 +80,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return allocation !== null && Number.isSafeInteger(budget.maxDimension) && Number.isSafeInteger(budget.maxPixels) && budget.maxDimension > 0 && budget.maxPixels > 0 && allocation.width <= budget.maxDimension && allocation.height <= budget.maxDimension && allocation.width <= Math.floor(budget.maxPixels / allocation.height);
 	}
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-transform-delta.js
+// dist/esm/foundations/overlay/overlay-transform-delta.js
 	function isFiniteTransformMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
@@ -182,8 +179,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-errors.js
+// dist/esm/foundations/overlay/overlay-errors.js
 	var OverlayRecoverableObjectError = class extends _bensitu_image_editor_core.CoreRuntimeError {
 		constructor(message, cause) {
 			super(`[ImageEditor] Recoverable overlay object failure: ${message}`, {
@@ -194,8 +190,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-foundation-controller.js
+// dist/esm/foundations/overlay/overlay-foundation-controller.js
 	const INTERACTIVE_MUTATION_BOUNDARY = Symbol.for("@bensitu/image-editor/internal-interactive-mutation-boundary/v1");
 	function withInteractiveMutationBoundary(request, boundary) {
 		return Object.assign(request, { [INTERACTIVE_MUTATION_BOUNDARY]: boundary });
@@ -1834,8 +1829,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/foundations/overlay/overlay-state-geometry.js
+// dist/esm/foundations/overlay/overlay-state-geometry.js
 	function isFinitePoint(value) {
 		if (typeof value !== "object" || value === null) return false;
 		const point = value;
@@ -1947,8 +1941,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/foundations/overlay/index.js
+// dist/esm/foundations/overlay/index.js
 	const OVERLAY_CAPABILITY = (0, _bensitu_image_editor_sdk.createCapabilityToken)("foundation:overlay", "1.0.0");
 	const OVERLAY_REGISTRATION_CAPABILITY = (0, _bensitu_image_editor_sdk.createCapabilityToken)("foundation:overlay-registration", "1.0.0");
 	const overlayFoundationRef = (0, _bensitu_image_editor_sdk.definePluginRef)("foundation:overlay", "1.0.0");
@@ -2137,7 +2130,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.OVERLAY_CAPABILITY = OVERLAY_CAPABILITY;
 exports.OVERLAY_REGISTRATION_CAPABILITY = OVERLAY_REGISTRATION_CAPABILITY;
 exports.OverlayRecoverableObjectError = OverlayRecoverableObjectError;

@@ -1,17 +1,17 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
-const require_core_capabilities = require('../../chunks/core-capabilities-BJafsEkA.cjs');
-const require_core = require('../../chunks/core-jSdV4FnB.cjs');
-const require_overlay = require('../../chunks/overlay-ADiwxl3B.cjs');
-const require_annotation = require('../../chunks/annotation-Bk5PWzaX.cjs');
-const require_transform = require('../../chunks/transform-DlgYq93K.cjs');
-const require_history = require('../../chunks/history-D5L84u6T.cjs');
-const require_annotation_text = require('../../chunks/annotation-text-D1zrOggU.cjs');
-const require_annotation_shape = require('../../chunks/annotation-shape-D90O9lkf.cjs');
-const require_annotation_draw = require('../../chunks/annotation-draw-Bmvk0xvD.cjs');
-const require_overlay_state = require('../../chunks/overlay-state-odM7SqFz.cjs');
-const require_preset_support = require('../../chunks/preset-support-D2cHniBE.cjs');
+const require_core = require("../../chunks/core-GR9aQ4Ip.cjs");
+const require_annotation = require("../../chunks/annotation-DT-J5hty.cjs");
+const require_overlay = require("../../chunks/overlay-ChR9Aef3.cjs");
+const require_annotation_draw = require("../../chunks/annotation-draw-DglWh1Sc.cjs");
+const require_annotation_shape = require("../../chunks/annotation-shape-5exYSiM4.cjs");
+const require_annotation_text = require("../../chunks/annotation-text-qcqm5EWc.cjs");
+const require_history = require("../../chunks/history-D-CkhIVO.cjs");
+const require_overlay_state = require("../../chunks/overlay-state-C05Y7gsM.cjs");
+const require_transform = require("../../chunks/transform-BFvqyBVi.cjs");
+const require_core_capabilities = require("../../chunks/core-capabilities-DaGyFp12.cjs");
+const require_preset_support = require("../../chunks/preset-support-DEqLfvRU.cjs");
 
-//#region dist/esm/presets/annotation/index.js
+// dist/esm/presets/annotation/index.js
 function createAnnotationPreset(fabric, options = {}) {
 	const editor = new require_core.ImageEditorCore(fabric, options.core);
 	const definitions = {
@@ -53,7 +53,6 @@ function createAnnotationPreset(fabric, options = {}) {
 	});
 }
 
-//#endregion
 exports.createAnnotationPreset = createAnnotationPreset;
 exports.default = createAnnotationPreset;
 //# sourceMappingURL=index.cjs.map

@@ -1,9 +1,9 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_plugin_identifier = require('../chunks/plugin-identifier-DhlVh5SQ.cjs');
-const require_core_capabilities = require('../chunks/core-capabilities-BJafsEkA.cjs');
-const require_plugin_manager = require('../chunks/plugin-manager-DZffsIRA.cjs');
+const require_plugin_identifier = require("../chunks/plugin-identifier-gAnWTWj6.cjs");
+const require_core_capabilities = require("../chunks/core-capabilities-DaGyFp12.cjs");
+const require_plugin_manager = require("../chunks/plugin-manager-BH4xRW5k.cjs");
 
-//#region dist/esm/testing/deferred-operation.js
+// dist/esm/testing/deferred-operation.js
 function createDeferredOperation() {
 	let settled = false;
 	let resolvePromise;
@@ -81,8 +81,7 @@ function createControlledImageDecoder() {
 	});
 }
 
-//#endregion
-//#region dist/esm/testing/fabric-test-harness.js
+// dist/esm/testing/fabric-test-harness.js
 function descriptorMatches(left, right) {
 	if (!left || !right) return left === right;
 	return left.configurable === right.configurable && left.enumerable === right.enumerable && left.writable === right.writable && left.value === right.value && left.get === right.get && left.set === right.set;
@@ -101,8 +100,7 @@ function createPluginTestFabric(module) {
 	});
 }
 
-//#endregion
-//#region dist/esm/plugin-kernel/async-plugin-manager.js
+// dist/esm/plugin-kernel/async-plugin-manager.js
 const DEFAULT_ASYNC_SETUP_TIMEOUT_MS = 3e4;
 function resolveSetupTimeout(value) {
 	const timeout = value !== null && value !== void 0 ? value : DEFAULT_ASYNC_SETUP_TIMEOUT_MS;
@@ -191,8 +189,7 @@ var AsyncPluginManager = class extends require_plugin_manager.PluginManager {
 	}
 };
 
-//#endregion
-//#region dist/esm/testing/plugin-test-host.js
+// dist/esm/testing/plugin-test-host.js
 function createPluginTestHost(options = {}) {
 	var _a;
 	const warnings = [];
@@ -230,8 +227,7 @@ function createPluginTestHost(options = {}) {
 	});
 }
 
-//#endregion
-//#region dist/esm/testing/responsibility-assertions.js
+// dist/esm/testing/responsibility-assertions.js
 function result(id, contract, status, message, details) {
 	return Object.freeze({
 		id,
@@ -494,8 +490,7 @@ function assertSliceMigration(source) {
 	});
 }
 
-//#endregion
-//#region dist/esm/testing/plugin-conformance.js
+// dist/esm/testing/plugin-conformance.js
 const CONFORMANCE_PROFILE = "3.0";
 const PACKAGE_VERSION = "3.0.0";
 function describeError(error) {
@@ -880,7 +875,6 @@ async function runPluginConformance(plugin, options) {
 	});
 }
 
-//#endregion
 exports.CONFORMANCE_PROFILE = CONFORMANCE_PROFILE;
 exports.assertBaseImageInvariant = assertBaseImageInvariant;
 exports.assertBundleIsolation = assertBundleIsolation;

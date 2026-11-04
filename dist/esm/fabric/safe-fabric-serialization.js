@@ -46,6 +46,17 @@ const MASK_INTERACTION_PROPERTIES = new Set([
     'transparentCorners',
 ]);
 const ROOT_TYPE_PROPERTIES = Object.freeze({
+    image: new Set([
+        'src',
+        'crossOrigin',
+        'cropX',
+        'cropY',
+        'filters',
+        'resizeFilter',
+        'minimumScaleTrigger',
+        'imageSmoothing',
+        'editorObjectKind',
+    ]),
     rect: new Set(['rx', 'ry']),
     circle: new Set(['counterClockwise', 'endAngle', 'radius', 'startAngle']),
     ellipse: new Set(['rx', 'ry']),
@@ -100,7 +111,7 @@ export function isSafeSerializedFabricObject(value, options) {
     const ancestors = new WeakSet();
     let nodes = 0;
     const inspect = (entry, depth, root, propertyName) => {
-        var _a;
+        var _a, _b;
         if (entry === null ||
             entry === undefined ||
             typeof entry === 'string' ||
@@ -160,7 +171,8 @@ export function isSafeSerializedFabricObject(value, options) {
             if (root &&
                 !COMMON_ROOT_PROPERTIES.has(key) &&
                 !MASK_INTERACTION_PROPERTIES.has(key) &&
-                !((_a = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _a === void 0 ? void 0 : _a.has(key))) {
+                !((_a = options.additionalRootProperties) === null || _a === void 0 ? void 0 : _a.includes(key)) &&
+                !((_b = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _b === void 0 ? void 0 : _b.has(key))) {
                 return false;
             }
             const descriptor = Object.getOwnPropertyDescriptor(entry, key);
@@ -169,6 +181,10 @@ export function isSafeSerializedFabricObject(value, options) {
             if (key === 'clipPath' && descriptor.value !== null && descriptor.value !== undefined) {
                 return false;
             }
+            if (key === 'resizeFilter' &&
+                descriptor.value !== null &&
+                descriptor.value !== undefined)
+                return false;
             if (key === 'filters' &&
                 (!Array.isArray(descriptor.value) || descriptor.value.length > 0)) {
                 return false;

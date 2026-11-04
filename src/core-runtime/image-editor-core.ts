@@ -929,6 +929,9 @@ export class ImageEditorCore {
         if (encodedImage.encodedBytes > this.options.maxInputBytes) {
             throw new CoreRuntimeError('[ImageEditor] Image input exceeds maxInputBytes.');
         }
+        if (!encodedImage.dimensions) {
+            throw new CoreRuntimeError('[ImageEditor] Image dimensions could not be determined.');
+        }
         if (
             encodedImage.dimensions &&
             !this.isInputRasterWithinBudget(

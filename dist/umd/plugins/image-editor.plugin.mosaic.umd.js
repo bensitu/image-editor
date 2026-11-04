@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.Mosaic = global.ImageEditorPlugins.Mosaic || {}), global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "mosaicPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-layer-placement.js
+// dist/esm/utils/internal-layer-placement.js
 	function moveObjectTo(canvas, object, index) {
 		const canvasWithLayerApi = canvas;
 		if (typeof canvasWithLayerApi.moveObjectTo === "function") {
@@ -37,8 +37,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-brush.js
+// dist/esm/plugins/mosaic/mosaic-brush.js
 	function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
 		const deltaX = x - centerX;
 		const deltaY = y - centerY;
@@ -133,8 +132,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return changed ? dirty : null;
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-errors.js
+// dist/esm/plugins/mosaic/mosaic-errors.js
 	var MosaicError = class extends Error {
 		constructor() {
 			super(...arguments);
@@ -180,8 +178,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-raster-cache.js
+// dist/esm/plugins/mosaic/mosaic-raster-cache.js
 	function writeMosaicDirtyRegion(context, imageData, dirty) {
 		context.putImageData(imageData, 0, 0, dirty.leftPx, dirty.topPx, dirty.widthPx, dirty.heightPx);
 	}
@@ -255,14 +252,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		cache.surface.height = 0;
 	}
 
-//#endregion
-//#region dist/esm/utils/image-budget.js
+// dist/esm/utils/image-budget.js
 	function isPixelAreaWithinBudget(width, height, maxPixels) {
 		return Number.isSafeInteger(width) && Number.isSafeInteger(height) && Number.isSafeInteger(maxPixels) && width > 0 && height > 0 && maxPixels > 0 && width <= Math.floor(maxPixels / height);
 	}
 
-//#endregion
-//#region dist/esm/utils/abortable-promise.js
+// dist/esm/utils/abortable-promise.js
 	function settleAbortable(task, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
 			let settled = false;
@@ -290,8 +285,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/utils/base64-payload.js
+// dist/esm/utils/base64-payload.js
 	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
 	function base64PayloadByteLength(payload) {
 		const firstPaddingIndex = payload.indexOf("=");
@@ -303,8 +297,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Math.floor(payload.length * 3 / 4) - padding.length;
 	}
 
-//#endregion
-//#region dist/esm/utils/error.js
+// dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
 		try {
@@ -314,8 +307,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-renderer.js
+// dist/esm/plugins/mosaic/mosaic-renderer.js
 	function isRecord$1(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -412,8 +404,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/plugins/mosaic/mosaic-controller.js
+// dist/esm/plugins/mosaic/mosaic-controller.js
 	const DEFAULT_CONFIGURATION = Object.freeze({
 		brushSizePx: 24,
 		pixelBlockSizePx: 8,
@@ -984,8 +975,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/mosaic/index.js
+// dist/esm/plugins/mosaic/index.js
 	const MOSAIC_TOOL_ID = "plugin:mosaic";
 	const mosaicPreviewDomains = [
 		"base-image",
@@ -1172,7 +1162,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.MosaicError = MosaicError;
 exports.MosaicIntegrationError = MosaicIntegrationError;
 exports.MosaicSessionError = MosaicSessionError;

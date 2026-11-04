@@ -1,17 +1,17 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
-const require_core_capabilities = require('../../chunks/core-capabilities-BJafsEkA.cjs');
-const require_core = require('../../chunks/core-jSdV4FnB.cjs');
-const require_overlay = require('../../chunks/overlay-ADiwxl3B.cjs');
-const require_transform = require('../../chunks/transform-DlgYq93K.cjs');
-const require_mask = require('../../chunks/mask-C-npKwqi.cjs');
-const require_history = require('../../chunks/history-D5L84u6T.cjs');
-const require_filters = require('../../chunks/filters-DqKnWUD0.cjs');
-const require_crop = require('../../chunks/crop-6ee2vD_m.cjs');
-const require_mosaic = require('../../chunks/mosaic-BKNRxVAe.cjs');
-const require_overlay_state = require('../../chunks/overlay-state-odM7SqFz.cjs');
-const require_preset_support = require('../../chunks/preset-support-D2cHniBE.cjs');
+const require_core = require("../../chunks/core-GR9aQ4Ip.cjs");
+const require_overlay = require("../../chunks/overlay-ChR9Aef3.cjs");
+const require_crop = require("../../chunks/crop-Ckpqjnbv.cjs");
+const require_filters = require("../../chunks/filters-DpnTo4iB.cjs");
+const require_history = require("../../chunks/history-D-CkhIVO.cjs");
+const require_mask = require("../../chunks/mask-CdYqaJlO.cjs");
+const require_mosaic = require("../../chunks/mosaic-Bi1F3HUN.cjs");
+const require_overlay_state = require("../../chunks/overlay-state-C05Y7gsM.cjs");
+const require_transform = require("../../chunks/transform-BFvqyBVi.cjs");
+const require_core_capabilities = require("../../chunks/core-capabilities-DaGyFp12.cjs");
+const require_preset_support = require("../../chunks/preset-support-DEqLfvRU.cjs");
 
-//#region dist/esm/presets/redaction/index.js
+// dist/esm/presets/redaction/index.js
 function createRedactionPreset(fabric, options = {}) {
 	const editor = new require_core.ImageEditorCore(fabric, options.core);
 	const definitions = {
@@ -53,7 +53,6 @@ function createRedactionPreset(fabric, options = {}) {
 	});
 }
 
-//#endregion
 exports.createRedactionPreset = createRedactionPreset;
 exports.default = createRedactionPreset;
 //# sourceMappingURL=index.cjs.map

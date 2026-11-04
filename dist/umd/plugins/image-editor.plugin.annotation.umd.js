@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk'), require('@bensitu/image-editor/plugins/overlay')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk', '@bensitu/image-editor/plugins/overlay'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk"), require("@bensitu/image-editor/plugins/overlay")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk", "@bensitu/image-editor/plugins/overlay"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.Annotation = global.ImageEditorPlugins.Annotation || {}), global.ImageEditor,global.ImageEditorPlugins.Overlay));
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay) {
 if (Object.prototype.hasOwnProperty.call(exports, "annotationFoundationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,8 +33,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/utils/internal-layer-placement.js
+// dist/esm/utils/internal-layer-placement.js
 	function moveObjectTo(canvas, object, index) {
 		const canvasWithLayerApi = canvas;
 		if (typeof canvasWithLayerApi.moveObjectTo === "function") {
@@ -66,8 +65,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-geometry.js
+// dist/esm/foundations/annotation/annotation-geometry.js
 	function isFiniteMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
@@ -140,8 +138,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-errors.js
+// dist/esm/foundations/annotation/annotation-errors.js
 	var AnnotationError = class extends Error {
 		constructor(message) {
 			super(`[ImageEditor] ${message}`);
@@ -161,14 +158,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/utils/safe-object-key.js
+// dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-metadata.js
+// dist/esm/foundations/annotation/annotation-metadata.js
 	const MAX_ANNOTATION_NAME_LENGTH = 128;
 	const MAX_ANNOTATION_METADATA_DEPTH = 4;
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
@@ -235,8 +230,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-presentation-manager.js
+// dist/esm/foundations/annotation/annotation-presentation-manager.js
 	const DEFAULT_LOCK_INDICATOR = Object.freeze({
 		size: 16,
 		offset: 3,
@@ -657,8 +651,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return object.annotationPresentation === true;
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-runtime-state.js
+// dist/esm/foundations/annotation/annotation-runtime-state.js
 	function booleanOr(value, fallback) {
 		return typeof value === "boolean" ? value : fallback;
 	}
@@ -696,8 +689,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		object.setCoords();
 	}
 
-//#endregion
-//#region dist/esm/foundations/annotation/annotation-controller.js
+// dist/esm/foundations/annotation/annotation-controller.js
 	const ANNOTATION_FOUNDATION_ID = "foundation:annotation";
 	const ANNOTATION_PREVIEW_KIND = "annotation:preview";
 	const FEATURE_KIND_PATTERN = /^annotation:[a-z][a-z0-9-]{0,63}$/;
@@ -1541,8 +1533,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/foundations/annotation/index.js
+// dist/esm/foundations/annotation/index.js
 	const ANNOTATION_CAPABILITY = (0, _bensitu_image_editor_sdk.createCapabilityToken)("foundation:annotation", "1.0.0");
 	const ANNOTATION_AUTHORING_CAPABILITY = (0, _bensitu_image_editor_sdk.createCapabilityToken)("foundation:annotation-authoring", "1.0.0");
 	const annotationFoundationRef = (0, _bensitu_image_editor_sdk.definePluginRef)("foundation:annotation", "1.0.0");
@@ -1641,7 +1632,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.ANNOTATION_AUTHORING_CAPABILITY = ANNOTATION_AUTHORING_CAPABILITY;
 exports.ANNOTATION_CAPABILITY = ANNOTATION_CAPABILITY;
 exports.AnnotationError = AnnotationError;

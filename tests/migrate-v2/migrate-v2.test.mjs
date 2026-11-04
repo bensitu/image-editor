@@ -481,3 +481,41 @@ test('load helper restores every persistent overlay codec through the Full Prese
         document.body.innerHTML = '';
     }
 });
+
+test('rotated normalized bounds preserve pixel lengths and right angles on rectangular images', () => {
+    const source = {
+        schema: 'image-editor.overlay-state',
+        version: 1,
+        coordinateSpace: 'image-normalized',
+        image: { naturalWidth: 2000, naturalHeight: 1000 },
+        overlays: [
+            {
+                kind: 'mask',
+                id: 'mask-1',
+                maskShape: 'rect',
+                geometry: {
+                    type: 'rect',
+                    x: 0.4,
+                    y: 0.4,
+                    width: 0.2,
+                    height: 0.2,
+                    angle: 30,
+                    rx: 20,
+                    ry: 10,
+                },
+                style: { fill: '#000000' },
+            },
+        ],
+    };
+    const result = migrateV1OverlayState(source);
+    const [a, b, , d] = result.overlays[0].geometry.corners.map(({ x, y }) => ({
+        x: x * 2000,
+        y: y * 1000,
+    }));
+    assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - 400) < 1e-8);
+    assert.ok(Math.abs(Math.hypot(d.x - a.x, d.y - a.y) - 200) < 1e-8);
+    assert.ok(Math.abs((b.x - a.x) * (d.x - a.x) + (b.y - a.y) * (d.y - a.y)) < 1e-8);
+    assert.equal(result.overlays[0].data.cornerRadiusX, 0.02);
+    source.overlays[0].id = 'unsupported id';
+    assert.throws(() => migrateV1OverlayState(source), /identifiers/);
+});

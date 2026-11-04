@@ -99,15 +99,15 @@ test('state slice listings retain immutable identity until the registry changes'
     assert.deepEqual(registry.list(), []);
 });
 
-test('transient predicate errors are isolated with owner-attributed warnings', () => {
+test('transient predicate errors reject classification with owner-attributed warnings', () => {
     const warnings = [];
     const registry = new TransientObjectRegistry((warning) => warnings.push(warning));
     registry.register('example:failing', () => {
         throw new Error('predicate failure');
     });
     registry.register('example:preview', (object) => object.type === 'preview');
-    assert.equal(registry.isTransient({ type: 'preview' }), true);
-    assert.equal(registry.isTransient({ type: 'document' }), false);
+    assert.throws(() => registry.isTransient({ type: 'preview' }), /classification failed/);
+    assert.throws(() => registry.isTransient({ type: 'document' }), /classification failed/);
     assert.equal(warnings.length, 2);
     assert.equal(warnings[0].details.owner, 'example:failing');
 });

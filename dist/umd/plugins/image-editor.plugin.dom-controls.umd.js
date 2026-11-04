@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.DomControls = global.ImageEditorPlugins.DomControls || {}), global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk) {
 if (Object.prototype.hasOwnProperty.call(exports, "domControlsPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/plugins/dom-controls/dom-controls-controller.js
+// dist/esm/plugins/dom-controls/dom-controls-controller.js
 	var DomControlsConfigurationError = class extends Error {
 		constructor(message) {
 			super(`[ImageEditor] ${message}`);
@@ -570,8 +570,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/dom-controls/index.js
+// dist/esm/plugins/dom-controls/index.js
 	const domControlsPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:dom-controls", "1.0.0");
 	function collectPluginDependencies(options) {
 		var _a;
@@ -662,7 +661,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.DomControlsConfigurationError = DomControlsConfigurationError;
 exports.domControlsPlugin = domControlsPlugin;
 exports.domControlsPluginRef = domControlsPluginRef;

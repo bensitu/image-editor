@@ -28,6 +28,10 @@ function assertSafeStateValue(value: unknown, seen = new WeakSet<object>(), path
         return;
     }
     if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return;
+    const prototype = Object.getPrototypeOf(value);
+    if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
+        throw new StateCloneError(`State at ${path} contains an unsupported object type.`);
+    }
 
     for (const key of Object.getOwnPropertySymbols(value)) {
         if (Object.getOwnPropertyDescriptor(value, key)?.enumerable) {
@@ -59,6 +63,8 @@ function cloneFallback(value: unknown, seen: Map<object, unknown>): unknown {
     if (value instanceof Date) return new Date(value.getTime());
     if (value instanceof ArrayBuffer) return value.slice(0);
     if (ArrayBuffer.isView(value)) {
+        if (typeof globalThis.structuredClone === 'function')
+            return globalThis.structuredClone(value);
         const source = value as ArrayBufferView;
         return new Uint8Array(
             source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength),
@@ -90,7 +96,7 @@ function cloneFallback(value: unknown, seen: Map<object, unknown>): unknown {
             `State contains unsupported object type "${prototype?.constructor?.name ?? 'unknown'}".`,
         );
     }
-    const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    const result: Record<string, unknown> = Object.create(prototype) as Record<string, unknown>;
     seen.set(value, result);
     for (const key of Object.keys(value)) {
         if (isDangerousStateKey(key)) {
@@ -128,11 +134,7 @@ function deepFreeze(value: unknown, seen = new WeakSet<object>()): unknown {
 export function cloneStateValue<T>(value: T): T {
     try {
         assertSafeStateValue(value);
-        const structuredCloneFunction = globalThis.structuredClone;
-        const cloned =
-            typeof structuredCloneFunction === 'function'
-                ? structuredCloneFunction(value)
-                : cloneFallback(value, new Map());
+        const cloned = cloneFallback(value, new Map());
         return deepFreeze(cloned) as T;
     } catch (error) {
         if (error instanceof StateCloneError) throw error;

@@ -406,3 +406,34 @@ test('Snapshot Canvas decode timeout aborts cleanly and preserves the document',
     assert.equal(editor.saveState(), before);
     await editor.disposeAsync();
 });
+
+test('public snapshots reject additional Canvas resources and nested Fabric classes before mutation', async () => {
+    const ids = resetEditorDom();
+    const editor = new ImageEditorCore(fabric);
+    await editor.init({ canvas: ids.canvas });
+    await editor.loadImage(makeImageDataUrl());
+    const before = editor.saveState();
+    try {
+        for (const key of ['backgroundImage', 'overlayImage', 'clipPath']) {
+            const snapshot = JSON.parse(before);
+            snapshot.core.canvas[key] = { type: 'Image', src: makeImageDataUrl() };
+            await assert.rejects(editor.loadFromState(snapshot), SnapshotValidationError);
+        }
+        for (const src of [
+            ' https://example.com/image.png',
+            '\thttps://example.com/image.png',
+            '//example.com/image.png',
+            '/image.png',
+        ]) {
+            const snapshot = JSON.parse(before);
+            snapshot.core.canvas.objects[0].src = src;
+            await assert.rejects(editor.loadFromState(snapshot), SnapshotValidationError);
+        }
+        const snapshot = JSON.parse(before);
+        snapshot.core.canvas.objects[0].clipPath = { type: 'Rect', width: 10, height: 10 };
+        await assert.rejects(editor.loadFromState(snapshot), SnapshotValidationError);
+        assert.equal(editor.saveState(), before);
+    } finally {
+        await editor.disposeAsync();
+    }
+});

@@ -22,8 +22,9 @@ export const DEFAULT_SNAPSHOT_LIMITS = Object.freeze({
     maxImageDimension: 32768,
     externalUrlPolicy: 'reject',
 });
+const textEncoder = new TextEncoder();
 function byteLength(value) {
-    return new TextEncoder().encode(value).byteLength;
+    return textEncoder.encode(value).byteLength;
 }
 function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakSet(), counter = { count: 0 }, propertyName) {
     if (depth > limits.maxDepth) {
@@ -37,13 +38,16 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
             if (value.length > limits.maxStringLength) {
                 throw new SnapshotValidationError(`string length exceeds ${limits.maxStringLength}.`, path);
             }
-            if (value.startsWith('data:')) {
+            if (/^data:/iu.test(value)) {
                 const inspection = inspectEncodedImageDataUrl(value);
                 if (!inspection) {
                     throw new SnapshotValidationError('Data URL must be a base64 PNG, JPEG, or WebP image.', path);
                 }
                 if (inspection.encodedBytes > limits.maxDataUrlBytes) {
                     throw new SnapshotValidationError(`Data URL exceeds ${limits.maxDataUrlBytes} bytes.`, path);
+                }
+                if (!inspection.dimensions) {
+                    throw new SnapshotValidationError('Image dimensions could not be determined.', path);
                 }
                 if (inspection.dimensions) {
                     const { width, height } = inspection.dimensions;
@@ -57,7 +61,7 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
             }
             else if (limits.externalUrlPolicy === 'reject' &&
                 isExternalResourceKey(propertyName) &&
-                /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(value)) {
+                value.length > 0) {
                 throw new SnapshotValidationError('external URL references are forbidden.', path);
             }
         }

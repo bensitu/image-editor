@@ -113,7 +113,7 @@ test('an empty image file is rejected before decoding', async () => {
 test('a decoded image rejected by the dimension budget is disposed without document mutation', async () => {
     const ids = resetEditorDom();
     const safeSource = makeImageDataUrl({ width: 64, height: 48 });
-    const oversizedSource = 'data:image/png;base64,AA==';
+    const oversizedSource = makeImageDataUrl({ width: 32, height: 24 });
     const oversizedImage = await fabric.FabricImage.fromURL(safeSource);
     oversizedImage.width = 30_000;
     oversizedImage.height = 1_000;

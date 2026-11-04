@@ -175,87 +175,64 @@ export class GeometryMutationCoordinator {
         let provisional = null;
         const participantSnapshot = Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order ||
             left.registrationOrder - right.registrationOrder));
-        const geometryParticipant = Object.freeze({
-            id: 'core:geometry-participants',
-            order: 0,
-            prepare: async (context) => {
-                const capturedBefore = freezeGeometry(this.options.state.captureGeometry());
-                const provisionalDescriptor = createDescriptor(request, capturedBefore, capturedBefore, metadata, true);
-                before = capturedBefore;
-                provisional = provisionalDescriptor;
-                const participantContext = this.createParticipantContext(request.id, context.signal);
-                const entries = [];
-                for (const record of participantSnapshot) {
-                    if (!record.participant.supports(provisionalDescriptor))
-                        continue;
-                    const prepared = record.participant.prepare
-                        ? await record.participant.prepare(provisionalDescriptor, participantContext)
-                        : undefined;
-                    entries.push({ record, prepared });
-                }
-                return Object.freeze({
-                    entries: Object.freeze(entries),
-                    context: participantContext,
-                });
+        const geometryParticipants = [
+            {
+                id: 'core:geometry-state',
+                order: 0,
+                prepare: () => {
+                    before = freezeGeometry(this.options.state.captureGeometry());
+                    provisional = createDescriptor(request, before, before, metadata, true);
+                },
             },
-            apply: async (descriptor, prepared) => {
-                for (const entry of prepared.entries) {
+            ...participantSnapshot.map(({ participant }, index) => ({
+                id: participant.id,
+                order: index + 1,
+                prepare: async (context) => {
+                    var _a;
+                    const descriptor = provisional;
+                    if (!participant.supports(descriptor))
+                        return { supported: false };
+                    const value = await ((_a = participant.prepare) === null || _a === void 0 ? void 0 : _a.call(participant, descriptor, this.createParticipantContext(request.id, context.signal)));
+                    return { supported: true, value };
+                },
+                apply: async (descriptor, prepared, context) => {
+                    if (!prepared.supported)
+                        return;
                     try {
-                        await entry.record.participant.apply(descriptor, entry.prepared, prepared.context);
+                        await participant.apply(descriptor, prepared.value, this.createParticipantContext(request.id, context.signal));
                     }
                     catch (error) {
-                        if (error instanceof GeometryRecoverableObjectError) {
-                            this.warnRecoverable(request.id, entry.record.participant.id, error);
-                            continue;
-                        }
-                        throw error;
+                        if (!(error instanceof GeometryRecoverableObjectError))
+                            throw error;
+                        this.warnRecoverable(request.id, participant.id, error);
                     }
-                }
-            },
-            synchronize: async (descriptor, prepared) => {
-                var _a, _b;
-                for (const entry of prepared.entries) {
+                },
+                synchronize: async (descriptor, prepared, context) => {
+                    var _a;
+                    if (!prepared.supported)
+                        return;
                     try {
-                        await ((_b = (_a = entry.record.participant).synchronize) === null || _b === void 0 ? void 0 : _b.call(_a, descriptor, prepared.context));
+                        await ((_a = participant.synchronize) === null || _a === void 0 ? void 0 : _a.call(participant, descriptor, this.createParticipantContext(request.id, context.signal)));
                     }
                     catch (error) {
-                        if (error instanceof GeometryRecoverableObjectError) {
-                            this.warn({
-                                code: 'GEOMETRY_SYNCHRONIZE_WARNING',
-                                message: error.message,
-                                mutationId: request.id,
-                                participantId: entry.record.participant.id,
-                                ...(error.objectIdentity === undefined
-                                    ? {}
-                                    : { objectIdentity: error.objectIdentity }),
-                                ...(error.objectKind === undefined
-                                    ? {}
-                                    : { objectKind: error.objectKind }),
-                                cause: error.cause,
-                            });
-                            continue;
-                        }
-                        throw error;
+                        if (!(error instanceof GeometryRecoverableObjectError))
+                            throw error;
+                        this.warnRecoverable(request.id, participant.id, error);
                     }
-                }
-            },
-            ...(participantSnapshot.some(({ participant }) => participant.rollback)
-                ? {
-                    rollback: async (prepared, rollbackContext) => {
-                        var _a, _b, _c;
-                        const descriptor = (_a = rollbackContext.result) !== null && _a !== void 0 ? _a : provisional;
-                        if (!descriptor)
-                            return;
-                        for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
-                            const entry = prepared.entries[index];
-                            if (!entry)
-                                continue;
-                            await ((_c = (_b = entry.record.participant).rollback) === null || _c === void 0 ? void 0 : _c.call(_b, descriptor, entry.prepared, prepared.context));
-                        }
-                    },
-                }
-                : {}),
-        });
+                },
+                ...(participant.rollback
+                    ? {
+                        rollback: async (prepared, context) => {
+                            var _a, _b;
+                            const descriptor = (_a = context.result) !== null && _a !== void 0 ? _a : provisional;
+                            if (prepared.supported && descriptor) {
+                                await ((_b = participant.rollback) === null || _b === void 0 ? void 0 : _b.call(participant, descriptor, prepared.value, this.createParticipantContext(request.id, context.signal)));
+                            }
+                        },
+                    }
+                    : {}),
+            })),
+        ];
         try {
             return await this.options.mutations.run({
                 id: request.id,
@@ -265,7 +242,7 @@ export class GeometryMutationCoordinator {
                 signal,
                 ...(request.parent ? { parent: request.parent } : {}),
                 metadata,
-                participants: [geometryParticipant],
+                participants: geometryParticipants,
                 mutate: async (context) => {
                     const capturedBefore = before;
                     if (!capturedBefore) {

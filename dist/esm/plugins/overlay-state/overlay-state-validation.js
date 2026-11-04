@@ -1,4 +1,5 @@
 import { isRuntimeIdentifier } from '../../sdk/index.js';
+import { isValidSemVer } from '../../plugin-kernel/semver.js';
 import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { OVERLAY_STATE_COORDINATE_SPACE, OVERLAY_STATE_SCHEMA, OVERLAY_STATE_WIRE_VERSION, } from './overlay-state-types.js';
 export const DEFAULT_OVERLAY_STATE_LIMITS = Object.freeze({
@@ -17,7 +18,6 @@ export const DEFAULT_OVERLAY_STATE_LIMITS = Object.freeze({
     maxPathCommands: 100000,
 });
 const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const ROOT_KEYS = new Set([
     'schema',
     'version',
@@ -334,7 +334,7 @@ function validateItem(value, index, limits, issues) {
         validIdentifier(value.codec.type, `${path}.codec.type`, limits, issues);
         if (typeof value.codec.version !== 'string' ||
             value.codec.version.length > limits.maxIdentifierLength ||
-            !SEMVER_PATTERN.test(value.codec.version)) {
+            !isValidSemVer(value.codec.version)) {
             addIssue(issues, 'codec.versionInvalid', `${path}.codec.version`, 'Codec version must be valid semantic versioning.');
         }
     }

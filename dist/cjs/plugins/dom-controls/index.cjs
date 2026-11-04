@@ -1,8 +1,8 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_core_capabilities = require('../../chunks/core-capabilities-BJafsEkA.cjs');
-const require_sdk = require('../../chunks/sdk-DFCNfN_D.cjs');
+const require_core_capabilities = require("../../chunks/core-capabilities-DaGyFp12.cjs");
+const require_sdk = require("../../chunks/sdk-ClcNYrYa.cjs");
 
-//#region dist/esm/plugins/dom-controls/dom-controls-controller.js
+// dist/esm/plugins/dom-controls/dom-controls-controller.js
 var DomControlsConfigurationError = class extends Error {
 	constructor(message) {
 		super(`[ImageEditor] ${message}`);
@@ -567,8 +567,7 @@ var DomControlsController = class {
 	}
 };
 
-//#endregion
-//#region dist/esm/plugins/dom-controls/index.js
+// dist/esm/plugins/dom-controls/index.js
 const domControlsPluginRef = require_core_capabilities.definePluginRef("plugin:dom-controls", "1.0.0");
 function collectPluginDependencies(options) {
 	var _a;
@@ -659,7 +658,6 @@ function domControlsPlugin(options = {}) {
 	});
 }
 
-//#endregion
 exports.DomControlsConfigurationError = DomControlsConfigurationError;
 exports.domControlsPlugin = domControlsPlugin;
 exports.domControlsPluginRef = domControlsPluginRef;

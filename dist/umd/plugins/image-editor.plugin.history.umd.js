@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk'), require('@bensitu/image-editor/core')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk', '@bensitu/image-editor/core'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk"), require("@bensitu/image-editor/core")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk", "@bensitu/image-editor/core"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.History = global.ImageEditorPlugins.History || {}), global.ImageEditor,global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "historyPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,8 +33,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/plugins/history/retained-size-estimator.js
+// dist/esm/plugins/history/retained-size-estimator.js
 	const BOOLEAN_BYTES = 4;
 	const DATE_BYTES = 8;
 	const NUMBER_BYTES = 8;
@@ -109,8 +108,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return estimateValueBytes(value, /* @__PURE__ */ new WeakSet());
 	}
 
-//#endregion
-//#region dist/esm/plugins/history/history-controller.js
+// dist/esm/plugins/history/history-controller.js
 	const DEFAULT_MAX_HISTORY_BYTES = 134217728;
 	function resolveMaxSize(value) {
 		return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 50;
@@ -371,8 +369,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/history/index.js
+// dist/esm/plugins/history/index.js
 	const HISTORY_CAPABILITY = (0, _bensitu_image_editor_sdk.createCapabilityToken)("plugin:history", "1.0.0");
 	const historyPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:history", "1.0.0");
 	function historyPlugin(options = {}) {
@@ -432,7 +429,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.HISTORY_CAPABILITY = HISTORY_CAPABILITY;
 exports.historyPlugin = historyPlugin;
 exports.historyPluginRef = historyPluginRef;

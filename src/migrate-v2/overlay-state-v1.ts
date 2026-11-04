@@ -148,16 +148,21 @@ function radians(degrees: number): number {
     return (degrees * Math.PI) / 180;
 }
 
-function rotate(pointValue: Point, origin: Point, degrees: number): Point {
+function rotate(
+    pointValue: Point,
+    origin: Point,
+    degrees: number,
+    image: OverlayStateImageReference,
+): Point {
     if (degrees === 0) return pointValue;
     const angle = radians(degrees);
     const cosine = Math.cos(angle);
     const sine = Math.sin(angle);
-    const x = pointValue.x - origin.x;
-    const y = pointValue.y - origin.y;
+    const x = (pointValue.x - origin.x) * image.naturalWidth;
+    const y = (pointValue.y - origin.y) * image.naturalHeight;
     return Object.freeze({
-        x: origin.x + x * cosine - y * sine,
-        y: origin.y + x * sine + y * cosine,
+        x: origin.x + (x * cosine - y * sine) / image.naturalWidth,
+        y: origin.y + (x * sine + y * cosine) / image.naturalHeight,
     });
 }
 
@@ -167,15 +172,16 @@ function boundsCorners(
     width: number,
     height: number,
     angle: number,
+    image: OverlayStateImageReference,
 ): Readonly<{ readonly type: 'bounds'; readonly corners: readonly [Point, Point, Point, Point] }> {
     const origin = Object.freeze({ x: left, y: top });
     return Object.freeze({
         type: 'bounds',
         corners: Object.freeze([
             origin,
-            rotate({ x: left + width, y: top }, origin, angle),
-            rotate({ x: left + width, y: top + height }, origin, angle),
-            rotate({ x: left, y: top + height }, origin, angle),
+            rotate({ x: left + width, y: top }, origin, angle, image),
+            rotate({ x: left + width, y: top + height }, origin, angle, image),
+            rotate({ x: left, y: top + height }, origin, angle, image),
         ]) as readonly [Point, Point, Point, Point],
     });
 }
@@ -237,6 +243,13 @@ function item(
 }
 
 function uniqueId(id: string, reserved: Set<string>): string {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(id) || id.length > 128) {
+        return fail(
+            'overlay.id',
+            'Overlay identifiers must contain at most 128 supported characters.',
+            '$.overlays',
+        );
+    }
     if (!reserved.has(id)) {
         reserved.add(id);
         return id;
@@ -334,7 +347,7 @@ function convertMask(
         layer,
         source.hidden === true,
         false,
-        boundsCorners(left, top, width, height, angle),
+        boundsCorners(left, top, width, height, angle, image),
         Object.freeze({
             version: 1,
             kind: shape,
@@ -353,9 +366,13 @@ function convertMask(
                 `${path}.style.strokeDashArray`,
             ),
             cornerRadiusX:
-                geometry.rx === undefined ? 0 : numberValue(geometry.rx, `${path}.geometry.rx`),
+                shape !== 'rect' || geometry.rx === undefined
+                    ? 0
+                    : scalarFromPixels(numberValue(geometry.rx, `${path}.geometry.rx`), image),
             cornerRadiusY:
-                geometry.ry === undefined ? 0 : numberValue(geometry.ry, `${path}.geometry.ry`),
+                shape !== 'rect' || geometry.ry === undefined
+                    ? 0
+                    : scalarFromPixels(numberValue(geometry.ry, `${path}.geometry.ry`), image),
             points,
             hasControls: booleanValue(style.hasControls, true),
             selectable: booleanValue(style.selectable, true),
@@ -411,7 +428,7 @@ function convertText(
         layer,
         source.hidden === true,
         source.locked === true,
-        boundsCorners(x, y, width, height, angle),
+        boundsCorners(x, y, width, height, angle, image),
         annotationEnvelope(
             id,
             source,
@@ -464,6 +481,7 @@ function convertShape(
                 positive(geometry.width, `${path}.geometry.width`),
                 positive(geometry.height, `${path}.geometry.height`),
                 angle,
+                image,
             ),
         });
     } else if ((shape === 'line' || shape === 'arrow') && geometry.type === shape) {
@@ -472,8 +490,8 @@ function convertShape(
         const origin = Object.freeze({ x: Math.min(start.x, end.x), y: Math.min(start.y, end.y) });
         stateGeometry = Object.freeze({
             kind: shape,
-            start: rotate(start, origin, angle),
-            end: rotate(end, origin, angle),
+            start: rotate(start, origin, angle, image),
+            end: rotate(end, origin, angle, image),
         });
     } else {
         return fail('annotation.shape', 'Shape kind and geometry do not match.', path);

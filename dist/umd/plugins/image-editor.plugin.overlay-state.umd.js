@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/plugins/overlay'), require('@bensitu/image-editor/sdk'), require('@bensitu/image-editor/core')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/plugins/overlay', '@bensitu/image-editor/sdk', '@bensitu/image-editor/core'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/plugins/overlay"), require("@bensitu/image-editor/sdk"), require("@bensitu/image-editor/core")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/plugins/overlay", "@bensitu/image-editor/sdk", "@bensitu/image-editor/core"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.OverlayState = global.ImageEditorPlugins.OverlayState || {}), global.ImageEditorPlugins.Overlay,global.ImageEditor,global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_plugins_overlay, _bensitu_image_editor_sdk, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "overlayStatePlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,8 +33,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-errors.js
+// dist/esm/plugins/overlay-state/overlay-state-errors.js
 	var OverlayStateValidationError = class extends TypeError {
 		constructor(issues) {
 			const first = issues[0];
@@ -104,8 +103,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-coordinate.js
+// dist/esm/plugins/overlay-state/overlay-state-coordinate.js
 	function createOverlayStateContext(baseImagePort) {
 		const baseImage = baseImagePort.getBaseImage();
 		const imageInfo = baseImagePort.getImageInfo();
@@ -154,20 +152,27 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-types.js
+// dist/esm/plugins/overlay-state/overlay-state-types.js
 	const OVERLAY_STATE_SCHEMA = "image-editor.overlay-state";
 	const OVERLAY_STATE_WIRE_VERSION = 2;
 	const OVERLAY_STATE_COORDINATE_SPACE = "image-normalized";
 
-//#endregion
-//#region dist/esm/utils/safe-object-key.js
+// dist/esm/plugin-kernel/semver.js
+	const numericIdentifier = "(?:0|[1-9]\\d*)";
+	const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
+	const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, "u");
+	const partialVersionPattern = new RegExp(`^(${numericIdentifier})(?:\\.(${numericIdentifier}|[xX*]))?(?:\\.(${numericIdentifier}|[xX*]))?$`, "u");
+	const MAX_SEMVER_INPUT_LENGTH = 256;
+	function isValidSemVer(version) {
+		return version.length <= MAX_SEMVER_INPUT_LENGTH && version.trim() === version && semVerPattern.test(version);
+	}
+
+// dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
 	}
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-validation.js
+// dist/esm/plugins/overlay-state/overlay-state-validation.js
 	const DEFAULT_OVERLAY_STATE_LIMITS = Object.freeze({
 		maxPayloadBytes: 5e6,
 		maxDepth: 32,
@@ -184,7 +189,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		maxPathCommands: 1e5
 	});
 	const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-	const SEMVER_PATTERN$1 = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 	const ROOT_KEYS = /* @__PURE__ */ new Set([
 		"schema",
 		"version",
@@ -482,7 +486,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		else {
 			hasOnlyKeys(value.codec, CODEC_KEYS, `${path}.codec`, issues);
 			validIdentifier(value.codec.type, `${path}.codec.type`, limits, issues);
-			if (typeof value.codec.version !== "string" || value.codec.version.length > limits.maxIdentifierLength || !SEMVER_PATTERN$1.test(value.codec.version)) addIssue(issues, "codec.versionInvalid", `${path}.codec.version`, "Codec version must be valid semantic versioning.");
+			if (typeof value.codec.version !== "string" || value.codec.version.length > limits.maxIdentifierLength || !isValidSemVer(value.codec.version)) addIssue(issues, "codec.versionInvalid", `${path}.codec.version`, "Codec version must be valid semantic versioning.");
 		}
 		if (!Object.prototype.hasOwnProperty.call(value, "geometry")) addIssue(issues, "overlay.geometryMissing", `${path}.geometry`, "Geometry is required.");
 		if (!Object.prototype.hasOwnProperty.call(value, "data")) addIssue(issues, "overlay.dataMissing", `${path}.data`, "Codec data is required.");
@@ -552,8 +556,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/overlay-state-controller.js
+// dist/esm/plugins/overlay-state/overlay-state-controller.js
 	const IMPORT_OPERATION_ID = "overlay-state:import";
 	const MAX_PERSISTENT_ID_LENGTH = 128;
 	const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -884,8 +887,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/overlay-state/index.js
+// dist/esm/plugins/overlay-state/index.js
 	const overlayStatePluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:overlay-state", "1.0.0");
 	function overlayStatePlugin(options = {}) {
 		const limits = resolveOverlayStateLimits(options.limits);
@@ -939,7 +941,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.DEFAULT_OVERLAY_STATE_LIMITS = DEFAULT_OVERLAY_STATE_LIMITS;
 exports.OVERLAY_STATE_COORDINATE_SPACE = OVERLAY_STATE_COORDINATE_SPACE;
 exports.OVERLAY_STATE_SCHEMA = OVERLAY_STATE_SCHEMA;

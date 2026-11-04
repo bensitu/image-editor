@@ -21,6 +21,12 @@ const validVersions = [
 const invalidVersions = ['1', '1.2', '01.2.3', '1.02.3', '1.2.03', '1.2.3-', 'not-semver'];
 const ranges = [
     '*',
+    '^x',
+    '~*',
+    '>=*',
+    '<*',
+    '1.2.3-alpha - 2',
+    '>=2.0.0-rc.1 <2',
     '1',
     '1.2',
     '1.x',
@@ -156,4 +162,10 @@ test('SemVer comparison remains aligned with npm across deterministic range fami
             );
         }
     }
+});
+
+test('SemVer numeric comparisons preserve integer precision', () => {
+    assert.equal(satisfiesSemVer('1.0.9007199254740993', '<=1.0.9007199254740992'), false);
+    assert.equal(satisfiesSemVer('1.0.0-9007199254740993', '>1.0.0-9007199254740992'), true);
+    assert.equal(satisfiesSemVer('9007199254740993.0.0', '^9007199254740992.0.0'), false);
 });

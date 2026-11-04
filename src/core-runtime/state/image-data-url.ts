@@ -93,6 +93,44 @@ function readJpegDimensions(bytes: Uint8Array) {
     return null;
 }
 
+function readEncodedJpegDimensions(value: string, payloadOffset: number) {
+    const payload = value.slice(payloadOffset).replace(/\s/gu, '');
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    const length =
+        Math.floor((payload.length * 3) / 4) -
+        (payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0);
+    const byte = (index: number): number => {
+        const offset = Math.floor(index / 3) * 4;
+        const position = index % 3;
+        const left = alphabet.indexOf(payload[offset + position]!);
+        const right = alphabet.indexOf(payload[offset + position + 1]!);
+        return position === 0
+            ? (left << 2) | (right >> 4)
+            : position === 1
+              ? ((left & 15) << 4) | (right >> 2)
+              : ((left & 3) << 6) | right;
+    };
+    if (length < 4 || byte(0) !== 0xff || byte(1) !== 0xd8) return null;
+    let offset = 2;
+    while (offset + 3 < length) {
+        if (byte(offset) !== 0xff) return null;
+        while (offset < length && byte(offset) === 0xff) offset += 1;
+        const marker = byte(offset++);
+        if (marker === 0xda || marker === 0xd9) return null;
+        if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+        const segmentLength = (byte(offset) << 8) | byte(offset + 1);
+        if (segmentLength < 2 || offset + segmentLength > length) return null;
+        if (isJpegStartOfFrame(marker) && segmentLength >= 7) {
+            return positiveDimensions(
+                (byte(offset + 5) << 8) | byte(offset + 6),
+                (byte(offset + 3) << 8) | byte(offset + 4),
+            );
+        }
+        offset += segmentLength;
+    }
+    return null;
+}
+
 function readWebpDimensions(bytes: Uint8Array) {
     if (bytes.length < 20 || !matchesAscii(bytes, 0, 'RIFF') || !matchesAscii(bytes, 8, 'WEBP')) {
         return null;
@@ -212,9 +250,12 @@ export function inspectEncodedImageDataUrl(value: string): EncodedImageInspectio
     if (!payload) return null;
     const decodedPrefix = decodePrefix(payload.prefix);
     const dimensions = decodedPrefix
-        ? (readPngDimensions(decodedPrefix) ??
-          readJpegDimensions(decodedPrefix) ??
-          readWebpDimensions(decodedPrefix))
+        ? mimeType === 'image/png'
+            ? readPngDimensions(decodedPrefix)
+            : mimeType === 'image/webp'
+              ? readWebpDimensions(decodedPrefix)
+              : (readJpegDimensions(decodedPrefix) ??
+                readEncodedJpegDimensions(value, commaIndex + 1))
         : null;
     return Object.freeze({ mimeType, encodedBytes: payload.encodedBytes, dimensions });
 }

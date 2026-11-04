@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/plugins/annotation'), require('@bensitu/image-editor/sdk'), require('@bensitu/image-editor/plugins/overlay')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/plugins/annotation', '@bensitu/image-editor/sdk', '@bensitu/image-editor/plugins/overlay'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/plugins/annotation"), require("@bensitu/image-editor/sdk"), require("@bensitu/image-editor/plugins/overlay")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/plugins/annotation", "@bensitu/image-editor/sdk", "@bensitu/image-editor/plugins/overlay"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.AnnotationShape = global.ImageEditorPlugins.AnnotationShape || {}), global.ImageEditorPlugins.Annotation,global.ImageEditor,global.ImageEditorPlugins.Overlay));
 })(this, function(exports, _bensitu_image_editor_plugins_annotation, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay) {
 if (Object.prototype.hasOwnProperty.call(exports, "shapeAnnotationPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,14 +33,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/utils/safe-object-key.js
+// dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
 	}
 
-//#endregion
-//#region dist/esm/fabric/safe-fabric-serialization.js
+// dist/esm/fabric/safe-fabric-serialization.js
 	const SAFE_NESTED_FABRIC_TYPES = /* @__PURE__ */ new Set([
 		"linear",
 		"pattern",
@@ -98,6 +96,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"transparentCorners"
 	]);
 	const ROOT_TYPE_PROPERTIES = Object.freeze({
+		image: /* @__PURE__ */ new Set([
+			"src",
+			"crossOrigin",
+			"cropX",
+			"cropY",
+			"filters",
+			"resizeFilter",
+			"minimumScaleTrigger",
+			"imageSmoothing",
+			"editorObjectKind"
+		]),
 		rect: /* @__PURE__ */ new Set(["rx", "ry"]),
 		circle: /* @__PURE__ */ new Set([
 			"counterClockwise",
@@ -157,7 +166,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const ancestors = /* @__PURE__ */ new WeakSet();
 		let nodes = 0;
 		const inspect = (entry, depth, root, propertyName) => {
-			var _a;
+			var _a, _b;
 			if (entry === null || entry === void 0 || typeof entry === "string" || typeof entry === "boolean") {
 				if (typeof entry === "string" && propertyName && (RESOURCE_KEYS.has(propertyName.toLowerCase()) || propertyName.toLowerCase().endsWith("url"))) return DATA_IMAGE_PATTERN.test(entry);
 				return true;
@@ -196,10 +205,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			ancestors.add(entry);
 			for (const key of Object.keys(entry)) {
 				if (isUnsafeObjectKey(key)) return false;
-				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _a === void 0 ? void 0 : _a.has(key))) return false;
+				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = options.additionalRootProperties) === null || _a === void 0 ? void 0 : _a.includes(key)) && !((_b = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _b === void 0 ? void 0 : _b.has(key))) return false;
 				const descriptor = Object.getOwnPropertyDescriptor(entry, key);
 				if (!descriptor || !("value" in descriptor)) return false;
 				if (key === "clipPath" && descriptor.value !== null && descriptor.value !== void 0) return false;
+				if (key === "resizeFilter" && descriptor.value !== null && descriptor.value !== void 0) return false;
 				if (key === "filters" && (!Array.isArray(descriptor.value) || descriptor.value.length > 0)) return false;
 				if (!inspect(descriptor.value, depth + 1, false, key)) return false;
 			}
@@ -212,8 +222,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return true;
 	}
 
-//#endregion
-//#region dist/esm/plugins/annotation-shape/shape-controller.js
+// dist/esm/plugins/annotation-shape/shape-controller.js
 	const SHAPE_ANNOTATION_KIND = "annotation:shape";
 	const SHAPE_PLUGIN_ID = "annotation:shape";
 	const MAX_COORDINATE = 1e7;
@@ -759,8 +768,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/annotation-shape/index.js
+// dist/esm/plugins/annotation-shape/index.js
 	const SHAPE_TOOL_ID = "annotation:shape";
 	const shapeAnnotationPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("annotation:shape", "1.0.0");
 	function shapeAnnotationPlugin(options = {}) {
@@ -877,7 +885,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.shapeAnnotationPlugin = shapeAnnotationPlugin;
 exports.shapeAnnotationPluginRef = shapeAnnotationPluginRef;
 });

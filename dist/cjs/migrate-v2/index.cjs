@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_plugin_identifier = require('../chunks/plugin-identifier-DhlVh5SQ.cjs');
+const require_plugin_identifier = require("../chunks/plugin-identifier-gAnWTWj6.cjs");
 
-//#region dist/esm/migrate-v2/overlay-state-v1.js
+// dist/esm/migrate-v2/overlay-state-v1.js
 const SCHEMA = "image-editor.overlay-state";
 const COORDINATE_SPACE = "image-normalized";
 const MAX_OVERLAYS = 1e5;
@@ -89,19 +89,19 @@ function metadata(value, path) {
 function radians(degrees) {
 	return degrees * Math.PI / 180;
 }
-function rotate(pointValue, origin, degrees) {
+function rotate(pointValue, origin, degrees, image) {
 	if (degrees === 0) return pointValue;
 	const angle = radians(degrees);
 	const cosine = Math.cos(angle);
 	const sine = Math.sin(angle);
-	const x = pointValue.x - origin.x;
-	const y = pointValue.y - origin.y;
+	const x = (pointValue.x - origin.x) * image.naturalWidth;
+	const y = (pointValue.y - origin.y) * image.naturalHeight;
 	return Object.freeze({
-		x: origin.x + x * cosine - y * sine,
-		y: origin.y + x * sine + y * cosine
+		x: origin.x + (x * cosine - y * sine) / image.naturalWidth,
+		y: origin.y + (x * sine + y * cosine) / image.naturalHeight
 	});
 }
-function boundsCorners(left, top, width, height, angle) {
+function boundsCorners(left, top, width, height, angle, image) {
 	const origin = Object.freeze({
 		x: left,
 		y: top
@@ -113,15 +113,15 @@ function boundsCorners(left, top, width, height, angle) {
 			rotate({
 				x: left + width,
 				y: top
-			}, origin, angle),
+			}, origin, angle, image),
 			rotate({
 				x: left + width,
 				y: top + height
-			}, origin, angle),
+			}, origin, angle, image),
 			rotate({
 				x: left,
 				y: top + height
-			}, origin, angle)
+			}, origin, angle, image)
 		])
 	});
 }
@@ -161,6 +161,7 @@ function item(id, kind, layer, hidden, locked, geometry, data, itemMetadata) {
 	});
 }
 function uniqueId(id, reserved) {
+	if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(id) || id.length > 128) return fail("overlay.id", "Overlay identifiers must contain at most 128 supported characters.", "$.overlays");
 	if (!reserved.has(id)) {
 		reserved.add(id);
 		return id;
@@ -223,7 +224,7 @@ function convertMask(source, path, image, layer, id) {
 	if (stroke !== void 0 && stroke !== null && typeof stroke !== "string") return fail("style.stroke", "Mask stroke must be a string or null.", `${path}.style.stroke`);
 	const numericId = (_a = /(?:^|[-:])(\d+)$/u.exec(id)) === null || _a === void 0 ? void 0 : _a[1];
 	const maskId = numericId ? Number(numericId) : layer + 1;
-	return item(id, "mask:object", layer, source.hidden === true, false, boundsCorners(left, top, width, height, angle), Object.freeze({
+	return item(id, "mask:object", layer, source.hidden === true, false, boundsCorners(left, top, width, height, angle, image), Object.freeze({
 		version: 1,
 		kind: shape,
 		maskId: Number.isSafeInteger(maskId) && maskId > 0 ? maskId : layer + 1,
@@ -233,8 +234,8 @@ function convertMask(source, path, image, layer, id) {
 		stroke: stroke !== null && stroke !== void 0 ? stroke : null,
 		strokeWidth: scalarFromPixels(numberValue(style.strokeWidth, `${path}.style.strokeWidth`, 1), image),
 		strokeDashArray: dashArray(style.strokeDashArray, image, `${path}.style.strokeDashArray`),
-		cornerRadiusX: geometry.rx === void 0 ? 0 : numberValue(geometry.rx, `${path}.geometry.rx`),
-		cornerRadiusY: geometry.ry === void 0 ? 0 : numberValue(geometry.ry, `${path}.geometry.ry`),
+		cornerRadiusX: shape !== "rect" || geometry.rx === void 0 ? 0 : scalarFromPixels(numberValue(geometry.rx, `${path}.geometry.rx`), image),
+		cornerRadiusY: shape !== "rect" || geometry.ry === void 0 ? 0 : scalarFromPixels(numberValue(geometry.ry, `${path}.geometry.ry`), image),
 		points,
 		hasControls: booleanValue(style.hasControls, true),
 		selectable: booleanValue(style.selectable, true),
@@ -264,7 +265,7 @@ function convertText(source, path, image, layer, id, warn) {
 	const lineCount = Math.max(1, value.split(/\r?\n/u).length);
 	const height = fontSizePx * lineHeight * lineCount / image.naturalHeight;
 	warn("text.bounds.approximated", `${path}.geometry`, "Wire format 1 did not store rendered text height; wire format 2 bounds were estimated from font size and line height.");
-	return item(id, "annotation:text", layer, source.hidden === true, source.locked === true, boundsCorners(x, y, width, height, angle), annotationEnvelope(id, source, Object.freeze({
+	return item(id, "annotation:text", layer, source.hidden === true, source.locked === true, boundsCorners(x, y, width, height, angle, image), annotationEnvelope(id, source, Object.freeze({
 		version: 1,
 		text: value,
 		fontSize: scalarFromPixels(fontSizePx, image),
@@ -286,7 +287,7 @@ function convertShape(source, path, image, layer, id) {
 	let stateGeometry;
 	if (shape === "rect" && geometry.type === "rect") stateGeometry = Object.freeze({
 		kind: "rect",
-		bounds: boundsCorners(numberValue(geometry.x, `${path}.geometry.x`), numberValue(geometry.y, `${path}.geometry.y`), positive(geometry.width, `${path}.geometry.width`), positive(geometry.height, `${path}.geometry.height`), angle)
+		bounds: boundsCorners(numberValue(geometry.x, `${path}.geometry.x`), numberValue(geometry.y, `${path}.geometry.y`), positive(geometry.width, `${path}.geometry.width`), positive(geometry.height, `${path}.geometry.height`), angle, image)
 	});
 	else if ((shape === "line" || shape === "arrow") && geometry.type === shape) {
 		const start = point({
@@ -303,8 +304,8 @@ function convertShape(source, path, image, layer, id) {
 		});
 		stateGeometry = Object.freeze({
 			kind: shape,
-			start: rotate(start, origin, angle),
-			end: rotate(end, origin, angle)
+			start: rotate(start, origin, angle, image),
+			end: rotate(end, origin, angle, image)
 		});
 	} else return fail("annotation.shape", "Shape kind and geometry do not match.", path);
 	return item(id, "annotation:shape", layer, source.hidden === true, source.locked === true, stateGeometry, annotationEnvelope(id, source, Object.freeze({
@@ -433,8 +434,7 @@ function migrateV1OverlayState(input, options = {}) {
 	});
 }
 
-//#endregion
-//#region dist/esm/migrate-v2/index.js
+// dist/esm/migrate-v2/index.js
 const SOURCE_SCHEMA = "image-editor.canvas@2";
 const TARGET_SCHEMA = "image-editor.state@3";
 const MAX_INPUT_BYTES = 16777216;
@@ -528,8 +528,9 @@ function isRecord(value) {
 function isFiniteNumber(value) {
 	return typeof value === "number" && Number.isFinite(value);
 }
+const textEncoder = new TextEncoder();
 function byteLength(value) {
-	return new TextEncoder().encode(value).byteLength;
+	return textEncoder.encode(value).byteLength;
 }
 function limit(value, fallback, label) {
 	if (value === void 0) return fallback;
@@ -682,7 +683,7 @@ function findBaseImage(objects) {
 		if (objectType(image) !== "image") throw new SnapshotMigrationError("base.type", "The Base Image must be a Fabric Image.", "$.objects");
 		return image;
 	}
-	const images = objects.filter((object) => objectType(object) === "image");
+	const images = objects.filter((object) => objectType(object) === "image" && object.isMosaicPreview !== true && object.editorObjectKind !== "session");
 	if (images.length > 1) throw new SnapshotMigrationError("base.ambiguous", "Snapshot has multiple unmarked Images and no unambiguous Base Image.", "$.objects");
 	return (_a = images[0]) !== null && _a !== void 0 ? _a : null;
 }
@@ -792,7 +793,7 @@ function pathPoints(value) {
 	const points = [];
 	for (const segment of value) {
 		if (!Array.isArray(segment) || typeof segment[0] !== "string") continue;
-		const command = segment[0].toUpperCase();
+		const command = segment[0];
 		if (![
 			"M",
 			"L",
@@ -800,7 +801,7 @@ function pathPoints(value) {
 			"Q",
 			"S",
 			"C"
-		].includes(command)) continue;
+		].includes(command)) throw new SnapshotMigrationError("path.command", "Unsupported draw path command.", "$.objects.path");
 		const x = segment[segment.length - 2];
 		const y = segment[segment.length - 1];
 		if (!isFiniteNumber(x) || !isFiniteNumber(y)) continue;
@@ -1064,7 +1065,6 @@ async function loadV2Snapshot(editor, input, options = {}) {
 	});
 }
 
-//#endregion
 exports.OverlayStateV1MigrationError = OverlayStateV1MigrationError;
 exports.SnapshotMigrationError = SnapshotMigrationError;
 exports.detectSnapshotVersion = detectSnapshotVersion;

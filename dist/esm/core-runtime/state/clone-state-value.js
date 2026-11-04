@@ -23,6 +23,10 @@ function assertSafeStateValue(value, seen = new WeakSet(), path = '$') {
     }
     if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value))
         return;
+    const prototype = Object.getPrototypeOf(value);
+    if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
+        throw new StateCloneError(`State at ${path} contains an unsupported object type.`);
+    }
     for (const key of Object.getOwnPropertySymbols(value)) {
         if ((_a = Object.getOwnPropertyDescriptor(value, key)) === null || _a === void 0 ? void 0 : _a.enumerable) {
             throw new StateCloneError(`State at ${path} contains an enumerable symbol key.`);
@@ -57,6 +61,8 @@ function cloneFallback(value, seen) {
     if (value instanceof ArrayBuffer)
         return value.slice(0);
     if (ArrayBuffer.isView(value)) {
+        if (typeof globalThis.structuredClone === 'function')
+            return globalThis.structuredClone(value);
         const source = value;
         return new Uint8Array(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength));
     }
@@ -86,7 +92,7 @@ function cloneFallback(value, seen) {
     if (prototype !== Object.prototype && prototype !== null) {
         throw new StateCloneError(`State contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
     }
-    const result = Object.create(null);
+    const result = Object.create(prototype);
     seen.set(value, result);
     for (const key of Object.keys(value)) {
         if (isDangerousStateKey(key)) {
@@ -125,10 +131,7 @@ function deepFreeze(value, seen = new WeakSet()) {
 export function cloneStateValue(value) {
     try {
         assertSafeStateValue(value);
-        const structuredCloneFunction = globalThis.structuredClone;
-        const cloned = typeof structuredCloneFunction === 'function'
-            ? structuredCloneFunction(value)
-            : cloneFallback(value, new Map());
+        const cloned = cloneFallback(value, new Map());
         return deepFreeze(cloned);
     }
     catch (error) {

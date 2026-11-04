@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk'), require('@bensitu/image-editor/plugins/overlay'), require('@bensitu/image-editor/core')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk', '@bensitu/image-editor/plugins/overlay', '@bensitu/image-editor/core'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk"), require("@bensitu/image-editor/plugins/overlay"), require("@bensitu/image-editor/core")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk", "@bensitu/image-editor/plugins/overlay", "@bensitu/image-editor/core"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.Mask = global.ImageEditorPlugins.Mask || {}), global.ImageEditor,global.ImageEditorPlugins.Overlay,global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_plugins_overlay, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "maskPlugin")) return;
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-//#region dist/esm/utils/internal-operation-conflict-domains.js
+// dist/esm/utils/internal-operation-conflict-domains.js
 	const DOCUMENT_WIDE_MUTATION_CONFLICT_DOMAINS = Object.freeze([
 		"document",
 		"base-image",
@@ -33,14 +33,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
-//#endregion
-//#region dist/esm/utils/safe-object-key.js
+// dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
 		return key === "__proto__" || key === "constructor" || key === "prototype";
 	}
 
-//#endregion
-//#region dist/esm/fabric/safe-fabric-serialization.js
+// dist/esm/fabric/safe-fabric-serialization.js
 	const SAFE_NESTED_FABRIC_TYPES = /* @__PURE__ */ new Set([
 		"linear",
 		"pattern",
@@ -98,6 +96,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"transparentCorners"
 	]);
 	const ROOT_TYPE_PROPERTIES = Object.freeze({
+		image: /* @__PURE__ */ new Set([
+			"src",
+			"crossOrigin",
+			"cropX",
+			"cropY",
+			"filters",
+			"resizeFilter",
+			"minimumScaleTrigger",
+			"imageSmoothing",
+			"editorObjectKind"
+		]),
 		rect: /* @__PURE__ */ new Set(["rx", "ry"]),
 		circle: /* @__PURE__ */ new Set([
 			"counterClockwise",
@@ -157,7 +166,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const ancestors = /* @__PURE__ */ new WeakSet();
 		let nodes = 0;
 		const inspect = (entry, depth, root, propertyName) => {
-			var _a;
+			var _a, _b;
 			if (entry === null || entry === void 0 || typeof entry === "string" || typeof entry === "boolean") {
 				if (typeof entry === "string" && propertyName && (RESOURCE_KEYS.has(propertyName.toLowerCase()) || propertyName.toLowerCase().endsWith("url"))) return DATA_IMAGE_PATTERN.test(entry);
 				return true;
@@ -196,10 +205,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			ancestors.add(entry);
 			for (const key of Object.keys(entry)) {
 				if (isUnsafeObjectKey(key)) return false;
-				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _a === void 0 ? void 0 : _a.has(key))) return false;
+				if (root && !COMMON_ROOT_PROPERTIES.has(key) && !MASK_INTERACTION_PROPERTIES.has(key) && !((_a = options.additionalRootProperties) === null || _a === void 0 ? void 0 : _a.includes(key)) && !((_b = ROOT_TYPE_PROPERTIES[rootType.toLowerCase()]) === null || _b === void 0 ? void 0 : _b.has(key))) return false;
 				const descriptor = Object.getOwnPropertyDescriptor(entry, key);
 				if (!descriptor || !("value" in descriptor)) return false;
 				if (key === "clipPath" && descriptor.value !== null && descriptor.value !== void 0) return false;
+				if (key === "resizeFilter" && descriptor.value !== null && descriptor.value !== void 0) return false;
 				if (key === "filters" && (!Array.isArray(descriptor.value) || descriptor.value.length > 0)) return false;
 				if (!inspect(descriptor.value, depth + 1, false, key)) return false;
 			}
@@ -212,8 +222,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return true;
 	}
 
-//#endregion
-//#region dist/esm/core/editor-object-kind.js
+// dist/esm/core/editor-object-kind.js
 	function markMaskObject(object, meta) {
 		const mask = object;
 		mask.editorObjectKind = "mask";
@@ -226,8 +235,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return mask;
 	}
 
-//#endregion
-//#region dist/esm/core/public-types.js
+// dist/esm/core/public-types.js
 	function isMaskObject$1(object) {
 		const candidate = object;
 		return !!candidate && candidate.editorObjectKind === "mask" && typeof candidate.maskId === "number" && typeof candidate.maskUid === "string" && typeof candidate.maskName === "string";
@@ -237,8 +245,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return !!candidate && candidate.editorObjectKind === "session" && typeof candidate.sessionObjectType === "string";
 	}
 
-//#endregion
-//#region dist/esm/utils/internal-layer-placement.js
+// dist/esm/utils/internal-layer-placement.js
 	function isInternallyMarkedSessionObject(object) {
 		return object.editorLayerRole === "session";
 	}
@@ -286,8 +293,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
-//#endregion
-//#region dist/esm/core/callback-reporter.js
+// dist/esm/core/callback-reporter.js
 	function reportWarning(options, error, message) {
 		const warningCallback = options.onWarning;
 		if (typeof warningCallback !== "function") return;
@@ -298,8 +304,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-//#endregion
-//#region dist/esm/core/safe-object-copy.js
+// dist/esm/core/safe-object-copy.js
 	function canCopySafeObjectKey(key) {
 		return !isUnsafeObjectKey(key);
 	}
@@ -313,8 +318,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return output;
 	}
 
-//#endregion
-//#region dist/esm/mask/mask-style.js
+// dist/esm/mask/mask-style.js
 	const SELECTED_STROKE = "#ff0000";
 	const SELECTED_STROKE_WIDTH = 1;
 	const HOVER_STROKE = "#ff5500";
@@ -407,8 +411,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		delete tagged.imageEditorMaskHandlers;
 	}
 
-//#endregion
-//#region dist/esm/utils/number.js
+// dist/esm/utils/number.js
 	function resolveNumeric(val, axis, fallback, canvas, options) {
 		if (typeof val === "number") return Number.isFinite(val) ? val : fallback;
 		if (typeof val === "function") {
@@ -439,14 +442,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		};
 	}
 
-//#endregion
-//#region dist/esm/utils/image-budget.js
+// dist/esm/utils/image-budget.js
 	function isPixelAreaWithinBudget(width, height, maxPixels) {
 		return Number.isSafeInteger(width) && Number.isSafeInteger(height) && Number.isSafeInteger(maxPixels) && width > 0 && height > 0 && maxPixels > 0 && width <= Math.floor(maxPixels / height);
 	}
 
-//#endregion
-//#region dist/esm/mask/mask-factory.js
+// dist/esm/mask/mask-factory.js
 	const POLYGON_AREA_EPSILON = 1e-6;
 	const BUILT_IN_MASK_SHAPES = /* @__PURE__ */ new Set([
 		"rect",
@@ -840,8 +841,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return finalizeMaskAttachment(context, config, resolvedConfig, applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig));
 	}
 
-//#endregion
-//#region dist/esm/mask/mask-label-manager.js
+// dist/esm/mask/mask-label-manager.js
 	function removeLabelForMask(context, mask) {
 		if (!context.canvas || !mask.labelObject) return;
 		try {
@@ -936,8 +936,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
-//#region dist/esm/plugins/mask/mask-controller.js
+// dist/esm/plugins/mask/mask-controller.js
 	const MASK_PLUGIN_ID = "plugin:mask";
 	const MAX_MASK_OBJECT_BYTES = 524288;
 	const MASK_SERIALIZED_OBJECT_PROPERTIES = [
@@ -1550,8 +1549,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/mask/index.js
+// dist/esm/plugins/mask/index.js
 	const maskPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:mask", "1.0.0");
 	function maskPlugin(options = {}) {
 		const resolved = resolveMaskPluginOptions(options);
@@ -1659,7 +1657,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		});
 	}
 
-//#endregion
 exports.maskPlugin = maskPlugin;
 exports.maskPluginRef = maskPluginRef;
 });

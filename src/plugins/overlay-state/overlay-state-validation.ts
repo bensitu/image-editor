@@ -5,6 +5,7 @@
  */
 
 import { isRuntimeIdentifier } from '../../sdk/index.js';
+import { isValidSemVer } from '../../plugin-kernel/semver.js';
 import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 
 import {
@@ -36,8 +37,6 @@ export const DEFAULT_OVERLAY_STATE_LIMITS: OverlayStateLimits = Object.freeze({
 });
 
 const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-const SEMVER_PATTERN =
-    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const ROOT_KEYS = new Set([
     'schema',
     'version',
@@ -521,7 +520,7 @@ function validateItem(
         if (
             typeof value.codec.version !== 'string' ||
             value.codec.version.length > limits.maxIdentifierLength ||
-            !SEMVER_PATTERN.test(value.codec.version)
+            !isValidSemVer(value.codec.version)
         ) {
             addIssue(
                 issues,

@@ -435,3 +435,22 @@ test('old-image disposal failures retain their cause and roll back the replaceme
     assert.equal(editor.getImageInfo().naturalWidth, 78);
     await editor.disposeAsync();
 });
+
+test('Canvas capture keeps object alignment when an excluded object precedes persistent content', async () => {
+    resetEditorDom();
+    const canvas = new fabric.Canvas(document.createElement('canvas'), { width: 100, height: 80 });
+    const first = new fabric.Rect({ width: 10, height: 10 });
+    const excluded = new fabric.Rect({ width: 5, height: 5, excludeFromExport: true });
+    const last = new fabric.Rect({ width: 20, height: 20 });
+    canvas.add(first, excluded, last);
+    const { adapter } = createAdapterHarness({ baseImage: null, canvas });
+    try {
+        const state = adapter.capture({ mode: 'memento', capturedAt: 0 });
+        assert.deepEqual(
+            state.canvas.objects.map(({ width }) => width),
+            [10, 20],
+        );
+    } finally {
+        await canvas.dispose();
+    }
+});

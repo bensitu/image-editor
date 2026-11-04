@@ -1,11 +1,11 @@
 (function(global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require('@bensitu/image-editor/sdk'), require('@bensitu/image-editor/core')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@bensitu/image-editor/sdk', '@bensitu/image-editor/core'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ?  factory(exports, require("@bensitu/image-editor/sdk"), require("@bensitu/image-editor/core")) :
+  typeof define === 'function' && define.amd ? define(['exports', "@bensitu/image-editor/sdk", "@bensitu/image-editor/core"], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorPlugins = global.ImageEditorPlugins || {},global.ImageEditorPlugins.CanvasInteractions = global.ImageEditorPlugins.CanvasInteractions || {}), global.ImageEditor,global.ImageEditor));
 })(this, function(exports, _bensitu_image_editor_sdk, _bensitu_image_editor_core) {
 if (Object.prototype.hasOwnProperty.call(exports, "canvasInteractionsPlugin")) return;
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
-//#region dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
+// dist/esm/plugins/canvas-interactions/fabric-pointer-source.js
 	function finiteNumber(value) {
 		return typeof value === "number" && Number.isFinite(value) ? value : null;
 	}
@@ -151,8 +151,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/interaction-runtime.js
+// dist/esm/plugins/canvas-interactions/interaction-runtime.js
 	function isPromiseLike(value) {
 		return (typeof value === "object" || typeof value === "function") && value !== null && typeof value.then === "function";
 	}
@@ -384,8 +383,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/pointer-coordinate-mapper.js
+// dist/esm/plugins/canvas-interactions/pointer-coordinate-mapper.js
 	var PointerCoordinateMapper = class {
 		constructor(baseImage) {
 			Object.defineProperty(this, "baseImage", {
@@ -415,8 +413,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-property-lease.js
+// dist/esm/plugins/canvas-interactions/canvas-property-lease.js
 	var CanvasPropertyLease = class {
 		constructor(target, key, owned) {
 			Object.defineProperty(this, "target", {
@@ -489,8 +486,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-interactions-controller.js
+// dist/esm/plugins/canvas-interactions/canvas-interactions-controller.js
 	var CanvasInteractionsController = class {
 		constructor(host, tools, options, bindings = []) {
 			Object.defineProperty(this, "host", {
@@ -655,8 +651,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
+// dist/esm/plugins/canvas-interactions/canvas-interactions-error.js
 	var CanvasInteractionsConfigurationError = class extends Error {
 		constructor(message) {
 			super(`[ImageEditor] ${message}`);
@@ -669,8 +664,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
+// dist/esm/plugins/canvas-interactions/schedulers/latest-value-scheduler.js
 	var LatestValueScheduler = class {
 		constructor(worker) {
 			Object.defineProperty(this, "worker", {
@@ -775,8 +769,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/shape-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/shape-interaction-binding.js
 	const SHAPE_TOOL_ID = "annotation:shape";
 	const DEFAULT_MINIMUM_DRAG_DISTANCE = 2;
 	function geometry(kind, start, end) {
@@ -883,8 +876,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/schedulers/ordered-sample-scheduler.js
+// dist/esm/plugins/canvas-interactions/schedulers/ordered-sample-scheduler.js
 	var OrderedSampleScheduler = class {
 		constructor(worker) {
 			Object.defineProperty(this, "worker", {
@@ -982,8 +974,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/draw-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/draw-interaction-binding.js
 	const DRAW_TOOL_ID = "annotation:draw";
 	var DrawInteractionBinding = class {
 		constructor(options) {
@@ -1060,8 +1051,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/mosaic-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/mosaic-interaction-binding.js
 	const MOSAIC_TOOL_ID = "plugin:mosaic";
 	function mosaicPoint(point) {
 		return Object.freeze({
@@ -1144,8 +1134,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/text-interaction-binding.js
+// dist/esm/plugins/canvas-interactions/bindings/text-interaction-binding.js
 	const TEXT_TOOL_ID = "annotation:text";
 	const TEXT_KIND = "annotation:text";
 	function textClassification(overlays, sample) {
@@ -1298,8 +1287,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		}
 	};
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/bindings/create-bindings.js
+// dist/esm/plugins/canvas-interactions/bindings/create-bindings.js
 	function createCanvasInteractionBindings(options) {
 		const bindings = [];
 		if (options.text) bindings.push(new TextInteractionBinding(options.text));
@@ -1309,8 +1297,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		return Object.freeze(bindings);
 	}
 
-//#endregion
-//#region dist/esm/plugins/canvas-interactions/index.js
+// dist/esm/plugins/canvas-interactions/index.js
 	const canvasInteractionsPluginRef = (0, _bensitu_image_editor_sdk.definePluginRef)("plugin:canvas-interactions", "1.0.0");
 	function collectPluginDependencies(options) {
 		if (typeof options !== "object" || options === null || Array.isArray(options)) throw new CanvasInteractionsConfigurationError("Canvas Interactions options must be an object.");
@@ -1398,7 +1385,6 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 		});
 	}
 
-//#endregion
 exports.CanvasInteractionsConfigurationError = CanvasInteractionsConfigurationError;
 exports.canvasInteractionsPlugin = canvasInteractionsPlugin;
 exports.default = canvasInteractionsPlugin;

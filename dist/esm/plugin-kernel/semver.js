@@ -8,9 +8,9 @@ function parseRangeVersion(value) {
     const exact = semVerPattern.exec(value);
     if (exact) {
         return {
-            major: Number(exact[1]),
-            minor: Number(exact[2]),
-            patch: Number(exact[3]),
+            major: exact[1],
+            minor: exact[2],
+            patch: exact[3],
             exact: value,
         };
     }
@@ -20,11 +20,22 @@ function parseRangeVersion(value) {
     const minor = partial[2];
     const patch = partial[3];
     return {
-        major: Number(partial[1]),
-        minor: minor === undefined || /[xX*]/u.test(minor) ? null : Number(minor),
-        patch: patch === undefined || /[xX*]/u.test(patch) ? null : Number(patch),
+        major: partial[1],
+        minor: minor === undefined || /[xX*]/u.test(minor) ? null : minor,
+        patch: patch === undefined || /[xX*]/u.test(patch) ? null : patch,
         exact: null,
     };
+}
+function incrementNumeric(value) {
+    const digits = value.split('');
+    for (let index = digits.length - 1; index >= 0; index -= 1) {
+        if (digits[index] !== '9') {
+            digits[index] = String(Number(digits[index]) + 1);
+            return digits.join('');
+        }
+        digits[index] = '0';
+    }
+    return `1${digits.join('')}`;
 }
 function lowerBound(version) {
     var _a, _b;
@@ -32,15 +43,15 @@ function lowerBound(version) {
 }
 function exclusiveUpperBound(version) {
     return version.minor === null
-        ? `${version.major + 1}.0.0`
-        : `${version.major}.${version.minor + 1}.0`;
+        ? `${incrementNumeric(version.major)}.0.0`
+        : `${version.major}.${incrementNumeric(version.minor)}.0`;
 }
 function caretUpperBound(version) {
-    if (version.major > 0 || version.minor === null)
-        return `${version.major + 1}.0.0`;
-    if (version.minor > 0 || version.patch === null)
-        return `0.${version.minor + 1}.0`;
-    return `0.0.${version.patch + 1}`;
+    if (version.major !== '0' || version.minor === null)
+        return `${incrementNumeric(version.major)}.0.0`;
+    if (version.minor !== '0' || version.patch === null)
+        return `0.${incrementNumeric(version.minor)}.0`;
+    return `0.0.${incrementNumeric(version.patch)}`;
 }
 function normalizeComparator(token) {
     var _a, _b;
@@ -50,35 +61,38 @@ function normalizeComparator(token) {
     if (!match)
         return null;
     const operator = (_a = match[1]) !== null && _a !== void 0 ? _a : '';
+    if (/^[xX*]$/u.test(match[2]))
+        return ['<', '>'].includes(operator) ? ['<0.0.0-0'] : ['>=0.0.0'];
     const version = parseRangeVersion(match[2]);
     if (!version)
         return null;
     const lower = (_b = version.exact) !== null && _b !== void 0 ? _b : lowerBound(version);
     if (operator === '^')
-        return [`>=${lower}`, `<${caretUpperBound(version)}`];
+        return [`>=${lower}`, `<${caretUpperBound(version)}-0`];
     if (operator === '~')
-        return [`>=${lower}`, `<${exclusiveUpperBound(version)}`];
+        return [`>=${lower}`, `<${exclusiveUpperBound(version)}-0`];
     if (version.exact !== null)
         return [`${operator}${version.exact}`];
     const upper = exclusiveUpperBound(version);
     if (operator === '>')
         return [`>=${upper}`];
     if (operator === '<=')
-        return [`<${upper}`];
+        return [`<${upper}-0`];
     if (operator === '<')
-        return [`<${lower}`];
+        return [`<${lower}-0`];
     if (operator === '>=')
         return [`>=${lower}`];
-    return [`>=${lower}`, `<${upper}`];
+    return [`>=${lower}`, `<${upper}-0`];
 }
 function normalizeComparatorSet(value) {
+    var _a;
     const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(value);
     if (hyphen) {
         const lower = parseRangeVersion(hyphen[1]);
         const upper = parseRangeVersion(hyphen[2]);
         if (!lower || !upper)
             return null;
-        return `>=${lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}` : `<=${upper.exact}`}`;
+        return `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`}`;
     }
     const normalized = [];
     for (const token of value.split(/\s+/u).filter(Boolean)) {
@@ -102,9 +116,15 @@ function normalizeRange(range) {
     return normalized.some((entry) => entry === null) ? null : normalized.join(' || ');
 }
 function compareNumeric(left, right) {
-    const leftNumber = Number(left);
-    const rightNumber = Number(right);
-    return leftNumber === rightNumber ? 0 : leftNumber < rightNumber ? -1 : 1;
+    return left.length === right.length
+        ? left === right
+            ? 0
+            : left < right
+                ? -1
+                : 1
+        : left.length < right.length
+            ? -1
+            : 1;
 }
 function compareSemVer(left, right) {
     var _a, _b, _c, _d;
@@ -179,18 +199,22 @@ export function satisfiesSemVer(version, range) {
     const normalized = normalizeRange(range);
     if (!parsedVersion || !normalized)
         return false;
-    const prereleaseTuple = parsedVersion[4]
-        ? `${parsedVersion[1]}.${parsedVersion[2]}.${parsedVersion[3]}`
-        : null;
     return normalized.split(' || ').some((comparatorSet) => {
-        if (!comparatorSet
-            .split(' ')
-            .every((comparator) => satisfiesComparator(parsedVersion, comparator))) {
+        const comparators = comparatorSet.split(' ');
+        if (!comparators.every((comparator) => satisfiesComparator(parsedVersion, comparator))) {
             return false;
         }
-        if (prereleaseTuple === null)
+        if (parsedVersion[4] === undefined)
             return true;
-        return new RegExp(`(?:^|[<>=])${prereleaseTuple.replace(/\./gu, '\\.')}-[0-9A-Za-z-]`, 'u').test(comparatorSet);
+        return comparators.some((comparator) => {
+            const match = comparatorPattern.exec(comparator);
+            const target = match && semVerPattern.exec(match[2]);
+            return (target !== null &&
+                target[4] !== undefined &&
+                target[1] === parsedVersion[1] &&
+                target[2] === parsedVersion[2] &&
+                target[3] === parsedVersion[3]);
+        });
     });
 }
 //# sourceMappingURL=semver.js.map
