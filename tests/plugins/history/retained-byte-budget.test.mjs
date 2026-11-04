@@ -177,3 +177,14 @@ test('an oversized record clears continuity, remains unavailable, and reports a 
     assert.equal(warnings[0].error.code, 'HISTORY_RECORD_BYTE_LIMIT_EXCEEDED');
     assert.match(warnings[0].message, /exceeding/u);
 });
+
+test('History accounts for shared large image strings once across retained records', () => {
+    const payload = `data:image/png;base64,${'A'.repeat(8192)}`;
+    const { controller } = createController({ maxBytes: payload.length + 4096 });
+    for (let index = 0; index < 5; index += 1)
+        controller.push(createRecord(`test:change-${index}`, payload));
+    assert.equal(controller.length, 5);
+    assert.ok(controller.getState().bytes < payload.length + 4096);
+    controller.clear();
+    assert.equal(controller.getState().bytes, 0);
+});

@@ -110,7 +110,7 @@ export function interpolateMosaicPoints(
     const spacing = Math.max(1, radiusPx / 2);
     const steps = Math.max(1, Math.ceil(distance / spacing));
     return Object.freeze(
-        Array.from(Array.from({ length: steps }).keys(), (index) => {
+        Array.from({ length: steps }, (_, index) => {
             const progress = (index + 1) / steps;
             return Object.freeze({
                 xPx: start.xPx + deltaX * progress,

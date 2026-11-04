@@ -430,7 +430,8 @@ export class FiltersController {
             return;
         const baseImage = canvas
             .getObjects()
-            .find((object) => object instanceof this.host.fabric.FabricImage);
+            .find((object) => object instanceof this.host.fabric.FabricImage &&
+            Reflect.get(object, 'editorObjectKind') === 'baseImage');
         if (!baseImage)
             throw new Error('[ImageEditor] Filters export requires a Base Image.');
         applyFilterDefinitions(this.host.fabric, baseImage, this.committedState.filters);

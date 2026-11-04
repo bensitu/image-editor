@@ -504,7 +504,8 @@ export class FiltersController {
             .getObjects()
             .find(
                 (object): object is FabricNS.FabricImage =>
-                    object instanceof this.host.fabric.FabricImage,
+                    object instanceof this.host.fabric.FabricImage &&
+                    Reflect.get(object, 'editorObjectKind') === 'baseImage',
             );
         if (!baseImage) throw new Error('[ImageEditor] Filters export requires a Base Image.');
         applyFilterDefinitions(this.host.fabric, baseImage, this.committedState.filters);

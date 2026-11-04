@@ -72,7 +72,6 @@ export declare class HistoryPluginController implements HistoryPort {
     private records;
     private position;
     private retainedBytes;
-    private baseline;
     private enabled;
     private readonly listeners;
     private disposed;
@@ -96,6 +95,7 @@ export declare class HistoryPluginController implements HistoryPort {
     dispose(): void;
     private resetTimeline;
     private removeEntries;
+    private updateRetainedBytes;
     private evictOverflow;
     private restoreTransactionally;
     private emitChange;

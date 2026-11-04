@@ -76,6 +76,12 @@ function byteLength(value: string): number {
     return textEncoder.encode(value).byteLength;
 }
 
+function normalizeResourceUrl(value: string): string {
+    let start = 0;
+    while (start < value.length && value.charCodeAt(start) <= 0x20) start += 1;
+    return value.slice(start).replace(/[\t\r\n]/gu, '');
+}
+
 function inspectTree(
     value: unknown,
     limits: SnapshotLimits,
@@ -137,7 +143,7 @@ function inspectTree(
             } else if (
                 limits.externalUrlPolicy === 'reject' &&
                 isExternalResourceKey(propertyName) &&
-                value.length > 0
+                /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(normalizeResourceUrl(value))
             ) {
                 throw new SnapshotValidationError('external URL references are forbidden.', path);
             }

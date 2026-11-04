@@ -1,3 +1,4 @@
+import { inspectRasterOutput } from '../utils/raster-output.js';
 function uint16(bytes, offset, littleEndian) {
     if (offset < 0 || offset + 2 > bytes.length)
         return null;
@@ -89,12 +90,12 @@ export function readJpegExifOrientation(input) {
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
     return (_b = (_a = findJpegExifOrientationEntry(bytes)) === null || _a === void 0 ? void 0 : _a.value) !== null && _b !== void 0 ? _b : 1;
 }
-function dataUrlBytes(source) {
+function dataUrlBytes(source, maximumBytes) {
     const comma = source.indexOf(',');
     if (comma < 0)
         throw new TypeError('[ImageEditor] Image Data URL is malformed.');
     const header = source.slice(0, comma).toLowerCase();
-    const encoded = source.slice(comma + 1);
+    const encoded = source.slice(comma + 1, maximumBytes === undefined ? undefined : comma + 1 + Math.ceil(maximumBytes / 3) * 4);
     if (!header.endsWith(';base64')) {
         const bytes = [];
         for (let index = 0; index < encoded.length; index += 1) {
@@ -122,6 +123,25 @@ function dataUrlBytes(source) {
     }
     const binary = globalThis.atob(compact);
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+function hasCompleteJpegMetadata(bytes) {
+    let offset = 2;
+    while (offset + 1 < bytes.length) {
+        if (bytes[offset] !== 0xff)
+            return false;
+        while (bytes[offset] === 0xff)
+            offset += 1;
+        const marker = bytes[offset++];
+        if (marker === 0xda || marker === 0xd9)
+            return true;
+        if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7))
+            continue;
+        const length = uint16(bytes, offset, false);
+        if (length === null || length < 2)
+            return false;
+        offset += length;
+    }
+    return false;
 }
 function bytesDataUrl(bytes, mimeType) {
     const buffer = globalThis.Buffer;
@@ -187,9 +207,18 @@ async function decodeWithImageBitmap(bytes, mimeType, signal) {
         return null;
     signal.throwIfAborted();
     const copy = bytes.slice().buffer;
-    const bitmap = await globalThis.createImageBitmap(new Blob([copy], { type: mimeType }), {
-        imageOrientation: 'none',
-    });
+    let bitmap;
+    try {
+        bitmap = await globalThis.createImageBitmap(new Blob([copy], { type: mimeType }), {
+            imageOrientation: 'none',
+        });
+    }
+    catch (error) {
+        if (signal.aborted)
+            throw abortReason(signal);
+        void error;
+        return null;
+    }
     if (signal.aborted) {
         bitmap.close();
         throw abortReason(signal);
@@ -273,7 +302,7 @@ function setOrientationTransform(context, orientation, rawWidth, rawHeight, targ
     context.setTransform(a * scaleX, b * scaleY, c * scaleX, d * scaleY, e * scaleX, f * scaleY);
 }
 export async function preprocessImageDataUrl(request) {
-    var _a, _b;
+    var _a;
     request.signal.throwIfAborted();
     const needsExif = request.mimeType === 'image/jpeg' && request.options.normalizeExifOrientation;
     const requestedMimeType = outputMimeType(request.mimeType, request.options);
@@ -291,7 +320,9 @@ export async function preprocessImageDataUrl(request) {
             downsampled: false,
         });
     }
-    const bytes = dataUrlBytes(request.source);
+    let bytes = dataUrlBytes(request.source, needsExif ? 256 * 1024 : undefined);
+    if (needsExif && !findJpegExifOrientationEntry(bytes) && !hasCompleteJpegMetadata(bytes))
+        bytes = dataUrlBytes(request.source);
     const orientation = needsExif ? readJpegExifOrientation(bytes) : 1;
     const oriented = orientedSize(request.width, request.height, orientation);
     const target = targetSize(oriented.width, oriented.height, request.options);
@@ -309,11 +340,12 @@ export async function preprocessImageDataUrl(request) {
             downsampled: false,
         });
     }
+    bytes = dataUrlBytes(request.source);
     const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
     const decoded = (_a = (await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal))) !== null && _a !== void 0 ? _a : (await decodeWithImage(orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source, request.ownerDocument, request.signal));
+    const canvas = request.ownerDocument.createElement('canvas');
     try {
         request.signal.throwIfAborted();
-        const canvas = request.ownerDocument.createElement('canvas');
         canvas.width = target.width;
         canvas.height = target.height;
         const context = canvas.getContext('2d');
@@ -325,10 +357,7 @@ export async function preprocessImageDataUrl(request) {
         context.drawImage(decoded.image, 0, 0, decoded.width, decoded.height);
         request.signal.throwIfAborted();
         const source = canvas.toDataURL(requestedMimeType, request.options.quality);
-        const emitted = (_b = /^data:(image\/(?:jpeg|png|webp));base64,/iu.exec(source)) === null || _b === void 0 ? void 0 : _b[1];
-        const mimeType = emitted === 'image/jpeg' || emitted === 'image/png' || emitted === 'image/webp'
-            ? emitted
-            : requestedMimeType;
+        const { mimeType } = inspectRasterOutput(source);
         return Object.freeze({
             source,
             mimeType,
@@ -342,6 +371,8 @@ export async function preprocessImageDataUrl(request) {
         });
     }
     finally {
+        canvas.width = 0;
+        canvas.height = 0;
         decoded.dispose();
     }
 }

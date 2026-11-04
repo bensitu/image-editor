@@ -18,6 +18,7 @@ function addBytes(total: number, additional: number): number {
 }
 
 function utf8ByteLength(value: string): number {
+    if (/^\p{ASCII}*$/u.test(value)) return value.length;
     let bytes = 0;
     for (let index = 0; index < value.length; index += 1) {
         const codeUnit = value.charCodeAt(index);
@@ -46,7 +47,11 @@ function estimatePropertyKeyBytes(key: PropertyKey): number {
     return utf8ByteLength(text);
 }
 
-function estimateObjectBytes(value: object, seen: WeakSet<object>): number {
+function estimateObjectBytes(
+    value: object,
+    seen: WeakSet<object>,
+    sharedStrings: Set<string>,
+): number {
     if (seen.has(value)) return 0;
     seen.add(value);
 
@@ -58,15 +63,15 @@ function estimateObjectBytes(value: object, seen: WeakSet<object>): number {
     if (value instanceof Map) {
         for (const [key, entryValue] of value) {
             bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
-            bytes = addBytes(bytes, estimateValueBytes(key, seen));
-            bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+            bytes = addBytes(bytes, estimateValueBytes(key, seen, sharedStrings));
+            bytes = addBytes(bytes, estimateValueBytes(entryValue, seen, sharedStrings));
         }
         return bytes;
     }
     if (value instanceof Set) {
         for (const entryValue of value) {
             bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
-            bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+            bytes = addBytes(bytes, estimateValueBytes(entryValue, seen, sharedStrings));
         }
         return bytes;
     }
@@ -76,12 +81,16 @@ function estimateObjectBytes(value: object, seen: WeakSet<object>): number {
         if (!descriptor || !('value' in descriptor)) continue;
         bytes = addBytes(bytes, PROPERTY_OVERHEAD_BYTES);
         bytes = addBytes(bytes, estimatePropertyKeyBytes(key));
-        bytes = addBytes(bytes, estimateValueBytes(descriptor.value, seen));
+        bytes = addBytes(bytes, estimateValueBytes(descriptor.value, seen, sharedStrings));
     }
     return bytes;
 }
 
-function estimateValueBytes(value: unknown, seen: WeakSet<object>): number {
+function estimateValueBytes(
+    value: unknown,
+    seen: WeakSet<object>,
+    sharedStrings: Set<string>,
+): number {
     switch (typeof value) {
         case 'undefined':
             return 0;
@@ -92,16 +101,20 @@ function estimateValueBytes(value: unknown, seen: WeakSet<object>): number {
         case 'bigint':
             return utf8ByteLength(value.toString());
         case 'string':
+            if (value.length >= 4096) {
+                if (sharedStrings.has(value)) return 0;
+                sharedStrings.add(value);
+            }
             return utf8ByteLength(value);
         case 'symbol':
             return utf8ByteLength(value.description ?? '');
         case 'function':
-            return estimateObjectBytes(value, seen);
+            return estimateObjectBytes(value, seen, sharedStrings);
         case 'object':
-            return value === null ? 0 : estimateObjectBytes(value, seen);
+            return value === null ? 0 : estimateObjectBytes(value, seen, sharedStrings);
     }
 }
 
-export function estimateRetainedBytes(value: unknown): number {
-    return estimateValueBytes(value, new WeakSet<object>());
+export function estimateRetainedBytes(value: unknown, sharedStrings = new Set<string>()): number {
+    return estimateValueBytes(value, new WeakSet<object>(), sharedStrings);
 }

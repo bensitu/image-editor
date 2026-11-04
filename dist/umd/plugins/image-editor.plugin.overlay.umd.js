@@ -33,6 +33,35 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
+// dist/esm/utils/base64-payload.js
+	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
+	function base64PayloadByteLength(payload) {
+		const firstPaddingIndex = payload.indexOf("=");
+		const body = firstPaddingIndex === -1 ? payload : payload.slice(0, firstPaddingIndex);
+		const padding = firstPaddingIndex === -1 ? "" : payload.slice(firstPaddingIndex);
+		if (!STANDARD_BASE64_BODY_PATTERN.test(body) || padding !== "" && !/^={1,2}$/u.test(padding)) throw new TypeError("Base64 payload contains non-standard characters or padding.");
+		const remainder = payload.length % 4;
+		if (remainder === 1 || padding.length > 0 && remainder !== 0) throw new RangeError("Base64 payload length is malformed.");
+		return Math.floor(payload.length * 3 / 4) - padding.length;
+	}
+
+// dist/esm/utils/raster-output.js
+	function inspectRasterOutput(dataUrl, expectedMimeType) {
+		const match = /^data:(image\/(?:png|jpeg|webp));base64,/u.exec(dataUrl);
+		if (!match) throw new TypeError("Raster encoding did not produce a supported image Data URL.");
+		const mimeType = match[1];
+		if (expectedMimeType && mimeType !== expectedMimeType) throw new TypeError(`Raster encoder returned ${mimeType} instead of ${expectedMimeType}.`);
+		const bytes = base64PayloadByteLength(dataUrl.slice(match[0].length));
+		if (bytes === 0) throw new TypeError("Raster encoding produced an empty image.");
+		return Object.freeze({
+			mimeType,
+			bytes
+		});
+	}
+	function rasterBackground(format, background) {
+		return format === "jpeg" && (!background || background.trim().toLowerCase() === "transparent") ? "#ffffff" : background;
+	}
+
 // dist/esm/utils/abortable-promise.js
 	function settleAbortable(task, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
@@ -1005,7 +1034,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				operationId: "overlay:flatten",
 				metadata: Object.freeze({ overlayCount: selectedIds.length }),
 				mutateBase: async ({ signal, transaction }) => {
-					var _a, _b;
+					var _a, _b, _c;
 					const selected = selectedIds.flatMap((id) => {
 						const indexed = this.byId.get(id);
 						if (!indexed || query.includeHidden !== true && this.classificationFor(indexed).hidden) return [];
@@ -1020,12 +1049,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					const exportCanvas = new this.host.fabric.StaticCanvas(exportElement, {
 						width: canvas.getWidth(),
 						height: canvas.getHeight(),
-						backgroundColor: this.host.backgroundColor,
+						backgroundColor: rasterBackground((_a = options.format) !== null && _a !== void 0 ? _a : "png", this.host.backgroundColor),
+						enableRetinaScaling: false,
 						renderOnAddRemove: false
 					});
 					try {
-						const format = (_a = options.format) !== null && _a !== void 0 ? _a : "png";
-						const quality = Math.max(0, Math.min(1, (_b = options.quality) !== null && _b !== void 0 ? _b : .92));
+						const format = (_b = options.format) !== null && _b !== void 0 ? _b : "png";
+						const quality = Math.max(0, Math.min(1, (_c = options.quality) !== null && _c !== void 0 ? _c : .92));
 						const exportOptions = Object.freeze({
 							area: "image",
 							format,
@@ -1033,6 +1063,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							multiplier: 1
 						});
 						const baseClone = await baseImage.clone();
+						Reflect.set(baseClone, "editorObjectKind", "baseImage");
 						exportCanvas.add(baseClone);
 						exportCanvas.sendObjectToBack(baseClone);
 						await this.renderObjects(exportCanvas, selected, exportOptions);
@@ -1043,6 +1074,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							multiplier: 1,
 							...getImageExportRegion(baseImage, canvas)
 						});
+						const output = inspectRasterOutput(dataUrl);
+						if (output.bytes > this.host.getImageResourcePolicy().maxInputBytes) throw new OverlayFlattenError("Raster output exceeds the Core input budget.");
 						let replacement = null;
 						let replacementTransferred = false;
 						try {
@@ -1060,7 +1093,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							replacement.setCoords();
 							this.host.replaceBaseImage(transaction, replacement, {
 								baseScale: 1,
-								mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
+								mimeType: output.mimeType
 							});
 							replacementTransferred = true;
 							for (const object of selected) {

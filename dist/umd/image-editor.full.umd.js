@@ -4,6 +4,35 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global.ImageEditorFull = {})));
 })(this, function(exports) {
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+// dist/esm/utils/base64-payload.js
+	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
+	function base64PayloadByteLength(payload) {
+		const firstPaddingIndex = payload.indexOf("=");
+		const body = firstPaddingIndex === -1 ? payload : payload.slice(0, firstPaddingIndex);
+		const padding = firstPaddingIndex === -1 ? "" : payload.slice(firstPaddingIndex);
+		if (!STANDARD_BASE64_BODY_PATTERN.test(body) || padding !== "" && !/^={1,2}$/u.test(padding)) throw new TypeError("Base64 payload contains non-standard characters or padding.");
+		const remainder = payload.length % 4;
+		if (remainder === 1 || padding.length > 0 && remainder !== 0) throw new RangeError("Base64 payload length is malformed.");
+		return Math.floor(payload.length * 3 / 4) - padding.length;
+	}
+
+// dist/esm/utils/raster-output.js
+	function inspectRasterOutput(dataUrl, expectedMimeType) {
+		const match = /^data:(image\/(?:png|jpeg|webp));base64,/u.exec(dataUrl);
+		if (!match) throw new TypeError("Raster encoding did not produce a supported image Data URL.");
+		const mimeType = match[1];
+		if (expectedMimeType && mimeType !== expectedMimeType) throw new TypeError(`Raster encoder returned ${mimeType} instead of ${expectedMimeType}.`);
+		const bytes = base64PayloadByteLength(dataUrl.slice(match[0].length));
+		if (bytes === 0) throw new TypeError("Raster encoding produced an empty image.");
+		return Object.freeze({
+			mimeType,
+			bytes
+		});
+	}
+	function rasterBackground(format, background) {
+		return format === "jpeg" && (!background || background.trim().toLowerCase() === "transparent") ? "#ffffff" : background;
+	}
+
 // dist/esm/plugin-kernel/errors.js
 	function createPluginErrorOptions(pluginId, cause) {
 		return {
@@ -3132,10 +3161,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return value === "auto" || value === "overlay";
 	}
 	function measureScrollbarSize(ownerDocument) {
+		var _a, _b, _c, _d, _e;
 		const doc = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : typeof document === "undefined" ? null : document;
 		if (!(doc === null || doc === void 0 ? void 0 : doc.body)) return ZERO_SCROLLBAR_SIZE;
 		const cached = scrollbarSizeCache.get(doc);
-		if (cached) return cached;
+		const scale = ((_b = (_a = doc.defaultView) === null || _a === void 0 ? void 0 : _a.devicePixelRatio) !== null && _b !== void 0 ? _b : 1) * ((_e = (_d = (_c = doc.defaultView) === null || _c === void 0 ? void 0 : _c.visualViewport) === null || _d === void 0 ? void 0 : _d.scale) !== null && _e !== void 0 ? _e : 1);
+		const now = Date.now();
+		if (cached && cached.scale === scale && now < cached.expires) return cached.size;
 		const probe = doc.createElement("div");
 		probe.style.position = "absolute";
 		probe.style.left = "-9999px";
@@ -3153,7 +3185,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			width,
 			height
 		});
-		scrollbarSizeCache.set(doc, measured);
+		scrollbarSizeCache.set(doc, {
+			size: measured,
+			scale,
+			expires: now + 1e3
+		});
 		return measured;
 	}
 	function normalizeScrollbarSize(scrollbarSize) {
@@ -3339,11 +3375,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		var _a, _b;
 		return (_b = (_a = findJpegExifOrientationEntry(input instanceof Uint8Array ? input : new Uint8Array(input))) === null || _a === void 0 ? void 0 : _a.value) !== null && _b !== void 0 ? _b : 1;
 	}
-	function dataUrlBytes(source) {
+	function dataUrlBytes(source, maximumBytes) {
 		const comma = source.indexOf(",");
 		if (comma < 0) throw new TypeError("[ImageEditor] Image Data URL is malformed.");
 		const header = source.slice(0, comma).toLowerCase();
-		const encoded = source.slice(comma + 1);
+		const encoded = source.slice(comma + 1, maximumBytes === void 0 ? void 0 : comma + 1 + Math.ceil(maximumBytes / 3) * 4);
 		if (!header.endsWith(";base64")) {
 			const bytes = [];
 			for (let index = 0; index < encoded.length; index += 1) if (encoded[index] === "%" && /^[\da-f]{2}$/iu.test(encoded.slice(index + 1, index + 3))) {
@@ -3362,6 +3398,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (typeof globalThis.atob !== "function") throw new TypeError("[ImageEditor] No base64 decoder is available.");
 		const binary = globalThis.atob(compact);
 		return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+	}
+	function hasCompleteJpegMetadata(bytes) {
+		let offset = 2;
+		while (offset + 1 < bytes.length) {
+			if (bytes[offset] !== 255) return false;
+			while (bytes[offset] === 255) offset += 1;
+			const marker = bytes[offset++];
+			if (marker === 218 || marker === 217) return true;
+			if (marker === 1 || marker >= 208 && marker <= 215) continue;
+			const length = uint16(bytes, offset, false);
+			if (length === null || length < 2) return false;
+			offset += length;
+		}
+		return false;
 	}
 	function bytesDataUrl(bytes, mimeType) {
 		const buffer = globalThis.Buffer;
@@ -3425,7 +3475,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (typeof globalThis.createImageBitmap !== "function") return null;
 		signal.throwIfAborted();
 		const copy = bytes.slice().buffer;
-		const bitmap = await globalThis.createImageBitmap(new Blob([copy], { type: mimeType }), { imageOrientation: "none" });
+		let bitmap;
+		try {
+			bitmap = await globalThis.createImageBitmap(new Blob([copy], { type: mimeType }), { imageOrientation: "none" });
+		} catch (error) {
+			if (signal.aborted) throw abortReason(signal);
+			return null;
+		}
 		if (signal.aborted) {
 			bitmap.close();
 			throw abortReason(signal);
@@ -3561,7 +3617,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		context.setTransform(a * scaleX, b * scaleY, c * scaleX, d * scaleY, e * scaleX, f * scaleY);
 	}
 	async function preprocessImageDataUrl(request) {
-		var _a, _b;
+		var _a;
 		request.signal.throwIfAborted();
 		const needsExif = request.mimeType === "image/jpeg" && request.options.normalizeExifOrientation;
 		const requestedMimeType = outputMimeType(request.mimeType, request.options);
@@ -3577,7 +3633,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			orientationNormalized: false,
 			downsampled: false
 		});
-		const bytes = dataUrlBytes(request.source);
+		let bytes = dataUrlBytes(request.source, needsExif ? 262144 : void 0);
+		if (needsExif && !findJpegExifOrientationEntry(bytes) && !hasCompleteJpegMetadata(bytes)) bytes = dataUrlBytes(request.source);
 		const orientation = needsExif ? readJpegExifOrientation(bytes) : 1;
 		const oriented = orientedSize(request.width, request.height, orientation);
 		const target = targetSize(oriented.width, oriented.height, request.options);
@@ -3593,11 +3650,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			orientationNormalized: false,
 			downsampled: false
 		});
+		bytes = dataUrlBytes(request.source);
 		const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
 		const decoded = (_a = await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source, request.ownerDocument, request.signal);
+		const canvas = request.ownerDocument.createElement("canvas");
 		try {
 			request.signal.throwIfAborted();
-			const canvas = request.ownerDocument.createElement("canvas");
 			canvas.width = target.width;
 			canvas.height = target.height;
 			const context = canvas.getContext("2d");
@@ -3608,10 +3666,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			context.drawImage(decoded.image, 0, 0, decoded.width, decoded.height);
 			request.signal.throwIfAborted();
 			const source = canvas.toDataURL(requestedMimeType, request.options.quality);
-			const emitted = (_b = /^data:(image\/(?:jpeg|png|webp));base64,/iu.exec(source)) === null || _b === void 0 ? void 0 : _b[1];
+			const { mimeType } = inspectRasterOutput(source);
 			return Object.freeze({
 				source,
-				mimeType: emitted === "image/jpeg" || emitted === "image/png" || emitted === "image/webp" ? emitted : requestedMimeType,
+				mimeType,
 				width: target.width,
 				height: target.height,
 				sourceWidth: request.width,
@@ -3621,6 +3679,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				downsampled: target.downsampled
 			});
 		} finally {
+			canvas.width = 0;
+			canvas.height = 0;
 			decoded.dispose();
 		}
 	}
@@ -6309,6 +6369,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function byteLength(value) {
 		return textEncoder.encode(value).byteLength;
 	}
+	function normalizeResourceUrl(value) {
+		let start = 0;
+		while (start < value.length && value.charCodeAt(start) <= 32) start += 1;
+		return value.slice(start).replace(/[\t\r\n]/gu, "");
+	}
 	function inspectTree(value, limits, path = "$", depth = 0, ancestors = /* @__PURE__ */ new WeakSet(), counter = { count: 0 }, propertyName) {
 		if (depth > limits.maxDepth) throw new SnapshotValidationError(`nesting exceeds ${limits.maxDepth}.`, path);
 		if (value === null || typeof value !== "object") {
@@ -6325,7 +6390,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						if (width * height > limits.maxDecodedPixels) throw new SnapshotValidationError(`decoded pixel count exceeds ${limits.maxDecodedPixels}.`, path);
 						if (width > limits.maxImageDimension || height > limits.maxImageDimension) throw new SnapshotValidationError(`image dimensions exceed ${limits.maxImageDimension}.`, path);
 					}
-				} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && value.length > 0) throw new SnapshotValidationError("external URL references are forbidden.", path);
+				} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(normalizeResourceUrl(value))) throw new SnapshotValidationError("external URL references are forbidden.", path);
 			}
 			if (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint") throw new SnapshotValidationError(`unsupported ${typeof value} value.`, path);
 			return;
@@ -6810,21 +6875,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return value === "image" || value === "canvas" ? value : fallback;
 	}
 	function resolveExportDefaults(options, exportMultiplier) {
-		var _a, _b;
+		var _a;
 		const defaults = DEFAULT_CORE_OPTIONS.exportDefaults;
-		const fileName = (_a = options === null || options === void 0 ? void 0 : options.fileName) === null || _a === void 0 ? void 0 : _a.trim();
+		const fileName = typeof (options === null || options === void 0 ? void 0 : options.fileName) === "string" ? options.fileName.trim() : void 0;
 		return Object.freeze({
 			area: exportArea(options === null || options === void 0 ? void 0 : options.area, defaults.area),
 			format: exportFormat(options === null || options === void 0 ? void 0 : options.format, defaults.format),
 			quality: unitInterval(options === null || options === void 0 ? void 0 : options.quality, defaults.quality),
 			multiplier: positiveFinite(options === null || options === void 0 ? void 0 : options.multiplier, exportMultiplier),
 			fileName: fileName || defaults.fileName,
-			contributors: Object.freeze({ ...(_b = options === null || options === void 0 ? void 0 : options.contributors) !== null && _b !== void 0 ? _b : {} })
+			contributors: Object.freeze({ ...(_a = options === null || options === void 0 ? void 0 : options.contributors) !== null && _a !== void 0 ? _a : {} })
 		});
 	}
 	function resolveExportOptions(options, defaults) {
-		var _a, _b;
-		const fileName = (_a = options.fileName) === null || _a === void 0 ? void 0 : _a.trim();
+		var _a;
+		const fileName = typeof options.fileName === "string" ? options.fileName.trim() : void 0;
 		return Object.freeze({
 			area: exportArea(options.area, defaults.area),
 			format: exportFormat(options.format, defaults.format),
@@ -6833,16 +6898,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			fileName: fileName || defaults.fileName,
 			contributors: Object.freeze({
 				...defaults.contributors,
-				...(_b = options.contributors) !== null && _b !== void 0 ? _b : {}
+				...(_a = options.contributors) !== null && _a !== void 0 ? _a : {}
 			})
 		});
 	}
 	function exportFileName(baseName, format) {
 		const extension = format === "jpeg" ? "jpg" : format;
-		const cleaned = [...baseName].filter((character) => {
-			var _a;
-			return ((_a = character.codePointAt(0)) !== null && _a !== void 0 ? _a : 0) >= 32;
-		}).join("").trim() || DEFAULT_EXPORT_FILE_NAME;
+		let cleaned = [...baseName].filter((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127).join("").replace(/[\u202a-\u202e\u2066-\u2069<>:"/\\|?*]/gu, "_").trim().replace(/[. ]+$/u, "") || DEFAULT_EXPORT_FILE_NAME;
+		if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(cleaned)) cleaned = `_${cleaned}`;
 		return /\.(?:jpe?g|png|webp)$/iu.test(cleaned) ? cleaned.replace(/\.(?:jpe?g|png|webp)$/iu, `.${extension}`) : `${cleaned}.${extension}`;
 	}
 	function resolveOptions(options) {
@@ -6967,12 +7030,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const payload = dataUrl.slice(commaIndex + 1);
 		const buffer = globalThis.Buffer;
 		let bytes;
-		if (buffer) bytes = Uint8Array.from(buffer.from(payload, "base64"));
+		if (buffer) bytes = buffer.from(payload, "base64");
 		else {
 			const binary = atob(payload);
 			bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
 		}
-		return new File([bytes.slice().buffer], fileName, { type: mimeType });
+		return new File([bytes], fileName, { type: mimeType });
 	}
 	var ImageEditorCore = class {
 		constructor(fabric, options = {}) {
@@ -7432,7 +7495,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const hasVisibleContainer = containerWidth > 0 && containerHeight > 0;
 			const initialWidth = Math.max(1, Math.ceil(hasVisibleContainer ? containerWidth : this.options.canvasWidth));
 			const initialHeight = Math.max(1, Math.ceil(hasVisibleContainer ? containerHeight : this.options.canvasHeight));
-			this.assertRasterBudget(initialWidth, initialHeight);
+			this.assertRasterBudget(initialWidth, initialHeight, this.fabric.config.devicePixelRatio);
 			this.canvas = new this.fabric.Canvas(canvasElement, {
 				width: initialWidth,
 				height: initialHeight,
@@ -7575,7 +7638,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async loadImageFile(file, options = {}) {
 			var _a;
-			if (!(file instanceof File)) throw new TypeError("[ImageEditor] loadImageFile expects a File.");
+			this.assertReady("load an image file");
+			if (!file || Object.prototype.toString.call(file) !== "[object File]") throw new TypeError("[ImageEditor] loadImageFile expects a File.");
+			if (![
+				"image/png",
+				"image/jpeg",
+				"image/webp"
+			].includes(file.type)) throw new TypeError("[ImageEditor] Image file MIME type must be PNG, JPEG, or WebP.");
 			if (file.size === 0) throw new CoreRuntimeError("[ImageEditor] Image file is empty.", { code: "IMAGE_FILE_EMPTY" });
 			if (file.size > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image file exceeds maxInputBytes.");
 			if ((_a = options.signal) === null || _a === void 0 ? void 0 : _a.aborted) throw loadAbortReason(options.signal, "Image file read was aborted.");
@@ -8355,7 +8424,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!this.canvas) return;
 			const nextWidth = Math.max(1, Math.ceil(width));
 			const nextHeight = Math.max(1, Math.ceil(height));
-			this.assertRasterBudget(nextWidth, nextHeight);
+			this.assertRasterBudget(nextWidth, nextHeight, this.canvas.getRetinaScaling());
 			applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
 		}
 		isInputRasterWithinBudget(width, height) {
@@ -8400,12 +8469,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const exportCanvas = new this.fabric.StaticCanvas(exportElement, {
 					width: canvas.getWidth(),
 					height: canvas.getHeight(),
-					backgroundColor: this.options.backgroundColor,
+					backgroundColor: rasterBackground(format, this.options.backgroundColor),
+					enableRetinaScaling: false,
 					renderOnAddRemove: false
 				});
 				try {
 					if (this.baseImage) {
 						const clonedBaseImage = await this.baseImage.clone();
+						Reflect.set(clonedBaseImage, "editorObjectKind", "baseImage");
 						exportCanvas.add(clonedBaseImage);
 						exportCanvas.sendObjectToBack(clonedBaseImage);
 					}
@@ -8414,7 +8485,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						options: resolved
 					});
 					exportCanvas.renderAll();
-					return exportCanvas.toDataURL({
+					const dataUrl = exportCanvas.toDataURL({
 						format,
 						quality,
 						multiplier,
@@ -8423,6 +8494,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						width,
 						height
 					});
+					inspectRasterOutput(dataUrl, `image/${format}`);
+					return dataUrl;
 				} finally {
 					await exportCanvas.dispose();
 				}
@@ -9576,7 +9649,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				operationId: "overlay:flatten",
 				metadata: Object.freeze({ overlayCount: selectedIds.length }),
 				mutateBase: async ({ signal, transaction }) => {
-					var _a, _b;
+					var _a, _b, _c;
 					const selected = selectedIds.flatMap((id) => {
 						const indexed = this.byId.get(id);
 						if (!indexed || query.includeHidden !== true && this.classificationFor(indexed).hidden) return [];
@@ -9591,12 +9664,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					const exportCanvas = new this.host.fabric.StaticCanvas(exportElement, {
 						width: canvas.getWidth(),
 						height: canvas.getHeight(),
-						backgroundColor: this.host.backgroundColor,
+						backgroundColor: rasterBackground((_a = options.format) !== null && _a !== void 0 ? _a : "png", this.host.backgroundColor),
+						enableRetinaScaling: false,
 						renderOnAddRemove: false
 					});
 					try {
-						const format = (_a = options.format) !== null && _a !== void 0 ? _a : "png";
-						const quality = Math.max(0, Math.min(1, (_b = options.quality) !== null && _b !== void 0 ? _b : .92));
+						const format = (_b = options.format) !== null && _b !== void 0 ? _b : "png";
+						const quality = Math.max(0, Math.min(1, (_c = options.quality) !== null && _c !== void 0 ? _c : .92));
 						const exportOptions = Object.freeze({
 							area: "image",
 							format,
@@ -9604,6 +9678,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							multiplier: 1
 						});
 						const baseClone = await baseImage.clone();
+						Reflect.set(baseClone, "editorObjectKind", "baseImage");
 						exportCanvas.add(baseClone);
 						exportCanvas.sendObjectToBack(baseClone);
 						await this.renderObjects(exportCanvas, selected, exportOptions);
@@ -9614,6 +9689,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							multiplier: 1,
 							...getImageExportRegion(baseImage, canvas)
 						});
+						const output = inspectRasterOutput(dataUrl);
+						if (output.bytes > this.host.getImageResourcePolicy().maxInputBytes) throw new OverlayFlattenError("Raster output exceeds the Core input budget.");
 						let replacement = null;
 						let replacementTransferred = false;
 						try {
@@ -9631,7 +9708,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 							replacement.setCoords();
 							this.host.replaceBaseImage(transaction, replacement, {
 								baseScale: 1,
-								mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
+								mimeType: output.mimeType
 							});
 							replacementTransferred = true;
 							for (const object of selected) {
@@ -12972,6 +13049,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return total > Number.MAX_SAFE_INTEGER - additional ? Number.MAX_SAFE_INTEGER : total + additional;
 	}
 	function utf8ByteLength(value) {
+		if (/^\p{ASCII}*$/u.test(value)) return value.length;
 		let bytes = 0;
 		for (let index = 0; index < value.length; index += 1) {
 			const codeUnit = value.charCodeAt(index);
@@ -12988,7 +13066,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		var _a;
 		return utf8ByteLength(typeof key === "symbol" ? (_a = key.description) !== null && _a !== void 0 ? _a : "" : String(key));
 	}
-	function estimateObjectBytes(value, seen) {
+	function estimateObjectBytes(value, seen, sharedStrings) {
 		if (seen.has(value)) return 0;
 		seen.add(value);
 		if (value instanceof ArrayBuffer) return value.byteLength;
@@ -12998,15 +13076,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (value instanceof Map) {
 			for (const [key, entryValue] of value) {
 				bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
-				bytes = addBytes(bytes, estimateValueBytes(key, seen));
-				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+				bytes = addBytes(bytes, estimateValueBytes(key, seen, sharedStrings));
+				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen, sharedStrings));
 			}
 			return bytes;
 		}
 		if (value instanceof Set) {
 			for (const entryValue of value) {
 				bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
-				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen, sharedStrings));
 			}
 			return bytes;
 		}
@@ -13015,25 +13093,30 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!descriptor || !("value" in descriptor)) continue;
 			bytes = addBytes(bytes, PROPERTY_OVERHEAD_BYTES);
 			bytes = addBytes(bytes, estimatePropertyKeyBytes(key));
-			bytes = addBytes(bytes, estimateValueBytes(descriptor.value, seen));
+			bytes = addBytes(bytes, estimateValueBytes(descriptor.value, seen, sharedStrings));
 		}
 		return bytes;
 	}
-	function estimateValueBytes(value, seen) {
+	function estimateValueBytes(value, seen, sharedStrings) {
 		var _a;
 		switch (typeof value) {
 			case "undefined": return 0;
 			case "boolean": return BOOLEAN_BYTES;
 			case "number": return NUMBER_BYTES;
 			case "bigint": return utf8ByteLength(value.toString());
-			case "string": return utf8ByteLength(value);
+			case "string":
+				if (value.length >= 4096) {
+					if (sharedStrings.has(value)) return 0;
+					sharedStrings.add(value);
+				}
+				return utf8ByteLength(value);
 			case "symbol": return utf8ByteLength((_a = value.description) !== null && _a !== void 0 ? _a : "");
-			case "function": return estimateObjectBytes(value, seen);
-			case "object": return value === null ? 0 : estimateObjectBytes(value, seen);
+			case "function": return estimateObjectBytes(value, seen, sharedStrings);
+			case "object": return value === null ? 0 : estimateObjectBytes(value, seen, sharedStrings);
 		}
 	}
-	function estimateRetainedBytes(value) {
-		return estimateValueBytes(value, /* @__PURE__ */ new WeakSet());
+	function estimateRetainedBytes(value, sharedStrings = /* @__PURE__ */ new Set()) {
+		return estimateValueBytes(value, /* @__PURE__ */ new WeakSet(), sharedStrings);
 	}
 
 // dist/esm/plugins/history/history-controller.js
@@ -13084,12 +13167,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: 0
 			});
-			Object.defineProperty(this, "baseline", {
-				enumerable: true,
-				configurable: true,
-				writable: true,
-				value: null
-			});
 			Object.defineProperty(this, "listeners", {
 				enumerable: true,
 				configurable: true,
@@ -13119,15 +13196,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		commit(record) {
 			if (!this.isEnabled) return;
 			if (record.operationId === coreOperationIds.loadImage || record.operationId === coreOperationIds.commitLoadImage || record.operationId === coreOperationIds.loadState) {
-				const changed = this.resetTimeline();
-				this.baseline = record.after;
-				if (changed) this.emitChange();
+				if (this.resetTimeline()) this.emitChange();
 				return;
 			}
 			this.push(record);
 		}
 		push(record) {
-			var _a;
 			this.assertActive("push History");
 			if (!this.enabled) return;
 			if (!record || typeof record.operationId !== "string" || record.operationId.length === 0) throw new CoreRuntimeError("[ImageEditor] History record operationId is invalid.");
@@ -13141,19 +13215,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const bytes = estimateRetainedBytes(retainedRecord);
 			if (bytes > this.maxBytes) {
 				const changed = this.resetTimeline();
-				this.baseline = record.after;
 				const warning = new CoreRuntimeError(`[ImageEditor] History record "${record.operationId}" exceeds maxBytes and was not retained.`, { code: "HISTORY_RECORD_BYTE_LIMIT_EXCEEDED" });
 				this.reportWarning(warning, `History record "${record.operationId}" requires ${bytes} bytes, exceeding the ${this.maxBytes}-byte limit.`);
 				if (changed) this.emitChange();
 				return;
 			}
-			(_a = this.baseline) !== null && _a !== void 0 || (this.baseline = record.before);
 			this.removeEntries(this.position, this.records.length - this.position);
-			this.records.push(Object.freeze({
-				record: retainedRecord,
-				bytes
-			}));
-			this.retainedBytes += bytes;
+			this.records.push(Object.freeze({ record: retainedRecord }));
+			this.updateRetainedBytes();
 			this.evictOverflow();
 			this.position = this.records.length;
 			this.emitChange();
@@ -13163,11 +13232,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if ((options === null || options === void 0 ? void 0 : options.baseline) !== "current") throw new CoreRuntimeError("[ImageEditor] History can enable only from the current baseline.", { code: "HISTORY_BASELINE_UNSUPPORTED" });
 			return this.operations.run("history:enable", async () => {
 				if (this.enabled) return;
-				const baseline = this.state.captureMemento();
+				this.state.captureMemento();
 				this.records = [];
 				this.position = 0;
 				this.retainedBytes = 0;
-				this.baseline = baseline;
 				this.enabled = true;
 				this.emitChange();
 			});
@@ -13241,7 +13309,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.records = [];
 			this.position = 0;
 			this.retainedBytes = 0;
-			this.baseline = null;
 			this.enabled = false;
 			this.listeners.clear();
 			this.disposed = true;
@@ -13251,13 +13318,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.records = [];
 			this.position = 0;
 			this.retainedBytes = 0;
-			this.baseline = null;
 			return changed;
 		}
 		removeEntries(start, deleteCount) {
 			if (deleteCount <= 0) return;
-			const removed = this.records.splice(start, deleteCount);
-			for (const entry of removed) this.retainedBytes -= entry.bytes;
+			this.records.splice(start, deleteCount);
+			this.updateRetainedBytes();
+		}
+		updateRetainedBytes() {
+			const sharedStrings = /* @__PURE__ */ new Set();
+			this.retainedBytes = this.records.reduce((total, entry) => total + estimateRetainedBytes(entry.record, sharedStrings), 0);
 		}
 		evictOverflow() {
 			while (this.records.length > this.maxSize || this.retainedBytes > this.maxBytes) this.removeEntries(0, 1);
@@ -13265,10 +13335,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		async restoreTransactionally(target, operation) {
 			const rollback = this.state.captureMemento();
 			try {
-				await this.state.restoreMemento(target);
+				await this.state.restoreMemento(target, { rollbackOnFailure: false });
 			} catch (error) {
 				try {
-					await this.state.restoreMemento(rollback);
+					await this.state.restoreMemento(rollback, { rollbackOnFailure: false });
 				} catch (rollbackError) {
 					const failure = new CoreRuntimeError(`[ImageEditor] History ${operation} failed and rollback could not restore state.`, {
 						code: "HISTORY_UNRECOVERABLE_ERROR",
@@ -15041,18 +15111,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 	}
 
-// dist/esm/utils/base64-payload.js
-	const STANDARD_BASE64_BODY_PATTERN = /^[A-Za-z0-9+/]*$/u;
-	function base64PayloadByteLength(payload) {
-		const firstPaddingIndex = payload.indexOf("=");
-		const body = firstPaddingIndex === -1 ? payload : payload.slice(0, firstPaddingIndex);
-		const padding = firstPaddingIndex === -1 ? "" : payload.slice(firstPaddingIndex);
-		if (!STANDARD_BASE64_BODY_PATTERN.test(body) || padding !== "" && !/^={1,2}$/u.test(padding)) throw new TypeError("Base64 payload contains non-standard characters or padding.");
-		const remainder = payload.length % 4;
-		if (remainder === 1 || padding.length > 0 && remainder !== 0) throw new RangeError("Base64 payload length is malformed.");
-		return Math.floor(payload.length * 3 / 4) - padding.length;
-	}
-
 // dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
@@ -15087,15 +15145,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			skewY: source.skewY,
 			flipX: source.flipX,
 			flipY: source.flipY,
-			originX: "left",
-			originY: "top",
+			originX: source.originX,
+			originY: source.originY,
 			opacity: source.opacity,
 			visible: source.visible,
 			selectable: options.transient ? false : source.selectable,
 			evented: options.transient ? false : source.evented,
 			hasControls: options.transient ? false : source.hasControls,
 			hoverCursor: source.hoverCursor,
-			excludeFromExport: source.excludeFromExport,
+			excludeFromExport: options.transient ? true : source.excludeFromExport,
 			backgroundColor: (_a = options.backgroundColor) !== null && _a !== void 0 ? _a : source.backgroundColor
 		});
 		target.setCoords();
@@ -15137,16 +15195,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
 		});
 	}
-	function encodedBytes$2(dataUrl) {
-		const commaIndex = dataUrl.indexOf(",");
-		if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new FilterBakeValidationError("Filtered Raster output is not a base64 Data URL.");
-		const payload = dataUrl.slice(commaIndex + 1);
-		try {
-			return base64PayloadByteLength(payload);
-		} catch (error) {
-			throw new FilterBakeValidationError("Filtered Raster output contains a malformed base64 payload.", error);
-		}
-	}
 	async function decodeBakedImage(fabric, dataUrl, timeoutMs, signal) {
 		var _a;
 		const controller = new AbortController();
@@ -15175,7 +15223,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) throw new FilterBakeValidationError("Base Image dimensions are invalid.");
 		const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
 		if (width > policy.maxExportDimension || height > policy.maxExportDimension || !isPixelAreaWithinBudget(width, height, pixelBudget)) throw new FilterBakeValidationError("Filtered Raster dimensions exceed the Core policy.");
-		const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal);
+		const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal, rasterBackground(normalizedOptions.format, String(baseImage.backgroundColor || "transparent")));
 		let replacement = null;
 		try {
 			throwIfAborted(signal);
@@ -15193,14 +15241,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (hasErrorName(error, "SecurityError")) throw new FilterBakeValidationError("Filtered Raster pixels cannot be exported because canvas access is blocked.", error);
 				throw error;
 			}
-			if (encodedBytes$2(dataUrl) > policy.maxInputBytes) throw new FilterBakeValidationError("Filtered Raster exceeds the Core input budget.");
+			const output = inspectRasterOutput(dataUrl);
+			if (output.bytes > policy.maxInputBytes) throw new FilterBakeValidationError("Filtered Raster exceeds the Core input budget.");
 			replacement = await decodeBakedImage(fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
 			throwIfAborted(signal);
 			if (replacement.width !== width || replacement.height !== height) throw new FilterBakeValidationError("Filtered Raster dimensions changed during decode.");
 			copyBaseImagePresentation(baseImage, replacement);
 			return Object.freeze({
 				image: replacement,
-				mimeType: normalizedOptions.mimeType
+				mimeType: output.mimeType
 			});
 		} catch (error) {
 			disposeFabricImage(replacement);
@@ -15593,7 +15642,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		renderExport(canvas, options) {
 			if (this.committedState.filters.length === 0) return;
-			const baseImage = canvas.getObjects().find((object) => object instanceof this.host.fabric.FabricImage);
+			const baseImage = canvas.getObjects().find((object) => object instanceof this.host.fabric.FabricImage && Reflect.get(object, "editorObjectKind") === "baseImage");
 			if (!baseImage) throw new Error("[ImageEditor] Filters export requires a Base Image.");
 			applyFilterDefinitions(this.host.fabric, baseImage, this.committedState.filters);
 		}
@@ -16258,22 +16307,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (record.bakeVisibleFilters !== void 0 && typeof record.bakeVisibleFilters !== "boolean") throw new CropValidationError("bakeVisibleFilters must be a boolean.");
 		return Object.freeze({
 			format,
+			allowFormatFallback: record.format === void 0,
 			...format !== "png" && quality !== void 0 ? { quality } : {},
 			mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`,
 			bakeVisibleFilters: record.bakeVisibleFilters !== false
 		});
-	}
-	function encodedBytes$1(dataUrl, expectedMimeType) {
-		const commaIndex = dataUrl.indexOf(",");
-		if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new CropValidationError("Crop output is not a base64 Data URL.");
-		const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
-		if (mimeType !== expectedMimeType) throw new CropValidationError(`Crop encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
-		const payload = dataUrl.slice(commaIndex + 1);
-		try {
-			return base64PayloadByteLength(payload);
-		} catch {
-			throw new CropValidationError("Crop output contains a malformed base64 payload.");
-		}
 	}
 	async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
 		var _a;
@@ -16339,6 +16377,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!context) throw new CropValidationError("Crop rendering context is unavailable.");
 		let dataUrl;
 		try {
+			if (options.format === "jpeg") {
+				context.fillStyle = "#ffffff";
+				context.fillRect(0, 0, surface.width, surface.height);
+			}
 			const rotation = normalizeCropRotation(rotationDegrees);
 			context.translate(rect.widthPx / 2, rect.heightPx / 2);
 			context.rotate(-rotation * Math.PI / 180);
@@ -16351,14 +16393,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (hasErrorName(error, "SecurityError")) throw new CropValidationError("Crop pixels cannot be exported because canvas access is blocked.");
 			throw error;
 		}
-		if (encodedBytes$1(dataUrl, options.mimeType) > policy.maxInputBytes) throw new CropValidationError("Crop output exceeds the Core input budget.");
+		const output = inspectRasterOutput(dataUrl, options.allowFormatFallback ? void 0 : options.mimeType);
+		if (output.bytes > policy.maxInputBytes) throw new CropValidationError("Crop output exceeds the Core input budget.");
 		const image = await decodeCropImage(host.fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
 		try {
 			if (image.width !== rect.widthPx || image.height !== rect.heightPx) throw new CropValidationError("Crop dimensions changed during decode.");
 			applyCropPresentation(source, image, rect, normalizeCropRotation(rotationDegrees));
 			return Object.freeze({
 				image,
-				mimeType: options.mimeType
+				mimeType: output.mimeType
 			});
 		} catch (error) {
 			image.dispose();
@@ -16688,8 +16731,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				});
 				committed = true;
-				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 			} finally {
+				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 				if (!committed && resources.replacement && this.host.getBaseImage() !== resources.replacement) resources.replacement.dispose();
 			}
 		}
@@ -17176,7 +17219,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (distance === 0) return Object.freeze([]);
 		const spacing = Math.max(1, radiusPx / 2);
 		const steps = Math.max(1, Math.ceil(distance / spacing));
-		return Object.freeze(Array.from(Array.from({ length: steps }).keys(), (index) => {
+		return Object.freeze(Array.from({ length: steps }, (_, index) => {
 			const progress = (index + 1) / steps;
 			return Object.freeze({
 				xPx: start.xPx + deltaX * progress,
@@ -17280,8 +17323,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		target.set({
 			left: source.left,
 			top: source.top,
-			originX: "left",
-			originY: "top",
+			originX: source.originX,
+			originY: source.originY,
 			scaleX: source.scaleX,
 			scaleY: source.scaleY,
 			angle: source.angle,
@@ -17312,13 +17355,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const surface = ownerDocument.createElement("canvas");
 		surface.width = widthPx;
 		surface.height = heightPx;
-		const context = surface.getContext("2d");
-		if (!context) throw new MosaicValidationError("Mosaic rendering context is unavailable.");
+		const context = surface.getContext("2d", { willReadFrequently: true });
+		if (!context) {
+			surface.width = surface.height = 0;
+			throw new MosaicValidationError("Mosaic rendering context is unavailable.");
+		}
 		context.drawImage(element, 0, 0, widthPx, heightPx);
 		let imageData;
 		try {
 			imageData = context.getImageData(0, 0, widthPx, heightPx);
 		} catch {
+			surface.width = surface.height = 0;
 			throw new MosaicValidationError("Mosaic source pixels could not be read.");
 		}
 		return Object.freeze({
@@ -17370,22 +17417,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (record.bakeVisibleFilters !== void 0 && typeof record.bakeVisibleFilters !== "boolean") throw new MosaicValidationError("bakeVisibleFilters must be a boolean.");
 		return Object.freeze({
 			format,
+			allowFormatFallback: requestedFormat === "source",
 			...format === "png" ? {} : { quality },
 			mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`,
 			bakeVisibleFilters: record.bakeVisibleFilters !== false
 		});
-	}
-	function encodedBytes(dataUrl, expectedMimeType) {
-		const commaIndex = dataUrl.indexOf(",");
-		if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new MosaicValidationError("Mosaic output is not a base64 Data URL.");
-		const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
-		if (mimeType !== expectedMimeType) throw new MosaicValidationError(`Mosaic encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
-		const payload = dataUrl.slice(commaIndex + 1);
-		try {
-			return base64PayloadByteLength(payload);
-		} catch {
-			throw new MosaicValidationError("Mosaic output contains a malformed base64 payload.");
-		}
 	}
 	async function decodeMosaicImage(fabric, dataUrl, timeoutMs, signal) {
 		var _a;
@@ -17422,7 +17458,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (hasErrorName(error, "SecurityError")) throw new MosaicValidationError("Mosaic pixels cannot be exported because canvas access is blocked.");
 			throw error;
 		}
-		if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) throw new MosaicValidationError("Mosaic output exceeds the Core input budget.");
+		const output = inspectRasterOutput(dataUrl, options.allowFormatFallback ? void 0 : options.mimeType);
+		if (output.bytes > policy.maxInputBytes) throw new MosaicValidationError("Mosaic output exceeds the Core input budget.");
 		const image = await decodeMosaicImage(host.fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
 		try {
 			if (image.width !== cache.widthPx || image.height !== cache.heightPx) throw new MosaicValidationError("Mosaic dimensions changed during decode.");
@@ -17435,7 +17472,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			image.setCoords();
 			return Object.freeze({
 				image,
-				mimeType: options.mimeType
+				mimeType: output.mimeType
 			});
 		} catch (error) {
 			image.dispose();
@@ -17663,6 +17700,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (Object.keys(options).some((key) => key !== "configuration")) throw new MosaicValidationError("Mosaic enter options contain unknown keys.");
 			const configuration = options.configuration ? normalizeConfiguration(this.configuration, options.configuration) : this.configuration;
 			const source = this.requireBaseImage();
+			this.assertSourcePolicy(source);
 			const cache = createMosaicRasterCache(source);
 			this.assertCachePolicy(cache);
 			const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), "mosaicPreviewImage");
@@ -17803,6 +17841,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						if (normalizedOptions.bakeVisibleFilters && ((_a = this.visibleRasterBake) === null || _a === void 0 ? void 0 : _a.hasVisibleState())) await this.visibleRasterBake.bakeIntoBase(transaction);
 						this.assertSourceDimensions(state);
 						const source = this.requireBaseImage();
+						this.assertSourcePolicy(source);
 						const cache = createMosaicRasterCache(source);
 						resources.cache = cache;
 						this.assertCachePolicy(cache);
@@ -17819,8 +17858,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				});
 				committed = true;
-				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 			} finally {
+				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 				if (this.session === session) this.closeSession();
 				disposeMosaicRasterCache(resources.cache);
 				if (!committed && resources.replacement && this.host.getBaseImage() !== resources.replacement) resources.replacement.dispose();
@@ -17980,6 +18019,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		assertSourceDimensions(state) {
 			const baseImage = this.requireBaseImage();
 			if (Number(baseImage.width) !== state.sourceWidthPx || Number(baseImage.height) !== state.sourceHeightPx) throw new MosaicSessionError("Mosaic source dimensions changed during the session.");
+		}
+		assertSourcePolicy(source) {
+			const policy = this.host.getImageResourcePolicy();
+			if (source.width > policy.maxExportDimension || source.height > policy.maxExportDimension || !isPixelAreaWithinBudget(source.width, source.height, Math.min(policy.maxInputPixels, policy.maxExportPixels))) throw new MosaicValidationError("Mosaic dimensions exceed the Core resource policy.");
 		}
 		assertCachePolicy(cache) {
 			const policy = this.host.getImageResourcePolicy();

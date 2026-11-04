@@ -136,7 +136,7 @@ export declare class ImageEditorCore {
      *
      * @remarks A failed or cancelled restoration leaves the preceding document intact.
      */
-    loadFromState(input: string | unknown, options?: LoadStateOptions): Promise<void>;
+    loadFromState(input: unknown, options?: LoadStateOptions): Promise<void>;
     /** Renders the requested export area and returns an encoded Data URL. */
     exportImageBase64(options?: CoreExportOptions): Promise<string>;
     /** Renders the requested export area and returns a named browser `File`. */

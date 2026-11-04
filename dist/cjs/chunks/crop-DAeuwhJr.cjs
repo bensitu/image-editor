@@ -1,11 +1,11 @@
-const require_overlay = require("./overlay-BOXhpeu0.cjs");
+const require_overlay = require("./overlay-CGcUbhau.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_plugin_identifier = require("./plugin-identifier-gAnWTWj6.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
 const require_internal_layer_placement = require("./internal-layer-placement-BVTXDv2N.cjs");
 const require_abortable_promise = require("./abortable-promise-brVLi25s.cjs");
-const require_error = require("./error-C2kueYqw.cjs");
-const require_image_budget = require("./image-budget-HITdUNa5.cjs");
+const require_image_budget = require("./image-budget-BAyRgd0r.cjs");
+const require_error = require("./error-DzbgEDnt.cjs");
 
 // dist/esm/plugins/crop/crop-errors.js
 var CropError = class extends Error {
@@ -303,22 +303,11 @@ function normalizeCropApplyOptions(value, sourceMimeType) {
 	if (record.bakeVisibleFilters !== void 0 && typeof record.bakeVisibleFilters !== "boolean") throw new CropValidationError("bakeVisibleFilters must be a boolean.");
 	return Object.freeze({
 		format,
+		allowFormatFallback: record.format === void 0,
 		...format !== "png" && quality !== void 0 ? { quality } : {},
 		mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`,
 		bakeVisibleFilters: record.bakeVisibleFilters !== false
 	});
-}
-function encodedBytes(dataUrl, expectedMimeType) {
-	const commaIndex = dataUrl.indexOf(",");
-	if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new CropValidationError("Crop output is not a base64 Data URL.");
-	const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
-	if (mimeType !== expectedMimeType) throw new CropValidationError(`Crop encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
-	const payload = dataUrl.slice(commaIndex + 1);
-	try {
-		return require_error.base64PayloadByteLength(payload);
-	} catch {
-		throw new CropValidationError("Crop output contains a malformed base64 payload.");
-	}
 }
 async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
 	var _a;
@@ -384,6 +373,10 @@ async function renderCropImage(host, source, rect, rotationDegrees, options, sig
 	if (!context) throw new CropValidationError("Crop rendering context is unavailable.");
 	let dataUrl;
 	try {
+		if (options.format === "jpeg") {
+			context.fillStyle = "#ffffff";
+			context.fillRect(0, 0, surface.width, surface.height);
+		}
 		const rotation = normalizeCropRotation(rotationDegrees);
 		context.translate(rect.widthPx / 2, rect.heightPx / 2);
 		context.rotate(-rotation * Math.PI / 180);
@@ -396,14 +389,15 @@ async function renderCropImage(host, source, rect, rotationDegrees, options, sig
 		if (require_error.hasErrorName(error, "SecurityError")) throw new CropValidationError("Crop pixels cannot be exported because canvas access is blocked.");
 		throw error;
 	}
-	if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) throw new CropValidationError("Crop output exceeds the Core input budget.");
+	const output = require_image_budget.inspectRasterOutput(dataUrl, options.allowFormatFallback ? void 0 : options.mimeType);
+	if (output.bytes > policy.maxInputBytes) throw new CropValidationError("Crop output exceeds the Core input budget.");
 	const image = await decodeCropImage(host.fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
 	try {
 		if (image.width !== rect.widthPx || image.height !== rect.heightPx) throw new CropValidationError("Crop dimensions changed during decode.");
 		applyCropPresentation(source, image, rect, normalizeCropRotation(rotationDegrees));
 		return Object.freeze({
 			image,
-			mimeType: options.mimeType
+			mimeType: output.mimeType
 		});
 	} catch (error) {
 		image.dispose();
@@ -733,8 +727,8 @@ var CropController = class {
 				}
 			});
 			committed = true;
-			if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 		} finally {
+			if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 			if (!committed && resources.replacement && this.host.getBaseImage() !== resources.replacement) resources.replacement.dispose();
 		}
 	}
@@ -1212,4 +1206,4 @@ Object.defineProperty(exports, "cropPluginRef", {
     return cropPluginRef;
   }
 });
-//# sourceMappingURL=crop-BjQ8iHs6.cjs.map
+//# sourceMappingURL=crop-DAeuwhJr.cjs.map

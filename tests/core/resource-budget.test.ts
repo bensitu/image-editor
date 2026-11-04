@@ -214,3 +214,22 @@ test('JPEG EXIF orientation is parsed and normalized before Fabric adopts the im
     );
     await editor.disposeAsync();
 });
+
+test('image preprocessing falls back when the bitmap decoder rejects the image', async () => {
+    const ids = resetEditorDom();
+    const original = globalThis.createImageBitmap;
+    globalThis.createImageBitmap = async () => {
+        throw new Error('Unsupported bitmap decoding');
+    };
+    const editor = new ImageEditorCore(fabric, {
+        imagePreprocessing: { downsample: true, maxWidth: 32, maxHeight: 32 },
+    });
+    try {
+        await editor.init({ canvas: ids.canvas });
+        await editor.loadImage(makeImageDataUrl({ width: 64, height: 48 }));
+        assert.equal(editor.getImageInfo()?.naturalWidth, 32);
+    } finally {
+        globalThis.createImageBitmap = original;
+        await editor.disposeAsync();
+    }
+});

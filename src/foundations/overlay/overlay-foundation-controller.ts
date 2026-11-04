@@ -4,6 +4,7 @@
  * @module
  */
 
+import { inspectRasterOutput, rasterBackground } from '../../utils/raster-output.js';
 import type * as FabricNS from 'fabric';
 
 import {
@@ -1154,7 +1155,11 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                 const exportCanvas = new this.host.fabric.StaticCanvas(exportElement, {
                     width: canvas.getWidth(),
                     height: canvas.getHeight(),
-                    backgroundColor: this.host.backgroundColor,
+                    backgroundColor: rasterBackground(
+                        options.format ?? 'png',
+                        this.host.backgroundColor,
+                    ),
+                    enableRetinaScaling: false,
                     renderOnAddRemove: false,
                 });
                 try {
@@ -1167,6 +1172,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                         multiplier: 1,
                     });
                     const baseClone = await baseImage.clone();
+                    Reflect.set(baseClone, 'editorObjectKind', 'baseImage');
                     exportCanvas.add(baseClone);
                     exportCanvas.sendObjectToBack(baseClone);
                     await this.renderObjects(exportCanvas, selected, exportOptions);
@@ -1177,6 +1183,12 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                         multiplier: 1,
                         ...getImageExportRegion(baseImage, canvas),
                     });
+                    const output = inspectRasterOutput(dataUrl);
+                    if (output.bytes > this.host.getImageResourcePolicy().maxInputBytes) {
+                        throw new OverlayFlattenError(
+                            'Raster output exceeds the Core input budget.',
+                        );
+                    }
                     let replacement: FabricNS.FabricImage | null = null;
                     let replacementTransferred = false;
                     try {
@@ -1199,7 +1211,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                         replacement.setCoords();
                         this.host.replaceBaseImage(transaction, replacement, {
                             baseScale: 1,
-                            mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+                            mimeType: output.mimeType,
                         });
                         replacementTransferred = true;
                         for (const object of selected) {

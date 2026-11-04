@@ -345,11 +345,11 @@ export class CropController {
                 },
             });
             committed = true;
+        }
+        finally {
             if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) {
                 resources.replacedSource.dispose();
             }
-        }
-        finally {
             if (!committed &&
                 resources.replacement &&
                 this.host.getBaseImage() !== resources.replacement) {

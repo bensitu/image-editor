@@ -1,7 +1,7 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
-const require_overlay = require("./overlay-BOXhpeu0.cjs");
+const require_overlay = require("./overlay-CGcUbhau.cjs");
 const require_internal_layer_placement = require("./internal-layer-placement-BVTXDv2N.cjs");
 const require_safe_object_key = require("./safe-object-key-B_cQ-6i9.cjs");
 
@@ -1551,4 +1551,4 @@ Object.defineProperty(exports, "annotationFoundationRef", {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-a0SDMRx2.cjs.map
+//# sourceMappingURL=annotation-JoYZCsmH.cjs.map

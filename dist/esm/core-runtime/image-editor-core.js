@@ -1,3 +1,4 @@
+import { inspectRasterOutput, rasterBackground } from '../utils/raster-output.js';
 import { PluginLifecycleError, PluginNotInstalledError, } from '../plugin-kernel/index.js';
 import { PluginManager } from '../plugin-kernel/plugin-manager.js';
 import { coreOperationIds } from '../plugin-kernel/operation-ids.js';
@@ -88,21 +89,21 @@ function exportArea(value, fallback) {
     return value === 'image' || value === 'canvas' ? value : fallback;
 }
 function resolveExportDefaults(options, exportMultiplier) {
-    var _a, _b;
+    var _a;
     const defaults = DEFAULT_CORE_OPTIONS.exportDefaults;
-    const fileName = (_a = options === null || options === void 0 ? void 0 : options.fileName) === null || _a === void 0 ? void 0 : _a.trim();
+    const fileName = typeof (options === null || options === void 0 ? void 0 : options.fileName) === 'string' ? options.fileName.trim() : undefined;
     return Object.freeze({
         area: exportArea(options === null || options === void 0 ? void 0 : options.area, defaults.area),
         format: exportFormat(options === null || options === void 0 ? void 0 : options.format, defaults.format),
         quality: unitInterval(options === null || options === void 0 ? void 0 : options.quality, defaults.quality),
         multiplier: positiveFinite(options === null || options === void 0 ? void 0 : options.multiplier, exportMultiplier),
         fileName: fileName || defaults.fileName,
-        contributors: Object.freeze({ ...((_b = options === null || options === void 0 ? void 0 : options.contributors) !== null && _b !== void 0 ? _b : {}) }),
+        contributors: Object.freeze({ ...((_a = options === null || options === void 0 ? void 0 : options.contributors) !== null && _a !== void 0 ? _a : {}) }),
     });
 }
 function resolveExportOptions(options, defaults) {
-    var _a, _b;
-    const fileName = (_a = options.fileName) === null || _a === void 0 ? void 0 : _a.trim();
+    var _a;
+    const fileName = typeof options.fileName === 'string' ? options.fileName.trim() : undefined;
     return Object.freeze({
         area: exportArea(options.area, defaults.area),
         format: exportFormat(options.format, defaults.format),
@@ -111,16 +112,20 @@ function resolveExportOptions(options, defaults) {
         fileName: fileName || defaults.fileName,
         contributors: Object.freeze({
             ...defaults.contributors,
-            ...((_b = options.contributors) !== null && _b !== void 0 ? _b : {}),
+            ...((_a = options.contributors) !== null && _a !== void 0 ? _a : {}),
         }),
     });
 }
 function exportFileName(baseName, format) {
     const extension = format === 'jpeg' ? 'jpg' : format;
-    const cleaned = [...baseName]
-        .filter((character) => { var _a; return ((_a = character.codePointAt(0)) !== null && _a !== void 0 ? _a : 0) >= 0x20; })
+    let cleaned = [...baseName]
+        .filter((character) => character.charCodeAt(0) >= 0x20 && character.charCodeAt(0) !== 0x7f)
         .join('')
-        .trim() || DEFAULT_EXPORT_FILE_NAME;
+        .replace(/[\u202a-\u202e\u2066-\u2069<>:"/\\|?*]/gu, '_')
+        .trim()
+        .replace(/[. ]+$/u, '') || DEFAULT_EXPORT_FILE_NAME;
+    if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(cleaned))
+        cleaned = `_${cleaned}`;
     return /\.(?:jpe?g|png|webp)$/iu.test(cleaned)
         ? cleaned.replace(/\.(?:jpe?g|png|webp)$/iu, `.${extension}`)
         : `${cleaned}.${extension}`;
@@ -265,13 +270,13 @@ function dataUrlToFile(dataUrl, fileName) {
     const buffer = globalThis.Buffer;
     let bytes;
     if (buffer) {
-        bytes = Uint8Array.from(buffer.from(payload, 'base64'));
+        bytes = buffer.from(payload, 'base64');
     }
     else {
         const binary = atob(payload);
         bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     }
-    return new File([bytes.slice().buffer], fileName, { type: mimeType });
+    return new File([bytes], fileName, { type: mimeType });
 }
 export class ImageEditorCore {
     constructor(fabric, options = {}) {
@@ -770,7 +775,7 @@ export class ImageEditorCore {
         const hasVisibleContainer = containerWidth > 0 && containerHeight > 0;
         const initialWidth = Math.max(1, Math.ceil(hasVisibleContainer ? containerWidth : this.options.canvasWidth));
         const initialHeight = Math.max(1, Math.ceil(hasVisibleContainer ? containerHeight : this.options.canvasHeight));
-        this.assertRasterBudget(initialWidth, initialHeight);
+        this.assertRasterBudget(initialWidth, initialHeight, this.fabric.config.devicePixelRatio);
         this.canvas = new this.fabric.Canvas(canvasElement, {
             width: initialWidth,
             height: initialHeight,
@@ -944,8 +949,12 @@ export class ImageEditorCore {
     }
     async loadImageFile(file, options = {}) {
         var _a;
-        if (!(file instanceof File))
+        this.assertReady('load an image file');
+        if (!file || Object.prototype.toString.call(file) !== '[object File]')
             throw new TypeError('[ImageEditor] loadImageFile expects a File.');
+        if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+            throw new TypeError('[ImageEditor] Image file MIME type must be PNG, JPEG, or WebP.');
+        }
         if (file.size === 0) {
             throw new CoreRuntimeError('[ImageEditor] Image file is empty.', {
                 code: 'IMAGE_FILE_EMPTY',
@@ -1829,7 +1838,7 @@ export class ImageEditorCore {
             return;
         const nextWidth = Math.max(1, Math.ceil(width));
         const nextHeight = Math.max(1, Math.ceil(height));
-        this.assertRasterBudget(nextWidth, nextHeight);
+        this.assertRasterBudget(nextWidth, nextHeight, this.canvas.getRetinaScaling());
         applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
     isInputRasterWithinBudget(width, height) {
@@ -1879,18 +1888,20 @@ export class ImageEditorCore {
             const exportCanvas = new this.fabric.StaticCanvas(exportElement, {
                 width: canvas.getWidth(),
                 height: canvas.getHeight(),
-                backgroundColor: this.options.backgroundColor,
+                backgroundColor: rasterBackground(format, this.options.backgroundColor),
+                enableRetinaScaling: false,
                 renderOnAddRemove: false,
             });
             try {
                 if (this.baseImage) {
                     const clonedBaseImage = await this.baseImage.clone();
+                    Reflect.set(clonedBaseImage, 'editorObjectKind', 'baseImage');
                     exportCanvas.add(clonedBaseImage);
                     exportCanvas.sendObjectToBack(clonedBaseImage);
                 }
                 await this.exportContributors.render({ canvas: exportCanvas, options: resolved });
                 exportCanvas.renderAll();
-                return exportCanvas.toDataURL({
+                const dataUrl = exportCanvas.toDataURL({
                     format,
                     quality,
                     multiplier,
@@ -1899,6 +1910,8 @@ export class ImageEditorCore {
                     width,
                     height,
                 });
+                inspectRasterOutput(dataUrl, `image/${format}`);
+                return dataUrl;
             }
             finally {
                 await exportCanvas.dispose();

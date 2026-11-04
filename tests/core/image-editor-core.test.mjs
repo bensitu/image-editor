@@ -324,3 +324,26 @@ test('Transform failure uses targeted rollback and emits no committed event', as
     assert.equal(descriptors.length, 0);
     await disposeEditor(editor);
 });
+
+test('Core export rejects empty encodings and unsupported requested output formats', async () => {
+    const ids = resetEditorDom();
+    let output = 'data:,';
+    class ControlledStaticCanvas extends fabric.StaticCanvas {
+        toDataURL() {
+            return output;
+        }
+    }
+    const editor = new ImageEditorCore({ ...fabric, StaticCanvas: ControlledStaticCanvas });
+    await editor.init({ canvas: ids.canvas });
+    await editor.loadImage(makeImageDataUrl());
+    try {
+        await assert.rejects(editor.exportImageBase64(), /Raster encoding/);
+        output = makeImageDataUrl();
+        await assert.rejects(
+            editor.exportImageBase64({ format: 'webp' }),
+            /instead of image\/webp/,
+        );
+    } finally {
+        await editor.disposeAsync();
+    }
+});

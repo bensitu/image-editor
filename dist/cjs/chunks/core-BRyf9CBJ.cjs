@@ -1,8 +1,8 @@
+const require_image_budget = require("./image-budget-BAyRgd0r.cjs");
 const require_plugin_identifier = require("./plugin-identifier-gAnWTWj6.cjs");
 const require_plugin_manager = require("./plugin-manager-BH4xRW5k.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_safe_object_key = require("./safe-object-key-B_cQ-6i9.cjs");
-const require_image_budget = require("./image-budget-HITdUNa5.cjs");
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 
 // dist/esm/utils/dom.js
@@ -86,10 +86,13 @@ function isAutoScrollableOverflow(value) {
 	return value === "auto" || value === "overlay";
 }
 function measureScrollbarSize(ownerDocument) {
+	var _a, _b, _c, _d, _e;
 	const doc = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : typeof document === "undefined" ? null : document;
 	if (!(doc === null || doc === void 0 ? void 0 : doc.body)) return ZERO_SCROLLBAR_SIZE;
 	const cached = scrollbarSizeCache.get(doc);
-	if (cached) return cached;
+	const scale = ((_b = (_a = doc.defaultView) === null || _a === void 0 ? void 0 : _a.devicePixelRatio) !== null && _b !== void 0 ? _b : 1) * ((_e = (_d = (_c = doc.defaultView) === null || _c === void 0 ? void 0 : _c.visualViewport) === null || _d === void 0 ? void 0 : _d.scale) !== null && _e !== void 0 ? _e : 1);
+	const now = Date.now();
+	if (cached && cached.scale === scale && now < cached.expires) return cached.size;
 	const probe = doc.createElement("div");
 	probe.style.position = "absolute";
 	probe.style.left = "-9999px";
@@ -107,7 +110,11 @@ function measureScrollbarSize(ownerDocument) {
 		width,
 		height
 	});
-	scrollbarSizeCache.set(doc, measured);
+	scrollbarSizeCache.set(doc, {
+		size: measured,
+		scale,
+		expires: now + 1e3
+	});
 	return measured;
 }
 function normalizeScrollbarSize(scrollbarSize) {
@@ -293,11 +300,11 @@ function readJpegExifOrientation(input) {
 	var _a, _b;
 	return (_b = (_a = findJpegExifOrientationEntry(input instanceof Uint8Array ? input : new Uint8Array(input))) === null || _a === void 0 ? void 0 : _a.value) !== null && _b !== void 0 ? _b : 1;
 }
-function dataUrlBytes(source) {
+function dataUrlBytes(source, maximumBytes) {
 	const comma = source.indexOf(",");
 	if (comma < 0) throw new TypeError("[ImageEditor] Image Data URL is malformed.");
 	const header = source.slice(0, comma).toLowerCase();
-	const encoded = source.slice(comma + 1);
+	const encoded = source.slice(comma + 1, maximumBytes === void 0 ? void 0 : comma + 1 + Math.ceil(maximumBytes / 3) * 4);
 	if (!header.endsWith(";base64")) {
 		const bytes = [];
 		for (let index = 0; index < encoded.length; index += 1) if (encoded[index] === "%" && /^[\da-f]{2}$/iu.test(encoded.slice(index + 1, index + 3))) {
@@ -316,6 +323,20 @@ function dataUrlBytes(source) {
 	if (typeof globalThis.atob !== "function") throw new TypeError("[ImageEditor] No base64 decoder is available.");
 	const binary = globalThis.atob(compact);
 	return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+function hasCompleteJpegMetadata(bytes) {
+	let offset = 2;
+	while (offset + 1 < bytes.length) {
+		if (bytes[offset] !== 255) return false;
+		while (bytes[offset] === 255) offset += 1;
+		const marker = bytes[offset++];
+		if (marker === 218 || marker === 217) return true;
+		if (marker === 1 || marker >= 208 && marker <= 215) continue;
+		const length = uint16(bytes, offset, false);
+		if (length === null || length < 2) return false;
+		offset += length;
+	}
+	return false;
 }
 function bytesDataUrl(bytes, mimeType) {
 	const buffer = globalThis.Buffer;
@@ -379,7 +400,13 @@ async function decodeWithImageBitmap(bytes, mimeType, signal) {
 	if (typeof globalThis.createImageBitmap !== "function") return null;
 	signal.throwIfAborted();
 	const copy = bytes.slice().buffer;
-	const bitmap = await globalThis.createImageBitmap(new Blob([copy], { type: mimeType }), { imageOrientation: "none" });
+	let bitmap;
+	try {
+		bitmap = await globalThis.createImageBitmap(new Blob([copy], { type: mimeType }), { imageOrientation: "none" });
+	} catch (error) {
+		if (signal.aborted) throw abortReason(signal);
+		return null;
+	}
 	if (signal.aborted) {
 		bitmap.close();
 		throw abortReason(signal);
@@ -515,7 +542,7 @@ function setOrientationTransform(context, orientation, rawWidth, rawHeight, targ
 	context.setTransform(a * scaleX, b * scaleY, c * scaleX, d * scaleY, e * scaleX, f * scaleY);
 }
 async function preprocessImageDataUrl(request) {
-	var _a, _b;
+	var _a;
 	request.signal.throwIfAborted();
 	const needsExif = request.mimeType === "image/jpeg" && request.options.normalizeExifOrientation;
 	const requestedMimeType = outputMimeType(request.mimeType, request.options);
@@ -531,7 +558,8 @@ async function preprocessImageDataUrl(request) {
 		orientationNormalized: false,
 		downsampled: false
 	});
-	const bytes = dataUrlBytes(request.source);
+	let bytes = dataUrlBytes(request.source, needsExif ? 262144 : void 0);
+	if (needsExif && !findJpegExifOrientationEntry(bytes) && !hasCompleteJpegMetadata(bytes)) bytes = dataUrlBytes(request.source);
 	const orientation = needsExif ? readJpegExifOrientation(bytes) : 1;
 	const oriented = orientedSize(request.width, request.height, orientation);
 	const target = targetSize(oriented.width, oriented.height, request.options);
@@ -547,11 +575,12 @@ async function preprocessImageDataUrl(request) {
 		orientationNormalized: false,
 		downsampled: false
 	});
+	bytes = dataUrlBytes(request.source);
 	const decodingBytes = orientationNormalized ? neutralizeJpegOrientation(bytes) : bytes;
 	const decoded = (_a = await decodeWithImageBitmap(decodingBytes, request.mimeType, request.signal)) !== null && _a !== void 0 ? _a : await decodeWithImage(orientationNormalized ? bytesDataUrl(decodingBytes, request.mimeType) : request.source, request.ownerDocument, request.signal);
+	const canvas = request.ownerDocument.createElement("canvas");
 	try {
 		request.signal.throwIfAborted();
-		const canvas = request.ownerDocument.createElement("canvas");
 		canvas.width = target.width;
 		canvas.height = target.height;
 		const context = canvas.getContext("2d");
@@ -562,10 +591,10 @@ async function preprocessImageDataUrl(request) {
 		context.drawImage(decoded.image, 0, 0, decoded.width, decoded.height);
 		request.signal.throwIfAborted();
 		const source = canvas.toDataURL(requestedMimeType, request.options.quality);
-		const emitted = (_b = /^data:(image\/(?:jpeg|png|webp));base64,/iu.exec(source)) === null || _b === void 0 ? void 0 : _b[1];
+		const { mimeType } = require_image_budget.inspectRasterOutput(source);
 		return Object.freeze({
 			source,
-			mimeType: emitted === "image/jpeg" || emitted === "image/png" || emitted === "image/webp" ? emitted : requestedMimeType,
+			mimeType,
 			width: target.width,
 			height: target.height,
 			sourceWidth: request.width,
@@ -575,6 +604,8 @@ async function preprocessImageDataUrl(request) {
 			downsampled: target.downsampled
 		});
 	} finally {
+		canvas.width = 0;
+		canvas.height = 0;
 		decoded.dispose();
 	}
 }
@@ -3226,6 +3257,11 @@ const textEncoder = new TextEncoder();
 function byteLength(value) {
 	return textEncoder.encode(value).byteLength;
 }
+function normalizeResourceUrl(value) {
+	let start = 0;
+	while (start < value.length && value.charCodeAt(start) <= 32) start += 1;
+	return value.slice(start).replace(/[\t\r\n]/gu, "");
+}
 function inspectTree(value, limits, path = "$", depth = 0, ancestors = /* @__PURE__ */ new WeakSet(), counter = { count: 0 }, propertyName) {
 	if (depth > limits.maxDepth) throw new SnapshotValidationError(`nesting exceeds ${limits.maxDepth}.`, path);
 	if (value === null || typeof value !== "object") {
@@ -3242,7 +3278,7 @@ function inspectTree(value, limits, path = "$", depth = 0, ancestors = /* @__PUR
 					if (width * height > limits.maxDecodedPixels) throw new SnapshotValidationError(`decoded pixel count exceeds ${limits.maxDecodedPixels}.`, path);
 					if (width > limits.maxImageDimension || height > limits.maxImageDimension) throw new SnapshotValidationError(`image dimensions exceed ${limits.maxImageDimension}.`, path);
 				}
-			} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && value.length > 0) throw new SnapshotValidationError("external URL references are forbidden.", path);
+			} else if (limits.externalUrlPolicy === "reject" && isExternalResourceKey(propertyName) && /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(normalizeResourceUrl(value))) throw new SnapshotValidationError("external URL references are forbidden.", path);
 		}
 		if (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint") throw new SnapshotValidationError(`unsupported ${typeof value} value.`, path);
 		return;
@@ -3727,21 +3763,21 @@ function exportArea(value, fallback) {
 	return value === "image" || value === "canvas" ? value : fallback;
 }
 function resolveExportDefaults(options, exportMultiplier) {
-	var _a, _b;
+	var _a;
 	const defaults = DEFAULT_CORE_OPTIONS.exportDefaults;
-	const fileName = (_a = options === null || options === void 0 ? void 0 : options.fileName) === null || _a === void 0 ? void 0 : _a.trim();
+	const fileName = typeof (options === null || options === void 0 ? void 0 : options.fileName) === "string" ? options.fileName.trim() : void 0;
 	return Object.freeze({
 		area: exportArea(options === null || options === void 0 ? void 0 : options.area, defaults.area),
 		format: exportFormat(options === null || options === void 0 ? void 0 : options.format, defaults.format),
 		quality: unitInterval(options === null || options === void 0 ? void 0 : options.quality, defaults.quality),
 		multiplier: positiveFinite(options === null || options === void 0 ? void 0 : options.multiplier, exportMultiplier),
 		fileName: fileName || defaults.fileName,
-		contributors: Object.freeze({ ...(_b = options === null || options === void 0 ? void 0 : options.contributors) !== null && _b !== void 0 ? _b : {} })
+		contributors: Object.freeze({ ...(_a = options === null || options === void 0 ? void 0 : options.contributors) !== null && _a !== void 0 ? _a : {} })
 	});
 }
 function resolveExportOptions(options, defaults) {
-	var _a, _b;
-	const fileName = (_a = options.fileName) === null || _a === void 0 ? void 0 : _a.trim();
+	var _a;
+	const fileName = typeof options.fileName === "string" ? options.fileName.trim() : void 0;
 	return Object.freeze({
 		area: exportArea(options.area, defaults.area),
 		format: exportFormat(options.format, defaults.format),
@@ -3750,16 +3786,14 @@ function resolveExportOptions(options, defaults) {
 		fileName: fileName || defaults.fileName,
 		contributors: Object.freeze({
 			...defaults.contributors,
-			...(_b = options.contributors) !== null && _b !== void 0 ? _b : {}
+			...(_a = options.contributors) !== null && _a !== void 0 ? _a : {}
 		})
 	});
 }
 function exportFileName(baseName, format) {
 	const extension = format === "jpeg" ? "jpg" : format;
-	const cleaned = [...baseName].filter((character) => {
-		var _a;
-		return ((_a = character.codePointAt(0)) !== null && _a !== void 0 ? _a : 0) >= 32;
-	}).join("").trim() || DEFAULT_EXPORT_FILE_NAME;
+	let cleaned = [...baseName].filter((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127).join("").replace(/[\u202a-\u202e\u2066-\u2069<>:"/\\|?*]/gu, "_").trim().replace(/[. ]+$/u, "") || DEFAULT_EXPORT_FILE_NAME;
+	if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(cleaned)) cleaned = `_${cleaned}`;
 	return /\.(?:jpe?g|png|webp)$/iu.test(cleaned) ? cleaned.replace(/\.(?:jpe?g|png|webp)$/iu, `.${extension}`) : `${cleaned}.${extension}`;
 }
 function resolveOptions(options) {
@@ -3884,12 +3918,12 @@ function dataUrlToFile(dataUrl, fileName) {
 	const payload = dataUrl.slice(commaIndex + 1);
 	const buffer = globalThis.Buffer;
 	let bytes;
-	if (buffer) bytes = Uint8Array.from(buffer.from(payload, "base64"));
+	if (buffer) bytes = buffer.from(payload, "base64");
 	else {
 		const binary = atob(payload);
 		bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
 	}
-	return new File([bytes.slice().buffer], fileName, { type: mimeType });
+	return new File([bytes], fileName, { type: mimeType });
 }
 var ImageEditorCore = class {
 	constructor(fabric, options = {}) {
@@ -4349,7 +4383,7 @@ var ImageEditorCore = class {
 		const hasVisibleContainer = containerWidth > 0 && containerHeight > 0;
 		const initialWidth = Math.max(1, Math.ceil(hasVisibleContainer ? containerWidth : this.options.canvasWidth));
 		const initialHeight = Math.max(1, Math.ceil(hasVisibleContainer ? containerHeight : this.options.canvasHeight));
-		this.assertRasterBudget(initialWidth, initialHeight);
+		this.assertRasterBudget(initialWidth, initialHeight, this.fabric.config.devicePixelRatio);
 		this.canvas = new this.fabric.Canvas(canvasElement, {
 			width: initialWidth,
 			height: initialHeight,
@@ -4492,7 +4526,13 @@ var ImageEditorCore = class {
 	}
 	async loadImageFile(file, options = {}) {
 		var _a;
-		if (!(file instanceof File)) throw new TypeError("[ImageEditor] loadImageFile expects a File.");
+		this.assertReady("load an image file");
+		if (!file || Object.prototype.toString.call(file) !== "[object File]") throw new TypeError("[ImageEditor] loadImageFile expects a File.");
+		if (![
+			"image/png",
+			"image/jpeg",
+			"image/webp"
+		].includes(file.type)) throw new TypeError("[ImageEditor] Image file MIME type must be PNG, JPEG, or WebP.");
 		if (file.size === 0) throw new CoreRuntimeError("[ImageEditor] Image file is empty.", { code: "IMAGE_FILE_EMPTY" });
 		if (file.size > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image file exceeds maxInputBytes.");
 		if ((_a = options.signal) === null || _a === void 0 ? void 0 : _a.aborted) throw loadAbortReason(options.signal, "Image file read was aborted.");
@@ -5272,7 +5312,7 @@ var ImageEditorCore = class {
 		if (!this.canvas) return;
 		const nextWidth = Math.max(1, Math.ceil(width));
 		const nextHeight = Math.max(1, Math.ceil(height));
-		this.assertRasterBudget(nextWidth, nextHeight);
+		this.assertRasterBudget(nextWidth, nextHeight, this.canvas.getRetinaScaling());
 		applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
 	}
 	isInputRasterWithinBudget(width, height) {
@@ -5317,12 +5357,14 @@ var ImageEditorCore = class {
 			const exportCanvas = new this.fabric.StaticCanvas(exportElement, {
 				width: canvas.getWidth(),
 				height: canvas.getHeight(),
-				backgroundColor: this.options.backgroundColor,
+				backgroundColor: require_image_budget.rasterBackground(format, this.options.backgroundColor),
+				enableRetinaScaling: false,
 				renderOnAddRemove: false
 			});
 			try {
 				if (this.baseImage) {
 					const clonedBaseImage = await this.baseImage.clone();
+					Reflect.set(clonedBaseImage, "editorObjectKind", "baseImage");
 					exportCanvas.add(clonedBaseImage);
 					exportCanvas.sendObjectToBack(clonedBaseImage);
 				}
@@ -5331,7 +5373,7 @@ var ImageEditorCore = class {
 					options: resolved
 				});
 				exportCanvas.renderAll();
-				return exportCanvas.toDataURL({
+				const dataUrl = exportCanvas.toDataURL({
 					format,
 					quality,
 					multiplier,
@@ -5340,6 +5382,8 @@ var ImageEditorCore = class {
 					width,
 					height
 				});
+				require_image_budget.inspectRasterOutput(dataUrl, `image/${format}`);
+				return dataUrl;
 			} finally {
 				await exportCanvas.dispose();
 			}
@@ -5728,4 +5772,4 @@ Object.defineProperty(exports, "transformRectBounds", {
     return transformRectBounds;
   }
 });
-//# sourceMappingURL=core-GR9aQ4Ip.cjs.map
+//# sourceMappingURL=core-BRyf9CBJ.cjs.map

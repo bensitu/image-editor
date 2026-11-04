@@ -1,9 +1,9 @@
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
-const require_core = require("./core-GR9aQ4Ip.cjs");
+const require_image_budget = require("./image-budget-BAyRgd0r.cjs");
+const require_core = require("./core-BRyf9CBJ.cjs");
 const require_abortable_promise = require("./abortable-promise-brVLi25s.cjs");
-const require_image_budget = require("./image-budget-HITdUNa5.cjs");
 const require_plugin_identifier = require("./plugin-identifier-gAnWTWj6.cjs");
 
 // dist/esm/foundations/overlay/overlay-transform-delta.js
@@ -931,7 +931,7 @@ var OverlayFoundationController = class {
 			operationId: "overlay:flatten",
 			metadata: Object.freeze({ overlayCount: selectedIds.length }),
 			mutateBase: async ({ signal, transaction }) => {
-				var _a, _b;
+				var _a, _b, _c;
 				const selected = selectedIds.flatMap((id) => {
 					const indexed = this.byId.get(id);
 					if (!indexed || query.includeHidden !== true && this.classificationFor(indexed).hidden) return [];
@@ -946,12 +946,13 @@ var OverlayFoundationController = class {
 				const exportCanvas = new this.host.fabric.StaticCanvas(exportElement, {
 					width: canvas.getWidth(),
 					height: canvas.getHeight(),
-					backgroundColor: this.host.backgroundColor,
+					backgroundColor: require_image_budget.rasterBackground((_a = options.format) !== null && _a !== void 0 ? _a : "png", this.host.backgroundColor),
+					enableRetinaScaling: false,
 					renderOnAddRemove: false
 				});
 				try {
-					const format = (_a = options.format) !== null && _a !== void 0 ? _a : "png";
-					const quality = Math.max(0, Math.min(1, (_b = options.quality) !== null && _b !== void 0 ? _b : .92));
+					const format = (_b = options.format) !== null && _b !== void 0 ? _b : "png";
+					const quality = Math.max(0, Math.min(1, (_c = options.quality) !== null && _c !== void 0 ? _c : .92));
 					const exportOptions = Object.freeze({
 						area: "image",
 						format,
@@ -959,6 +960,7 @@ var OverlayFoundationController = class {
 						multiplier: 1
 					});
 					const baseClone = await baseImage.clone();
+					Reflect.set(baseClone, "editorObjectKind", "baseImage");
 					exportCanvas.add(baseClone);
 					exportCanvas.sendObjectToBack(baseClone);
 					await this.renderObjects(exportCanvas, selected, exportOptions);
@@ -969,6 +971,8 @@ var OverlayFoundationController = class {
 						multiplier: 1,
 						...getImageExportRegion(baseImage, canvas)
 					});
+					const output = require_image_budget.inspectRasterOutput(dataUrl);
+					if (output.bytes > this.host.getImageResourcePolicy().maxInputBytes) throw new OverlayFlattenError("Raster output exceeds the Core input budget.");
 					let replacement = null;
 					let replacementTransferred = false;
 					try {
@@ -986,7 +990,7 @@ var OverlayFoundationController = class {
 						replacement.setCoords();
 						this.host.replaceBaseImage(transaction, replacement, {
 							baseScale: 1,
-							mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
+							mimeType: output.mimeType
 						});
 						replacementTransferred = true;
 						for (const object of selected) {
@@ -2135,4 +2139,4 @@ Object.defineProperty(exports, "restoreOverlayStateBounds", {
     return restoreOverlayStateBounds;
   }
 });
-//# sourceMappingURL=overlay-BOXhpeu0.cjs.map
+//# sourceMappingURL=overlay-CGcUbhau.cjs.map

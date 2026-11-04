@@ -349,6 +349,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Math.floor(payload.length * 3 / 4) - padding.length;
 	}
 
+// dist/esm/utils/raster-output.js
+	function inspectRasterOutput(dataUrl, expectedMimeType) {
+		const match = /^data:(image\/(?:png|jpeg|webp));base64,/u.exec(dataUrl);
+		if (!match) throw new TypeError("Raster encoding did not produce a supported image Data URL.");
+		const mimeType = match[1];
+		if (expectedMimeType && mimeType !== expectedMimeType) throw new TypeError(`Raster encoder returned ${mimeType} instead of ${expectedMimeType}.`);
+		const bytes = base64PayloadByteLength(dataUrl.slice(match[0].length));
+		if (bytes === 0) throw new TypeError("Raster encoding produced an empty image.");
+		return Object.freeze({
+			mimeType,
+			bytes
+		});
+	}
+
 // dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
@@ -388,22 +402,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (record.bakeVisibleFilters !== void 0 && typeof record.bakeVisibleFilters !== "boolean") throw new CropValidationError("bakeVisibleFilters must be a boolean.");
 		return Object.freeze({
 			format,
+			allowFormatFallback: record.format === void 0,
 			...format !== "png" && quality !== void 0 ? { quality } : {},
 			mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`,
 			bakeVisibleFilters: record.bakeVisibleFilters !== false
 		});
-	}
-	function encodedBytes(dataUrl, expectedMimeType) {
-		const commaIndex = dataUrl.indexOf(",");
-		if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new CropValidationError("Crop output is not a base64 Data URL.");
-		const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
-		if (mimeType !== expectedMimeType) throw new CropValidationError(`Crop encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
-		const payload = dataUrl.slice(commaIndex + 1);
-		try {
-			return base64PayloadByteLength(payload);
-		} catch {
-			throw new CropValidationError("Crop output contains a malformed base64 payload.");
-		}
 	}
 	async function decodeCropImage(fabric, dataUrl, timeoutMs, signal) {
 		var _a;
@@ -469,6 +472,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!context) throw new CropValidationError("Crop rendering context is unavailable.");
 		let dataUrl;
 		try {
+			if (options.format === "jpeg") {
+				context.fillStyle = "#ffffff";
+				context.fillRect(0, 0, surface.width, surface.height);
+			}
 			const rotation = normalizeCropRotation(rotationDegrees);
 			context.translate(rect.widthPx / 2, rect.heightPx / 2);
 			context.rotate(-rotation * Math.PI / 180);
@@ -481,14 +488,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (hasErrorName(error, "SecurityError")) throw new CropValidationError("Crop pixels cannot be exported because canvas access is blocked.");
 			throw error;
 		}
-		if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) throw new CropValidationError("Crop output exceeds the Core input budget.");
+		const output = inspectRasterOutput(dataUrl, options.allowFormatFallback ? void 0 : options.mimeType);
+		if (output.bytes > policy.maxInputBytes) throw new CropValidationError("Crop output exceeds the Core input budget.");
 		const image = await decodeCropImage(host.fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
 		try {
 			if (image.width !== rect.widthPx || image.height !== rect.heightPx) throw new CropValidationError("Crop dimensions changed during decode.");
 			applyCropPresentation(source, image, rect, normalizeCropRotation(rotationDegrees));
 			return Object.freeze({
 				image,
-				mimeType: options.mimeType
+				mimeType: output.mimeType
 			});
 		} catch (error) {
 			image.dispose();
@@ -818,8 +826,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				});
 				committed = true;
-				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 			} finally {
+				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 				if (!committed && resources.replacement && this.host.getBaseImage() !== resources.replacement) resources.replacement.dispose();
 			}
 		}

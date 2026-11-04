@@ -1,5 +1,5 @@
 import { settleAbortable } from '../../utils/abortable-promise.js';
-import { base64PayloadByteLength } from '../../utils/base64-payload.js';
+import { inspectRasterOutput } from '../../utils/raster-output.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { MosaicValidationError } from './mosaic-errors.js';
@@ -38,27 +38,11 @@ export function normalizeMosaicCommitOptions(value, configuration, sourceMimeTyp
     }
     return Object.freeze({
         format,
+        allowFormatFallback: requestedFormat === 'source',
         ...(format === 'png' ? {} : { quality }),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         bakeVisibleFilters: record.bakeVisibleFilters !== false,
     });
-}
-function encodedBytes(dataUrl, expectedMimeType) {
-    const commaIndex = dataUrl.indexOf(',');
-    if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) {
-        throw new MosaicValidationError('Mosaic output is not a base64 Data URL.');
-    }
-    const mimeType = dataUrl.slice(5, dataUrl.indexOf(';'));
-    if (mimeType !== expectedMimeType) {
-        throw new MosaicValidationError(`Mosaic encoder returned ${mimeType || 'an unknown MIME'} instead of ${expectedMimeType}.`);
-    }
-    const payload = dataUrl.slice(commaIndex + 1);
-    try {
-        return base64PayloadByteLength(payload);
-    }
-    catch {
-        throw new MosaicValidationError('Mosaic output contains a malformed base64 payload.');
-    }
 }
 async function decodeMosaicImage(fabric, dataUrl, timeoutMs, signal) {
     var _a;
@@ -108,7 +92,8 @@ export async function renderMosaicImage(host, source, cache, options, signal) {
         }
         throw error;
     }
-    if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) {
+    const output = inspectRasterOutput(dataUrl, options.allowFormatFallback ? undefined : options.mimeType);
+    if (output.bytes > policy.maxInputBytes) {
         throw new MosaicValidationError('Mosaic output exceeds the Core input budget.');
     }
     const image = await decodeMosaicImage(host.fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
@@ -119,7 +104,7 @@ export async function renderMosaicImage(host, source, cache, options, signal) {
         copyMosaicImagePresentation(source, image, false);
         image.set({ selectable: false, evented: false, hasControls: false });
         image.setCoords();
-        return Object.freeze({ image, mimeType: options.mimeType });
+        return Object.freeze({ image, mimeType: output.mimeType });
     }
     catch (error) {
         image.dispose();

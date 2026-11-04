@@ -6,8 +6,8 @@ export function copyMosaicImagePresentation(source, target, transient) {
     target.set({
         left: source.left,
         top: source.top,
-        originX: 'left',
-        originY: 'top',
+        originX: source.originX,
+        originY: source.originY,
         scaleX: source.scaleX,
         scaleY: source.scaleY,
         angle: source.angle,
@@ -45,15 +45,18 @@ export function createMosaicRasterCache(source) {
     const surface = ownerDocument.createElement('canvas');
     surface.width = widthPx;
     surface.height = heightPx;
-    const context = surface.getContext('2d');
-    if (!context)
+    const context = surface.getContext('2d', { willReadFrequently: true });
+    if (!context) {
+        surface.width = surface.height = 0;
         throw new MosaicValidationError('Mosaic rendering context is unavailable.');
+    }
     context.drawImage(element, 0, 0, widthPx, heightPx);
     let imageData;
     try {
         imageData = context.getImageData(0, 0, widthPx, heightPx);
     }
     catch {
+        surface.width = surface.height = 0;
         throw new MosaicValidationError('Mosaic source pixels could not be read.');
     }
     return Object.freeze({ surface, context, imageData, widthPx, heightPx });

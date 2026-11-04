@@ -4,6 +4,7 @@
  * @module
  */
 
+import { inspectRasterOutput, rasterBackground } from '../utils/raster-output.js';
 import type * as FabricNS from 'fabric';
 
 import {
@@ -219,7 +220,7 @@ function resolveExportDefaults(
     exportMultiplier: number,
 ): ResolvedCoreExportOptions {
     const defaults = DEFAULT_CORE_OPTIONS.exportDefaults;
-    const fileName = options?.fileName?.trim();
+    const fileName = typeof options?.fileName === 'string' ? options.fileName.trim() : undefined;
     return Object.freeze({
         area: exportArea(options?.area, defaults.area),
         format: exportFormat(options?.format, defaults.format),
@@ -234,7 +235,7 @@ function resolveExportOptions(
     options: CoreExportOptions,
     defaults: ResolvedCoreExportOptions,
 ): ResolvedCoreExportOptions {
-    const fileName = options.fileName?.trim();
+    const fileName = typeof options.fileName === 'string' ? options.fileName.trim() : undefined;
     return Object.freeze({
         area: exportArea(options.area, defaults.area),
         format: exportFormat(options.format, defaults.format),
@@ -250,11 +251,16 @@ function resolveExportOptions(
 
 function exportFileName(baseName: string, format: ResolvedCoreExportOptions['format']): string {
     const extension = format === 'jpeg' ? 'jpg' : format;
-    const cleaned =
+    let cleaned =
         [...baseName]
-            .filter((character) => (character.codePointAt(0) ?? 0) >= 0x20)
+            .filter(
+                (character) => character.charCodeAt(0) >= 0x20 && character.charCodeAt(0) !== 0x7f,
+            )
             .join('')
-            .trim() || DEFAULT_EXPORT_FILE_NAME;
+            .replace(/[\u202a-\u202e\u2066-\u2069<>:"/\\|?*]/gu, '_')
+            .trim()
+            .replace(/[. ]+$/u, '') || DEFAULT_EXPORT_FILE_NAME;
+    if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(cleaned)) cleaned = `_${cleaned}`;
     return /\.(?:jpe?g|png|webp)$/iu.test(cleaned)
         ? cleaned.replace(/\.(?:jpe?g|png|webp)$/iu, `.${extension}`)
         : `${cleaned}.${extension}`;
@@ -449,12 +455,12 @@ function dataUrlToFile(dataUrl: string, fileName: string): File {
     ).Buffer;
     let bytes: Uint8Array;
     if (buffer) {
-        bytes = Uint8Array.from(buffer.from(payload, 'base64'));
+        bytes = buffer.from(payload, 'base64');
     } else {
         const binary = atob(payload);
         bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     }
-    return new File([bytes.slice().buffer as ArrayBuffer], fileName, { type: mimeType });
+    return new File([bytes as Uint8Array<ArrayBuffer>], fileName, { type: mimeType });
 }
 
 /** Controls validation, migration, and cancellation for one state restoration. */
@@ -897,7 +903,7 @@ export class ImageEditorCore {
             1,
             Math.ceil(hasVisibleContainer ? containerHeight : this.options.canvasHeight),
         );
-        this.assertRasterBudget(initialWidth, initialHeight);
+        this.assertRasterBudget(initialWidth, initialHeight, this.fabric.config.devicePixelRatio);
         this.canvas = new this.fabric.Canvas(canvasElement, {
             width: initialWidth,
             height: initialHeight,
@@ -1124,8 +1130,12 @@ export class ImageEditorCore {
 
     /** Reads a browser `File` and replaces the document image transactionally. */
     async loadImageFile(file: File, options: LoadImageOptions = {}): Promise<void> {
-        if (!(file instanceof File))
+        this.assertReady('load an image file');
+        if (!file || Object.prototype.toString.call(file) !== '[object File]')
             throw new TypeError('[ImageEditor] loadImageFile expects a File.');
+        if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+            throw new TypeError('[ImageEditor] Image file MIME type must be PNG, JPEG, or WebP.');
+        }
         if (file.size === 0) {
             throw new CoreRuntimeError('[ImageEditor] Image file is empty.', {
                 code: 'IMAGE_FILE_EMPTY',
@@ -1184,7 +1194,7 @@ export class ImageEditorCore {
      *
      * @remarks A failed or cancelled restoration leaves the preceding document intact.
      */
-    async loadFromState(input: string | unknown, options: LoadStateOptions = {}): Promise<void> {
+    async loadFromState(input: unknown, options: LoadStateOptions = {}): Promise<void> {
         this.assertReady('load state');
         try {
             const prepared = await this.snapshots.prepareForLoad(input, {
@@ -2196,7 +2206,7 @@ export class ImageEditorCore {
         if (!this.canvas) return;
         const nextWidth = Math.max(1, Math.ceil(width));
         const nextHeight = Math.max(1, Math.ceil(height));
-        this.assertRasterBudget(nextWidth, nextHeight);
+        this.assertRasterBudget(nextWidth, nextHeight, this.canvas.getRetinaScaling());
         applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
 
@@ -2255,18 +2265,20 @@ export class ImageEditorCore {
             const exportCanvas = new this.fabric.StaticCanvas(exportElement, {
                 width: canvas.getWidth(),
                 height: canvas.getHeight(),
-                backgroundColor: this.options.backgroundColor,
+                backgroundColor: rasterBackground(format, this.options.backgroundColor),
+                enableRetinaScaling: false,
                 renderOnAddRemove: false,
             });
             try {
                 if (this.baseImage) {
                     const clonedBaseImage = await this.baseImage.clone();
+                    Reflect.set(clonedBaseImage, 'editorObjectKind', 'baseImage');
                     exportCanvas.add(clonedBaseImage);
                     exportCanvas.sendObjectToBack(clonedBaseImage);
                 }
                 await this.exportContributors.render({ canvas: exportCanvas, options: resolved });
                 exportCanvas.renderAll();
-                return exportCanvas.toDataURL({
+                const dataUrl = exportCanvas.toDataURL({
                     format,
                     quality,
                     multiplier,
@@ -2275,6 +2287,8 @@ export class ImageEditorCore {
                     width,
                     height,
                 });
+                inspectRasterOutput(dataUrl, `image/${format}`);
+                return dataUrl;
             } finally {
                 await exportCanvas.dispose();
             }

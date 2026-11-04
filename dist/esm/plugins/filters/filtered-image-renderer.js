@@ -1,5 +1,5 @@
 import { settleAbortable } from '../../utils/abortable-promise.js';
-import { base64PayloadByteLength } from '../../utils/base64-payload.js';
+import { inspectRasterOutput, rasterBackground } from '../../utils/raster-output.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
@@ -30,15 +30,15 @@ export function copyBaseImagePresentation(source, target, options = {}) {
         skewY: source.skewY,
         flipX: source.flipX,
         flipY: source.flipY,
-        originX: 'left',
-        originY: 'top',
+        originX: source.originX,
+        originY: source.originY,
         opacity: source.opacity,
         visible: source.visible,
         selectable: options.transient ? false : source.selectable,
         evented: options.transient ? false : source.evented,
         hasControls: options.transient ? false : source.hasControls,
         hoverCursor: source.hoverCursor,
-        excludeFromExport: source.excludeFromExport,
+        excludeFromExport: options.transient ? true : source.excludeFromExport,
         backgroundColor: (_a = options.backgroundColor) !== null && _a !== void 0 ? _a : source.backgroundColor,
     });
     target.setCoords();
@@ -93,19 +93,6 @@ export function normalizeFilterBakeOptions(options, sourceMimeType) {
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
     });
 }
-function encodedBytes(dataUrl) {
-    const commaIndex = dataUrl.indexOf(',');
-    if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) {
-        throw new FilterBakeValidationError('Filtered Raster output is not a base64 Data URL.');
-    }
-    const payload = dataUrl.slice(commaIndex + 1);
-    try {
-        return base64PayloadByteLength(payload);
-    }
-    catch (error) {
-        throw new FilterBakeValidationError('Filtered Raster output contains a malformed base64 payload.', error);
-    }
-}
 async function decodeBakedImage(fabric, dataUrl, timeoutMs, signal) {
     var _a;
     const controller = new AbortController();
@@ -147,7 +134,7 @@ export async function renderBakedImage(fabric, baseImage, definitions, options, 
         !isPixelAreaWithinBudget(width, height, pixelBudget)) {
         throw new FilterBakeValidationError('Filtered Raster dimensions exceed the Core policy.');
     }
-    const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal);
+    const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal, rasterBackground(normalizedOptions.format, String(baseImage.backgroundColor || 'transparent')));
     let replacement = null;
     try {
         throwIfAborted(signal);
@@ -170,7 +157,8 @@ export async function renderBakedImage(fabric, baseImage, definitions, options, 
             }
             throw error;
         }
-        if (encodedBytes(dataUrl) > policy.maxInputBytes) {
+        const output = inspectRasterOutput(dataUrl);
+        if (output.bytes > policy.maxInputBytes) {
             throw new FilterBakeValidationError('Filtered Raster exceeds the Core input budget.');
         }
         replacement = await decodeBakedImage(fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
@@ -179,7 +167,7 @@ export async function renderBakedImage(fabric, baseImage, definitions, options, 
             throw new FilterBakeValidationError('Filtered Raster dimensions changed during decode.');
         }
         copyBaseImagePresentation(baseImage, replacement);
-        return Object.freeze({ image: replacement, mimeType: normalizedOptions.mimeType });
+        return Object.freeze({ image: replacement, mimeType: output.mimeType });
     }
     catch (error) {
         disposeFabricImage(replacement);

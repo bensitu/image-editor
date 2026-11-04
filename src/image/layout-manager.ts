@@ -61,7 +61,10 @@ interface ViewportSize {
 type ScrollbarSize = ViewportSize;
 
 const ZERO_SCROLLBAR_SIZE: ScrollbarSize = Object.freeze({ width: 0, height: 0 });
-const scrollbarSizeCache = new WeakMap<Document, ScrollbarSize>();
+const scrollbarSizeCache = new WeakMap<
+    Document,
+    Readonly<{ size: ScrollbarSize; scale: number; expires: number }>
+>();
 
 /**
  * Hidden-container viewport cache.
@@ -205,7 +208,10 @@ export function measureScrollbarSize(ownerDocument?: Document | null): Scrollbar
     const doc = ownerDocument ?? (typeof document === 'undefined' ? null : document);
     if (!doc?.body) return ZERO_SCROLLBAR_SIZE;
     const cached = scrollbarSizeCache.get(doc);
-    if (cached) return cached;
+    const scale =
+        (doc.defaultView?.devicePixelRatio ?? 1) * (doc.defaultView?.visualViewport?.scale ?? 1);
+    const now = Date.now();
+    if (cached && cached.scale === scale && now < cached.expires) return cached.size;
 
     const probe = doc.createElement('div');
     probe.style.position = 'absolute';
@@ -223,7 +229,7 @@ export function measureScrollbarSize(ownerDocument?: Document | null): Scrollbar
     probe.remove();
 
     const measured = Object.freeze({ width, height });
-    scrollbarSizeCache.set(doc, measured);
+    scrollbarSizeCache.set(doc, { size: measured, scale, expires: now + 1000 });
     return measured;
 }
 

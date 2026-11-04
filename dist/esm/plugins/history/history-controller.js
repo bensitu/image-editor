@@ -53,12 +53,6 @@ export class HistoryPluginController {
             writable: true,
             value: 0
         });
-        Object.defineProperty(this, "baseline", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
         Object.defineProperty(this, "listeners", {
             enumerable: true,
             configurable: true,
@@ -93,7 +87,6 @@ export class HistoryPluginController {
             record.operationId === coreOperationIds.commitLoadImage ||
             record.operationId === coreOperationIds.loadState) {
             const changed = this.resetTimeline();
-            this.baseline = record.after;
             if (changed)
                 this.emitChange();
             return;
@@ -101,7 +94,6 @@ export class HistoryPluginController {
         this.push(record);
     }
     push(record) {
-        var _a;
         this.assertActive('push History');
         if (!this.enabled)
             return;
@@ -118,7 +110,6 @@ export class HistoryPluginController {
         const bytes = estimateRetainedBytes(retainedRecord);
         if (bytes > this.maxBytes) {
             const changed = this.resetTimeline();
-            this.baseline = record.after;
             const warning = new CoreRuntimeError(`[ImageEditor] History record "${record.operationId}" exceeds maxBytes and was not retained.`, {
                 code: 'HISTORY_RECORD_BYTE_LIMIT_EXCEEDED',
             });
@@ -127,10 +118,9 @@ export class HistoryPluginController {
                 this.emitChange();
             return;
         }
-        (_a = this.baseline) !== null && _a !== void 0 ? _a : (this.baseline = record.before);
         this.removeEntries(this.position, this.records.length - this.position);
-        this.records.push(Object.freeze({ record: retainedRecord, bytes }));
-        this.retainedBytes += bytes;
+        this.records.push(Object.freeze({ record: retainedRecord }));
+        this.updateRetainedBytes();
         this.evictOverflow();
         this.position = this.records.length;
         this.emitChange();
@@ -145,11 +135,10 @@ export class HistoryPluginController {
         return this.operations.run('history:enable', async () => {
             if (this.enabled)
                 return;
-            const baseline = this.state.captureMemento();
+            this.state.captureMemento();
             this.records = [];
             this.position = 0;
             this.retainedBytes = 0;
-            this.baseline = baseline;
             this.enabled = true;
             this.emitChange();
         });
@@ -236,7 +225,6 @@ export class HistoryPluginController {
         this.records = [];
         this.position = 0;
         this.retainedBytes = 0;
-        this.baseline = null;
         this.enabled = false;
         this.listeners.clear();
         this.disposed = true;
@@ -246,16 +234,17 @@ export class HistoryPluginController {
         this.records = [];
         this.position = 0;
         this.retainedBytes = 0;
-        this.baseline = null;
         return changed;
     }
     removeEntries(start, deleteCount) {
         if (deleteCount <= 0)
             return;
-        const removed = this.records.splice(start, deleteCount);
-        for (const entry of removed) {
-            this.retainedBytes -= entry.bytes;
-        }
+        this.records.splice(start, deleteCount);
+        this.updateRetainedBytes();
+    }
+    updateRetainedBytes() {
+        const sharedStrings = new Set();
+        this.retainedBytes = this.records.reduce((total, entry) => total + estimateRetainedBytes(entry.record, sharedStrings), 0);
     }
     evictOverflow() {
         while (this.records.length > this.maxSize || this.retainedBytes > this.maxBytes) {
@@ -265,11 +254,11 @@ export class HistoryPluginController {
     async restoreTransactionally(target, operation) {
         const rollback = this.state.captureMemento();
         try {
-            await this.state.restoreMemento(target);
+            await this.state.restoreMemento(target, { rollbackOnFailure: false });
         }
         catch (error) {
             try {
-                await this.state.restoreMemento(rollback);
+                await this.state.restoreMemento(rollback, { rollbackOnFailure: false });
             }
             catch (rollbackError) {
                 const failure = new CoreRuntimeError(`[ImageEditor] History ${operation} failed and rollback could not restore state.`, {

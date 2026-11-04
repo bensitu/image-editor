@@ -26,6 +26,12 @@ const textEncoder = new TextEncoder();
 function byteLength(value) {
     return textEncoder.encode(value).byteLength;
 }
+function normalizeResourceUrl(value) {
+    let start = 0;
+    while (start < value.length && value.charCodeAt(start) <= 0x20)
+        start += 1;
+    return value.slice(start).replace(/[\t\r\n]/gu, '');
+}
 function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakSet(), counter = { count: 0 }, propertyName) {
     if (depth > limits.maxDepth) {
         throw new SnapshotValidationError(`nesting exceeds ${limits.maxDepth}.`, path);
@@ -61,7 +67,7 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
             }
             else if (limits.externalUrlPolicy === 'reject' &&
                 isExternalResourceKey(propertyName) &&
-                value.length > 0) {
+                /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(normalizeResourceUrl(value))) {
                 throw new SnapshotValidationError('external URL references are forbidden.', path);
             }
         }

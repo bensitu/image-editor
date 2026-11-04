@@ -67,12 +67,15 @@ function isAutoScrollableOverflow(value) {
     return value === 'auto' || value === 'overlay';
 }
 export function measureScrollbarSize(ownerDocument) {
+    var _a, _b, _c, _d, _e;
     const doc = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : (typeof document === 'undefined' ? null : document);
     if (!(doc === null || doc === void 0 ? void 0 : doc.body))
         return ZERO_SCROLLBAR_SIZE;
     const cached = scrollbarSizeCache.get(doc);
-    if (cached)
-        return cached;
+    const scale = ((_b = (_a = doc.defaultView) === null || _a === void 0 ? void 0 : _a.devicePixelRatio) !== null && _b !== void 0 ? _b : 1) * ((_e = (_d = (_c = doc.defaultView) === null || _c === void 0 ? void 0 : _c.visualViewport) === null || _d === void 0 ? void 0 : _d.scale) !== null && _e !== void 0 ? _e : 1);
+    const now = Date.now();
+    if (cached && cached.scale === scale && now < cached.expires)
+        return cached.size;
     const probe = doc.createElement('div');
     probe.style.position = 'absolute';
     probe.style.left = '-9999px';
@@ -87,7 +90,7 @@ export function measureScrollbarSize(ownerDocument) {
     const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
     probe.remove();
     const measured = Object.freeze({ width, height });
-    scrollbarSizeCache.set(doc, measured);
+    scrollbarSizeCache.set(doc, { size: measured, scale, expires: now + 1000 });
     return measured;
 }
 function normalizeScrollbarSize(scrollbarSize) {

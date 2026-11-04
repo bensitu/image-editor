@@ -286,6 +286,7 @@ export class MosaicController {
             ? normalizeConfiguration(this.configuration, options.configuration)
             : this.configuration;
         const source = this.requireBaseImage();
+        this.assertSourcePolicy(source);
         const cache = createMosaicRasterCache(source);
         this.assertCachePolicy(cache);
         const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), 'mosaicPreviewImage');
@@ -437,6 +438,7 @@ export class MosaicController {
                     }
                     this.assertSourceDimensions(state);
                     const source = this.requireBaseImage();
+                    this.assertSourcePolicy(source);
                     const cache = createMosaicRasterCache(source);
                     resources.cache = cache;
                     this.assertCachePolicy(cache);
@@ -455,11 +457,11 @@ export class MosaicController {
                 },
             });
             committed = true;
+        }
+        finally {
             if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) {
                 resources.replacedSource.dispose();
             }
-        }
-        finally {
             if (this.session === session)
                 this.closeSession();
             disposeMosaicRasterCache(resources.cache);
@@ -663,6 +665,14 @@ export class MosaicController {
         if (Number(baseImage.width) !== state.sourceWidthPx ||
             Number(baseImage.height) !== state.sourceHeightPx) {
             throw new MosaicSessionError('Mosaic source dimensions changed during the session.');
+        }
+    }
+    assertSourcePolicy(source) {
+        const policy = this.host.getImageResourcePolicy();
+        if (source.width > policy.maxExportDimension ||
+            source.height > policy.maxExportDimension ||
+            !isPixelAreaWithinBudget(source.width, source.height, Math.min(policy.maxInputPixels, policy.maxExportPixels))) {
+            throw new MosaicValidationError('Mosaic dimensions exceed the Core resource policy.');
         }
     }
     assertCachePolicy(cache) {

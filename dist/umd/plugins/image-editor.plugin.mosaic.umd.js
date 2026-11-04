@@ -82,7 +82,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (distance === 0) return Object.freeze([]);
 		const spacing = Math.max(1, radiusPx / 2);
 		const steps = Math.max(1, Math.ceil(distance / spacing));
-		return Object.freeze(Array.from(Array.from({ length: steps }).keys(), (index) => {
+		return Object.freeze(Array.from({ length: steps }, (_, index) => {
 			const progress = (index + 1) / steps;
 			return Object.freeze({
 				xPx: start.xPx + deltaX * progress,
@@ -186,8 +186,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		target.set({
 			left: source.left,
 			top: source.top,
-			originX: "left",
-			originY: "top",
+			originX: source.originX,
+			originY: source.originY,
 			scaleX: source.scaleX,
 			scaleY: source.scaleY,
 			angle: source.angle,
@@ -218,13 +218,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const surface = ownerDocument.createElement("canvas");
 		surface.width = widthPx;
 		surface.height = heightPx;
-		const context = surface.getContext("2d");
-		if (!context) throw new MosaicValidationError("Mosaic rendering context is unavailable.");
+		const context = surface.getContext("2d", { willReadFrequently: true });
+		if (!context) {
+			surface.width = surface.height = 0;
+			throw new MosaicValidationError("Mosaic rendering context is unavailable.");
+		}
 		context.drawImage(element, 0, 0, widthPx, heightPx);
 		let imageData;
 		try {
 			imageData = context.getImageData(0, 0, widthPx, heightPx);
 		} catch {
+			surface.width = surface.height = 0;
 			throw new MosaicValidationError("Mosaic source pixels could not be read.");
 		}
 		return Object.freeze({
@@ -297,6 +301,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Math.floor(payload.length * 3 / 4) - padding.length;
 	}
 
+// dist/esm/utils/raster-output.js
+	function inspectRasterOutput(dataUrl, expectedMimeType) {
+		const match = /^data:(image\/(?:png|jpeg|webp));base64,/u.exec(dataUrl);
+		if (!match) throw new TypeError("Raster encoding did not produce a supported image Data URL.");
+		const mimeType = match[1];
+		if (expectedMimeType && mimeType !== expectedMimeType) throw new TypeError(`Raster encoder returned ${mimeType} instead of ${expectedMimeType}.`);
+		const bytes = base64PayloadByteLength(dataUrl.slice(match[0].length));
+		if (bytes === 0) throw new TypeError("Raster encoding produced an empty image.");
+		return Object.freeze({
+			mimeType,
+			bytes
+		});
+	}
+
 // dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
@@ -331,22 +349,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (record.bakeVisibleFilters !== void 0 && typeof record.bakeVisibleFilters !== "boolean") throw new MosaicValidationError("bakeVisibleFilters must be a boolean.");
 		return Object.freeze({
 			format,
+			allowFormatFallback: requestedFormat === "source",
 			...format === "png" ? {} : { quality },
 			mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`,
 			bakeVisibleFilters: record.bakeVisibleFilters !== false
 		});
-	}
-	function encodedBytes(dataUrl, expectedMimeType) {
-		const commaIndex = dataUrl.indexOf(",");
-		if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new MosaicValidationError("Mosaic output is not a base64 Data URL.");
-		const mimeType = dataUrl.slice(5, dataUrl.indexOf(";"));
-		if (mimeType !== expectedMimeType) throw new MosaicValidationError(`Mosaic encoder returned ${mimeType || "an unknown MIME"} instead of ${expectedMimeType}.`);
-		const payload = dataUrl.slice(commaIndex + 1);
-		try {
-			return base64PayloadByteLength(payload);
-		} catch {
-			throw new MosaicValidationError("Mosaic output contains a malformed base64 payload.");
-		}
 	}
 	async function decodeMosaicImage(fabric, dataUrl, timeoutMs, signal) {
 		var _a;
@@ -383,7 +390,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (hasErrorName(error, "SecurityError")) throw new MosaicValidationError("Mosaic pixels cannot be exported because canvas access is blocked.");
 			throw error;
 		}
-		if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) throw new MosaicValidationError("Mosaic output exceeds the Core input budget.");
+		const output = inspectRasterOutput(dataUrl, options.allowFormatFallback ? void 0 : options.mimeType);
+		if (output.bytes > policy.maxInputBytes) throw new MosaicValidationError("Mosaic output exceeds the Core input budget.");
 		const image = await decodeMosaicImage(host.fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
 		try {
 			if (image.width !== cache.widthPx || image.height !== cache.heightPx) throw new MosaicValidationError("Mosaic dimensions changed during decode.");
@@ -396,7 +404,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			image.setCoords();
 			return Object.freeze({
 				image,
-				mimeType: options.mimeType
+				mimeType: output.mimeType
 			});
 		} catch (error) {
 			image.dispose();
@@ -624,6 +632,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (Object.keys(options).some((key) => key !== "configuration")) throw new MosaicValidationError("Mosaic enter options contain unknown keys.");
 			const configuration = options.configuration ? normalizeConfiguration(this.configuration, options.configuration) : this.configuration;
 			const source = this.requireBaseImage();
+			this.assertSourcePolicy(source);
 			const cache = createMosaicRasterCache(source);
 			this.assertCachePolicy(cache);
 			const preview = markSessionObject(createMosaicPreviewImage(this.host.fabric, source, cache), "mosaicPreviewImage");
@@ -764,6 +773,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						if (normalizedOptions.bakeVisibleFilters && ((_a = this.visibleRasterBake) === null || _a === void 0 ? void 0 : _a.hasVisibleState())) await this.visibleRasterBake.bakeIntoBase(transaction);
 						this.assertSourceDimensions(state);
 						const source = this.requireBaseImage();
+						this.assertSourcePolicy(source);
 						const cache = createMosaicRasterCache(source);
 						resources.cache = cache;
 						this.assertCachePolicy(cache);
@@ -780,8 +790,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				});
 				committed = true;
-				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 			} finally {
+				if (resources.replacedSource && resources.replacedSource !== this.host.getBaseImage()) resources.replacedSource.dispose();
 				if (this.session === session) this.closeSession();
 				disposeMosaicRasterCache(resources.cache);
 				if (!committed && resources.replacement && this.host.getBaseImage() !== resources.replacement) resources.replacement.dispose();
@@ -941,6 +951,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		assertSourceDimensions(state) {
 			const baseImage = this.requireBaseImage();
 			if (Number(baseImage.width) !== state.sourceWidthPx || Number(baseImage.height) !== state.sourceHeightPx) throw new MosaicSessionError("Mosaic source dimensions changed during the session.");
+		}
+		assertSourcePolicy(source) {
+			const policy = this.host.getImageResourcePolicy();
+			if (source.width > policy.maxExportDimension || source.height > policy.maxExportDimension || !isPixelAreaWithinBudget(source.width, source.height, Math.min(policy.maxInputPixels, policy.maxExportPixels))) throw new MosaicValidationError("Mosaic dimensions exceed the Core resource policy.");
 		}
 		assertCachePolicy(cache) {
 			const policy = this.host.getImageResourcePolicy();

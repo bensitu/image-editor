@@ -1,3 +1,4 @@
+import { inspectRasterOutput, rasterBackground } from '../../utils/raster-output.js';
 import { CoreRuntimeError, } from '../../core/index.js';
 import { settleAbortable } from '../../utils/abortable-promise.js';
 import { isRasterAllocationWithinBudget } from '../../utils/image-budget.js';
@@ -980,7 +981,7 @@ export class OverlayFoundationController {
             operationId: 'overlay:flatten',
             metadata: Object.freeze({ overlayCount: selectedIds.length }),
             mutateBase: async ({ signal, transaction }) => {
-                var _a, _b;
+                var _a, _b, _c;
                 const selected = selectedIds.flatMap((id) => {
                     const indexed = this.byId.get(id);
                     if (!indexed ||
@@ -1000,12 +1001,13 @@ export class OverlayFoundationController {
                 const exportCanvas = new this.host.fabric.StaticCanvas(exportElement, {
                     width: canvas.getWidth(),
                     height: canvas.getHeight(),
-                    backgroundColor: this.host.backgroundColor,
+                    backgroundColor: rasterBackground((_a = options.format) !== null && _a !== void 0 ? _a : 'png', this.host.backgroundColor),
+                    enableRetinaScaling: false,
                     renderOnAddRemove: false,
                 });
                 try {
-                    const format = (_a = options.format) !== null && _a !== void 0 ? _a : 'png';
-                    const quality = Math.max(0, Math.min(1, (_b = options.quality) !== null && _b !== void 0 ? _b : 0.92));
+                    const format = (_b = options.format) !== null && _b !== void 0 ? _b : 'png';
+                    const quality = Math.max(0, Math.min(1, (_c = options.quality) !== null && _c !== void 0 ? _c : 0.92));
                     const exportOptions = Object.freeze({
                         area: 'image',
                         format,
@@ -1013,6 +1015,7 @@ export class OverlayFoundationController {
                         multiplier: 1,
                     });
                     const baseClone = await baseImage.clone();
+                    Reflect.set(baseClone, 'editorObjectKind', 'baseImage');
                     exportCanvas.add(baseClone);
                     exportCanvas.sendObjectToBack(baseClone);
                     await this.renderObjects(exportCanvas, selected, exportOptions);
@@ -1023,6 +1026,10 @@ export class OverlayFoundationController {
                         multiplier: 1,
                         ...getImageExportRegion(baseImage, canvas),
                     });
+                    const output = inspectRasterOutput(dataUrl);
+                    if (output.bytes > this.host.getImageResourcePolicy().maxInputBytes) {
+                        throw new OverlayFlattenError('Raster output exceeds the Core input budget.');
+                    }
                     let replacement = null;
                     let replacementTransferred = false;
                     try {
@@ -1040,7 +1047,7 @@ export class OverlayFoundationController {
                         replacement.setCoords();
                         this.host.replaceBaseImage(transaction, replacement, {
                             baseScale: 1,
-                            mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+                            mimeType: output.mimeType,
                         });
                         replacementTransferred = true;
                         for (const object of selected) {

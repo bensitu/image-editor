@@ -1,11 +1,11 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
-const require_overlay = require("./overlay-BOXhpeu0.cjs");
-const require_core = require("./core-GR9aQ4Ip.cjs");
+const require_overlay = require("./overlay-CGcUbhau.cjs");
+const require_core = require("./core-BRyf9CBJ.cjs");
 const require_internal_layer_placement = require("./internal-layer-placement-BVTXDv2N.cjs");
 const require_safe_object_key = require("./safe-object-key-B_cQ-6i9.cjs");
-const require_image_budget = require("./image-budget-HITdUNa5.cjs");
+const require_image_budget = require("./image-budget-BAyRgd0r.cjs");
 
 // dist/esm/core/editor-object-kind.js
 function markMaskObject(object, meta) {
@@ -1460,4 +1460,4 @@ Object.defineProperty(exports, "maskPluginRef", {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-DS787SpI.cjs.map
+//# sourceMappingURL=mask-BhUvFC9D.cjs.map

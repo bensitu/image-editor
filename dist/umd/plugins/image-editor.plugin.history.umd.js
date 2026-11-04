@@ -44,6 +44,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return total > Number.MAX_SAFE_INTEGER - additional ? Number.MAX_SAFE_INTEGER : total + additional;
 	}
 	function utf8ByteLength(value) {
+		if (/^\p{ASCII}*$/u.test(value)) return value.length;
 		let bytes = 0;
 		for (let index = 0; index < value.length; index += 1) {
 			const codeUnit = value.charCodeAt(index);
@@ -60,7 +61,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		var _a;
 		return utf8ByteLength(typeof key === "symbol" ? (_a = key.description) !== null && _a !== void 0 ? _a : "" : String(key));
 	}
-	function estimateObjectBytes(value, seen) {
+	function estimateObjectBytes(value, seen, sharedStrings) {
 		if (seen.has(value)) return 0;
 		seen.add(value);
 		if (value instanceof ArrayBuffer) return value.byteLength;
@@ -70,15 +71,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (value instanceof Map) {
 			for (const [key, entryValue] of value) {
 				bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
-				bytes = addBytes(bytes, estimateValueBytes(key, seen));
-				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+				bytes = addBytes(bytes, estimateValueBytes(key, seen, sharedStrings));
+				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen, sharedStrings));
 			}
 			return bytes;
 		}
 		if (value instanceof Set) {
 			for (const entryValue of value) {
 				bytes = addBytes(bytes, COLLECTION_ENTRY_OVERHEAD_BYTES);
-				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen));
+				bytes = addBytes(bytes, estimateValueBytes(entryValue, seen, sharedStrings));
 			}
 			return bytes;
 		}
@@ -87,25 +88,30 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (!descriptor || !("value" in descriptor)) continue;
 			bytes = addBytes(bytes, PROPERTY_OVERHEAD_BYTES);
 			bytes = addBytes(bytes, estimatePropertyKeyBytes(key));
-			bytes = addBytes(bytes, estimateValueBytes(descriptor.value, seen));
+			bytes = addBytes(bytes, estimateValueBytes(descriptor.value, seen, sharedStrings));
 		}
 		return bytes;
 	}
-	function estimateValueBytes(value, seen) {
+	function estimateValueBytes(value, seen, sharedStrings) {
 		var _a;
 		switch (typeof value) {
 			case "undefined": return 0;
 			case "boolean": return BOOLEAN_BYTES;
 			case "number": return NUMBER_BYTES;
 			case "bigint": return utf8ByteLength(value.toString());
-			case "string": return utf8ByteLength(value);
+			case "string":
+				if (value.length >= 4096) {
+					if (sharedStrings.has(value)) return 0;
+					sharedStrings.add(value);
+				}
+				return utf8ByteLength(value);
 			case "symbol": return utf8ByteLength((_a = value.description) !== null && _a !== void 0 ? _a : "");
-			case "function": return estimateObjectBytes(value, seen);
-			case "object": return value === null ? 0 : estimateObjectBytes(value, seen);
+			case "function": return estimateObjectBytes(value, seen, sharedStrings);
+			case "object": return value === null ? 0 : estimateObjectBytes(value, seen, sharedStrings);
 		}
 	}
-	function estimateRetainedBytes(value) {
-		return estimateValueBytes(value, /* @__PURE__ */ new WeakSet());
+	function estimateRetainedBytes(value, sharedStrings = /* @__PURE__ */ new Set()) {
+		return estimateValueBytes(value, /* @__PURE__ */ new WeakSet(), sharedStrings);
 	}
 
 // dist/esm/plugins/history/history-controller.js
@@ -156,12 +162,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: 0
 			});
-			Object.defineProperty(this, "baseline", {
-				enumerable: true,
-				configurable: true,
-				writable: true,
-				value: null
-			});
 			Object.defineProperty(this, "listeners", {
 				enumerable: true,
 				configurable: true,
@@ -191,15 +191,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		commit(record) {
 			if (!this.isEnabled) return;
 			if (record.operationId === _bensitu_image_editor_sdk.coreOperationIds.loadImage || record.operationId === _bensitu_image_editor_sdk.coreOperationIds.commitLoadImage || record.operationId === _bensitu_image_editor_sdk.coreOperationIds.loadState) {
-				const changed = this.resetTimeline();
-				this.baseline = record.after;
-				if (changed) this.emitChange();
+				if (this.resetTimeline()) this.emitChange();
 				return;
 			}
 			this.push(record);
 		}
 		push(record) {
-			var _a;
 			this.assertActive("push History");
 			if (!this.enabled) return;
 			if (!record || typeof record.operationId !== "string" || record.operationId.length === 0) throw new _bensitu_image_editor_core.CoreRuntimeError("[ImageEditor] History record operationId is invalid.");
@@ -213,19 +210,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const bytes = estimateRetainedBytes(retainedRecord);
 			if (bytes > this.maxBytes) {
 				const changed = this.resetTimeline();
-				this.baseline = record.after;
 				const warning = new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] History record "${record.operationId}" exceeds maxBytes and was not retained.`, { code: "HISTORY_RECORD_BYTE_LIMIT_EXCEEDED" });
 				this.reportWarning(warning, `History record "${record.operationId}" requires ${bytes} bytes, exceeding the ${this.maxBytes}-byte limit.`);
 				if (changed) this.emitChange();
 				return;
 			}
-			(_a = this.baseline) !== null && _a !== void 0 || (this.baseline = record.before);
 			this.removeEntries(this.position, this.records.length - this.position);
-			this.records.push(Object.freeze({
-				record: retainedRecord,
-				bytes
-			}));
-			this.retainedBytes += bytes;
+			this.records.push(Object.freeze({ record: retainedRecord }));
+			this.updateRetainedBytes();
 			this.evictOverflow();
 			this.position = this.records.length;
 			this.emitChange();
@@ -235,11 +227,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if ((options === null || options === void 0 ? void 0 : options.baseline) !== "current") throw new _bensitu_image_editor_core.CoreRuntimeError("[ImageEditor] History can enable only from the current baseline.", { code: "HISTORY_BASELINE_UNSUPPORTED" });
 			return this.operations.run("history:enable", async () => {
 				if (this.enabled) return;
-				const baseline = this.state.captureMemento();
+				this.state.captureMemento();
 				this.records = [];
 				this.position = 0;
 				this.retainedBytes = 0;
-				this.baseline = baseline;
 				this.enabled = true;
 				this.emitChange();
 			});
@@ -313,7 +304,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.records = [];
 			this.position = 0;
 			this.retainedBytes = 0;
-			this.baseline = null;
 			this.enabled = false;
 			this.listeners.clear();
 			this.disposed = true;
@@ -323,13 +313,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.records = [];
 			this.position = 0;
 			this.retainedBytes = 0;
-			this.baseline = null;
 			return changed;
 		}
 		removeEntries(start, deleteCount) {
 			if (deleteCount <= 0) return;
-			const removed = this.records.splice(start, deleteCount);
-			for (const entry of removed) this.retainedBytes -= entry.bytes;
+			this.records.splice(start, deleteCount);
+			this.updateRetainedBytes();
+		}
+		updateRetainedBytes() {
+			const sharedStrings = /* @__PURE__ */ new Set();
+			this.retainedBytes = this.records.reduce((total, entry) => total + estimateRetainedBytes(entry.record, sharedStrings), 0);
 		}
 		evictOverflow() {
 			while (this.records.length > this.maxSize || this.retainedBytes > this.maxBytes) this.removeEntries(0, 1);
@@ -337,10 +330,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		async restoreTransactionally(target, operation) {
 			const rollback = this.state.captureMemento();
 			try {
-				await this.state.restoreMemento(target);
+				await this.state.restoreMemento(target, { rollbackOnFailure: false });
 			} catch (error) {
 				try {
-					await this.state.restoreMemento(rollback);
+					await this.state.restoreMemento(rollback, { rollbackOnFailure: false });
 				} catch (rollbackError) {
 					const failure = new _bensitu_image_editor_core.CoreRuntimeError(`[ImageEditor] History ${operation} failed and rollback could not restore state.`, {
 						code: "HISTORY_UNRECOVERABLE_ERROR",

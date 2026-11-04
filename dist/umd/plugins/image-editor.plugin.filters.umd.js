@@ -361,6 +361,23 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return Math.floor(payload.length * 3 / 4) - padding.length;
 	}
 
+// dist/esm/utils/raster-output.js
+	function inspectRasterOutput(dataUrl, expectedMimeType) {
+		const match = /^data:(image\/(?:png|jpeg|webp));base64,/u.exec(dataUrl);
+		if (!match) throw new TypeError("Raster encoding did not produce a supported image Data URL.");
+		const mimeType = match[1];
+		if (expectedMimeType && mimeType !== expectedMimeType) throw new TypeError(`Raster encoder returned ${mimeType} instead of ${expectedMimeType}.`);
+		const bytes = base64PayloadByteLength(dataUrl.slice(match[0].length));
+		if (bytes === 0) throw new TypeError("Raster encoding produced an empty image.");
+		return Object.freeze({
+			mimeType,
+			bytes
+		});
+	}
+	function rasterBackground(format, background) {
+		return format === "jpeg" && (!background || background.trim().toLowerCase() === "transparent") ? "#ffffff" : background;
+	}
+
 // dist/esm/utils/error.js
 	function hasErrorName(error, expectedName) {
 		if (typeof error !== "object" && typeof error !== "function" || error === null) return false;
@@ -400,15 +417,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			skewY: source.skewY,
 			flipX: source.flipX,
 			flipY: source.flipY,
-			originX: "left",
-			originY: "top",
+			originX: source.originX,
+			originY: source.originY,
 			opacity: source.opacity,
 			visible: source.visible,
 			selectable: options.transient ? false : source.selectable,
 			evented: options.transient ? false : source.evented,
 			hasControls: options.transient ? false : source.hasControls,
 			hoverCursor: source.hoverCursor,
-			excludeFromExport: source.excludeFromExport,
+			excludeFromExport: options.transient ? true : source.excludeFromExport,
 			backgroundColor: (_a = options.backgroundColor) !== null && _a !== void 0 ? _a : source.backgroundColor
 		});
 		target.setCoords();
@@ -450,16 +467,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
 		});
 	}
-	function encodedBytes(dataUrl) {
-		const commaIndex = dataUrl.indexOf(",");
-		if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) throw new FilterBakeValidationError("Filtered Raster output is not a base64 Data URL.");
-		const payload = dataUrl.slice(commaIndex + 1);
-		try {
-			return base64PayloadByteLength(payload);
-		} catch (error) {
-			throw new FilterBakeValidationError("Filtered Raster output contains a malformed base64 payload.", error);
-		}
-	}
 	async function decodeBakedImage(fabric, dataUrl, timeoutMs, signal) {
 		var _a;
 		const controller = new AbortController();
@@ -488,7 +495,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) throw new FilterBakeValidationError("Base Image dimensions are invalid.");
 		const pixelBudget = Math.min(policy.maxInputPixels, policy.maxExportPixels);
 		if (width > policy.maxExportDimension || height > policy.maxExportDimension || !isPixelAreaWithinBudget(width, height, pixelBudget)) throw new FilterBakeValidationError("Filtered Raster dimensions exceed the Core policy.");
-		const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal);
+		const clone = await createFilteredImageClone(fabric, baseImage, definitions, signal, rasterBackground(normalizedOptions.format, String(baseImage.backgroundColor || "transparent")));
 		let replacement = null;
 		try {
 			throwIfAborted(signal);
@@ -506,14 +513,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				if (hasErrorName(error, "SecurityError")) throw new FilterBakeValidationError("Filtered Raster pixels cannot be exported because canvas access is blocked.", error);
 				throw error;
 			}
-			if (encodedBytes(dataUrl) > policy.maxInputBytes) throw new FilterBakeValidationError("Filtered Raster exceeds the Core input budget.");
+			const output = inspectRasterOutput(dataUrl);
+			if (output.bytes > policy.maxInputBytes) throw new FilterBakeValidationError("Filtered Raster exceeds the Core input budget.");
 			replacement = await decodeBakedImage(fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
 			throwIfAborted(signal);
 			if (replacement.width !== width || replacement.height !== height) throw new FilterBakeValidationError("Filtered Raster dimensions changed during decode.");
 			copyBaseImagePresentation(baseImage, replacement);
 			return Object.freeze({
 				image: replacement,
-				mimeType: normalizedOptions.mimeType
+				mimeType: output.mimeType
 			});
 		} catch (error) {
 			disposeFabricImage(replacement);
@@ -906,7 +914,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		renderExport(canvas, options) {
 			if (this.committedState.filters.length === 0) return;
-			const baseImage = canvas.getObjects().find((object) => object instanceof this.host.fabric.FabricImage);
+			const baseImage = canvas.getObjects().find((object) => object instanceof this.host.fabric.FabricImage && Reflect.get(object, "editorObjectKind") === "baseImage");
 			if (!baseImage) throw new Error("[ImageEditor] Filters export requires a Base Image.");
 			applyFilterDefinitions(this.host.fabric, baseImage, this.committedState.filters);
 		}

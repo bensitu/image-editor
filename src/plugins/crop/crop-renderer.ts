@@ -9,7 +9,7 @@ import type * as FabricNS from 'fabric';
 import type { CoreImageInfo, FabricModule } from '../../core/index.js';
 import type { ImageResourcePolicyPort } from '../../sdk/index.js';
 import { settleAbortable } from '../../utils/abortable-promise.js';
-import { base64PayloadByteLength } from '../../utils/base64-payload.js';
+import { inspectRasterOutput } from '../../utils/raster-output.js';
 import { hasErrorName } from '../../utils/error.js';
 import { isPixelAreaWithinBudget } from '../../utils/image-budget.js';
 import { CropValidationError } from './crop-errors.js';
@@ -42,6 +42,7 @@ export function normalizeCropApplyOptions(
     quality?: number;
     mimeType: SupportedImageMimeType;
     bakeVisibleFilters: boolean;
+    allowFormatFallback: boolean;
 }> {
     if (value !== undefined && !isRecord(value)) {
         throw new CropValidationError('Crop apply options must be an object.');
@@ -69,29 +70,11 @@ export function normalizeCropApplyOptions(
     }
     return Object.freeze({
         format,
+        allowFormatFallback: record.format === undefined,
         ...(format !== 'png' && quality !== undefined ? { quality: quality as number } : {}),
         mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
         bakeVisibleFilters: record.bakeVisibleFilters !== false,
     });
-}
-
-function encodedBytes(dataUrl: string, expectedMimeType: SupportedImageMimeType): number {
-    const commaIndex = dataUrl.indexOf(',');
-    if (commaIndex < 0 || !/;base64$/i.test(dataUrl.slice(0, commaIndex))) {
-        throw new CropValidationError('Crop output is not a base64 Data URL.');
-    }
-    const mimeType = dataUrl.slice(5, dataUrl.indexOf(';'));
-    if (mimeType !== expectedMimeType) {
-        throw new CropValidationError(
-            `Crop encoder returned ${mimeType || 'an unknown MIME'} instead of ${expectedMimeType}.`,
-        );
-    }
-    const payload = dataUrl.slice(commaIndex + 1);
-    try {
-        return base64PayloadByteLength(payload);
-    } catch {
-        throw new CropValidationError('Crop output contains a malformed base64 payload.');
-    }
 }
 
 async function decodeCropImage(
@@ -189,6 +172,10 @@ export async function renderCropImage(
     if (!context) throw new CropValidationError('Crop rendering context is unavailable.');
     let dataUrl: string;
     try {
+        if (options.format === 'jpeg') {
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, surface.width, surface.height);
+        }
         const rotation = normalizeCropRotation(rotationDegrees);
         context.translate(rect.widthPx / 2, rect.heightPx / 2);
         context.rotate((-rotation * Math.PI) / 180);
@@ -214,7 +201,11 @@ export async function renderCropImage(
         }
         throw error;
     }
-    if (encodedBytes(dataUrl, options.mimeType) > policy.maxInputBytes) {
+    const output = inspectRasterOutput(
+        dataUrl,
+        options.allowFormatFallback ? undefined : options.mimeType,
+    );
+    if (output.bytes > policy.maxInputBytes) {
         throw new CropValidationError('Crop output exceeds the Core input budget.');
     }
     const image = await decodeCropImage(host.fabric, dataUrl, policy.imageLoadTimeoutMs, signal);
@@ -223,7 +214,7 @@ export async function renderCropImage(
             throw new CropValidationError('Crop dimensions changed during decode.');
         }
         applyCropPresentation(source, image, rect, normalizeCropRotation(rotationDegrees));
-        return Object.freeze({ image, mimeType: options.mimeType });
+        return Object.freeze({ image, mimeType: output.mimeType });
     } catch (error) {
         image.dispose();
         throw error;
