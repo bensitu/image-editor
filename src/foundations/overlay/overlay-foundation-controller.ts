@@ -624,8 +624,9 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             const canvas = this.host.getCanvas();
             for (const indexed of [...this.byId.values()]) {
                 if (indexed.kind !== record) continue;
-                if (persistence.mode === 'transient' && canvas) canvas.remove(indexed.object);
-                else this.unindexObject(indexed.object);
+                if (canvas) canvas.remove(indexed.object);
+                this.unindexObject(indexed.object);
+                indexed.object.dispose();
             }
             this.rebuildIndex();
         });
@@ -871,75 +872,85 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         this.assertOpaqueIdentifier(request.id, 'Overlay mutation id');
         this.assertRuntimeIdentifier(request.operationId, 'Overlay mutation operation id');
         this.assertOpaqueIdentifier(request.action, 'Overlay mutation action');
-        const initialTargets = this.resolveOverlayIds(request.objectIds ?? []);
+        let initialTargets: readonly IndexedOverlay[] = [];
         let affectedTargets = initialTargets;
         let descriptor: OverlayMutationDescriptor | null = null;
-        return this.mutations.run({
-            id: request.id,
-            kind: 'overlay',
-            operationId: request.operationId,
-            conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
-            ...(request.parent ? { parent: request.parent } : {}),
-            ...(request.metadata ? { metadata: request.metadata } : {}),
-            mutate: async (transaction) => {
-                const context = this.createMutationContext(
-                    transaction,
-                    request.action,
-                    initialTargets,
-                );
-                return request.mutate(context);
-            },
-            synchronize: async (result, transaction) => {
-                this.rebuildIndex();
-                const context = this.createMutationContext(
-                    transaction,
-                    request.action,
-                    initialTargets,
-                );
-                const additional = request.affectedObjects
-                    ? await request.affectedObjects(result, context)
-                    : [];
-                affectedTargets = this.mergeTargets(
-                    initialTargets,
-                    this.resolveOverlayObjects(additional),
-                );
-                descriptor = this.createMutationDescriptor(
-                    request.id,
-                    request.operationId,
-                    request.action,
-                    affectedTargets,
-                    transaction.metadata,
-                );
-                await this.runInteractionPolicies(
-                    affectedTargets,
-                    descriptor,
-                    transaction,
-                    'synchronize',
-                );
-                await request.synchronize?.(result, context);
-            },
-            validate: async (result, transaction) => {
-                const currentDescriptor = descriptor;
-                if (!currentDescriptor) {
-                    throw new CoreRuntimeError(
-                        '[ImageEditor] Overlay mutation synchronization did not produce a descriptor.',
+        return this.mutations
+            .run({
+                id: request.id,
+                kind: 'overlay',
+                rollback: () => undefined,
+                operationId: request.operationId,
+                conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
+                ...(request.parent ? { parent: request.parent } : {}),
+                ...(request.metadata ? { metadata: request.metadata } : {}),
+                mutate: async (transaction) => {
+                    initialTargets = this.resolveOverlayIds(request.objectIds ?? []);
+                    const context = this.createMutationContext(
+                        transaction,
+                        request.action,
+                        initialTargets,
                     );
-                }
-                await this.validateMutation(affectedTargets, currentDescriptor, transaction);
-                await request.validate?.(
-                    result,
-                    this.createMutationContext(transaction, request.action, affectedTargets),
-                );
-            },
-            describeCommit: () => {
-                if (!descriptor) {
-                    throw new CoreRuntimeError(
-                        '[ImageEditor] Overlay mutation descriptor is unavailable at commit.',
+                    return request.mutate(context);
+                },
+                synchronize: async (result, transaction) => {
+                    this.rebuildIndex();
+                    const context = this.createMutationContext(
+                        transaction,
+                        request.action,
+                        initialTargets,
                     );
-                }
-                return descriptor;
-            },
-        });
+                    const additional = request.affectedObjects
+                        ? await request.affectedObjects(result, context)
+                        : [];
+                    affectedTargets = this.mergeTargets(
+                        initialTargets,
+                        this.resolveOverlayObjects(additional),
+                    );
+                    descriptor = this.createMutationDescriptor(
+                        request.id,
+                        request.operationId,
+                        request.action,
+                        affectedTargets,
+                        transaction.metadata,
+                    );
+                    await this.runInteractionPolicies(
+                        affectedTargets,
+                        descriptor,
+                        transaction,
+                        'synchronize',
+                    );
+                    await request.synchronize?.(result, context);
+                },
+                validate: async (result, transaction) => {
+                    const currentDescriptor = descriptor;
+                    if (!currentDescriptor) {
+                        throw new CoreRuntimeError(
+                            '[ImageEditor] Overlay mutation synchronization did not produce a descriptor.',
+                        );
+                    }
+                    await this.validateMutation(affectedTargets, currentDescriptor, transaction);
+                    await request.validate?.(
+                        result,
+                        this.createMutationContext(transaction, request.action, affectedTargets),
+                    );
+                },
+                describeCommit: () => {
+                    if (!descriptor) {
+                        throw new CoreRuntimeError(
+                            '[ImageEditor] Overlay mutation descriptor is unavailable at commit.',
+                        );
+                    }
+                    return descriptor;
+                },
+            })
+            .then((result) => {
+                this.disposeDetachedObjects(
+                    initialTargets.map((entry) => entry.object).filter((object) => !object.canvas),
+                    'Removed Overlay object cleanup failed.',
+                );
+                return result;
+            });
     }
 
     add(objects: readonly FabricNS.FabricObject[]): Promise<void> {
@@ -1099,19 +1110,38 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     async flatten(query: OverlayQuery = {}, options: FlattenOptions = {}): Promise<void> {
         this.assertActive('flatten overlays');
-        const selected = this.list({
+        const selectedIds = this.list({
             ...query,
             includeHidden: query.includeHidden === true,
             includeLocked: true,
-        });
-        if (selected.length === 0) return;
+        })
+            .filter(
+                (object) =>
+                    this.byObject.get(object)?.kind.definition.persistence.mode === 'persistent',
+            )
+            .map((object) => this.byObject.get(object)!.persistentId);
+        if (selectedIds.length === 0) return;
+        const flattenedObjects: FabricNS.FabricObject[] = [];
         this.assertFlattenBudget();
         await this.geometry.run({
             id: `overlay:flatten:${Date.now()}:${++this.generatedIdSequence}`,
             kind: 'flatten',
             operationId: 'overlay:flatten',
-            metadata: Object.freeze({ overlayCount: selected.length }),
+            metadata: Object.freeze({ overlayCount: selectedIds.length }),
             mutateBase: async ({ signal, transaction }) => {
+                const selected = selectedIds.flatMap((id) => {
+                    const indexed = this.byId.get(id);
+                    if (
+                        !indexed ||
+                        (query.includeHidden !== true && this.classificationFor(indexed).hidden)
+                    )
+                        return [];
+                    return [indexed.object];
+                });
+                if (selected.length === 0)
+                    throw new CoreRuntimeError(
+                        '[ImageEditor] No persistent overlays remain to flatten.',
+                    );
                 const canvas = this.host.requireCanvas('flatten overlays');
                 const baseImage = this.host.getBaseImage();
                 if (!baseImage) {
@@ -1172,7 +1202,10 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                             mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
                         });
                         replacementTransferred = true;
-                        for (const object of selected) canvas.remove(object);
+                        for (const object of selected) {
+                            canvas.remove(object);
+                            flattenedObjects.push(object);
+                        }
                     } catch (error) {
                         if (replacement && !replacementTransferred) {
                             try {
@@ -1191,6 +1224,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                 }
             },
         });
+        this.disposeDetachedObjects(flattenedObjects, 'Flattened Overlay object cleanup failed.');
     }
 
     private assertFlattenBudget(
@@ -1482,7 +1516,9 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         const canvas = this.host.getCanvas();
         if (canvas) {
             canvas.discardActiveObject();
-            for (const indexed of [...this.byId.values()]) canvas.remove(indexed.object);
+            const objects = [...this.byId.values()].map((entry) => entry.object);
+            for (const object of objects) canvas.remove(object);
+            this.disposeDetachedObjects(objects, 'Removed Overlay object cleanup failed.');
         }
         this.byId.clear();
         this.preservedRecords = [];
@@ -2083,6 +2119,11 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             const objects = this.indexedCanvasObjects().filter((object) => {
                 const indexed = this.byObject.get(object)!;
                 const classification = this.classificationFor(indexed);
+                if (
+                    indexed.kind.definition.persistence.mode === 'transient' ||
+                    object.excludeFromExport
+                )
+                    return false;
                 if (included && !included.has(classification.kind)) return false;
                 if (!included && indexed.kind.definition.exportByDefault === false) return false;
                 if (excluded?.has(classification.kind)) return false;
@@ -2276,7 +2317,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         const randomId = globalThis.crypto?.randomUUID?.();
         return randomId
             ? `${kind}:${randomId}`
-            : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}`;
+            : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}:${Math.random().toString(36).slice(2)}`;
     }
 
     private createFabricUtilAccess(): FabricUtilAccess {

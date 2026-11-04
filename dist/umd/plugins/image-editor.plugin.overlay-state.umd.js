@@ -33,6 +33,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		"state"
 	]);
 
+// dist/esm/plugin-kernel/semver.js
+	const numericIdentifier = "(?:0|[1-9]\\d*)";
+	const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
+	const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, "u");
+	const partialVersionPattern = new RegExp(`^(${numericIdentifier})(?:\\.(${numericIdentifier}|[xX*]))?(?:\\.(${numericIdentifier}|[xX*]))?$`, "u");
+	const MAX_SEMVER_INPUT_LENGTH = 256;
+	function isValidSemVer(version) {
+		return version.length <= MAX_SEMVER_INPUT_LENGTH && version.trim() === version && semVerPattern.test(version);
+	}
+
 // dist/esm/plugins/overlay-state/overlay-state-errors.js
 	var OverlayStateValidationError = class extends TypeError {
 		constructor(issues) {
@@ -156,16 +166,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const OVERLAY_STATE_SCHEMA = "image-editor.overlay-state";
 	const OVERLAY_STATE_WIRE_VERSION = 2;
 	const OVERLAY_STATE_COORDINATE_SPACE = "image-normalized";
-
-// dist/esm/plugin-kernel/semver.js
-	const numericIdentifier = "(?:0|[1-9]\\d*)";
-	const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
-	const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, "u");
-	const partialVersionPattern = new RegExp(`^(${numericIdentifier})(?:\\.(${numericIdentifier}|[xX*]))?(?:\\.(${numericIdentifier}|[xX*]))?$`, "u");
-	const MAX_SEMVER_INPUT_LENGTH = 256;
-	function isValidSemVer(version) {
-		return version.length <= MAX_SEMVER_INPUT_LENGTH && version.trim() === version && semVerPattern.test(version);
-	}
 
 // dist/esm/utils/safe-object-key.js
 	function isUnsafeObjectKey(key) {
@@ -559,7 +559,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 // dist/esm/plugins/overlay-state/overlay-state-controller.js
 	const IMPORT_OPERATION_ID = "overlay-state:import";
 	const MAX_PERSISTENT_ID_LENGTH = 128;
-	const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 	function invalidResult(issues) {
 		return Object.freeze({
 			valid: false,
@@ -592,7 +591,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function resolveStateKind(overlay, kind) {
 		const adapter = overlay.getStateKind(kind);
 		const codec = adapter === null || adapter === void 0 ? void 0 : adapter.stateCodec;
-		if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== "persistent" || !codec || typeof codec.type !== "string" || !(0, _bensitu_image_editor_sdk.isRuntimeIdentifier)(codec.type) || typeof codec.version !== "string" || !SEMVER_PATTERN.test(codec.version) || typeof codec.serialize !== "function" || typeof codec.validate !== "function" || typeof codec.deserialize !== "function") return null;
+		if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== "persistent" || !codec || typeof codec.type !== "string" || !(0, _bensitu_image_editor_sdk.isRuntimeIdentifier)(codec.type) || typeof codec.version !== "string" || !isValidSemVer(codec.version) || typeof codec.serialize !== "function" || typeof codec.validate !== "function" || typeof codec.deserialize !== "function") return null;
 		return Object.freeze({
 			adapter,
 			codec
@@ -729,7 +728,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return result.document;
 		}
 		async importState(payload, options = {}) {
-			var _a, _b, _c, _d, _e, _f;
+			var _a, _b, _c;
 			this.assertActive("import Overlay State");
 			const mode = (_a = options.mode) !== null && _a !== void 0 ? _a : "replace";
 			const idConflict = (_b = options.idConflict) !== null && _b !== void 0 ? _b : "error";
@@ -740,104 +739,106 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			if (!validated.valid || !validated.document) throw new OverlayStateValidationError(validated.errors);
 			const document = validated.document;
-			const context = createOverlayStateContext(this.baseImage);
-			const existingObjects = this.overlay.list({
-				includeHidden: true,
-				includeLocked: true
-			});
-			const persistentIds = [];
-			const persistentObjects = [];
-			const allIds = /* @__PURE__ */ new Set();
-			for (const object of existingObjects) {
-				const classification = this.overlay.classify(object);
-				if (!classification) continue;
-				allIds.add(classification.persistentId);
-				if (((_d = this.overlay.getStateKind(classification.kind)) === null || _d === void 0 ? void 0 : _d.persistence.mode) === "persistent") {
-					persistentIds.push(classification.persistentId);
-					persistentObjects.push(object);
-				}
-			}
-			const removeIds = mode === "replace" ? Object.freeze(persistentIds) : Object.freeze([]);
-			const removeObjects = mode === "replace" ? Object.freeze(persistentObjects) : Object.freeze([]);
-			const reserved = new Set(allIds);
-			if (mode === "replace") for (const id of removeIds) reserved.delete(id);
 			const idMapEntries = [];
 			const additions = [];
 			const preparedObjects = /* @__PURE__ */ new Set();
+			const removedObjects = [];
 			let skipped = 0;
 			const ordered = document.overlays.map((item, index) => ({
 				item,
 				index
 			})).sort((left, right) => left.item.layer - right.item.layer);
 			try {
-				for (const { item, index } of ordered) {
-					const resolved = resolveStateKind(this.overlay, item.kind);
-					if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
-						if (missingKindPolicy === "skip") {
-							skipped += 1;
-							continue;
-						}
-						throw new OverlayStateCodecError(item.kind);
-					}
-					let persistentId = item.id;
-					if (reserved.has(persistentId)) {
-						if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
-						const regenerated = nextAvailableId(persistentId, reserved);
-						idMapEntries.push(Object.freeze([persistentId, regenerated]));
-						persistentId = regenerated;
-					}
-					reserved.add(persistentId);
-					const value = stateValue(document, index);
-					const object = await resolved.codec.deserialize(value, context.codec);
-					if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-					preparedObjects.add(object);
-					const marked = object;
-					marked.editorOverlayKind = item.kind;
-					marked.editorOverlayId = persistentId;
-					marked.editorOverlayHidden = item.hidden;
-					marked.editorOverlayLocked = item.locked;
-					(_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 || _f.call(_e, object, persistentId);
-					if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-					if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
-					else object.set({ visible: !item.hidden });
-					if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
-					else object.set({
-						selectable: !item.locked,
-						evented: !item.locked
-					});
-					additions.push(Object.freeze({
-						kind: item.kind,
-						persistentId,
-						object
-					}));
-				}
-				const additionObjects = Object.freeze(additions.map((entry) => entry.object));
-				if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
-				if (removeIds.length > 0 || additions.length > 0) await this.overlay.mutate({
+				await this.overlay.mutate({
 					id: `overlay-state:import-${++this.sequence}`,
 					operationId: IMPORT_OPERATION_ID,
 					action: "delete",
-					objectIds: removeIds,
-					mutate: () => {
+					mutate: async () => {
+						var _a, _b, _c;
+						const context = createOverlayStateContext(this.baseImage);
+						const existingObjects = this.overlay.list({
+							includeHidden: true,
+							includeLocked: true
+						});
+						const persistentIds = [];
+						const persistentObjects = [];
+						const allIds = /* @__PURE__ */ new Set();
+						for (const object of existingObjects) {
+							const classification = this.overlay.classify(object);
+							if (!classification) continue;
+							allIds.add(classification.persistentId);
+							if (((_a = this.overlay.getStateKind(classification.kind)) === null || _a === void 0 ? void 0 : _a.persistence.mode) === "persistent") {
+								persistentIds.push(classification.persistentId);
+								persistentObjects.push(object);
+							}
+						}
+						const removeIds = mode === "replace" ? Object.freeze(persistentIds) : Object.freeze([]);
+						const removeObjects = mode === "replace" ? Object.freeze(persistentObjects) : Object.freeze([]);
+						const reserved = new Set(allIds);
+						if (mode === "replace") for (const id of removeIds) reserved.delete(id);
+						if (context.image.naturalWidth !== document.image.naturalWidth || context.image.naturalHeight !== document.image.naturalHeight) this.diagnostics.reportWarning(/* @__PURE__ */ new Error("Overlay image dimensions differ from the current image."), "Normalized Overlay coordinates will be scaled to the current image.");
+						for (const { item, index } of ordered) {
+							const resolved = resolveStateKind(this.overlay, item.kind);
+							if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
+								if (missingKindPolicy === "skip") {
+									skipped += 1;
+									continue;
+								}
+								throw new OverlayStateCodecError(item.kind);
+							}
+							let persistentId = item.id;
+							if (reserved.has(persistentId)) {
+								if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
+								const regenerated = nextAvailableId(persistentId, reserved);
+								idMapEntries.push(Object.freeze([persistentId, regenerated]));
+								persistentId = regenerated;
+							}
+							reserved.add(persistentId);
+							const value = stateValue(document, index);
+							const object = await resolved.codec.deserialize(value, context.codec);
+							if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+							preparedObjects.add(object);
+							const marked = object;
+							marked.editorOverlayKind = item.kind;
+							marked.editorOverlayId = persistentId;
+							marked.editorOverlayHidden = item.hidden;
+							marked.editorOverlayLocked = item.locked;
+							(_c = (_b = resolved.adapter).setPersistentId) === null || _c === void 0 || _c.call(_b, object, persistentId);
+							if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+							if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
+							else object.set({ visible: !item.hidden });
+							if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
+							else object.set({
+								selectable: !item.locked,
+								evented: !item.locked
+							});
+							additions.push(Object.freeze({
+								kind: item.kind,
+								persistentId,
+								object
+							}));
+						}
+						const additionObjects = Object.freeze(additions.map((entry) => entry.object));
+						if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
 						const canvas = this.canvas.requireCanvas("import Overlay State");
 						canvas.discardActiveObject();
-						for (const object of removeObjects) canvas.remove(object);
+						for (const object of removeObjects) {
+							canvas.remove(object);
+							removedObjects.push(object);
+						}
 						for (const object of additionObjects) canvas.add(object);
 					},
-					affectedObjects: () => additionObjects,
+					affectedObjects: () => additions.map((entry) => entry.object),
 					validate: () => {
 						for (const addition of additions) if (this.overlay.getByPersistentId(addition.persistentId) !== addition.object) throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
 					},
-					metadata: Object.freeze({
-						mode,
-						imported: additions.length,
-						skipped
-					})
+					metadata: Object.freeze({ mode })
 				});
 			} catch (error) {
 				this.disposePreparedObjects(preparedObjects);
 				throw error;
 			}
+			this.disposePreparedObjects(new Set(removedObjects));
 			return Object.freeze({
 				mode,
 				imported: additions.length,

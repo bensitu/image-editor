@@ -335,3 +335,15 @@ test('rollback remains authoritative after an aborted Fabric animation writes on
     assert.equal(image.scaleY, 1);
     controller.dispose();
 });
+
+test('queued zoom increments accumulate from the execution-time scale', async () => {
+    const { editor, transform } = await createEditor({ animationDuration: 0, scaleStep: 0.1 });
+    await load(editor);
+    try {
+        await Promise.all([transform.zoomIn(), transform.zoomIn(), transform.zoomIn()]);
+        assert.equal(transform.getState().scale, 1.3);
+        await assert.rejects(transform.scale(NaN), /finite/);
+    } finally {
+        await dispose(editor);
+    }
+});

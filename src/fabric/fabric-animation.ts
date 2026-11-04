@@ -229,7 +229,9 @@ export function restoreOrigin(
     originY: FabricNS.TOriginY,
 ): void {
     try {
+        const center = object.getCenterPoint();
         object.set({ originX, originY });
+        object.setPositionByOrigin(center, 'center', 'center');
         object.setCoords();
     } catch {
         // The object may already be detached from a disposed canvas.

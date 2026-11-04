@@ -23,6 +23,7 @@ import { reportWarning } from '../core/callback-reporter.js';
 import { copySafeOwnProperties } from '../core/safe-object-copy.js';
 import { attachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
+import { isSafeSerializedFabricObject } from '../fabric/safe-fabric-serialization.js';
 import { isPixelAreaWithinBudget } from '../utils/image-budget.js';
 
 const POLYGON_AREA_EPSILON = 1e-6;
@@ -128,7 +129,10 @@ function isResolvableNumericInput(value: unknown): boolean {
     if (value === undefined) return true;
     if (typeof value === 'number') return Number.isFinite(value);
     if (typeof value === 'function') return true;
-    if (typeof value === 'string' && value.endsWith('%')) {
+    if (
+        typeof value === 'string' &&
+        /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/iu.test(value)
+    ) {
         return Number.isFinite(Number.parseFloat(value));
     }
     return false;
@@ -214,6 +218,7 @@ function resolvePolygonPoints(
         warnInvalidMask(options, 'polygon masks require at least three points');
         return null;
     }
+    if (points.length > 4096) return null;
     const resolvedPoints = points.map(coercePoint);
     const allFinite = resolvedPoints.every(
         (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
@@ -308,11 +313,9 @@ function resolveMaskPlacement(
     const firstOffset = 10;
     const previousMask = context.getLastMask();
     if (mergedConfig.left === undefined && previousMask) {
-        const previousRight =
-            (previousMask.left ?? 0) +
-            (typeof previousMask.getScaledWidth === 'function'
-                ? previousMask.getScaledWidth()
-                : (previousMask.width ?? 0) * (previousMask.scaleX ?? 1));
+        previousMask.setCoords();
+        const previousBounds = previousMask.getBoundingRect();
+        const previousRight = previousBounds.left + previousBounds.width;
         return {
             left: Math.round(previousRight + (resolvedConfig.gap ?? 5)),
             top: previousMask.top ?? firstOffset,
@@ -409,8 +412,30 @@ function validateResolvedMask(
         !validatePositiveField(options, 'height', resolvedConfig.height) ||
         !validateFiniteField(options, 'gap', resolvedConfig.gap) ||
         !validateFiniteField(options, 'angle', resolvedConfig.angle) ||
-        !validateFiniteField(options, 'alpha', resolvedConfig.alpha)
+        !validateFiniteField(options, 'alpha', resolvedConfig.alpha) ||
+        resolvedConfig.alpha < 0 ||
+        resolvedConfig.alpha > 1
     ) {
+        return false;
+    }
+    const styles = resolvedConfig.styles ?? {};
+    const allowedStyles = new Set(['fill', 'stroke', 'strokeWidth', 'strokeDashArray', 'opacity']);
+    if (
+        Object.keys(styles).some((key) => !allowedStyles.has(key)) ||
+        (styles.fill !== undefined && typeof styles.fill !== 'string') ||
+        (styles.stroke !== undefined &&
+            styles.stroke !== null &&
+            typeof styles.stroke !== 'string') ||
+        (styles.strokeWidth !== undefined &&
+            (!Number.isFinite(styles.strokeWidth) || styles.strokeWidth < 0)) ||
+        (styles.opacity !== undefined &&
+            (!Number.isFinite(styles.opacity) || styles.opacity < 0 || styles.opacity > 1)) ||
+        (styles.strokeDashArray != null &&
+            (!Array.isArray(styles.strokeDashArray) ||
+                styles.strokeDashArray.length > 16 ||
+                styles.strokeDashArray.some((entry) => !Number.isFinite(entry) || entry < 0)))
+    ) {
+        warnInvalidMask(options, 'styles contain unsupported properties or invalid values');
         return false;
     }
     return !(
@@ -426,12 +451,17 @@ function expandMaskCanvas(
     context: CreateMaskContext,
     placement: ResolvedMaskPlacement,
     resolvedConfig: ResolvedMaskConfig,
+    bounds?: { left: number; top: number; width: number; height: number },
 ): MaskCanvasExpansion | null {
     const { canvas, options } = context;
     let preExpandCanvasSize: { width: number; height: number } | null = null;
     if (options.layoutMode === 'expand') {
-        const requiredWidth = Math.ceil(placement.left + resolvedConfig.width + 10);
-        const requiredHeight = Math.ceil(placement.top + resolvedConfig.height + 10);
+        const requiredWidth = Math.ceil(
+            (bounds?.left ?? placement.left) + (bounds?.width ?? resolvedConfig.width) + 10,
+        );
+        const requiredHeight = Math.ceil(
+            (bounds?.top ?? placement.top) + (bounds?.height ?? resolvedConfig.height) + 10,
+        );
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
         const maxExportDimension = options.maxExportDimension;
@@ -619,7 +649,7 @@ function applyCommonMaskProperties(
         maskId: nextId,
         maskUid: createMaskUid(nextId),
         maskName: `${options.maskName}${nextId}`,
-        originalAlpha: resolvedConfig.alpha,
+        originalAlpha: Number(maskObject.opacity),
         originalStroke: maskObject.stroke,
         originalStrokeWidth: maskObject.strokeWidth,
     });
@@ -703,8 +733,7 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
 
     // Never use viewport dimensions as an expansion floor; doing so could shrink
     // a wider-than-viewport Canvas and remove its scrollbar.
-    const expansion = expandMaskCanvas(context, placement, resolvedConfig);
-    if (!expansion) return null;
+    const expansion: MaskCanvasExpansion = { rollback() {} };
     const mask = buildFabricShape(
         context,
         config,
@@ -716,6 +745,39 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     );
     if (!mask) return null;
 
+    if (
+        mask.canvas ||
+        !isSafeSerializedFabricObject(mask.toObject(), {
+            rootTypes: ['rect', 'circle', 'ellipse', 'polygon'],
+        })
+    ) {
+        if (!mask.canvas) mask.dispose();
+        warnInvalidMask(
+            options,
+            'generated masks must use supported persistent shapes and properties',
+        );
+        return null;
+    }
+    mask.setCoords();
+    const bounds = mask.getBoundingRect();
+    if (
+        ![bounds.left, bounds.top, bounds.width, bounds.height].every(Number.isFinite) ||
+        bounds.width <= 0 ||
+        bounds.height <= 0
+    ) {
+        mask.dispose();
+        warnInvalidMask(options, 'generated mask bounds must be finite and positive');
+        return null;
+    }
+    try {
+        if (!expandMaskCanvas(context, placement, resolvedConfig, bounds)) {
+            mask.dispose();
+            return null;
+        }
+    } catch (error) {
+        mask.dispose();
+        throw error;
+    }
     const maskObject = applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig);
     return finalizeMaskAttachment(context, config, resolvedConfig, maskObject);
 }

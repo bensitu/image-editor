@@ -280,6 +280,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         this.registrations.push(
             overlay.registerKind({
                 id: ANNOTATION_PREVIEW_KIND,
+                exportByDefault: false,
                 ownerPluginId: ANNOTATION_FOUNDATION_ID,
                 classify: (object) =>
                     (object as PreviewObject).editorAnnotationPreviewOwner !== undefined &&

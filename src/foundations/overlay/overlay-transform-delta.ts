@@ -17,8 +17,6 @@ export interface FabricUtilAccess {
         skewY?: number;
         translateX: number;
         translateY: number;
-        flipX?: boolean;
-        flipY?: boolean;
     };
     Point: new (x: number, y: number) => FabricNS.Point;
 }
@@ -113,12 +111,6 @@ export function applyDeltaToObject(
             skewX: decomposed.skewX,
             skewY: decomposed.skewY ?? 0,
         });
-        if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
-            object.set({
-                ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
-                ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
-            });
-        }
         restoreCenter = targetCenter;
         committed = true;
     } finally {

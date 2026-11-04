@@ -152,7 +152,7 @@ test('Mask Plugin creates every built-in shape and custom Fabric generators with
     const custom = await masks.create({
         fabricGenerator: (config, _canvas, options) => {
             observedFactoryOptions = options;
-            return new fabric.Triangle({
+            return new fabric.Rect({
                 width: config.width,
                 height: config.height,
                 fill: '#111111',
@@ -163,7 +163,7 @@ test('Mask Plugin creates every built-in shape and custom Fabric generators with
     assert.ok(circle instanceof fabric.Circle);
     assert.ok(ellipse instanceof fabric.Ellipse);
     assert.ok(polygon instanceof fabric.Polygon);
-    assert.ok(custom instanceof fabric.Triangle);
+    assert.ok(custom instanceof fabric.Rect);
     assert.deepEqual(
         masks.getAll().map((mask) => mask.maskId),
         [5, 4, 3, 2, 1],
@@ -628,4 +628,39 @@ test('Mask flatten removes masks through the Foundation and plugin disposal deta
     await dispose(editor);
     assert.equal(next.imageEditorMaskHandlers, undefined);
     assert.equal(canvas.__eventListeners?.['object:moving']?.length ?? 0, 0);
+});
+
+test('Mask creation rejects unsupported persistent shapes and invalid styling without changing the document', async () => {
+    const { editor, masks } = await createEditor({ label: false });
+    await load(editor);
+    const before = editor.saveState();
+    try {
+        for (const config of [
+            { fabricGenerator: () => new fabric.Triangle({ width: 20, height: 20 }) },
+            { alpha: 5 },
+            { width: '12abc%' },
+            { styles: { width: 99999 } },
+            { styles: { opacity: NaN } },
+        ]) {
+            await assert.rejects(masks.create(config), /configuration is invalid/);
+            assert.equal(editor.saveState(), before);
+        }
+    } finally {
+        await dispose(editor);
+    }
+});
+
+test('removing selected Masks deletes the complete selection in one mutation', async () => {
+    const { editor, masks, overlay } = await createEditor({ label: false });
+    await load(editor);
+    try {
+        const first = await masks.create({ left: 10, top: 10 });
+        const second = await masks.create({ left: 80, top: 10 });
+        overlay.select([first.maskUid, second.maskUid]);
+        await masks.removeSelected();
+        assert.equal(masks.getAll().length, 0);
+        assert.deepEqual(overlay.getSelection().ids, []);
+    } finally {
+        await dispose(editor);
+    }
 });

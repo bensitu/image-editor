@@ -541,10 +541,10 @@ export class OverlayFoundationController {
             for (const indexed of [...this.byId.values()]) {
                 if (indexed.kind !== record)
                     continue;
-                if (persistence.mode === 'transient' && canvas)
+                if (canvas)
                     canvas.remove(indexed.object);
-                else
-                    this.unindexObject(indexed.object);
+                this.unindexObject(indexed.object);
+                indexed.object.dispose();
             }
             this.rebuildIndex();
         });
@@ -762,22 +762,25 @@ export class OverlayFoundationController {
         return this.mutateLayer(id, 'back', () => this.moveToOverlayIndex(id, 0, this.indexedCanvasObjects()));
     }
     async mutate(request) {
-        var _a;
         this.assertActive('run an overlay mutation');
         this.assertOpaqueIdentifier(request.id, 'Overlay mutation id');
         this.assertRuntimeIdentifier(request.operationId, 'Overlay mutation operation id');
         this.assertOpaqueIdentifier(request.action, 'Overlay mutation action');
-        const initialTargets = this.resolveOverlayIds((_a = request.objectIds) !== null && _a !== void 0 ? _a : []);
+        let initialTargets = [];
         let affectedTargets = initialTargets;
         let descriptor = null;
-        return this.mutations.run({
+        return this.mutations
+            .run({
             id: request.id,
             kind: 'overlay',
+            rollback: () => undefined,
             operationId: request.operationId,
             conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
             ...(request.parent ? { parent: request.parent } : {}),
             ...(request.metadata ? { metadata: request.metadata } : {}),
             mutate: async (transaction) => {
+                var _a;
+                initialTargets = this.resolveOverlayIds((_a = request.objectIds) !== null && _a !== void 0 ? _a : []);
                 const context = this.createMutationContext(transaction, request.action, initialTargets);
                 return request.mutate(context);
             },
@@ -808,6 +811,10 @@ export class OverlayFoundationController {
                 }
                 return descriptor;
             },
+        })
+            .then((result) => {
+            this.disposeDetachedObjects(initialTargets.map((entry) => entry.object).filter((object) => !object.canvas), 'Removed Overlay object cleanup failed.');
+            return result;
         });
     }
     add(objects) {
@@ -956,21 +963,33 @@ export class OverlayFoundationController {
     }
     async flatten(query = {}, options = {}) {
         this.assertActive('flatten overlays');
-        const selected = this.list({
+        const selectedIds = this.list({
             ...query,
             includeHidden: query.includeHidden === true,
             includeLocked: true,
-        });
-        if (selected.length === 0)
+        })
+            .filter((object) => { var _a; return ((_a = this.byObject.get(object)) === null || _a === void 0 ? void 0 : _a.kind.definition.persistence.mode) === 'persistent'; })
+            .map((object) => this.byObject.get(object).persistentId);
+        if (selectedIds.length === 0)
             return;
+        const flattenedObjects = [];
         this.assertFlattenBudget();
         await this.geometry.run({
             id: `overlay:flatten:${Date.now()}:${++this.generatedIdSequence}`,
             kind: 'flatten',
             operationId: 'overlay:flatten',
-            metadata: Object.freeze({ overlayCount: selected.length }),
+            metadata: Object.freeze({ overlayCount: selectedIds.length }),
             mutateBase: async ({ signal, transaction }) => {
                 var _a, _b;
+                const selected = selectedIds.flatMap((id) => {
+                    const indexed = this.byId.get(id);
+                    if (!indexed ||
+                        (query.includeHidden !== true && this.classificationFor(indexed).hidden))
+                        return [];
+                    return [indexed.object];
+                });
+                if (selected.length === 0)
+                    throw new CoreRuntimeError('[ImageEditor] No persistent overlays remain to flatten.');
                 const canvas = this.host.requireCanvas('flatten overlays');
                 const baseImage = this.host.getBaseImage();
                 if (!baseImage) {
@@ -1024,8 +1043,10 @@ export class OverlayFoundationController {
                             mimeType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
                         });
                         replacementTransferred = true;
-                        for (const object of selected)
+                        for (const object of selected) {
                             canvas.remove(object);
+                            flattenedObjects.push(object);
+                        }
                     }
                     catch (error) {
                         if (replacement && !replacementTransferred) {
@@ -1044,6 +1065,7 @@ export class OverlayFoundationController {
                 }
             },
         });
+        this.disposeDetachedObjects(flattenedObjects, 'Flattened Overlay object cleanup failed.');
     }
     assertFlattenBudget(canvas = this.host.requireCanvas('validate flatten dimensions'), baseImage = this.host.getBaseImage()) {
         if (!baseImage) {
@@ -1301,8 +1323,10 @@ export class OverlayFoundationController {
         const canvas = this.host.getCanvas();
         if (canvas) {
             canvas.discardActiveObject();
-            for (const indexed of [...this.byId.values()])
-                canvas.remove(indexed.object);
+            const objects = [...this.byId.values()].map((entry) => entry.object);
+            for (const object of objects)
+                canvas.remove(object);
+            this.disposeDetachedObjects(objects, 'Removed Overlay object cleanup failed.');
         }
         this.byId.clear();
         this.preservedRecords = [];
@@ -1781,6 +1805,9 @@ export class OverlayFoundationController {
             const objects = this.indexedCanvasObjects().filter((object) => {
                 const indexed = this.byObject.get(object);
                 const classification = this.classificationFor(indexed);
+                if (indexed.kind.definition.persistence.mode === 'transient' ||
+                    object.excludeFromExport)
+                    return false;
                 if (included && !included.has(classification.kind))
                     return false;
                 if (!included && indexed.kind.definition.exportByDefault === false)
@@ -1954,7 +1981,7 @@ export class OverlayFoundationController {
         const randomId = (_b = (_a = globalThis.crypto) === null || _a === void 0 ? void 0 : _a.randomUUID) === null || _b === void 0 ? void 0 : _b.call(_a);
         return randomId
             ? `${kind}:${randomId}`
-            : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}`;
+            : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}:${Math.random().toString(36).slice(2)}`;
     }
     createFabricUtilAccess() {
         return {

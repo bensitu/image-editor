@@ -124,7 +124,9 @@ function collectAnimationAborters(animationResult) {
 }
 export function restoreOrigin(object, originX, originY) {
     try {
+        const center = object.getCenterPoint();
         object.set({ originX, originY });
+        object.setPositionByOrigin(center, 'center', 'center');
         object.setCoords();
     }
     catch {

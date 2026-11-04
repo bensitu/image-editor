@@ -208,6 +208,7 @@ export class AnnotationController {
         this.presentations = new AnnotationPresentationManager(host, this.presentationOptions, (object) => this.describePresentationOwner(object), (id) => this.overlay.getSelection().ids.includes(id));
         this.registrations.push(overlay.registerKind({
             id: ANNOTATION_PREVIEW_KIND,
+            exportByDefault: false,
             ownerPluginId: ANNOTATION_FOUNDATION_ID,
             classify: (object) => object.editorAnnotationPreviewOwner !== undefined &&
                 object.editorOverlayKind === ANNOTATION_PREVIEW_KIND,

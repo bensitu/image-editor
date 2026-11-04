@@ -414,3 +414,27 @@ test('Overlay State import remains atomic without History and isolates editor in
     assert.ok(first.overlay.getByPersistentId(firstMask.maskUid));
     await dispose(first.editor, second.editor);
 });
+
+test('rounded Mask bounds and visible corner radii survive portable state restoration', async () => {
+    const { editor, masks, state } = await createFeatureEditor();
+    try {
+        const mask = await masks.create({
+            width: 80,
+            height: 40,
+            rx: 10,
+            ry: 6,
+            left: 20,
+            top: 15,
+        });
+        mask.set({ scaleX: 1.5, scaleY: 0.75, angle: 25 });
+        mask.setCoords();
+        const expected = { rx: mask.rx * mask.scaleX, ry: mask.ry * mask.scaleY };
+        const document = state.exportState();
+        await state.importState(document);
+        const restored = masks.getAll()[0];
+        assert.ok(Math.abs(restored.rx * restored.scaleX - expected.rx) < 1e-6);
+        assert.ok(Math.abs(restored.ry * restored.scaleY - expected.ry) < 1e-6);
+    } finally {
+        await editor.disposeAsync();
+    }
+});

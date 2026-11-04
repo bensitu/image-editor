@@ -65,16 +65,33 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 	}
 
-// dist/esm/foundations/annotation/annotation-geometry.js
-	function isFiniteMatrix(matrix) {
+// dist/esm/foundations/overlay/overlay-transform-delta.js
+	function isFiniteTransformMatrix(matrix) {
 		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
 	}
-	function hasReflection(matrix) {
-		return isFiniteMatrix(matrix) && matrix[0] * matrix[3] - matrix[1] * matrix[2] < 0;
+	function isApproximatelyIdentityTransform(matrix, epsilon = 1e-10) {
+		const identity = [
+			1,
+			0,
+			0,
+			1,
+			0,
+			0
+		];
+		return matrix.length === identity.length && matrix.every((value, index) => Math.abs(value - identity[index]) <= epsilon);
 	}
-	function stripReflection(matrix, fabric) {
-		if (!hasReflection(matrix)) return matrix;
-		const flipX = fabric.multiplyTransformMatrices(matrix, [
+	function deltaHasReflection(delta) {
+		if (!isFiniteTransformMatrix(delta)) return false;
+		const [a, b, c, d] = delta;
+		return a * d - b * c < 0;
+	}
+	function transformPointByMatrix(point, matrix, fabricUtil) {
+		const [a, b, c, d, e, f] = matrix;
+		return new fabricUtil.Point(a * point.x + c * point.y + e, b * point.x + d * point.y + f);
+	}
+	function stripReflectionFromDelta(delta, fabricUtil) {
+		if (!deltaHasReflection(delta)) return delta;
+		const flipXCandidate = fabricUtil.multiplyTransformMatrices(delta, [
 			-1,
 			0,
 			0,
@@ -82,7 +99,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			0,
 			0
 		]);
-		const flipY = fabric.multiplyTransformMatrices(matrix, [
+		const flipYCandidate = fabricUtil.multiplyTransformMatrices(delta, [
 			1,
 			0,
 			0,
@@ -90,32 +107,39 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			0,
 			0
 		]);
-		const angleMagnitude = (candidate) => {
-			const angle = fabric.qrDecompose(candidate).angle;
-			return Number.isFinite(angle) ? Math.abs((angle % 360 + 540) % 360 - 180) : Number.POSITIVE_INFINITY;
+		const normalizedAngleMagnitude = (matrix) => {
+			try {
+				const angle = fabricUtil.qrDecompose(matrix).angle;
+				return Number.isFinite(angle) ? Math.abs((angle % 360 + 540) % 360 - 180) : Number.POSITIVE_INFINITY;
+			} catch {
+				return Number.POSITIVE_INFINITY;
+			}
 		};
-		return angleMagnitude(flipY) < angleMagnitude(flipX) ? flipY : flipX;
+		return normalizedAngleMagnitude(flipYCandidate) < normalizedAngleMagnitude(flipXCandidate) ? flipYCandidate : flipXCandidate;
 	}
-	function applyAnnotationGeometry(object, mutation, fabricModule, preserveReadable) {
+	function applyDeltaToObject(object, fullDelta, context) {
 		var _a;
-		if (mutation.kind !== "transform") return;
-		const delta = mutation.affineDelta;
-		if (!delta || !isFiniteMatrix(delta)) return;
-		const fabric = {
-			multiplyTransformMatrices: (left, right) => fabricModule.util.multiplyTransformMatrices(left, right),
-			qrDecompose: (matrix) => fabricModule.util.qrDecompose(matrix),
-			Point: fabricModule.Point
-		};
+		if (!isFiniteTransformMatrix(fullDelta) || isApproximatelyIdentityTransform(fullDelta)) return;
+		const { fabricUtil } = context;
 		object.setCoords();
+		const previousTransform = {
+			angle: object.angle,
+			scaleX: object.scaleX,
+			scaleY: object.scaleY,
+			skewX: object.skewX,
+			skewY: object.skewY,
+			flipX: object.flipX,
+			flipY: object.flipY
+		};
 		const originalCenter = object.getCenterPoint();
-		const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = delta;
-		const targetCenter = new fabric.Point(a * originalCenter.x + c * originalCenter.y + e, b * originalCenter.x + d * originalCenter.y + f);
-		const orientationDelta = preserveReadable ? stripReflection(delta, fabric) : delta;
+		const targetCenter = transformPointByMatrix(originalCenter, fullDelta, fabricUtil);
+		const orientationDelta = context.preserveReadableText ? stripReflectionFromDelta(fullDelta, fabricUtil) : fullDelta;
 		let restoreCenter = originalCenter;
+		let committed = false;
 		try {
-			const nextMatrix = fabric.multiplyTransformMatrices(orientationDelta, object.calcTransformMatrix());
-			if (!isFiniteMatrix(nextMatrix)) return;
-			const decomposed = fabric.qrDecompose(nextMatrix);
+			const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, object.calcTransformMatrix());
+			if (!isFiniteTransformMatrix(nextMatrix)) return;
+			const decomposed = fabricUtil.qrDecompose(nextMatrix);
 			object.set({
 				flipX: false,
 				flipY: false
@@ -127,15 +151,27 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				skewX: decomposed.skewX,
 				skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0
 			});
-			if (typeof decomposed.flipX === "boolean" || typeof decomposed.flipY === "boolean") object.set({
-				...typeof decomposed.flipX === "boolean" ? { flipX: decomposed.flipX } : {},
-				...typeof decomposed.flipY === "boolean" ? { flipY: decomposed.flipY } : {}
-			});
 			restoreCenter = targetCenter;
+			committed = true;
 		} finally {
+			if (!committed) object.set(previousTransform);
 			object.setPositionByOrigin(restoreCenter, "center", "center");
 			object.setCoords();
 		}
+	}
+
+// dist/esm/foundations/annotation/annotation-geometry.js
+	function applyAnnotationGeometry(object, mutation, fabricModule, preserveReadable) {
+		if (mutation.kind !== "transform" || !mutation.affineDelta) return;
+		applyDeltaToObject(object, [...mutation.affineDelta], {
+			preserveReadableText: preserveReadable,
+			fabricUtil: {
+				multiplyTransformMatrices: (left, right) => fabricModule.util.multiplyTransformMatrices(left, right),
+				invertTransform: (matrix) => fabricModule.util.invertTransform(matrix),
+				qrDecompose: (matrix) => fabricModule.util.qrDecompose(matrix),
+				Point: fabricModule.Point
+			}
+		});
 	}
 
 // dist/esm/foundations/annotation/annotation-errors.js
@@ -861,6 +897,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.presentations = new AnnotationPresentationManager(host, this.presentationOptions, (object) => this.describePresentationOwner(object), (id) => this.overlay.getSelection().ids.includes(id));
 			this.registrations.push(overlay.registerKind({
 				id: ANNOTATION_PREVIEW_KIND,
+				exportByDefault: false,
 				ownerPluginId: ANNOTATION_FOUNDATION_ID,
 				classify: (object) => object.editorAnnotationPreviewOwner !== void 0 && object.editorOverlayKind === ANNOTATION_PREVIEW_KIND,
 				getPersistentId: (object) => {

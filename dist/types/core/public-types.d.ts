@@ -132,7 +132,7 @@ export interface MaskConfig {
     cornerSize?: number;
     /** Whether Fabric renders transparent transform-control corners. @defaultValue `false` */
     transparentCorners?: boolean;
-    /** Additional supported Fabric object properties. Falsy values are preserved. */
+    /** Fill, stroke, stroke width, dash pattern, and opacity overrides. Geometry belongs in the Mask configuration. */
     styles?: Partial<FabricNS.FabricObjectProps>;
     /**
      * Runs synchronously after the Mask is attached, selected when applicable, and rendered, but
@@ -141,7 +141,7 @@ export interface MaskConfig {
      */
     onCreate?: (mask: MaskObject, canvas: FabricNS.Canvas) => void;
     /**
-     * Creates a custom Fabric object instead of a built-in shape. Throwing or returning an invalid
+     * Creates a Rect, Circle, Ellipse, or Polygon instead of a built-in shape. Throwing or returning an invalid
      * object rejects the surrounding Mask mutation.
      */
     fabricGenerator?: (config: ResolvedMaskConfig, canvas: FabricNS.Canvas, options: MaskFactoryOptions) => FabricNS.FabricObject;

@@ -39,14 +39,18 @@ export function applyMaskUnselectedStyle(mask) {
 export function attachMaskHoverHandlers(mask) {
     const tagged = mask;
     const mouseover = () => {
-        var _a;
+        var _a, _b;
         tagged.set(getMaskHoverStyle(tagged));
-        (_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
+        if ((_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObjects().includes(tagged))
+            applyMaskSelectedStyle(tagged);
+        (_b = tagged.canvas) === null || _b === void 0 ? void 0 : _b.requestRenderAll();
     };
     const mouseout = () => {
-        var _a;
+        var _a, _b;
         tagged.set(getMaskNormalStyle(tagged));
-        (_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
+        if ((_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObjects().includes(tagged))
+            applyMaskSelectedStyle(tagged);
+        (_b = tagged.canvas) === null || _b === void 0 ? void 0 : _b.requestRenderAll();
     };
     tagged.on('mouseover', mouseover);
     tagged.on('mouseout', mouseout);

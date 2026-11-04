@@ -143,10 +143,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function restoreOrigin(object, originX, originY) {
 		try {
+			const center = object.getCenterPoint();
 			object.set({
 				originX,
 				originY
 			});
+			object.setPositionByOrigin(center, "center", "center");
 			object.setCoords();
 		} catch {}
 	}
@@ -348,21 +350,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return this.scaleWithOperation(factor, "transform:scale", options);
 		}
 		scaleWithOperation(factor, operationId, options = {}) {
-			if (!Number.isFinite(factor)) return Promise.resolve();
+			if (typeof factor === "number" && !Number.isFinite(factor)) return Promise.reject(/* @__PURE__ */ new TypeError("Scale must be finite."));
 			return this.enqueue(operationId, async (signal, animations) => {
 				const image = this.baseImage.getBaseImage();
 				if (!image) return;
-				await this.applyScale(image, factor, signal, animations);
+				await this.applyScale(image, typeof factor === "function" ? factor() : factor, signal, animations);
 			}, options);
 		}
 		zoomIn(options = {}) {
-			return this.scaleWithOperation(this.state.scale + this.options.scaleStep, "transform:zoom-in", options);
+			return this.scaleWithOperation(() => Number((this.state.scale + this.options.scaleStep).toPrecision(15)), "transform:zoom-in", options);
 		}
 		zoomOut(options = {}) {
-			return this.scaleWithOperation(this.state.scale - this.options.scaleStep, "transform:zoom-out", options);
+			return this.scaleWithOperation(() => Number((this.state.scale - this.options.scaleStep).toPrecision(15)), "transform:zoom-out", options);
 		}
 		rotate(degrees, options = {}) {
-			if (!Number.isFinite(degrees)) return Promise.resolve();
+			if (!Number.isFinite(degrees)) return Promise.reject(/* @__PURE__ */ new TypeError("Rotation must be finite."));
 			return this.enqueue("transform:rotate", async (signal, animations) => {
 				const image = this.baseImage.getBaseImage();
 				if (!image) return;
@@ -433,9 +435,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		enqueue(operationId, mutate, options) {
 			if (this.animations.isDisposed()) return Promise.resolve();
-			const image = this.baseImage.getBaseImage();
-			if (!image) return Promise.resolve();
-			const rollback = this.captureRollback(image);
+			if (!this.baseImage.getBaseImage()) return Promise.resolve();
+			let rollback = null;
+			let mutatedImage = null;
 			const mutationId = `${operationId}:${++this.mutationSequence}`;
 			const animations = this.animations.createScope();
 			let operation;
@@ -446,11 +448,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					operationId,
 					...options.parent ? { parent: options.parent } : {},
 					mutateBase: async ({ signal }) => {
+						mutatedImage = this.baseImage.getBaseImage();
+						if (mutatedImage) rollback = this.captureRollback(mutatedImage);
 						await mutate(signal, animations);
 					},
 					rollbackBase: async () => {
 						await animations.cancelAnimations();
-						this.restoreRollback(image, rollback);
+						if (mutatedImage && rollback) this.restoreRollback(mutatedImage, rollback);
 					},
 					metadata: Object.freeze({ pluginId: "plugin:transform" })
 				});
@@ -512,7 +516,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				image.setCoords();
 				this.state.rotationDegrees = degrees;
 			} finally {
-				if (this.animations.isDisposed()) restoreOrigin(image, "left", "top");
+				restoreOrigin(image, "left", "top");
 			}
 		}
 		captureRollback(image) {
@@ -526,8 +530,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					angle: Number(image.angle) || 0,
 					flipX: image.flipX === true,
 					flipY: image.flipY === true,
-					originX: "left",
-					originY: "top"
+					originX: image.originX,
+					originY: image.originY
 				})
 			});
 		}

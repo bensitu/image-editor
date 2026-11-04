@@ -8737,10 +8737,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				skewX: decomposed.skewX,
 				skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0
 			});
-			if (typeof decomposed.flipX === "boolean" || typeof decomposed.flipY === "boolean") object.set({
-				...typeof decomposed.flipX === "boolean" ? { flipX: decomposed.flipX } : {},
-				...typeof decomposed.flipY === "boolean" ? { flipY: decomposed.flipY } : {}
-			});
 			restoreCenter = targetCenter;
 			committed = true;
 		} finally {
@@ -9224,8 +9220,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const canvas = this.host.getCanvas();
 				for (const indexed of [...this.byId.values()]) {
 					if (indexed.kind !== record) continue;
-					if (persistence.mode === "transient" && canvas) canvas.remove(indexed.object);
-					else this.unindexObject(indexed.object);
+					if (canvas) canvas.remove(indexed.object);
+					this.unindexObject(indexed.object);
+					indexed.object.dispose();
 				}
 				this.rebuildIndex();
 			});
@@ -9408,22 +9405,24 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return this.mutateLayer(id, "back", () => this.moveToOverlayIndex(id, 0, this.indexedCanvasObjects()));
 		}
 		async mutate(request) {
-			var _a;
 			this.assertActive("run an overlay mutation");
 			this.assertOpaqueIdentifier(request.id, "Overlay mutation id");
 			this.assertRuntimeIdentifier(request.operationId, "Overlay mutation operation id");
 			this.assertOpaqueIdentifier(request.action, "Overlay mutation action");
-			const initialTargets = this.resolveOverlayIds((_a = request.objectIds) !== null && _a !== void 0 ? _a : []);
+			let initialTargets = [];
 			let affectedTargets = initialTargets;
 			let descriptor = null;
 			return this.mutations.run({
 				id: request.id,
 				kind: "overlay",
+				rollback: () => void 0,
 				operationId: request.operationId,
 				conflictDomains: PERSISTENT_OVERLAY_MUTATION_CONFLICT_DOMAINS,
 				...request.parent ? { parent: request.parent } : {},
 				...request.metadata ? { metadata: request.metadata } : {},
 				mutate: async (transaction) => {
+					var _a;
+					initialTargets = this.resolveOverlayIds((_a = request.objectIds) !== null && _a !== void 0 ? _a : []);
 					const context = this.createMutationContext(transaction, request.action, initialTargets);
 					return request.mutate(context);
 				},
@@ -9448,6 +9447,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					if (!descriptor) throw new CoreRuntimeError("[ImageEditor] Overlay mutation descriptor is unavailable at commit.");
 					return descriptor;
 				}
+			}).then((result) => {
+				this.disposeDetachedObjects(initialTargets.map((entry) => entry.object).filter((object) => !object.canvas), "Removed Overlay object cleanup failed.");
+				return result;
 			});
 		}
 		add(objects) {
@@ -9557,20 +9559,30 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async flatten(query = {}, options = {}) {
 			this.assertActive("flatten overlays");
-			const selected = this.list({
+			const selectedIds = this.list({
 				...query,
 				includeHidden: query.includeHidden === true,
 				includeLocked: true
-			});
-			if (selected.length === 0) return;
+			}).filter((object) => {
+				var _a;
+				return ((_a = this.byObject.get(object)) === null || _a === void 0 ? void 0 : _a.kind.definition.persistence.mode) === "persistent";
+			}).map((object) => this.byObject.get(object).persistentId);
+			if (selectedIds.length === 0) return;
+			const flattenedObjects = [];
 			this.assertFlattenBudget();
 			await this.geometry.run({
 				id: `overlay:flatten:${Date.now()}:${++this.generatedIdSequence}`,
 				kind: "flatten",
 				operationId: "overlay:flatten",
-				metadata: Object.freeze({ overlayCount: selected.length }),
+				metadata: Object.freeze({ overlayCount: selectedIds.length }),
 				mutateBase: async ({ signal, transaction }) => {
 					var _a, _b;
+					const selected = selectedIds.flatMap((id) => {
+						const indexed = this.byId.get(id);
+						if (!indexed || query.includeHidden !== true && this.classificationFor(indexed).hidden) return [];
+						return [indexed.object];
+					});
+					if (selected.length === 0) throw new CoreRuntimeError("[ImageEditor] No persistent overlays remain to flatten.");
 					const canvas = this.host.requireCanvas("flatten overlays");
 					const baseImage = this.host.getBaseImage();
 					if (!baseImage) throw new CoreRuntimeError("[ImageEditor] Cannot flatten without a base image.");
@@ -9622,7 +9634,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								mimeType: format === "jpeg" ? "image/jpeg" : `image/${format}`
 							});
 							replacementTransferred = true;
-							for (const object of selected) canvas.remove(object);
+							for (const object of selected) {
+								canvas.remove(object);
+								flattenedObjects.push(object);
+							}
 						} catch (error) {
 							if (replacement && !replacementTransferred) try {
 								replacement.dispose();
@@ -9636,6 +9651,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}
 				}
 			});
+			this.disposeDetachedObjects(flattenedObjects, "Flattened Overlay object cleanup failed.");
 		}
 		assertFlattenBudget(canvas = this.host.requireCanvas("validate flatten dimensions"), baseImage = this.host.getBaseImage()) {
 			if (!baseImage) throw new CoreRuntimeError("[ImageEditor] Cannot flatten without a base image.");
@@ -9836,7 +9852,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const canvas = this.host.getCanvas();
 			if (canvas) {
 				canvas.discardActiveObject();
-				for (const indexed of [...this.byId.values()]) canvas.remove(indexed.object);
+				const objects = [...this.byId.values()].map((entry) => entry.object);
+				for (const object of objects) canvas.remove(object);
+				this.disposeDetachedObjects(objects, "Removed Overlay object cleanup failed.");
 			}
 			this.byId.clear();
 			this.preservedRecords = [];
@@ -10239,6 +10257,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				const objects = this.indexedCanvasObjects().filter((object) => {
 					const indexed = this.byObject.get(object);
 					const classification = this.classificationFor(indexed);
+					if (indexed.kind.definition.persistence.mode === "transient" || object.excludeFromExport) return false;
 					if (included && !included.has(classification.kind)) return false;
 					if (!included && indexed.kind.definition.exportByDefault === false) return false;
 					if (excluded === null || excluded === void 0 ? void 0 : excluded.has(classification.kind)) return false;
@@ -10379,7 +10398,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		generatePersistentId(kind) {
 			var _a, _b;
 			const randomId = (_b = (_a = globalThis.crypto) === null || _a === void 0 ? void 0 : _a.randomUUID) === null || _b === void 0 ? void 0 : _b.call(_a);
-			return randomId ? `${kind}:${randomId}` : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}`;
+			return randomId ? `${kind}:${randomId}` : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}:${Math.random().toString(36).slice(2)}`;
 		}
 		createFabricUtilAccess() {
 			return {
@@ -10777,76 +10796,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 // dist/esm/foundations/annotation/annotation-geometry.js
-	function isFiniteMatrix(matrix) {
-		return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
-	}
-	function hasReflection(matrix) {
-		return isFiniteMatrix(matrix) && matrix[0] * matrix[3] - matrix[1] * matrix[2] < 0;
-	}
-	function stripReflection(matrix, fabric) {
-		if (!hasReflection(matrix)) return matrix;
-		const flipX = fabric.multiplyTransformMatrices(matrix, [
-			-1,
-			0,
-			0,
-			1,
-			0,
-			0
-		]);
-		const flipY = fabric.multiplyTransformMatrices(matrix, [
-			1,
-			0,
-			0,
-			-1,
-			0,
-			0
-		]);
-		const angleMagnitude = (candidate) => {
-			const angle = fabric.qrDecompose(candidate).angle;
-			return Number.isFinite(angle) ? Math.abs((angle % 360 + 540) % 360 - 180) : Number.POSITIVE_INFINITY;
-		};
-		return angleMagnitude(flipY) < angleMagnitude(flipX) ? flipY : flipX;
-	}
 	function applyAnnotationGeometry(object, mutation, fabricModule, preserveReadable) {
-		var _a;
-		if (mutation.kind !== "transform") return;
-		const delta = mutation.affineDelta;
-		if (!delta || !isFiniteMatrix(delta)) return;
-		const fabric = {
-			multiplyTransformMatrices: (left, right) => fabricModule.util.multiplyTransformMatrices(left, right),
-			qrDecompose: (matrix) => fabricModule.util.qrDecompose(matrix),
-			Point: fabricModule.Point
-		};
-		object.setCoords();
-		const originalCenter = object.getCenterPoint();
-		const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = delta;
-		const targetCenter = new fabric.Point(a * originalCenter.x + c * originalCenter.y + e, b * originalCenter.x + d * originalCenter.y + f);
-		const orientationDelta = preserveReadable ? stripReflection(delta, fabric) : delta;
-		let restoreCenter = originalCenter;
-		try {
-			const nextMatrix = fabric.multiplyTransformMatrices(orientationDelta, object.calcTransformMatrix());
-			if (!isFiniteMatrix(nextMatrix)) return;
-			const decomposed = fabric.qrDecompose(nextMatrix);
-			object.set({
-				flipX: false,
-				flipY: false
-			});
-			object.set({
-				angle: decomposed.angle,
-				scaleX: decomposed.scaleX,
-				scaleY: decomposed.scaleY,
-				skewX: decomposed.skewX,
-				skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0
-			});
-			if (typeof decomposed.flipX === "boolean" || typeof decomposed.flipY === "boolean") object.set({
-				...typeof decomposed.flipX === "boolean" ? { flipX: decomposed.flipX } : {},
-				...typeof decomposed.flipY === "boolean" ? { flipY: decomposed.flipY } : {}
-			});
-			restoreCenter = targetCenter;
-		} finally {
-			object.setPositionByOrigin(restoreCenter, "center", "center");
-			object.setCoords();
-		}
+		if (mutation.kind !== "transform" || !mutation.affineDelta) return;
+		applyDeltaToObject(object, [...mutation.affineDelta], {
+			preserveReadableText: preserveReadable,
+			fabricUtil: {
+				multiplyTransformMatrices: (left, right) => fabricModule.util.multiplyTransformMatrices(left, right),
+				invertTransform: (matrix) => fabricModule.util.invertTransform(matrix),
+				qrDecompose: (matrix) => fabricModule.util.qrDecompose(matrix),
+				Point: fabricModule.Point
+			}
+		});
 	}
 
 // dist/esm/foundations/annotation/annotation-errors.js
@@ -11567,6 +11527,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.presentations = new AnnotationPresentationManager(host, this.presentationOptions, (object) => this.describePresentationOwner(object), (id) => this.overlay.getSelection().ids.includes(id));
 			this.registrations.push(overlay.registerKind({
 				id: ANNOTATION_PREVIEW_KIND,
+				exportByDefault: false,
 				ownerPluginId: ANNOTATION_FOUNDATION_ID,
 				classify: (object) => object.editorAnnotationPreviewOwner !== void 0 && object.editorOverlayKind === ANNOTATION_PREVIEW_KIND,
 				getPersistentId: (object) => {
@@ -12448,10 +12409,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function restoreOrigin(object, originX, originY) {
 		try {
+			const center = object.getCenterPoint();
 			object.set({
 				originX,
 				originY
 			});
+			object.setPositionByOrigin(center, "center", "center");
 			object.setCoords();
 		} catch {}
 	}
@@ -12653,21 +12616,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return this.scaleWithOperation(factor, "transform:scale", options);
 		}
 		scaleWithOperation(factor, operationId, options = {}) {
-			if (!Number.isFinite(factor)) return Promise.resolve();
+			if (typeof factor === "number" && !Number.isFinite(factor)) return Promise.reject(/* @__PURE__ */ new TypeError("Scale must be finite."));
 			return this.enqueue(operationId, async (signal, animations) => {
 				const image = this.baseImage.getBaseImage();
 				if (!image) return;
-				await this.applyScale(image, factor, signal, animations);
+				await this.applyScale(image, typeof factor === "function" ? factor() : factor, signal, animations);
 			}, options);
 		}
 		zoomIn(options = {}) {
-			return this.scaleWithOperation(this.state.scale + this.options.scaleStep, "transform:zoom-in", options);
+			return this.scaleWithOperation(() => Number((this.state.scale + this.options.scaleStep).toPrecision(15)), "transform:zoom-in", options);
 		}
 		zoomOut(options = {}) {
-			return this.scaleWithOperation(this.state.scale - this.options.scaleStep, "transform:zoom-out", options);
+			return this.scaleWithOperation(() => Number((this.state.scale - this.options.scaleStep).toPrecision(15)), "transform:zoom-out", options);
 		}
 		rotate(degrees, options = {}) {
-			if (!Number.isFinite(degrees)) return Promise.resolve();
+			if (!Number.isFinite(degrees)) return Promise.reject(/* @__PURE__ */ new TypeError("Rotation must be finite."));
 			return this.enqueue("transform:rotate", async (signal, animations) => {
 				const image = this.baseImage.getBaseImage();
 				if (!image) return;
@@ -12738,9 +12701,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		enqueue(operationId, mutate, options) {
 			if (this.animations.isDisposed()) return Promise.resolve();
-			const image = this.baseImage.getBaseImage();
-			if (!image) return Promise.resolve();
-			const rollback = this.captureRollback(image);
+			if (!this.baseImage.getBaseImage()) return Promise.resolve();
+			let rollback = null;
+			let mutatedImage = null;
 			const mutationId = `${operationId}:${++this.mutationSequence}`;
 			const animations = this.animations.createScope();
 			let operation;
@@ -12751,11 +12714,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					operationId,
 					...options.parent ? { parent: options.parent } : {},
 					mutateBase: async ({ signal }) => {
+						mutatedImage = this.baseImage.getBaseImage();
+						if (mutatedImage) rollback = this.captureRollback(mutatedImage);
 						await mutate(signal, animations);
 					},
 					rollbackBase: async () => {
 						await animations.cancelAnimations();
-						this.restoreRollback(image, rollback);
+						if (mutatedImage && rollback) this.restoreRollback(mutatedImage, rollback);
 					},
 					metadata: Object.freeze({ pluginId: "plugin:transform" })
 				});
@@ -12817,7 +12782,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				image.setCoords();
 				this.state.rotationDegrees = degrees;
 			} finally {
-				if (this.animations.isDisposed()) restoreOrigin(image, "left", "top");
+				restoreOrigin(image, "left", "top");
 			}
 		}
 		captureRollback(image) {
@@ -12831,8 +12796,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					angle: Number(image.angle) || 0,
 					flipX: image.flipX === true,
 					flipY: image.flipY === true,
-					originX: "left",
-					originY: "top"
+					originX: image.originX,
+					originY: image.originY
 				})
 			});
 		}
@@ -13474,14 +13439,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function attachMaskHoverHandlers(mask) {
 		const tagged = mask;
 		const mouseover = () => {
-			var _a;
+			var _a, _b;
 			tagged.set(getMaskHoverStyle(tagged));
-			(_a = tagged.canvas) === null || _a === void 0 || _a.requestRenderAll();
+			if ((_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObjects().includes(tagged)) applyMaskSelectedStyle(tagged);
+			(_b = tagged.canvas) === null || _b === void 0 || _b.requestRenderAll();
 		};
 		const mouseout = () => {
-			var _a;
+			var _a, _b;
 			tagged.set(getMaskNormalStyle(tagged));
-			(_a = tagged.canvas) === null || _a === void 0 || _a.requestRenderAll();
+			if ((_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObjects().includes(tagged)) applyMaskSelectedStyle(tagged);
+			(_b = tagged.canvas) === null || _b === void 0 || _b.requestRenderAll();
 		};
 		tagged.on("mouseover", mouseover);
 		tagged.on("mouseout", mouseout);
@@ -13611,7 +13578,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (value === void 0) return true;
 		if (typeof value === "number") return Number.isFinite(value);
 		if (typeof value === "function") return true;
-		if (typeof value === "string" && value.endsWith("%")) return Number.isFinite(Number.parseFloat(value));
+		if (typeof value === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/iu.test(value)) return Number.isFinite(Number.parseFloat(value));
 		return false;
 	}
 	function isFiniteNumber(value) {
@@ -13661,6 +13628,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			warnInvalidMask(options, "polygon masks require at least three points");
 			return null;
 		}
+		if (points.length > 4096) return null;
 		const resolvedPoints = points.map(coercePoint);
 		if (!resolvedPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))) {
 			warnInvalidMask(options, "polygon points must contain finite x/y values");
@@ -13714,15 +13682,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		};
 	}
 	function resolveMaskPlacement(context, mergedConfig, resolvedConfig) {
-		var _a, _b, _c, _d, _e;
+		var _a, _b;
 		const { canvas, options } = context;
 		const firstOffset = 10;
 		const previousMask = context.getLastMask();
 		if (mergedConfig.left === void 0 && previousMask) {
-			const previousRight = ((_a = previousMask.left) !== null && _a !== void 0 ? _a : 0) + (typeof previousMask.getScaledWidth === "function" ? previousMask.getScaledWidth() : ((_b = previousMask.width) !== null && _b !== void 0 ? _b : 0) * ((_c = previousMask.scaleX) !== null && _c !== void 0 ? _c : 1));
+			previousMask.setCoords();
+			const previousBounds = previousMask.getBoundingRect();
+			const previousRight = previousBounds.left + previousBounds.width;
 			return {
-				left: Math.round(previousRight + ((_d = resolvedConfig.gap) !== null && _d !== void 0 ? _d : 5)),
-				top: (_e = previousMask.top) !== null && _e !== void 0 ? _e : firstOffset
+				left: Math.round(previousRight + ((_a = resolvedConfig.gap) !== null && _a !== void 0 ? _a : 5)),
+				top: (_b = previousMask.top) !== null && _b !== void 0 ? _b : firstOffset
 			};
 		}
 		const left = resolveMaskNumericField(options, "left", mergedConfig.left, "x", firstOffset, canvas);
@@ -13765,15 +13735,29 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		};
 	}
 	function validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType) {
-		if (!validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha)) return false;
+		var _a;
+		if (!validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha) || resolvedConfig.alpha < 0 || resolvedConfig.alpha > 1) return false;
+		const styles = (_a = resolvedConfig.styles) !== null && _a !== void 0 ? _a : {};
+		const allowedStyles = /* @__PURE__ */ new Set([
+			"fill",
+			"stroke",
+			"strokeWidth",
+			"strokeDashArray",
+			"opacity"
+		]);
+		if (Object.keys(styles).some((key) => !allowedStyles.has(key)) || styles.fill !== void 0 && typeof styles.fill !== "string" || styles.stroke !== void 0 && styles.stroke !== null && typeof styles.stroke !== "string" || styles.strokeWidth !== void 0 && (!Number.isFinite(styles.strokeWidth) || styles.strokeWidth < 0) || styles.opacity !== void 0 && (!Number.isFinite(styles.opacity) || styles.opacity < 0 || styles.opacity > 1) || styles.strokeDashArray != null && (!Array.isArray(styles.strokeDashArray) || styles.strokeDashArray.length > 16 || styles.strokeDashArray.some((entry) => !Number.isFinite(entry) || entry < 0))) {
+			warnInvalidMask(options, "styles contain unsupported properties or invalid values");
+			return false;
+		}
 		return !(dimensions.rx !== void 0 && !validateNonNegativeField(options, "rx", dimensions.rx) || dimensions.ry !== void 0 && !validateNonNegativeField(options, "ry", dimensions.ry) || dimensions.radius !== void 0 && !validatePositiveField(options, "radius", dimensions.radius) || shapeType === "polygon" && dimensions.polygonPoints === null);
 	}
-	function expandMaskCanvas(context, placement, resolvedConfig) {
+	function expandMaskCanvas(context, placement, resolvedConfig, bounds) {
+		var _a, _b, _c, _d;
 		const { canvas, options } = context;
 		let preExpandCanvasSize = null;
 		if (options.layoutMode === "expand") {
-			const requiredWidth = Math.ceil(placement.left + resolvedConfig.width + 10);
-			const requiredHeight = Math.ceil(placement.top + resolvedConfig.height + 10);
+			const requiredWidth = Math.ceil(((_a = bounds === null || bounds === void 0 ? void 0 : bounds.left) !== null && _a !== void 0 ? _a : placement.left) + ((_b = bounds === null || bounds === void 0 ? void 0 : bounds.width) !== null && _b !== void 0 ? _b : resolvedConfig.width) + 10);
+			const requiredHeight = Math.ceil(((_c = bounds === null || bounds === void 0 ? void 0 : bounds.top) !== null && _c !== void 0 ? _c : placement.top) + ((_d = bounds === null || bounds === void 0 ? void 0 : bounds.height) !== null && _d !== void 0 ? _d : resolvedConfig.height) + 10);
 			const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
 			const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
 			const maxExportDimension = options.maxExportDimension;
@@ -13910,7 +13894,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			maskId: nextId,
 			maskUid: createMaskUid(nextId),
 			maskName: `${options.maskName}${nextId}`,
-			originalAlpha: resolvedConfig.alpha,
+			originalAlpha: Number(maskObject.opacity),
 			originalStroke: maskObject.stroke,
 			originalStrokeWidth: maskObject.strokeWidth
 		});
@@ -13941,10 +13925,39 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		const dimensions = resolveMaskDimensions(context, mergedConfig, resolvedConfig, shapeType);
 		if (!dimensions) return null;
 		if (!validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType)) return null;
-		const expansion = expandMaskCanvas(context, placement, resolvedConfig);
-		if (!expansion) return null;
-		const mask = buildFabricShape(context, config, resolvedConfig, shapeType, placement, dimensions, expansion);
+		const mask = buildFabricShape(context, config, resolvedConfig, shapeType, placement, dimensions, { rollback() {} });
 		if (!mask) return null;
+		if (mask.canvas || !isSafeSerializedFabricObject(mask.toObject(), { rootTypes: [
+			"rect",
+			"circle",
+			"ellipse",
+			"polygon"
+		] })) {
+			if (!mask.canvas) mask.dispose();
+			warnInvalidMask(options, "generated masks must use supported persistent shapes and properties");
+			return null;
+		}
+		mask.setCoords();
+		const bounds = mask.getBoundingRect();
+		if (![
+			bounds.left,
+			bounds.top,
+			bounds.width,
+			bounds.height
+		].every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) {
+			mask.dispose();
+			warnInvalidMask(options, "generated mask bounds must be finite and positive");
+			return null;
+		}
+		try {
+			if (!expandMaskCanvas(context, placement, resolvedConfig, bounds)) {
+				mask.dispose();
+				return null;
+			}
+		} catch (error) {
+			mask.dispose();
+			throw error;
+		}
 		return finalizeMaskAttachment(context, config, resolvedConfig, applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig));
 	}
 
@@ -14073,7 +14086,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : fallback;
 	}
 	function resolveMaskPluginOptions(options = {}) {
-		var _a, _b;
+		var _a, _b, _c;
 		return Object.freeze({
 			defaultWidth: positive(options.defaultWidth, 50),
 			defaultHeight: positive(options.defaultHeight, 80),
@@ -14081,13 +14094,17 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			rotatable: options.rotatable === true,
 			label: options.label === false ? false : Object.freeze({
 				...DEFAULT_LABEL,
-				...options.label
+				...options.label,
+				textOptions: Object.freeze({
+					...DEFAULT_LABEL.textOptions,
+					...(_b = options.label) === null || _b === void 0 ? void 0 : _b.textOptions
+				})
 			}),
 			labelOffset: nonNegative(options.labelOffset, 3),
 			exportByDefault: options.exportByDefault !== false,
 			listOrder: options.listOrder === "back-to-front" ? "back-to-front" : "front-to-back",
 			bindToImageTransform: options.bindToImageTransform === true,
-			namePrefix: ((_b = options.namePrefix) === null || _b === void 0 ? void 0 : _b.trim()) || "mask",
+			namePrefix: ((_c = options.namePrefix) === null || _c === void 0 ? void 0 : _c.trim()) || "mask",
 			...options.onChange ? { onChange: options.onChange } : {}
 		});
 	}
@@ -14277,8 +14294,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 								stroke: typeof object.stroke === "string" ? object.stroke : null,
 								strokeWidth: context.toImageNormalizedScalar(Number(object.strokeWidth) || 0),
 								strokeDashArray: Array.isArray(object.strokeDashArray) ? Object.freeze(object.strokeDashArray.map((entry) => context.toImageNormalizedScalar(entry))) : null,
-								cornerRadiusX: context.toImageNormalizedScalar(Number(Reflect.get(object, "rx")) || 0),
-								cornerRadiusY: context.toImageNormalizedScalar(Number(Reflect.get(object, "ry")) || 0),
+								cornerRadiusX: context.toImageNormalizedScalar((Number(Reflect.get(object, "rx")) || 0) * Math.abs(object.scaleX)),
+								cornerRadiusY: context.toImageNormalizedScalar((Number(Reflect.get(object, "ry")) || 0) * Math.abs(object.scaleY)),
 								points: kind === "polygon" ? normalizedPolygonPoints(object) : null,
 								hasControls: object.hasControls === true,
 								selectable: object.selectable !== false,
@@ -14337,6 +14354,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						mask.overlayMetadata = Object.freeze({ ...value.metadata });
 						mask.lockRotation = !this.options.rotatable;
 						restoreOverlayStateBounds(mask, value.geometry, context, this.host.fabric);
+						if (data.kind === "rect") mask.set({
+							rx: context.toCanvasScalar(data.cornerRadiusX) / Math.abs(mask.scaleX),
+							ry: context.toCanvasScalar(data.cornerRadiusY) / Math.abs(mask.scaleY)
+						});
 						reattachMaskHoverHandlers(mask);
 						return mask;
 					}
@@ -14374,10 +14395,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				kind: "mask:object",
 				ownerPluginId: MASK_PLUGIN_ID,
 				preview: (object) => {
-					if (isMaskObject(object)) syncMaskLabel(this.labelContext(), object);
+					if (isMaskObject(object) && this.host.getCanvas()) syncMaskLabel(this.labelContext(), object);
 				},
 				synchronize: (object, context) => {
-					if (isMaskObject(object) && object.labelObject) syncMaskLabel(this.labelContext(), object);
+					if (isMaskObject(object) && object.labelObject && this.host.getCanvas()) syncMaskLabel(this.labelContext(), object);
 					if (this.lastInteractionNotification !== context.descriptor.id) {
 						this.lastInteractionNotification = context.descriptor.id;
 						this.notifyChange();
@@ -14462,11 +14483,24 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 		removeSelected() {
-			const selectedId = this.overlay.getSelection().ids.find((id) => {
+			const ids = this.overlay.getSelection().ids.filter((id) => {
 				const object = this.overlay.getByPersistentId(id);
 				return object ? isMaskObject(object) : false;
 			});
-			return selectedId ? this.remove(selectedId) : Promise.resolve();
+			if (ids.length === 0) return Promise.resolve();
+			return this.overlay.mutate({
+				id: `mask:remove-selected:${++this.mutationSequence}`,
+				operationId: "mask:remove",
+				action: "delete",
+				objectIds: ids,
+				metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID }),
+				mutate: () => {
+					for (const id of ids) {
+						const object = this.overlay.getByPersistentId(id);
+						if (object && isMaskObject(object)) this.removeMaskObject(object);
+					}
+				}
+			});
 		}
 		removeAll() {
 			const masks = [...this.getAll()];
@@ -20682,7 +20716,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 // dist/esm/plugins/overlay-state/overlay-state-controller.js
 	const IMPORT_OPERATION_ID = "overlay-state:import";
 	const MAX_PERSISTENT_ID_LENGTH = 128;
-	const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 	function invalidResult(issues) {
 		return Object.freeze({
 			valid: false,
@@ -20715,7 +20748,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	function resolveStateKind(overlay, kind) {
 		const adapter = overlay.getStateKind(kind);
 		const codec = adapter === null || adapter === void 0 ? void 0 : adapter.stateCodec;
-		if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== "persistent" || !codec || typeof codec.type !== "string" || !isRuntimeIdentifier(codec.type) || typeof codec.version !== "string" || !SEMVER_PATTERN.test(codec.version) || typeof codec.serialize !== "function" || typeof codec.validate !== "function" || typeof codec.deserialize !== "function") return null;
+		if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== "persistent" || !codec || typeof codec.type !== "string" || !isRuntimeIdentifier(codec.type) || typeof codec.version !== "string" || !isValidSemVer(codec.version) || typeof codec.serialize !== "function" || typeof codec.validate !== "function" || typeof codec.deserialize !== "function") return null;
 		return Object.freeze({
 			adapter,
 			codec
@@ -20852,7 +20885,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return result.document;
 		}
 		async importState(payload, options = {}) {
-			var _a, _b, _c, _d, _e, _f;
+			var _a, _b, _c;
 			this.assertActive("import Overlay State");
 			const mode = (_a = options.mode) !== null && _a !== void 0 ? _a : "replace";
 			const idConflict = (_b = options.idConflict) !== null && _b !== void 0 ? _b : "error";
@@ -20863,104 +20896,106 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			if (!validated.valid || !validated.document) throw new OverlayStateValidationError(validated.errors);
 			const document = validated.document;
-			const context = createOverlayStateContext(this.baseImage);
-			const existingObjects = this.overlay.list({
-				includeHidden: true,
-				includeLocked: true
-			});
-			const persistentIds = [];
-			const persistentObjects = [];
-			const allIds = /* @__PURE__ */ new Set();
-			for (const object of existingObjects) {
-				const classification = this.overlay.classify(object);
-				if (!classification) continue;
-				allIds.add(classification.persistentId);
-				if (((_d = this.overlay.getStateKind(classification.kind)) === null || _d === void 0 ? void 0 : _d.persistence.mode) === "persistent") {
-					persistentIds.push(classification.persistentId);
-					persistentObjects.push(object);
-				}
-			}
-			const removeIds = mode === "replace" ? Object.freeze(persistentIds) : Object.freeze([]);
-			const removeObjects = mode === "replace" ? Object.freeze(persistentObjects) : Object.freeze([]);
-			const reserved = new Set(allIds);
-			if (mode === "replace") for (const id of removeIds) reserved.delete(id);
 			const idMapEntries = [];
 			const additions = [];
 			const preparedObjects = /* @__PURE__ */ new Set();
+			const removedObjects = [];
 			let skipped = 0;
 			const ordered = document.overlays.map((item, index) => ({
 				item,
 				index
 			})).sort((left, right) => left.item.layer - right.item.layer);
 			try {
-				for (const { item, index } of ordered) {
-					const resolved = resolveStateKind(this.overlay, item.kind);
-					if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
-						if (missingKindPolicy === "skip") {
-							skipped += 1;
-							continue;
-						}
-						throw new OverlayStateCodecError(item.kind);
-					}
-					let persistentId = item.id;
-					if (reserved.has(persistentId)) {
-						if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
-						const regenerated = nextAvailableId(persistentId, reserved);
-						idMapEntries.push(Object.freeze([persistentId, regenerated]));
-						persistentId = regenerated;
-					}
-					reserved.add(persistentId);
-					const value = stateValue(document, index);
-					const object = await resolved.codec.deserialize(value, context.codec);
-					if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-					preparedObjects.add(object);
-					const marked = object;
-					marked.editorOverlayKind = item.kind;
-					marked.editorOverlayId = persistentId;
-					marked.editorOverlayHidden = item.hidden;
-					marked.editorOverlayLocked = item.locked;
-					(_f = (_e = resolved.adapter).setPersistentId) === null || _f === void 0 || _f.call(_e, object, persistentId);
-					if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
-					if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
-					else object.set({ visible: !item.hidden });
-					if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
-					else object.set({
-						selectable: !item.locked,
-						evented: !item.locked
-					});
-					additions.push(Object.freeze({
-						kind: item.kind,
-						persistentId,
-						object
-					}));
-				}
-				const additionObjects = Object.freeze(additions.map((entry) => entry.object));
-				if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
-				if (removeIds.length > 0 || additions.length > 0) await this.overlay.mutate({
+				await this.overlay.mutate({
 					id: `overlay-state:import-${++this.sequence}`,
 					operationId: IMPORT_OPERATION_ID,
 					action: "delete",
-					objectIds: removeIds,
-					mutate: () => {
+					mutate: async () => {
+						var _a, _b, _c;
+						const context = createOverlayStateContext(this.baseImage);
+						const existingObjects = this.overlay.list({
+							includeHidden: true,
+							includeLocked: true
+						});
+						const persistentIds = [];
+						const persistentObjects = [];
+						const allIds = /* @__PURE__ */ new Set();
+						for (const object of existingObjects) {
+							const classification = this.overlay.classify(object);
+							if (!classification) continue;
+							allIds.add(classification.persistentId);
+							if (((_a = this.overlay.getStateKind(classification.kind)) === null || _a === void 0 ? void 0 : _a.persistence.mode) === "persistent") {
+								persistentIds.push(classification.persistentId);
+								persistentObjects.push(object);
+							}
+						}
+						const removeIds = mode === "replace" ? Object.freeze(persistentIds) : Object.freeze([]);
+						const removeObjects = mode === "replace" ? Object.freeze(persistentObjects) : Object.freeze([]);
+						const reserved = new Set(allIds);
+						if (mode === "replace") for (const id of removeIds) reserved.delete(id);
+						if (context.image.naturalWidth !== document.image.naturalWidth || context.image.naturalHeight !== document.image.naturalHeight) this.diagnostics.reportWarning(/* @__PURE__ */ new Error("Overlay image dimensions differ from the current image."), "Normalized Overlay coordinates will be scaled to the current image.");
+						for (const { item, index } of ordered) {
+							const resolved = resolveStateKind(this.overlay, item.kind);
+							if (!resolved || resolved.codec.type !== item.codec.type || resolved.codec.version !== item.codec.version) {
+								if (missingKindPolicy === "skip") {
+									skipped += 1;
+									continue;
+								}
+								throw new OverlayStateCodecError(item.kind);
+							}
+							let persistentId = item.id;
+							if (reserved.has(persistentId)) {
+								if (idConflict === "error") throw new OverlayStateIdConflictError(persistentId);
+								const regenerated = nextAvailableId(persistentId, reserved);
+								idMapEntries.push(Object.freeze([persistentId, regenerated]));
+								persistentId = regenerated;
+							}
+							reserved.add(persistentId);
+							const value = stateValue(document, index);
+							const object = await resolved.codec.deserialize(value, context.codec);
+							if (!object || typeof object !== "object" || object.canvas) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+							preparedObjects.add(object);
+							const marked = object;
+							marked.editorOverlayKind = item.kind;
+							marked.editorOverlayId = persistentId;
+							marked.editorOverlayHidden = item.hidden;
+							marked.editorOverlayLocked = item.locked;
+							(_c = (_b = resolved.adapter).setPersistentId) === null || _c === void 0 || _c.call(_b, object, persistentId);
+							if (!resolved.adapter.classify(object)) throw new OverlayStateCodecError(item.kind, "restored an incompatible object");
+							if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
+							else object.set({ visible: !item.hidden });
+							if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
+							else object.set({
+								selectable: !item.locked,
+								evented: !item.locked
+							});
+							additions.push(Object.freeze({
+								kind: item.kind,
+								persistentId,
+								object
+							}));
+						}
+						const additionObjects = Object.freeze(additions.map((entry) => entry.object));
+						if (new Set(additionObjects).size !== additionObjects.length) throw new OverlayStateCodecError("multiple", "restored duplicate object identities");
 						const canvas = this.canvas.requireCanvas("import Overlay State");
 						canvas.discardActiveObject();
-						for (const object of removeObjects) canvas.remove(object);
+						for (const object of removeObjects) {
+							canvas.remove(object);
+							removedObjects.push(object);
+						}
 						for (const object of additionObjects) canvas.add(object);
 					},
-					affectedObjects: () => additionObjects,
+					affectedObjects: () => additions.map((entry) => entry.object),
 					validate: () => {
 						for (const addition of additions) if (this.overlay.getByPersistentId(addition.persistentId) !== addition.object) throw new OverlayStateCodecError(addition.kind, `did not restore "${addition.persistentId}"`);
 					},
-					metadata: Object.freeze({
-						mode,
-						imported: additions.length,
-						skipped
-					})
+					metadata: Object.freeze({ mode })
 				});
 			} catch (error) {
 				this.disposePreparedObjects(preparedObjects);
 				throw error;
 			}
+			this.disposePreparedObjects(new Set(removedObjects));
 			return Object.freeze({
 				mode,
 				imported: additions.length,

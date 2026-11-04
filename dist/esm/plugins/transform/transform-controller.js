@@ -212,24 +212,24 @@ export class TransformPluginController {
         return this.scaleWithOperation(factor, 'transform:scale', options);
     }
     scaleWithOperation(factor, operationId, options = {}) {
-        if (!Number.isFinite(factor))
-            return Promise.resolve();
+        if (typeof factor === 'number' && !Number.isFinite(factor))
+            return Promise.reject(new TypeError('Scale must be finite.'));
         return this.enqueue(operationId, async (signal, animations) => {
             const image = this.baseImage.getBaseImage();
             if (!image)
                 return;
-            await this.applyScale(image, factor, signal, animations);
+            await this.applyScale(image, typeof factor === 'function' ? factor() : factor, signal, animations);
         }, options);
     }
     zoomIn(options = {}) {
-        return this.scaleWithOperation(this.state.scale + this.options.scaleStep, 'transform:zoom-in', options);
+        return this.scaleWithOperation(() => Number((this.state.scale + this.options.scaleStep).toPrecision(15)), 'transform:zoom-in', options);
     }
     zoomOut(options = {}) {
-        return this.scaleWithOperation(this.state.scale - this.options.scaleStep, 'transform:zoom-out', options);
+        return this.scaleWithOperation(() => Number((this.state.scale - this.options.scaleStep).toPrecision(15)), 'transform:zoom-out', options);
     }
     rotate(degrees, options = {}) {
         if (!Number.isFinite(degrees))
-            return Promise.resolve();
+            return Promise.reject(new TypeError('Rotation must be finite.'));
         return this.enqueue('transform:rotate', async (signal, animations) => {
             const image = this.baseImage.getBaseImage();
             if (!image)
@@ -298,7 +298,8 @@ export class TransformPluginController {
         const image = this.baseImage.getBaseImage();
         if (!image)
             return Promise.resolve();
-        const rollback = this.captureRollback(image);
+        let rollback = null;
+        let mutatedImage = null;
         const mutationId = `${operationId}:${++this.mutationSequence}`;
         const animations = this.animations.createScope();
         let operation;
@@ -309,11 +310,15 @@ export class TransformPluginController {
                 operationId,
                 ...(options.parent ? { parent: options.parent } : {}),
                 mutateBase: async ({ signal }) => {
+                    mutatedImage = this.baseImage.getBaseImage();
+                    if (mutatedImage)
+                        rollback = this.captureRollback(mutatedImage);
                     await mutate(signal, animations);
                 },
                 rollbackBase: async () => {
                     await animations.cancelAnimations();
-                    this.restoreRollback(image, rollback);
+                    if (mutatedImage && rollback)
+                        this.restoreRollback(mutatedImage, rollback);
                 },
                 metadata: Object.freeze({ pluginId: 'plugin:transform' }),
             });
@@ -362,8 +367,7 @@ export class TransformPluginController {
             this.state.rotationDegrees = degrees;
         }
         finally {
-            if (this.animations.isDisposed())
-                restoreOrigin(image, 'left', 'top');
+            restoreOrigin(image, 'left', 'top');
         }
     }
     captureRollback(image) {
@@ -377,8 +381,8 @@ export class TransformPluginController {
                 angle: Number(image.angle) || 0,
                 flipX: image.flipX === true,
                 flipY: image.flipY === true,
-                originX: 'left',
-                originY: 'top',
+                originX: image.originX,
+                originY: image.originY,
             }),
         });
     }

@@ -196,7 +196,16 @@ export function resolveMaskPluginOptions(
         defaultConfig: Object.freeze({ ...(options.defaultConfig ?? {}) }),
         rotatable: options.rotatable === true,
         label:
-            options.label === false ? false : Object.freeze({ ...DEFAULT_LABEL, ...options.label }),
+            options.label === false
+                ? false
+                : Object.freeze({
+                      ...DEFAULT_LABEL,
+                      ...options.label,
+                      textOptions: Object.freeze({
+                          ...DEFAULT_LABEL.textOptions,
+                          ...options.label?.textOptions,
+                      }),
+                  }),
         labelOffset: nonNegative(options.labelOffset, 3),
         exportByDefault: options.exportByDefault !== false,
         listOrder: options.listOrder === 'back-to-front' ? 'back-to-front' : 'front-to-back',
@@ -437,10 +446,12 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                                       )
                                     : null,
                                 cornerRadiusX: context.toImageNormalizedScalar(
-                                    Number(Reflect.get(object, 'rx')) || 0,
+                                    (Number(Reflect.get(object, 'rx')) || 0) *
+                                        Math.abs(object.scaleX),
                                 ),
                                 cornerRadiusY: context.toImageNormalizedScalar(
-                                    Number(Reflect.get(object, 'ry')) || 0,
+                                    (Number(Reflect.get(object, 'ry')) || 0) *
+                                        Math.abs(object.scaleY),
                                 ),
                                 points: kind === 'polygon' ? normalizedPolygonPoints(object) : null,
                                 hasControls: object.hasControls === true,
@@ -516,6 +527,16 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                             context,
                             this.host.fabric,
                         );
+                        if (data.kind === 'rect') {
+                            mask.set({
+                                rx:
+                                    context.toCanvasScalar(data.cornerRadiusX) /
+                                    Math.abs(mask.scaleX),
+                                ry:
+                                    context.toCanvasScalar(data.cornerRadiusY) /
+                                    Math.abs(mask.scaleY),
+                            });
+                        }
                         reattachMaskHoverHandlers(mask);
                         return mask;
                     },
@@ -561,10 +582,11 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 preview: (object) => {
-                    if (isMaskObject(object)) syncMaskLabel(this.labelContext(), object);
+                    if (isMaskObject(object) && this.host.getCanvas())
+                        syncMaskLabel(this.labelContext(), object);
                 },
                 synchronize: (object, context) => {
-                    if (isMaskObject(object) && object.labelObject) {
+                    if (isMaskObject(object) && object.labelObject && this.host.getCanvas()) {
                         syncMaskLabel(this.labelContext(), object);
                     }
                     if (this.lastInteractionNotification !== context.descriptor.id) {
@@ -662,11 +684,24 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
     }
 
     removeSelected(): Promise<void> {
-        const selectedId = this.overlay.getSelection().ids.find((id) => {
+        const ids = this.overlay.getSelection().ids.filter((id) => {
             const object = this.overlay.getByPersistentId(id);
             return object ? isMaskObject(object) : false;
         });
-        return selectedId ? this.remove(selectedId) : Promise.resolve();
+        if (ids.length === 0) return Promise.resolve();
+        return this.overlay.mutate({
+            id: `mask:remove-selected:${++this.mutationSequence}`,
+            operationId: 'mask:remove',
+            action: 'delete',
+            objectIds: ids,
+            metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID }),
+            mutate: () => {
+                for (const id of ids) {
+                    const object = this.overlay.getByPersistentId(id);
+                    if (object && isMaskObject(object)) this.removeMaskObject(object);
+                }
+            },
+        });
     }
 
     removeAll(): Promise<void> {

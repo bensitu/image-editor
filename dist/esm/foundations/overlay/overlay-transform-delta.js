@@ -71,12 +71,6 @@ export function applyDeltaToObject(object, fullDelta, context) {
             skewX: decomposed.skewX,
             skewY: (_a = decomposed.skewY) !== null && _a !== void 0 ? _a : 0,
         });
-        if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
-            object.set({
-                ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
-                ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
-            });
-        }
         restoreCenter = targetCenter;
         committed = true;
     }

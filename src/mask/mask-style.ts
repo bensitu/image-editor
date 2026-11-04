@@ -153,10 +153,12 @@ export function attachMaskHoverHandlers(mask: MaskObject): void {
 
     const mouseover = (): void => {
         tagged.set(getMaskHoverStyle(tagged));
+        if (tagged.canvas?.getActiveObjects().includes(tagged)) applyMaskSelectedStyle(tagged);
         tagged.canvas?.requestRenderAll();
     };
     const mouseout = (): void => {
         tagged.set(getMaskNormalStyle(tagged));
+        if (tagged.canvas?.getActiveObjects().includes(tagged)) applyMaskSelectedStyle(tagged);
         tagged.canvas?.requestRenderAll();
     };
 

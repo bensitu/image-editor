@@ -1,7 +1,7 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
-const require_overlay = require("./overlay-ChR9Aef3.cjs");
+const require_overlay = require("./overlay-BOXhpeu0.cjs");
 const require_core = require("./core-GR9aQ4Ip.cjs");
 const require_internal_layer_placement = require("./internal-layer-placement-BVTXDv2N.cjs");
 const require_safe_object_key = require("./safe-object-key-B_cQ-6i9.cjs");
@@ -89,14 +89,16 @@ function applyMaskUnselectedStyle(mask) {
 function attachMaskHoverHandlers(mask) {
 	const tagged = mask;
 	const mouseover = () => {
-		var _a;
+		var _a, _b;
 		tagged.set(getMaskHoverStyle(tagged));
-		(_a = tagged.canvas) === null || _a === void 0 || _a.requestRenderAll();
+		if ((_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObjects().includes(tagged)) applyMaskSelectedStyle(tagged);
+		(_b = tagged.canvas) === null || _b === void 0 || _b.requestRenderAll();
 	};
 	const mouseout = () => {
-		var _a;
+		var _a, _b;
 		tagged.set(getMaskNormalStyle(tagged));
-		(_a = tagged.canvas) === null || _a === void 0 || _a.requestRenderAll();
+		if ((_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObjects().includes(tagged)) applyMaskSelectedStyle(tagged);
+		(_b = tagged.canvas) === null || _b === void 0 || _b.requestRenderAll();
 	};
 	tagged.on("mouseover", mouseover);
 	tagged.on("mouseout", mouseout);
@@ -226,7 +228,7 @@ function isResolvableNumericInput(value) {
 	if (value === void 0) return true;
 	if (typeof value === "number") return Number.isFinite(value);
 	if (typeof value === "function") return true;
-	if (typeof value === "string" && value.endsWith("%")) return Number.isFinite(Number.parseFloat(value));
+	if (typeof value === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/iu.test(value)) return Number.isFinite(Number.parseFloat(value));
 	return false;
 }
 function isFiniteNumber(value) {
@@ -276,6 +278,7 @@ function resolvePolygonPoints(options, points) {
 		warnInvalidMask(options, "polygon masks require at least three points");
 		return null;
 	}
+	if (points.length > 4096) return null;
 	const resolvedPoints = points.map(coercePoint);
 	if (!resolvedPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))) {
 		warnInvalidMask(options, "polygon points must contain finite x/y values");
@@ -329,15 +332,17 @@ function prepareMaskConfiguration(context, config) {
 	};
 }
 function resolveMaskPlacement(context, mergedConfig, resolvedConfig) {
-	var _a, _b, _c, _d, _e;
+	var _a, _b;
 	const { canvas, options } = context;
 	const firstOffset = 10;
 	const previousMask = context.getLastMask();
 	if (mergedConfig.left === void 0 && previousMask) {
-		const previousRight = ((_a = previousMask.left) !== null && _a !== void 0 ? _a : 0) + (typeof previousMask.getScaledWidth === "function" ? previousMask.getScaledWidth() : ((_b = previousMask.width) !== null && _b !== void 0 ? _b : 0) * ((_c = previousMask.scaleX) !== null && _c !== void 0 ? _c : 1));
+		previousMask.setCoords();
+		const previousBounds = previousMask.getBoundingRect();
+		const previousRight = previousBounds.left + previousBounds.width;
 		return {
-			left: Math.round(previousRight + ((_d = resolvedConfig.gap) !== null && _d !== void 0 ? _d : 5)),
-			top: (_e = previousMask.top) !== null && _e !== void 0 ? _e : firstOffset
+			left: Math.round(previousRight + ((_a = resolvedConfig.gap) !== null && _a !== void 0 ? _a : 5)),
+			top: (_b = previousMask.top) !== null && _b !== void 0 ? _b : firstOffset
 		};
 	}
 	const left = resolveMaskNumericField(options, "left", mergedConfig.left, "x", firstOffset, canvas);
@@ -380,15 +385,29 @@ function resolveMaskDimensions(context, mergedConfig, resolvedConfig, shapeType)
 	};
 }
 function validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType) {
-	if (!validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha)) return false;
+	var _a;
+	if (!validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha) || resolvedConfig.alpha < 0 || resolvedConfig.alpha > 1) return false;
+	const styles = (_a = resolvedConfig.styles) !== null && _a !== void 0 ? _a : {};
+	const allowedStyles = /* @__PURE__ */ new Set([
+		"fill",
+		"stroke",
+		"strokeWidth",
+		"strokeDashArray",
+		"opacity"
+	]);
+	if (Object.keys(styles).some((key) => !allowedStyles.has(key)) || styles.fill !== void 0 && typeof styles.fill !== "string" || styles.stroke !== void 0 && styles.stroke !== null && typeof styles.stroke !== "string" || styles.strokeWidth !== void 0 && (!Number.isFinite(styles.strokeWidth) || styles.strokeWidth < 0) || styles.opacity !== void 0 && (!Number.isFinite(styles.opacity) || styles.opacity < 0 || styles.opacity > 1) || styles.strokeDashArray != null && (!Array.isArray(styles.strokeDashArray) || styles.strokeDashArray.length > 16 || styles.strokeDashArray.some((entry) => !Number.isFinite(entry) || entry < 0))) {
+		warnInvalidMask(options, "styles contain unsupported properties or invalid values");
+		return false;
+	}
 	return !(dimensions.rx !== void 0 && !validateNonNegativeField(options, "rx", dimensions.rx) || dimensions.ry !== void 0 && !validateNonNegativeField(options, "ry", dimensions.ry) || dimensions.radius !== void 0 && !validatePositiveField(options, "radius", dimensions.radius) || shapeType === "polygon" && dimensions.polygonPoints === null);
 }
-function expandMaskCanvas(context, placement, resolvedConfig) {
+function expandMaskCanvas(context, placement, resolvedConfig, bounds) {
+	var _a, _b, _c, _d;
 	const { canvas, options } = context;
 	let preExpandCanvasSize = null;
 	if (options.layoutMode === "expand") {
-		const requiredWidth = Math.ceil(placement.left + resolvedConfig.width + 10);
-		const requiredHeight = Math.ceil(placement.top + resolvedConfig.height + 10);
+		const requiredWidth = Math.ceil(((_a = bounds === null || bounds === void 0 ? void 0 : bounds.left) !== null && _a !== void 0 ? _a : placement.left) + ((_b = bounds === null || bounds === void 0 ? void 0 : bounds.width) !== null && _b !== void 0 ? _b : resolvedConfig.width) + 10);
+		const requiredHeight = Math.ceil(((_c = bounds === null || bounds === void 0 ? void 0 : bounds.top) !== null && _c !== void 0 ? _c : placement.top) + ((_d = bounds === null || bounds === void 0 ? void 0 : bounds.height) !== null && _d !== void 0 ? _d : resolvedConfig.height) + 10);
 		const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
 		const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
 		const maxExportDimension = options.maxExportDimension;
@@ -525,7 +544,7 @@ function applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig) 
 		maskId: nextId,
 		maskUid: createMaskUid(nextId),
 		maskName: `${options.maskName}${nextId}`,
-		originalAlpha: resolvedConfig.alpha,
+		originalAlpha: Number(maskObject.opacity),
 		originalStroke: maskObject.stroke,
 		originalStrokeWidth: maskObject.strokeWidth
 	});
@@ -556,10 +575,39 @@ function createMask(context, config = {}) {
 	const dimensions = resolveMaskDimensions(context, mergedConfig, resolvedConfig, shapeType);
 	if (!dimensions) return null;
 	if (!validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType)) return null;
-	const expansion = expandMaskCanvas(context, placement, resolvedConfig);
-	if (!expansion) return null;
-	const mask = buildFabricShape(context, config, resolvedConfig, shapeType, placement, dimensions, expansion);
+	const mask = buildFabricShape(context, config, resolvedConfig, shapeType, placement, dimensions, { rollback() {} });
 	if (!mask) return null;
+	if (mask.canvas || !require_core.isSafeSerializedFabricObject(mask.toObject(), { rootTypes: [
+		"rect",
+		"circle",
+		"ellipse",
+		"polygon"
+	] })) {
+		if (!mask.canvas) mask.dispose();
+		warnInvalidMask(options, "generated masks must use supported persistent shapes and properties");
+		return null;
+	}
+	mask.setCoords();
+	const bounds = mask.getBoundingRect();
+	if (![
+		bounds.left,
+		bounds.top,
+		bounds.width,
+		bounds.height
+	].every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) {
+		mask.dispose();
+		warnInvalidMask(options, "generated mask bounds must be finite and positive");
+		return null;
+	}
+	try {
+		if (!expandMaskCanvas(context, placement, resolvedConfig, bounds)) {
+			mask.dispose();
+			return null;
+		}
+	} catch (error) {
+		mask.dispose();
+		throw error;
+	}
 	return finalizeMaskAttachment(context, config, resolvedConfig, applyCommonMaskProperties(context, mask, mergedConfig, resolvedConfig));
 }
 
@@ -688,7 +736,7 @@ function nonNegative(value, fallback) {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 function resolveMaskPluginOptions(options = {}) {
-	var _a, _b;
+	var _a, _b, _c;
 	return Object.freeze({
 		defaultWidth: positive(options.defaultWidth, 50),
 		defaultHeight: positive(options.defaultHeight, 80),
@@ -696,13 +744,17 @@ function resolveMaskPluginOptions(options = {}) {
 		rotatable: options.rotatable === true,
 		label: options.label === false ? false : Object.freeze({
 			...DEFAULT_LABEL,
-			...options.label
+			...options.label,
+			textOptions: Object.freeze({
+				...DEFAULT_LABEL.textOptions,
+				...(_b = options.label) === null || _b === void 0 ? void 0 : _b.textOptions
+			})
 		}),
 		labelOffset: nonNegative(options.labelOffset, 3),
 		exportByDefault: options.exportByDefault !== false,
 		listOrder: options.listOrder === "back-to-front" ? "back-to-front" : "front-to-back",
 		bindToImageTransform: options.bindToImageTransform === true,
-		namePrefix: ((_b = options.namePrefix) === null || _b === void 0 ? void 0 : _b.trim()) || "mask",
+		namePrefix: ((_c = options.namePrefix) === null || _c === void 0 ? void 0 : _c.trim()) || "mask",
 		...options.onChange ? { onChange: options.onChange } : {}
 	});
 }
@@ -892,8 +944,8 @@ var MaskPluginController = class {
 							stroke: typeof object.stroke === "string" ? object.stroke : null,
 							strokeWidth: context.toImageNormalizedScalar(Number(object.strokeWidth) || 0),
 							strokeDashArray: Array.isArray(object.strokeDashArray) ? Object.freeze(object.strokeDashArray.map((entry) => context.toImageNormalizedScalar(entry))) : null,
-							cornerRadiusX: context.toImageNormalizedScalar(Number(Reflect.get(object, "rx")) || 0),
-							cornerRadiusY: context.toImageNormalizedScalar(Number(Reflect.get(object, "ry")) || 0),
+							cornerRadiusX: context.toImageNormalizedScalar((Number(Reflect.get(object, "rx")) || 0) * Math.abs(object.scaleX)),
+							cornerRadiusY: context.toImageNormalizedScalar((Number(Reflect.get(object, "ry")) || 0) * Math.abs(object.scaleY)),
 							points: kind === "polygon" ? normalizedPolygonPoints(object) : null,
 							hasControls: object.hasControls === true,
 							selectable: object.selectable !== false,
@@ -952,6 +1004,10 @@ var MaskPluginController = class {
 					mask.overlayMetadata = Object.freeze({ ...value.metadata });
 					mask.lockRotation = !this.options.rotatable;
 					require_overlay.restoreOverlayStateBounds(mask, value.geometry, context, this.host.fabric);
+					if (data.kind === "rect") mask.set({
+						rx: context.toCanvasScalar(data.cornerRadiusX) / Math.abs(mask.scaleX),
+						ry: context.toCanvasScalar(data.cornerRadiusY) / Math.abs(mask.scaleY)
+					});
 					reattachMaskHoverHandlers(mask);
 					return mask;
 				}
@@ -989,10 +1045,10 @@ var MaskPluginController = class {
 			kind: "mask:object",
 			ownerPluginId: MASK_PLUGIN_ID,
 			preview: (object) => {
-				if (isMaskObject(object)) syncMaskLabel(this.labelContext(), object);
+				if (isMaskObject(object) && this.host.getCanvas()) syncMaskLabel(this.labelContext(), object);
 			},
 			synchronize: (object, context) => {
-				if (isMaskObject(object) && object.labelObject) syncMaskLabel(this.labelContext(), object);
+				if (isMaskObject(object) && object.labelObject && this.host.getCanvas()) syncMaskLabel(this.labelContext(), object);
 				if (this.lastInteractionNotification !== context.descriptor.id) {
 					this.lastInteractionNotification = context.descriptor.id;
 					this.notifyChange();
@@ -1077,11 +1133,24 @@ var MaskPluginController = class {
 		});
 	}
 	removeSelected() {
-		const selectedId = this.overlay.getSelection().ids.find((id) => {
+		const ids = this.overlay.getSelection().ids.filter((id) => {
 			const object = this.overlay.getByPersistentId(id);
 			return object ? isMaskObject(object) : false;
 		});
-		return selectedId ? this.remove(selectedId) : Promise.resolve();
+		if (ids.length === 0) return Promise.resolve();
+		return this.overlay.mutate({
+			id: `mask:remove-selected:${++this.mutationSequence}`,
+			operationId: "mask:remove",
+			action: "delete",
+			objectIds: ids,
+			metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID }),
+			mutate: () => {
+				for (const id of ids) {
+					const object = this.overlay.getByPersistentId(id);
+					if (object && isMaskObject(object)) this.removeMaskObject(object);
+				}
+			}
+		});
 	}
 	removeAll() {
 		const masks = [...this.getAll()];
@@ -1391,4 +1460,4 @@ Object.defineProperty(exports, "maskPluginRef", {
     return maskPluginRef;
   }
 });
-//# sourceMappingURL=mask-CdYqaJlO.cjs.map
+//# sourceMappingURL=mask-DS787SpI.cjs.map

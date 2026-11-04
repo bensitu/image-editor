@@ -221,17 +221,23 @@ export class TransformPluginController {
     }
 
     private scaleWithOperation(
-        factor: number,
+        factor: number | (() => number),
         operationId: string,
         options: TransformMutationOptions = {},
     ): Promise<void> {
-        if (!Number.isFinite(factor)) return Promise.resolve();
+        if (typeof factor === 'number' && !Number.isFinite(factor))
+            return Promise.reject(new TypeError('Scale must be finite.'));
         return this.enqueue(
             operationId,
             async (signal, animations) => {
                 const image = this.baseImage.getBaseImage();
                 if (!image) return;
-                await this.applyScale(image, factor, signal, animations);
+                await this.applyScale(
+                    image,
+                    typeof factor === 'function' ? factor() : factor,
+                    signal,
+                    animations,
+                );
             },
             options,
         );
@@ -239,7 +245,7 @@ export class TransformPluginController {
 
     zoomIn(options: TransformMutationOptions = {}): Promise<void> {
         return this.scaleWithOperation(
-            this.state.scale + this.options.scaleStep,
+            () => Number((this.state.scale + this.options.scaleStep).toPrecision(15)),
             'transform:zoom-in',
             options,
         );
@@ -247,14 +253,15 @@ export class TransformPluginController {
 
     zoomOut(options: TransformMutationOptions = {}): Promise<void> {
         return this.scaleWithOperation(
-            this.state.scale - this.options.scaleStep,
+            () => Number((this.state.scale - this.options.scaleStep).toPrecision(15)),
             'transform:zoom-out',
             options,
         );
     }
 
     rotate(degrees: number, options: TransformMutationOptions = {}): Promise<void> {
-        if (!Number.isFinite(degrees)) return Promise.resolve();
+        if (!Number.isFinite(degrees))
+            return Promise.reject(new TypeError('Rotation must be finite.'));
         return this.enqueue(
             'transform:rotate',
             async (signal, animations) => {
@@ -347,7 +354,8 @@ export class TransformPluginController {
         if (this.animations.isDisposed()) return Promise.resolve();
         const image = this.baseImage.getBaseImage();
         if (!image) return Promise.resolve();
-        const rollback = this.captureRollback(image);
+        let rollback: TargetedRollbackState | null = null;
+        let mutatedImage: FabricNS.FabricImage | null = null;
         const mutationId = `${operationId}:${++this.mutationSequence}`;
         const animations = this.animations.createScope();
         let operation: ReturnType<GeometryMutationPort['run']>;
@@ -358,11 +366,13 @@ export class TransformPluginController {
                 operationId,
                 ...(options.parent ? { parent: options.parent } : {}),
                 mutateBase: async ({ signal }) => {
+                    mutatedImage = this.baseImage.getBaseImage();
+                    if (mutatedImage) rollback = this.captureRollback(mutatedImage);
                     await mutate(signal, animations);
                 },
                 rollbackBase: async () => {
                     await animations.cancelAnimations();
-                    this.restoreRollback(image, rollback);
+                    if (mutatedImage && rollback) this.restoreRollback(mutatedImage, rollback);
                 },
                 metadata: Object.freeze({ pluginId: 'plugin:transform' }),
             });
@@ -441,7 +451,7 @@ export class TransformPluginController {
             image.setCoords();
             this.state.rotationDegrees = degrees;
         } finally {
-            if (this.animations.isDisposed()) restoreOrigin(image, 'left', 'top');
+            restoreOrigin(image, 'left', 'top');
         }
     }
 
@@ -456,8 +466,8 @@ export class TransformPluginController {
                 angle: Number(image.angle) || 0,
                 flipX: image.flipX === true,
                 flipY: image.flipY === true,
-                originX: 'left',
-                originY: 'top',
+                originX: image.originX,
+                originY: image.originY,
             }),
         });
     }

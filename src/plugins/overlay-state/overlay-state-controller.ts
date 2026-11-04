@@ -6,6 +6,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { isValidSemVer } from '../../plugin-kernel/semver.js';
 import { isRuntimeIdentifier } from '../../sdk/index.js';
 
 import type {
@@ -50,8 +51,6 @@ import {
 
 const IMPORT_OPERATION_ID = 'overlay-state:import';
 const MAX_PERSISTENT_ID_LENGTH = 128;
-const SEMVER_PATTERN =
-    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 type MarkedStateObject = FabricNS.FabricObject & {
     editorOverlayKind?: string;
@@ -120,7 +119,7 @@ function resolveStateKind(overlay: OverlayRuntimeApi, kind: string): ResolvedSta
         typeof codec.type !== 'string' ||
         !isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
-        !SEMVER_PATTERN.test(codec.version) ||
+        !isValidSemVer(codec.version) ||
         typeof codec.serialize !== 'function' ||
         typeof codec.validate !== 'function' ||
         typeof codec.deserialize !== 'function'
@@ -258,117 +257,146 @@ export class OverlayStateController implements OverlayStatePluginApi, Disposable
             throw new OverlayStateValidationError(validated.errors);
         }
         const document = validated.document;
-        const context = createOverlayStateContext(this.baseImage);
-        const existingObjects = this.overlay.list({ includeHidden: true, includeLocked: true });
-        const persistentIds: string[] = [];
-        const persistentObjects: FabricNS.FabricObject[] = [];
-        const allIds = new Set<string>();
-        for (const object of existingObjects) {
-            const classification = this.overlay.classify(object);
-            if (!classification) continue;
-            allIds.add(classification.persistentId);
-            if (this.overlay.getStateKind(classification.kind)?.persistence.mode === 'persistent') {
-                persistentIds.push(classification.persistentId);
-                persistentObjects.push(object);
-            }
-        }
-        const removeIds = mode === 'replace' ? Object.freeze(persistentIds) : Object.freeze([]);
-        const removeObjects =
-            mode === 'replace' ? Object.freeze(persistentObjects) : Object.freeze([]);
-        const reserved = new Set(allIds);
-        if (mode === 'replace') {
-            for (const id of removeIds) reserved.delete(id);
-        }
         const idMapEntries: Array<readonly [string, string]> = [];
         const additions: PreparedStateObject[] = [];
         const preparedObjects = new Set<FabricNS.FabricObject>();
+        const removedObjects: FabricNS.FabricObject[] = [];
         let skipped = 0;
         const ordered = document.overlays
             .map((item, index) => ({ item, index }))
             .sort((left, right) => left.item.layer - right.item.layer);
         try {
-            for (const { item, index } of ordered) {
-                const resolved = resolveStateKind(this.overlay, item.kind);
-                if (
-                    !resolved ||
-                    resolved.codec.type !== item.codec.type ||
-                    resolved.codec.version !== item.codec.version
-                ) {
-                    if (missingKindPolicy === 'skip') {
-                        skipped += 1;
-                        continue;
-                    }
-                    throw new OverlayStateCodecError(item.kind);
-                }
-                let persistentId = item.id;
-                if (reserved.has(persistentId)) {
-                    if (idConflict === 'error') throw new OverlayStateIdConflictError(persistentId);
-                    const regenerated = nextAvailableId(persistentId, reserved);
-                    idMapEntries.push(Object.freeze([persistentId, regenerated] as const));
-                    persistentId = regenerated;
-                }
-                reserved.add(persistentId);
-                const value = stateValue(document, index);
-                const object = await resolved.codec.deserialize(value, context.codec);
-                if (!object || typeof object !== 'object' || object.canvas) {
-                    throw new OverlayStateCodecError(item.kind, 'restored an incompatible object');
-                }
-                preparedObjects.add(object);
-                const marked = object as MarkedStateObject;
-                marked.editorOverlayKind = item.kind;
-                marked.editorOverlayId = persistentId;
-                marked.editorOverlayHidden = item.hidden;
-                marked.editorOverlayLocked = item.locked;
-                resolved.adapter.setPersistentId?.(object, persistentId);
-                if (!resolved.adapter.classify(object)) {
-                    throw new OverlayStateCodecError(item.kind, 'restored an incompatible object');
-                }
-                if (resolved.adapter.setHidden) resolved.adapter.setHidden(object, item.hidden);
-                else object.set({ visible: !item.hidden });
-                if (resolved.adapter.setLocked) resolved.adapter.setLocked(object, item.locked);
-                else object.set({ selectable: !item.locked, evented: !item.locked });
-                additions.push(Object.freeze({ kind: item.kind, persistentId, object }));
-            }
-            const additionObjects = Object.freeze(additions.map((entry) => entry.object));
-            if (new Set(additionObjects).size !== additionObjects.length) {
-                throw new OverlayStateCodecError(
-                    'multiple',
-                    'restored duplicate object identities',
-                );
-            }
-            if (removeIds.length > 0 || additions.length > 0) {
-                await this.overlay.mutate({
-                    id: `overlay-state:import-${++this.sequence}`,
-                    operationId: IMPORT_OPERATION_ID,
-                    action: 'delete',
-                    objectIds: removeIds,
-                    mutate: () => {
-                        const canvas = this.canvas.requireCanvas('import Overlay State');
-                        canvas.discardActiveObject();
-                        for (const object of removeObjects) canvas.remove(object);
-                        for (const object of additionObjects) canvas.add(object);
-                    },
-                    affectedObjects: () => additionObjects,
-                    validate: () => {
-                        for (const addition of additions) {
-                            if (
-                                this.overlay.getByPersistentId(addition.persistentId) !==
-                                addition.object
-                            ) {
-                                throw new OverlayStateCodecError(
-                                    addition.kind,
-                                    `did not restore "${addition.persistentId}"`,
-                                );
-                            }
+            await this.overlay.mutate({
+                id: `overlay-state:import-${++this.sequence}`,
+                operationId: IMPORT_OPERATION_ID,
+                action: 'delete',
+                mutate: async () => {
+                    const context = createOverlayStateContext(this.baseImage);
+                    const existingObjects = this.overlay.list({
+                        includeHidden: true,
+                        includeLocked: true,
+                    });
+                    const persistentIds: string[] = [];
+                    const persistentObjects: FabricNS.FabricObject[] = [];
+                    const allIds = new Set<string>();
+                    for (const object of existingObjects) {
+                        const classification = this.overlay.classify(object);
+                        if (!classification) continue;
+                        allIds.add(classification.persistentId);
+                        if (
+                            this.overlay.getStateKind(classification.kind)?.persistence.mode ===
+                            'persistent'
+                        ) {
+                            persistentIds.push(classification.persistentId);
+                            persistentObjects.push(object);
                         }
-                    },
-                    metadata: Object.freeze({ mode, imported: additions.length, skipped }),
-                });
-            }
+                    }
+                    const removeIds =
+                        mode === 'replace' ? Object.freeze(persistentIds) : Object.freeze([]);
+                    const removeObjects =
+                        mode === 'replace' ? Object.freeze(persistentObjects) : Object.freeze([]);
+                    const reserved = new Set(allIds);
+                    if (mode === 'replace') {
+                        for (const id of removeIds) reserved.delete(id);
+                    }
+
+                    if (
+                        context.image.naturalWidth !== document.image.naturalWidth ||
+                        context.image.naturalHeight !== document.image.naturalHeight
+                    ) {
+                        this.diagnostics.reportWarning(
+                            new Error('Overlay image dimensions differ from the current image.'),
+                            'Normalized Overlay coordinates will be scaled to the current image.',
+                        );
+                    }
+                    for (const { item, index } of ordered) {
+                        const resolved = resolveStateKind(this.overlay, item.kind);
+                        if (
+                            !resolved ||
+                            resolved.codec.type !== item.codec.type ||
+                            resolved.codec.version !== item.codec.version
+                        ) {
+                            if (missingKindPolicy === 'skip') {
+                                skipped += 1;
+                                continue;
+                            }
+                            throw new OverlayStateCodecError(item.kind);
+                        }
+                        let persistentId = item.id;
+                        if (reserved.has(persistentId)) {
+                            if (idConflict === 'error')
+                                throw new OverlayStateIdConflictError(persistentId);
+                            const regenerated = nextAvailableId(persistentId, reserved);
+                            idMapEntries.push(Object.freeze([persistentId, regenerated] as const));
+                            persistentId = regenerated;
+                        }
+                        reserved.add(persistentId);
+                        const value = stateValue(document, index);
+                        const object = await resolved.codec.deserialize(value, context.codec);
+                        if (!object || typeof object !== 'object' || object.canvas) {
+                            throw new OverlayStateCodecError(
+                                item.kind,
+                                'restored an incompatible object',
+                            );
+                        }
+                        preparedObjects.add(object);
+                        const marked = object as MarkedStateObject;
+                        marked.editorOverlayKind = item.kind;
+                        marked.editorOverlayId = persistentId;
+                        marked.editorOverlayHidden = item.hidden;
+                        marked.editorOverlayLocked = item.locked;
+                        resolved.adapter.setPersistentId?.(object, persistentId);
+                        if (!resolved.adapter.classify(object)) {
+                            throw new OverlayStateCodecError(
+                                item.kind,
+                                'restored an incompatible object',
+                            );
+                        }
+                        if (resolved.adapter.setHidden)
+                            resolved.adapter.setHidden(object, item.hidden);
+                        else object.set({ visible: !item.hidden });
+                        if (resolved.adapter.setLocked)
+                            resolved.adapter.setLocked(object, item.locked);
+                        else object.set({ selectable: !item.locked, evented: !item.locked });
+                        additions.push(Object.freeze({ kind: item.kind, persistentId, object }));
+                    }
+                    const additionObjects = Object.freeze(additions.map((entry) => entry.object));
+                    if (new Set(additionObjects).size !== additionObjects.length) {
+                        throw new OverlayStateCodecError(
+                            'multiple',
+                            'restored duplicate object identities',
+                        );
+                    }
+
+                    const canvas = this.canvas.requireCanvas('import Overlay State');
+                    canvas.discardActiveObject();
+                    for (const object of removeObjects) {
+                        canvas.remove(object);
+                        removedObjects.push(object);
+                    }
+                    for (const object of additionObjects) canvas.add(object);
+                },
+                affectedObjects: () => additions.map((entry) => entry.object),
+                validate: () => {
+                    for (const addition of additions) {
+                        if (
+                            this.overlay.getByPersistentId(addition.persistentId) !==
+                            addition.object
+                        ) {
+                            throw new OverlayStateCodecError(
+                                addition.kind,
+                                `did not restore "${addition.persistentId}"`,
+                            );
+                        }
+                    }
+                },
+                metadata: Object.freeze({ mode }),
+            });
         } catch (error) {
             this.disposePreparedObjects(preparedObjects);
             throw error;
         }
+        this.disposePreparedObjects(new Set(removedObjects));
         return Object.freeze({
             mode,
             imported: additions.length,
