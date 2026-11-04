@@ -6,7 +6,7 @@ ownership, public-only imports, and peer dependency isolation.
 
 TypeScript emits the ESM JavaScript and declarations, then Rolldown bundles the
 CommonJS entry while keeping Image Editor and Fabric external as peer-owned
-runtimes.
+runtimes. The template is independent of the repository workspaces so it can be copied into another project; run `npm install` in its own directory before building it.
 
 ```bash
 npm install

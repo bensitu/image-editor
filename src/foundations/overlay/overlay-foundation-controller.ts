@@ -580,6 +580,18 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
             canvas.on('selection:updated', this.onSelectionChanged);
             canvas.on('selection:cleared', this.onSelectionChanged);
         }
+        const element = canvas.upperCanvasEl;
+        const ownerWindow = element?.ownerDocument.defaultView;
+        ownerWindow?.addEventListener('blur', this.onMouseUp);
+        element?.addEventListener('pointercancel', this.onMouseUp);
+        element?.addEventListener('lostpointercapture', this.onMouseUp);
+        this.registrations.push(
+            createDisposable(() => {
+                ownerWindow?.removeEventListener('blur', this.onMouseUp);
+                element?.removeEventListener('pointercancel', this.onMouseUp);
+                element?.removeEventListener('lostpointercapture', this.onMouseUp);
+            }),
+        );
         this.attached = true;
         this.rebuildIndex();
     }
@@ -2326,7 +2338,12 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
     }
 
     private generatePersistentId(kind: string): string {
-        const randomId = globalThis.crypto?.randomUUID?.();
+        let randomId: string | undefined = globalThis.crypto?.randomUUID?.();
+        if (!randomId && globalThis.crypto?.getRandomValues) {
+            randomId = [...globalThis.crypto.getRandomValues(new Uint32Array(4))]
+                .map((value) => value.toString(16).padStart(8, '0'))
+                .join('');
+        }
         return randomId
             ? `${kind}:${randomId}`
             : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}:${Math.random().toString(36).slice(2)}`;

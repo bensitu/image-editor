@@ -111,15 +111,16 @@ await mosaic.commit({
 });
 ```
 
-The default `source` format preserves the source MIME type. `png`, `jpeg`, and `webp` are also
-supported. If visible-filter baking is requested without a compatible provider, commit fails
-without changing the document.
+The default `source` format requests the source MIME type and uses the actual encoded type if the browser falls back. `png`, `jpeg`, and `webp` are also
+supported. An installed incompatible visible-filter provider causes commit to fail without changing the document.
+When no provider is installed, Mosaic operates on the current Base Image pixels.
 
 A changed commit is one atomic raster mutation. With the History Plugin enabled it creates one undo
 record and one committed geometry event. With History disabled it creates no record but retains Core
 rollback protection. Overlay and Mask identities, selection, and layer order remain unchanged.
 Rendering, decoding, Filters, or commit failures restore Base Image, Filters, Overlay state,
-selection, and History exactly. A session with no completed strokes is a no-op.
+selection, and History exactly. Commit closes the Mosaic session on success or failure; enter Mosaic
+again to begin another session. A session with no completed strokes is a no-op.
 
 ## Security limits and headless use
 

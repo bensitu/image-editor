@@ -408,6 +408,7 @@
 
     async function disposeEditor() {
         const kit = getKit();
+        await demoState.operationQueue;
         demoState.kit = null;
         releaseCleanups();
         demoState.operationQueue = Promise.resolve();
@@ -1400,7 +1401,7 @@
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
-                setTimeout(() => URL.revokeObjectURL(url), 0);
+                setTimeout(() => URL.revokeObjectURL(url), 30_000);
             },
             'Download started.',
         );

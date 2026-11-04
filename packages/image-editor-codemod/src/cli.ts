@@ -24,7 +24,9 @@ interface CliOptions {
 }
 
 function parseArguments(args: readonly string[]): CliOptions | null {
-    if (args.includes('--help') || args.includes('-h')) return null;
+    const optionEnd = args.indexOf('--');
+    const optionArgs = optionEnd < 0 ? args : args.slice(0, optionEnd);
+    if (optionArgs.includes('--help') || optionArgs.includes('-h')) return null;
     if (args[0] !== 'migrate') throw new Error('The required command is "migrate".');
     const targets: string[] = [];
     let mode: CodemodMode = 'write';
@@ -32,6 +34,15 @@ function parseArguments(args: readonly string[]): CliOptions | null {
     let reportPath: string | undefined;
     for (let index = 1; index < args.length; index += 1) {
         const argument = args[index]!;
+        if (argument === '--') {
+            targets.push(...args.slice(index + 1));
+            break;
+        }
+        if (argument.startsWith('--report=')) {
+            reportPath = argument.slice('--report='.length);
+            if (!reportPath) throw new Error('--report requires a file path.');
+            continue;
+        }
         if (argument === '--write' || argument === '--dry-run' || argument === '--diff') {
             if (selectedMode) throw new Error('Select exactly one codemod mode.');
             mode = argument.slice(2) as CodemodMode;

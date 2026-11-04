@@ -7,6 +7,11 @@ import type { CropPluginApi } from '@bensitu/image-editor/plugins/crop';
 import type { HistoryPort, HistoryStatus } from '@bensitu/image-editor/plugins/history';
 import type { MaskPluginApi } from '@bensitu/image-editor/plugins/mask';
 
+import {
+    createSerializedEditorMountCoordinator,
+    type SerializedEditorMountLease,
+} from '../../shared/serialized-editor-mount.mjs';
+
 const emptyHistory: HistoryStatus = {
     isEnabled: true,
     canUndo: false,
@@ -41,6 +46,7 @@ export default function ImageEditorClient() {
     const masksRef = useRef<MaskPluginApi | null>(null);
     const cropRef = useRef<CropPluginApi | null>(null);
     const historyRef = useRef<HistoryPort | null>(null);
+    const [mountCoordinator] = useState(createSerializedEditorMountCoordinator);
     const [ready, setReady] = useState(false);
     const [running, setRunning] = useState(false);
     const [imageInfo, setImageInfo] = useState<CoreImageInfo | null>(null);
@@ -50,9 +56,8 @@ export default function ImageEditorClient() {
     const [message, setMessage] = useState<string | null>(null);
 
     useEffect(() => {
-        let disposed = false;
-        let ownedEditor: ImageEditorCore | null = null;
-
+        let mounted = true;
+        let lease: SerializedEditorMountLease | null = null;
         async function setup() {
             const canvas = canvasRef.current;
             if (!canvas) return;
@@ -60,58 +65,60 @@ export default function ImageEditorClient() {
                 import('fabric'),
                 import('@bensitu/image-editor/presets/redaction'),
             ]);
-            if (disposed) return;
-            const preset = presets.createRedactionPreset(fabric, {
-                core: {
-                    defaultLayoutMode: 'fit',
-                    onError(error, detail) {
-                        console.error(detail, error);
-                        setMessage(`Error: ${detail}`);
-                    },
+            if (!mounted) return;
+            lease = mountCoordinator.mount({
+                create: () =>
+                    presets.createRedactionPreset(fabric, {
+                        core: {
+                            defaultLayoutMode: 'fit',
+                            onError(error, detail) {
+                                console.error(detail, error);
+                                if (mounted) setMessage(`Error: ${detail}`);
+                            },
+                        },
+                        transform: { animationDuration: 0 },
+                        history: {
+                            onChange(status) {
+                                if (mounted) setHistoryState(status);
+                            },
+                        },
+                        masks: { label: false },
+                        crop: { paddingPx: 0 },
+                    }),
+                initialize: (preset) =>
+                    preset.editor.init({ canvas, canvasContainer: containerRef.current }),
+                publish(preset) {
+                    editorRef.current = preset.editor;
+                    masksRef.current = preset.masks;
+                    cropRef.current = preset.crop;
+                    historyRef.current = preset.history;
+                    setReady(true);
                 },
-                transform: { animationDuration: 0 },
-                history: { onChange: setHistoryState },
-                masks: { label: false },
-                crop: { paddingPx: 0 },
+                clear() {
+                    editorRef.current = null;
+                    masksRef.current = null;
+                    cropRef.current = null;
+                    historyRef.current = null;
+                },
+                dispose: (preset) => preset.editor.disposeAsync(),
+                onInitializationError(error) {
+                    if (mounted) setMessage(`Initialization failed: ${errorMessage(error)}`);
+                },
+                onDisposalError(error) {
+                    console.error('Editor disposal failed.', error);
+                },
             });
-            ownedEditor = preset.editor;
-            editorRef.current = preset.editor;
-            masksRef.current = preset.masks;
-            cropRef.current = preset.crop;
-            historyRef.current = preset.history;
-            await preset.editor.init({ canvas, canvasContainer: containerRef.current });
-            if (disposed) {
-                const current = ownedEditor;
-                ownedEditor = null;
-                await current?.disposeAsync();
-                return;
-            }
-            setReady(true);
+            await lease.ready;
         }
-
-        setup().catch((error: unknown) => {
-            const current = ownedEditor;
-            ownedEditor = null;
-            current?.disposeAsync().catch((disposeError: unknown) => {
-                console.error('Editor disposal failed.', disposeError);
-            });
-            if (!disposed) setMessage(`Initialization failed: ${errorMessage(error)}`);
+        void setup().catch((error: unknown) => {
+            if (mounted) setMessage(`Initialization failed: ${errorMessage(error)}`);
         });
-
         return () => {
-            disposed = true;
+            mounted = false;
             setReady(false);
-            editorRef.current = null;
-            masksRef.current = null;
-            cropRef.current = null;
-            historyRef.current = null;
-            const current = ownedEditor;
-            ownedEditor = null;
-            current?.disposeAsync().catch((error: unknown) => {
-                console.error('Editor disposal failed.', error);
-            });
+            lease?.release();
         };
-    }, []);
+    }, [mountCoordinator]);
 
     function refreshState() {
         setImageInfo(editorRef.current?.getImageInfo() ?? null);
@@ -133,11 +140,12 @@ export default function ImageEditorClient() {
     }
 
     async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-        const file = event.currentTarget.files?.[0];
+        const input = event.currentTarget;
+        const file = input.files?.[0];
         const editor = editorRef.current;
         if (!file || !editor) return;
         await run(async () => editor.loadImage(await readFileAsDataUrl(file)));
-        event.currentTarget.value = '';
+        input.value = '';
     }
 
     function addMask() {

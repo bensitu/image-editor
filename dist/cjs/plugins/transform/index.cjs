@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_transform = require("../../chunks/transform-Xsuoln8s.cjs");
+const require_transform = require("../../chunks/transform-Bf3MHYMZ.cjs");
 
 exports.transformPlugin = require_transform.transformPlugin;
 exports.transformPluginRef = require_transform.transformPluginRef;

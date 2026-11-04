@@ -484,7 +484,7 @@ test('programmatic delete commits once and keeps the overlay index coherent', as
     await dispose(editor);
 });
 
-test('cancel restores the before state with zero History and zero committed event', async () => {
+test('focus loss restores the before state with zero History and zero committed event', async () => {
     const { committed, editor, history, overlay } = await createEditor();
     const rect = addRect(editor, 'rect:cancel', { left: 31, top: 29 });
     overlay.select(['rect:cancel']);
@@ -492,7 +492,8 @@ test('cancel restores the before state with zero History and zero committed even
     rect.set({ left: 130, top: 111 });
     previewGesture(editor, rect, 'object:moving');
 
-    await overlay.cancelActiveGesture();
+    window.dispatchEvent(new window.Event('blur'));
+    await overlay.waitForIdle().catch(() => undefined);
 
     const restored = overlay.getByPersistentId('rect:cancel');
     assert.ok(restored);

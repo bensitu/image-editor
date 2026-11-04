@@ -169,9 +169,7 @@ function item(id, kind, layer, hidden, locked, geometry, data, itemMetadata) {
     });
 }
 function uniqueId(id, reserved) {
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(id) || id.length > 128) {
-        return fail('overlay.id', 'Overlay identifiers must contain at most 128 supported characters.', '$.overlays');
-    }
+    id = id.slice(0, 128);
     if (!reserved.has(id)) {
         reserved.add(id);
         return id;
@@ -206,9 +204,10 @@ function convertMask(source, path, image, layer, id) {
     else if (shape === 'circle' && geometry.type === 'circle') {
         const radius = positive(geometry.radius, `${path}.geometry.radius`);
         left = numberValue(geometry.cx, `${path}.geometry.cx`) - radius;
-        top = numberValue(geometry.cy, `${path}.geometry.cy`) - radius;
+        const radiusY = (radius * image.naturalWidth) / image.naturalHeight;
+        top = numberValue(geometry.cy, `${path}.geometry.cy`) - radiusY;
         width = radius * 2;
-        height = radius * 2;
+        height = radiusY * 2;
     }
     else if (shape === 'ellipse' && geometry.type === 'ellipse') {
         const rx = positive(geometry.rx, `${path}.geometry.rx`);
@@ -257,10 +256,10 @@ function convertMask(source, path, image, layer, id) {
         strokeDashArray: dashArray(style.strokeDashArray, image, `${path}.style.strokeDashArray`),
         cornerRadiusX: shape !== 'rect' || geometry.rx === undefined
             ? 0
-            : scalarFromPixels(numberValue(geometry.rx, `${path}.geometry.rx`), image),
+            : scalarFromXRatio(numberValue(geometry.rx, `${path}.geometry.rx`), image),
         cornerRadiusY: shape !== 'rect' || geometry.ry === undefined
             ? 0
-            : scalarFromPixels(numberValue(geometry.ry, `${path}.geometry.ry`), image),
+            : scalarFromPixels(numberValue(geometry.ry, `${path}.geometry.ry`) * image.naturalHeight, image),
         points,
         hasControls: booleanValue(style.hasControls, true),
         selectable: booleanValue(style.selectable, true),
@@ -466,6 +465,9 @@ export function migrateV1OverlayState(input, options = {}) {
         const path = `$.overlays[${index}]`;
         const sourceOverlay = record(source.overlays[index], path);
         const requestedId = stringValue(sourceOverlay.id, `${path}.id`);
+        if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(requestedId) || requestedId.length > 128) {
+            return fail('overlay.id', 'Overlay identifiers must contain at most 128 supported characters.', `${path}.id`);
+        }
         if (sourceOverlay.kind === 'mask') {
             if (overlays.length >= MAX_OVERLAYS) {
                 return fail('document.overlays', 'Overlay collection exceeds its limit.', path);

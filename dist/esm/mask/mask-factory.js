@@ -235,7 +235,8 @@ function resolveMaskDimensions(context, mergedConfig, resolvedConfig, shapeType)
 }
 function validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType) {
     var _a;
-    if (!validateFiniteField(options, 'left', placement.left) ||
+    if (typeof resolvedConfig.color !== 'string' ||
+        !validateFiniteField(options, 'left', placement.left) ||
         !validateFiniteField(options, 'top', placement.top) ||
         !validatePositiveField(options, 'width', resolvedConfig.width) ||
         !validatePositiveField(options, 'height', resolvedConfig.height) ||
@@ -485,6 +486,20 @@ export function createMask(context, config = {}) {
     if (mask.canvas ||
         !isSafeSerializedFabricObject(mask.toObject(), {
             rootTypes: ['rect', 'circle', 'ellipse', 'polygon'],
+        }) ||
+        typeof mask.fill !== 'string' ||
+        (mask.stroke !== null && typeof mask.stroke !== 'string') ||
+        !Number.isFinite(mask.opacity) ||
+        mask.opacity < 0 ||
+        mask.opacity > 1 ||
+        !Number.isFinite(mask.strokeWidth) ||
+        mask.strokeWidth < 0 ||
+        mask.width <= 0 ||
+        mask.height <= 0 ||
+        ['rx', 'ry'].some((key) => {
+            const value = Reflect.get(mask, key);
+            return (value !== undefined &&
+                (typeof value !== 'number' || !Number.isFinite(value) || value < 0));
         })) {
         if (!mask.canvas)
             mask.dispose();

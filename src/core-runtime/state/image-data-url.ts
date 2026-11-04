@@ -6,6 +6,7 @@
 
 export interface EncodedImageInspection {
     readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+    /** Decoded byte length of the Base64 payload. */
     readonly encodedBytes: number;
     readonly dimensions: Readonly<{ width: number; height: number }> | null;
 }

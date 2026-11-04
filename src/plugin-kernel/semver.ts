@@ -38,10 +38,17 @@ function parseRangeVersion(value: string): ParsedRangeVersion | null {
     if (!partial) return null;
     const minor = partial[2];
     const patch = partial[3];
+    if (minor && /[xX*]/u.test(minor) && patch && !/[xX*]/u.test(patch)) return null;
     return {
         major: partial[1]!,
         minor: minor === undefined || /[xX*]/u.test(minor) ? null : minor,
-        patch: patch === undefined || /[xX*]/u.test(patch) ? null : patch,
+        patch:
+            minor === undefined ||
+            /[xX*]/u.test(minor) ||
+            patch === undefined ||
+            /[xX*]/u.test(patch)
+                ? null
+                : patch,
         exact: null,
     };
 }
@@ -100,12 +107,17 @@ function normalizeComparator(token: string): readonly string[] | null {
 function normalizeComparatorSet(value: string): string | null {
     const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(value);
     if (hyphen) {
-        const lower = parseRangeVersion(hyphen[1]!);
-        const upper = parseRangeVersion(hyphen[2]!);
-        if (!lower || !upper) return null;
-        return `>=${lower.exact ?? lowerBound(lower)} ${
-            upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`
-        }`;
+        const lowerWildcard = /^[xX*]$/u.test(hyphen[1]!);
+        const upperWildcard = /^[xX*]$/u.test(hyphen[2]!);
+        const lower = lowerWildcard ? null : parseRangeVersion(hyphen[1]!);
+        const upper = upperWildcard ? null : parseRangeVersion(hyphen[2]!);
+        if ((!lowerWildcard && !lower) || (!upperWildcard && !upper)) return null;
+        const comparators = [lower ? `>=${lower.exact ?? lowerBound(lower)}` : '>=0.0.0'];
+        if (upper)
+            comparators.push(
+                upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`,
+            );
+        return comparators.join(' ');
     }
     const normalized: string[] = [];
     for (const token of value.split(/\s+/u).filter(Boolean)) {

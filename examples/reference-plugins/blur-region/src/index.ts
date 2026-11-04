@@ -249,13 +249,19 @@ export function createBlurRegionPlugin(
                         },
                         rollback: () => inject('rollback'),
                     });
-                    await overlay.removeTransient([id]);
-                    regions.delete(id);
+                    try {
+                        await overlay.removeTransient([id]);
+                    } finally {
+                        regions.delete(id);
+                    }
                 },
                 async cancel(id) {
                     if (!regions.has(id)) return;
-                    await overlay.removeTransient([id]);
-                    regions.delete(id);
+                    try {
+                        await overlay.removeTransient([id]);
+                    } finally {
+                        regions.delete(id);
+                    }
                 },
                 list: () =>
                     Object.freeze(

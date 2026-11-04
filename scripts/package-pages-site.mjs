@@ -4,7 +4,8 @@
  * @module
  */
 
-import { access, cp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { access, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,8 +23,8 @@ const demoPages = Object.freeze([...modularDemoPages, 'legacy-v1.html']);
 const localFabricUrl = '../node_modules/fabric/dist/index.min.js';
 const hostedFabricUrl = 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js';
 const localImageEditorUmdBase = '../dist/umd';
-const hostedImageEditorUmdBase =
-    'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd';
+const hostedImageEditorUmdBase = './assets/image-editor';
+const fabricIntegrity = 'sha384-T2IWa4YW4tn/gJpR880CrMehXQvwxwaRgQszdzYPA6jBbKH9sPZuTf9YrN/PqNP6';
 
 await rm(siteRoot, { force: true, recursive: true });
 await cp(path.join(repositoryRoot, 'docs'), siteRoot, { recursive: true });
@@ -42,7 +43,7 @@ for (const page of modularDemoPages) {
     const pagePath = path.join(siteRoot, page);
     const source = await readFile(pagePath, 'utf8');
     const localFabricSource = `src="${localFabricUrl}"`;
-    const hostedFabricSource = `src="${hostedFabricUrl}"`;
+    const hostedFabricSource = `src="${hostedFabricUrl}" integrity="${fabricIntegrity}" crossorigin="anonymous"`;
     const localScriptPrefix = `src="${localImageEditorUmdBase}/`;
     const hostedScriptPrefix = `src="${hostedImageEditorUmdBase}/`;
     const localFabricAssetCount = source.split(localFabricSource).length - 1;
@@ -59,9 +60,25 @@ for (const page of modularDemoPages) {
         );
     }
 
-    const hostedSource = source
+    let hostedSource = source
         .replaceAll(localFabricSource, hostedFabricSource)
         .replaceAll(localScriptPrefix, hostedScriptPrefix);
+    for (const match of source.matchAll(/src="\.\.\/dist\/umd\/([^"]+)"/gu)) {
+        const asset = match[1];
+        const assetSource = path.resolve(repositoryRoot, 'dist', 'umd', asset);
+        const distributionRoot = path.resolve(repositoryRoot, 'dist', 'umd');
+        if (!assetSource.startsWith(distributionRoot + path.sep))
+            throw new Error('Invalid distribution asset path.');
+        const bytes = await readFile(assetSource);
+        const destination = path.join(siteRoot, 'assets', 'image-editor', asset);
+        await mkdir(path.dirname(destination), { recursive: true });
+        await writeFile(destination, bytes);
+        const integrity = `sha384-${createHash('sha384').update(bytes).digest('base64')}`;
+        hostedSource = hostedSource.replaceAll(
+            `src="${hostedImageEditorUmdBase}/${asset}"`,
+            `src="${hostedImageEditorUmdBase}/${asset}" integrity="${integrity}" crossorigin="anonymous"`,
+        );
+    }
     if (hostedSource.includes(localFabricSource) || hostedSource.includes(localScriptPrefix)) {
         throw new Error(`${page} still contains a local script source after Pages packaging.`);
     }
@@ -73,5 +90,5 @@ for (const page of modularDemoPages) {
 console.log(
     `Pages artifact packaged at .pages-site (${demoPages.length} demo pages verified, ` +
         `${rewrittenFabricAssetCount} Fabric and ${rewrittenImageEditorAssetCount} Image Editor ` +
-        'assets rewritten to the hosted CDN).',
+        'assets packaged with integrity metadata).',
 );

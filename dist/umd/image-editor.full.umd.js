@@ -202,7 +202,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 	var CapabilityConflictError = class extends PluginError {
 		constructor(capabilityId, installedProviderPluginId, conflictingProviderPluginId) {
-			super("CAPABILITY_CONFLICT", `[ImageEditor] Capability "${capabilityId}" is already provided by "${installedProviderPluginId}" and cannot also be provided by "${conflictingProviderPluginId}".`, { pluginId: conflictingProviderPluginId });
+			super("CAPABILITY_CONFLICT", installedProviderPluginId === conflictingProviderPluginId ? `[ImageEditor] Plugin "${conflictingProviderPluginId}" cannot register conflicting implementations of Capability "${capabilityId}".` : `[ImageEditor] Capability "${capabilityId}" is already provided by "${installedProviderPluginId}" and cannot also be provided by "${conflictingProviderPluginId}".`, { pluginId: conflictingProviderPluginId });
 			this.capabilityId = capabilityId;
 			this.installedProviderPluginId = installedProviderPluginId;
 			this.conflictingProviderPluginId = conflictingProviderPluginId;
@@ -313,10 +313,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!partial) return null;
 		const minor = partial[2];
 		const patch = partial[3];
+		if (minor && /[xX*]/u.test(minor) && patch && !/[xX*]/u.test(patch)) return null;
 		return {
 			major: partial[1],
 			minor: minor === void 0 || /[xX*]/u.test(minor) ? null : minor,
-			patch: patch === void 0 || /[xX*]/u.test(patch) ? null : patch,
+			patch: minor === void 0 || /[xX*]/u.test(minor) || patch === void 0 || /[xX*]/u.test(patch) ? null : patch,
 			exact: null
 		};
 	}
@@ -367,10 +368,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		var _a;
 		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(value);
 		if (hyphen) {
-			const lower = parseRangeVersion(hyphen[1]);
-			const upper = parseRangeVersion(hyphen[2]);
-			if (!lower || !upper) return null;
-			return `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`}`;
+			const lowerWildcard = /^[xX*]$/u.test(hyphen[1]);
+			const upperWildcard = /^[xX*]$/u.test(hyphen[2]);
+			const lower = lowerWildcard ? null : parseRangeVersion(hyphen[1]);
+			const upper = upperWildcard ? null : parseRangeVersion(hyphen[2]);
+			if (!lowerWildcard && !lower || !upperWildcard && !upper) return null;
+			const comparators = [lower ? `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)}` : ">=0.0.0"];
+			if (upper) comparators.push(upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`);
+			return comparators.join(" ");
 		}
 		const normalized = [];
 		for (const token of value.split(/\s+/u).filter(Boolean)) {
@@ -9320,6 +9325,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				canvas.on("selection:updated", this.onSelectionChanged);
 				canvas.on("selection:cleared", this.onSelectionChanged);
 			}
+			const element = canvas.upperCanvasEl;
+			const ownerWindow = element === null || element === void 0 ? void 0 : element.ownerDocument.defaultView;
+			ownerWindow === null || ownerWindow === void 0 || ownerWindow.addEventListener("blur", this.onMouseUp);
+			element === null || element === void 0 || element.addEventListener("pointercancel", this.onMouseUp);
+			element === null || element === void 0 || element.addEventListener("lostpointercapture", this.onMouseUp);
+			this.registrations.push(createDisposable(() => {
+				ownerWindow === null || ownerWindow === void 0 || ownerWindow.removeEventListener("blur", this.onMouseUp);
+				element === null || element === void 0 || element.removeEventListener("pointercancel", this.onMouseUp);
+				element === null || element === void 0 || element.removeEventListener("lostpointercapture", this.onMouseUp);
+			}));
 			this.attached = true;
 			this.rebuildIndex();
 		}
@@ -10528,8 +10543,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 		}
 		generatePersistentId(kind) {
-			var _a, _b;
-			const randomId = (_b = (_a = globalThis.crypto) === null || _a === void 0 ? void 0 : _a.randomUUID) === null || _b === void 0 ? void 0 : _b.call(_a);
+			var _a, _b, _c;
+			let randomId = (_b = (_a = globalThis.crypto) === null || _a === void 0 ? void 0 : _a.randomUUID) === null || _b === void 0 ? void 0 : _b.call(_a);
+			if (!randomId && ((_c = globalThis.crypto) === null || _c === void 0 ? void 0 : _c.getRandomValues)) randomId = [...globalThis.crypto.getRandomValues(/* @__PURE__ */ new Uint32Array(4))].map((value) => value.toString(16).padStart(8, "0")).join("");
 			return randomId ? `${kind}:${randomId}` : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}:${Math.random().toString(36).slice(2)}`;
 		}
 		createFabricUtilAccess() {
@@ -13901,7 +13917,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType) {
 		var _a;
-		if (!validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha) || resolvedConfig.alpha < 0 || resolvedConfig.alpha > 1) return false;
+		if (typeof resolvedConfig.color !== "string" || !validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha) || resolvedConfig.alpha < 0 || resolvedConfig.alpha > 1) return false;
 		const styles = (_a = resolvedConfig.styles) !== null && _a !== void 0 ? _a : {};
 		const allowedStyles = /* @__PURE__ */ new Set([
 			"fill",
@@ -14097,7 +14113,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			"circle",
 			"ellipse",
 			"polygon"
-		] })) {
+		] }) || typeof mask.fill !== "string" || mask.stroke !== null && typeof mask.stroke !== "string" || !Number.isFinite(mask.opacity) || mask.opacity < 0 || mask.opacity > 1 || !Number.isFinite(mask.strokeWidth) || mask.strokeWidth < 0 || mask.width <= 0 || mask.height <= 0 || ["rx", "ry"].some((key) => {
+			const value = Reflect.get(mask, key);
+			return value !== void 0 && (typeof value !== "number" || !Number.isFinite(value) || value < 0);
+		})) {
 			if (!mask.canvas) mask.dispose();
 			warnInvalidMask(options, "generated masks must use supported persistent shapes and properties");
 			return null;

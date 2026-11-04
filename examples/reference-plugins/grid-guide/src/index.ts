@@ -102,6 +102,7 @@ export function createGridGuidePlugin(
     let gridIds: readonly string[] = Object.freeze([]);
     let guideIds: readonly string[] = Object.freeze([]);
     let objectCounter = 0;
+    let configurationWork: Promise<void> = Promise.resolve();
 
     return definePlugin({
         ref: gridGuidePluginRef,
@@ -203,17 +204,24 @@ export function createGridGuidePlugin(
                 enterGuideTool: () => context.tools.enter(guideToolId),
                 exitGuideTool: () => context.tools.exit('requested'),
                 listGuideIds: () => Object.freeze([...guideIds]),
-                async configure(patch) {
-                    const previous = configuration;
-                    const next = validateConfiguration({ ...configuration, ...patch });
-                    const enabled = gridIds.length > 0;
-                    configuration = next;
-                    try {
-                        if (enabled) await replaceGrid(createGrid());
-                    } catch (error) {
-                        configuration = previous;
-                        throw error;
-                    }
+                configure(patch) {
+                    const work = configurationWork.then(async () => {
+                        const previous = configuration;
+                        const next = validateConfiguration({ ...configuration, ...patch });
+                        const enabled = gridIds.length > 0;
+                        configuration = next;
+                        try {
+                            if (enabled) await replaceGrid(createGrid());
+                        } catch (error) {
+                            configuration = previous;
+                            throw error;
+                        }
+                    });
+                    configurationWork = work.then(
+                        () => undefined,
+                        () => undefined,
+                    );
+                    return work;
                 },
                 getConfiguration: () => Object.freeze({ ...configuration }),
             };

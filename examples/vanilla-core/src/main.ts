@@ -54,6 +54,7 @@ const [transform, history] = editor.install([
 ]);
 
 let disposed = false;
+input.disabled = true;
 
 async function run(action: () => Promise<unknown>): Promise<void> {
     try {
@@ -102,6 +103,7 @@ window.addEventListener(
 void editor
     .init({ canvas, canvasContainer: container })
     .then(() => {
+        if (!disposed) input.disabled = false;
         status.textContent = 'Ready — choose an image.';
     })
     .catch(async (error: unknown) => {

@@ -650,6 +650,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				canvas.on("selection:updated", this.onSelectionChanged);
 				canvas.on("selection:cleared", this.onSelectionChanged);
 			}
+			const element = canvas.upperCanvasEl;
+			const ownerWindow = element === null || element === void 0 ? void 0 : element.ownerDocument.defaultView;
+			ownerWindow === null || ownerWindow === void 0 || ownerWindow.addEventListener("blur", this.onMouseUp);
+			element === null || element === void 0 || element.addEventListener("pointercancel", this.onMouseUp);
+			element === null || element === void 0 || element.addEventListener("lostpointercapture", this.onMouseUp);
+			this.registrations.push((0, _bensitu_image_editor_sdk.createDisposable)(() => {
+				ownerWindow === null || ownerWindow === void 0 || ownerWindow.removeEventListener("blur", this.onMouseUp);
+				element === null || element === void 0 || element.removeEventListener("pointercancel", this.onMouseUp);
+				element === null || element === void 0 || element.removeEventListener("lostpointercapture", this.onMouseUp);
+			}));
 			this.attached = true;
 			this.rebuildIndex();
 		}
@@ -1858,8 +1868,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 		}
 		generatePersistentId(kind) {
-			var _a, _b;
-			const randomId = (_b = (_a = globalThis.crypto) === null || _a === void 0 ? void 0 : _a.randomUUID) === null || _b === void 0 ? void 0 : _b.call(_a);
+			var _a, _b, _c;
+			let randomId = (_b = (_a = globalThis.crypto) === null || _a === void 0 ? void 0 : _a.randomUUID) === null || _b === void 0 ? void 0 : _b.call(_a);
+			if (!randomId && ((_c = globalThis.crypto) === null || _c === void 0 ? void 0 : _c.getRandomValues)) randomId = [...globalThis.crypto.getRandomValues(/* @__PURE__ */ new Uint32Array(4))].map((value) => value.toString(16).padStart(8, "0")).join("");
 			return randomId ? `${kind}:${randomId}` : `${kind}:${Date.now().toString(36)}:${++this.generatedIdSequence}:${Math.random().toString(36).slice(2)}`;
 		}
 		createFabricUtilAccess() {

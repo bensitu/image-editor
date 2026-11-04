@@ -352,7 +352,7 @@ test('runner reports oversized input without reading or changing it', async () =
     });
 });
 
-test('runner refuses symbolic-link traversal', async () => {
+test('runner skips symbolic links and reports them without following their targets', async () => {
     await withTemporaryDirectory(async (directory) => {
         const target = path.join(directory, 'target');
         const sourceRoot = path.join(directory, 'src');
@@ -360,9 +360,12 @@ test('runner refuses symbolic-link traversal', async () => {
         await mkdir(sourceRoot);
         await writeFile(path.join(target, 'external.ts'), await fixture('common.input.ts'));
         await symlink(target, path.join(sourceRoot, 'linked'), 'junction');
-        await assert.rejects(
-            () => runCodemod(['src'], { cwd: directory, mode: 'write' }),
-            /symbolic link/i,
+        const report = await runCodemod(['src'], { cwd: directory, mode: 'write' });
+        assert.equal(report.unresolvedCount, 1);
+        assert.equal(report.files[0]?.unresolved[0]?.code, 'SYMBOLIC_LINK_SKIPPED');
+        assert.equal(
+            await readFile(path.join(target, 'external.ts'), 'utf8'),
+            await fixture('common.input.ts'),
         );
     });
 });
@@ -396,4 +399,18 @@ test('CLI preserves source in dry-run and diff modes and writes an unresolved re
         assert.equal(report.result, 'UNRESOLVED');
         assert.equal(report.filesWritten, 0);
     });
+});
+
+test('file migration preserves UTF-8 BOM and reports ambiguous single-argument constructors', async () => {
+    await withTemporaryDirectory(async (directory) => {
+        const filePath = path.join(directory, 'editor.ts');
+        await writeFile(filePath, '\uFEFF' + (await fixture('core.input.js')));
+        await runCodemod(['editor.ts'], { cwd: directory, mode: 'write' });
+        assert.equal((await readFile(filePath))[0], 0xef);
+    });
+    const source =
+        "import ImageEditor from '@bensitu/image-editor';\nconst editor = new ImageEditor(options);";
+    const result = transformSource(source, 'editor.ts');
+    assert.equal(result.code, source);
+    assert.ok(result.unresolved.some((entry) => entry.code === 'FABRIC_MODULE_REQUIRED'));
 });

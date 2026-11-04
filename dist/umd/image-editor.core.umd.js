@@ -202,7 +202,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 	var CapabilityConflictError = class extends PluginError {
 		constructor(capabilityId, installedProviderPluginId, conflictingProviderPluginId) {
-			super("CAPABILITY_CONFLICT", `[ImageEditor] Capability "${capabilityId}" is already provided by "${installedProviderPluginId}" and cannot also be provided by "${conflictingProviderPluginId}".`, { pluginId: conflictingProviderPluginId });
+			super("CAPABILITY_CONFLICT", installedProviderPluginId === conflictingProviderPluginId ? `[ImageEditor] Plugin "${conflictingProviderPluginId}" cannot register conflicting implementations of Capability "${capabilityId}".` : `[ImageEditor] Capability "${capabilityId}" is already provided by "${installedProviderPluginId}" and cannot also be provided by "${conflictingProviderPluginId}".`, { pluginId: conflictingProviderPluginId });
 			this.capabilityId = capabilityId;
 			this.installedProviderPluginId = installedProviderPluginId;
 			this.conflictingProviderPluginId = conflictingProviderPluginId;
@@ -313,10 +313,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (!partial) return null;
 		const minor = partial[2];
 		const patch = partial[3];
+		if (minor && /[xX*]/u.test(minor) && patch && !/[xX*]/u.test(patch)) return null;
 		return {
 			major: partial[1],
 			minor: minor === void 0 || /[xX*]/u.test(minor) ? null : minor,
-			patch: patch === void 0 || /[xX*]/u.test(patch) ? null : patch,
+			patch: minor === void 0 || /[xX*]/u.test(minor) || patch === void 0 || /[xX*]/u.test(patch) ? null : patch,
 			exact: null
 		};
 	}
@@ -367,10 +368,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		var _a;
 		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(value);
 		if (hyphen) {
-			const lower = parseRangeVersion(hyphen[1]);
-			const upper = parseRangeVersion(hyphen[2]);
-			if (!lower || !upper) return null;
-			return `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`}`;
+			const lowerWildcard = /^[xX*]$/u.test(hyphen[1]);
+			const upperWildcard = /^[xX*]$/u.test(hyphen[2]);
+			const lower = lowerWildcard ? null : parseRangeVersion(hyphen[1]);
+			const upper = upperWildcard ? null : parseRangeVersion(hyphen[2]);
+			if (!lowerWildcard && !lower || !upperWildcard && !upper) return null;
+			const comparators = [lower ? `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)}` : ">=0.0.0"];
+			if (upper) comparators.push(upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`);
+			return comparators.join(" ");
 		}
 		const normalized = [];
 		for (const token of value.split(/\s+/u).filter(Boolean)) {

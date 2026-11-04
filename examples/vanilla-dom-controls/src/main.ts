@@ -78,6 +78,7 @@ const preset = createMinimalPreset(fabric, {
 });
 
 let disposed = false;
+input.disabled = true;
 
 input.addEventListener('change', () => {
     const file = input.files?.[0];
@@ -123,6 +124,7 @@ window.addEventListener(
 void preset.editor
     .init({ canvas, canvasContainer: container })
     .then(() => {
+        if (!disposed) input.disabled = false;
         message.textContent = 'Ready — choose an image.';
     })
     .catch(async (error: unknown) => {

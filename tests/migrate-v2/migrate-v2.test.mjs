@@ -500,8 +500,8 @@ test('rotated normalized bounds preserve pixel lengths and right angles on recta
                     width: 0.2,
                     height: 0.2,
                     angle: 30,
-                    rx: 20,
-                    ry: 10,
+                    rx: 0.01,
+                    ry: 0.01,
                 },
                 style: { fill: '#000000' },
             },
@@ -516,6 +516,13 @@ test('rotated normalized bounds preserve pixel lengths and right angles on recta
     assert.ok(Math.abs(Math.hypot(d.x - a.x, d.y - a.y) - 200) < 1e-8);
     assert.ok(Math.abs((b.x - a.x) * (d.x - a.x) + (b.y - a.y) * (d.y - a.y)) < 1e-8);
     assert.equal(result.overlays[0].data.cornerRadiusX, 0.02);
+    source.overlays[0].maskShape = 'circle';
+    source.overlays[0].geometry = { type: 'circle', cx: 0.5, cy: 0.5, radius: 0.1, angle: 30 };
+    const [circleA, circleB, , circleD] = migrateV1OverlayState(
+        source,
+    ).overlays[0].geometry.corners.map(({ x, y }) => ({ x: x * 2000, y: y * 1000 }));
+    assert.ok(Math.abs(Math.hypot(circleB.x - circleA.x, circleB.y - circleA.y) - 400) < 1e-8);
+    assert.ok(Math.abs(Math.hypot(circleD.x - circleA.x, circleD.y - circleA.y) - 400) < 1e-8);
     source.overlays[0].id = 'unsupported id';
     assert.throws(() => migrateV1OverlayState(source), /identifiers/);
 });

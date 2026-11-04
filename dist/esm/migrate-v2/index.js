@@ -565,6 +565,11 @@ function annotationRecord(object, index, context) {
         feature = serialized;
     }
     else if (object.annotationType === 'shape') {
+        if (object.shapeAnnotationKind !== undefined &&
+            (typeof object.shapeAnnotationKind !== 'string' ||
+                !['rect', 'line', 'arrow'].includes(object.shapeAnnotationKind))) {
+            return rejectObject(context, 'annotation.shape', path, 'Unsupported Shape Annotation kind.');
+        }
         const shapeKind = object.shapeAnnotationKind === 'line' || object.shapeAnnotationKind === 'arrow'
             ? object.shapeAnnotationKind
             : 'rect';

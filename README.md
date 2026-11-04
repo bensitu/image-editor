@@ -163,7 +163,7 @@ run the public [Conformance Kit](docs/reference/api.md#testing-and-conformance).
 ### State, Export, and Persistence
 
 - Bounded undo/redo history with serialized transform and history operations.
-- Export Base64, browser `File`, or direct downloads as PNG, JPEG, or WebP.
+- Export PNG, JPEG, or WebP as Base64 or a browser `File` for host-managed downloads.
 - Choose image-bounds or full-canvas export areas.
 - Render masks and annotations independently during export without mutating
   editor state.

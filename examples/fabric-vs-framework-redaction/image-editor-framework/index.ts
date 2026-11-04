@@ -19,7 +19,12 @@ export async function createFrameworkRedactionAdapter(
         history: { maxSize: 30 },
         masks: { label: false },
     });
-    await preset.editor.init({ canvas, canvasContainer: container });
+    try {
+        await preset.editor.init({ canvas, canvasContainer: container });
+    } catch (error) {
+        await preset.editor.disposeAsync();
+        throw error;
+    }
 
     return Object.freeze({
         name: 'Image Editor Framework',

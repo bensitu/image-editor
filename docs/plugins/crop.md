@@ -101,13 +101,14 @@ await crop.apply({
 ```
 
 Without an explicit format, Crop preserves the source MIME type. Explicit `png`, `jpeg`, and `webp`
-output is supported; quality must be from `0` to `1`. If visible-filter baking is requested without
-a compatible provider, the operation fails without changing the document.
+output is supported; quality must be from `0` to `1`. An installed incompatible visible-filter provider causes the operation to fail without changing the document.
+When no provider is installed, Crop operates on the current Base Image pixels.
 
 A changed apply is one atomic raster and geometry mutation. With the History Plugin enabled it
 creates one undo record and one committed geometry event. With History disabled it creates no
 record but retains Core rollback protection. Any rendering, decoding, Overlay, Filters, or commit
-failure restores Base Image, Filters, Overlay state, selection, and History exactly.
+failure restores Base Image, Filters, Overlay state, selection, and History exactly. The Crop session
+closes when apply begins, including when apply subsequently fails; enter Crop again to choose a new rectangle.
 
 ## Configuration, limits, and headless use
 

@@ -702,7 +702,7 @@ function setOptions() {
 
 function isEditorBusy() {
     if (!editor) return false;
-    if (demoLoading) return false;
+    if (demoLoading) return true;
     if (typeof editor.isBusy === 'function') return editor.isBusy();
     return !!editor.isAnimating;
 }

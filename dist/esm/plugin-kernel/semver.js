@@ -19,10 +19,17 @@ function parseRangeVersion(value) {
         return null;
     const minor = partial[2];
     const patch = partial[3];
+    if (minor && /[xX*]/u.test(minor) && patch && !/[xX*]/u.test(patch))
+        return null;
     return {
         major: partial[1],
         minor: minor === undefined || /[xX*]/u.test(minor) ? null : minor,
-        patch: patch === undefined || /[xX*]/u.test(patch) ? null : patch,
+        patch: minor === undefined ||
+            /[xX*]/u.test(minor) ||
+            patch === undefined ||
+            /[xX*]/u.test(patch)
+            ? null
+            : patch,
         exact: null,
     };
 }
@@ -88,11 +95,16 @@ function normalizeComparatorSet(value) {
     var _a;
     const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(value);
     if (hyphen) {
-        const lower = parseRangeVersion(hyphen[1]);
-        const upper = parseRangeVersion(hyphen[2]);
-        if (!lower || !upper)
+        const lowerWildcard = /^[xX*]$/u.test(hyphen[1]);
+        const upperWildcard = /^[xX*]$/u.test(hyphen[2]);
+        const lower = lowerWildcard ? null : parseRangeVersion(hyphen[1]);
+        const upper = upperWildcard ? null : parseRangeVersion(hyphen[2]);
+        if ((!lowerWildcard && !lower) || (!upperWildcard && !upper))
             return null;
-        return `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)} ${upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`}`;
+        const comparators = [lower ? `>=${(_a = lower.exact) !== null && _a !== void 0 ? _a : lowerBound(lower)}` : '>=0.0.0'];
+        if (upper)
+            comparators.push(upper.exact === null ? `<${exclusiveUpperBound(upper)}-0` : `<=${upper.exact}`);
+        return comparators.join(' ');
     }
     const normalized = [];
     for (const token of value.split(/\s+/u).filter(Boolean)) {

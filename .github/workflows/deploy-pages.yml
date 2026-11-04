@@ -5,6 +5,7 @@ on:
         branches: [main]
         paths:
             - 'docs/**'
+            - 'dist/umd/**'
             - 'scripts/package-pages-site.mjs'
             - '.github/workflows/deploy-pages.yml'
     workflow_dispatch:

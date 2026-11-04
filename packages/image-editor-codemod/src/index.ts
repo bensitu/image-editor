@@ -24,7 +24,20 @@ import ts from 'typescript';
 
 const PACKAGE_ROOT = '@bensitu/image-editor';
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']);
-const SKIPPED_DIRECTORIES = new Set(['.git', '.internal', 'dist', 'node_modules']);
+const SKIPPED_DIRECTORIES = new Set([
+    '.git',
+    '.internal',
+    '.next',
+    '.cache',
+    'coverage',
+    'build',
+    'out',
+    'dist',
+    'node_modules',
+    'playwright-report',
+    'test-results',
+    '.pages-site',
+]);
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 
 const CORE_OPTION_NAMES = new Map<string, string>([
@@ -811,6 +824,21 @@ function parseAndDetectImports(source: string, fileName: string): ParsedSource {
     });
 }
 
+function isFabricModuleExpression(expression: ts.Expression, sourceFile: ts.SourceFile): boolean {
+    if (!ts.isIdentifier(expression)) return false;
+    if (expression.text === 'fabric') return true;
+    return sourceFile.statements.some((statement) => {
+        if (
+            !ts.isImportDeclaration(statement) ||
+            !ts.isStringLiteral(statement.moduleSpecifier) ||
+            statement.moduleSpecifier.text !== 'fabric'
+        )
+            return false;
+        const bindings = statement.importClause?.namedBindings;
+        return bindings && ts.isNamespaceImport(bindings) && bindings.name.text === expression.text;
+    });
+}
+
 function collectEditorCandidates(
     sourceFile: ts.SourceFile,
     imports: OldEditorImportAnalysis,
@@ -941,7 +969,10 @@ function determineTransformationBlockers(
             );
             blocked = true;
         }
-        if (args.length === 0 || (args.length === 1 && ts.isObjectLiteralExpression(args[0]!))) {
+        if (
+            args.length === 0 ||
+            (args.length === 1 && !isFabricModuleExpression(args[0]!, sourceFile))
+        ) {
             unresolved.push(
                 finding(
                     sourceFile,
@@ -1231,13 +1262,18 @@ function unifiedDiff(fileName: string, before: string, after: string): string {
     ].join('\n');
 }
 
-async function collectSourceFiles(targets: readonly string[], cwd: string): Promise<string[]> {
+async function collectSourceFiles(
+    targets: readonly string[],
+    cwd: string,
+): Promise<{ files: string[]; skipped: string[] }> {
     const files = new Set<string>();
+    const skipped = new Set<string>();
     async function collect(value: string): Promise<void> {
         const absolute = path.resolve(cwd, value);
         const details = await lstat(absolute);
         if (details.isSymbolicLink()) {
-            throw new Error(`Refusing to follow symbolic link: ${path.relative(cwd, absolute)}`);
+            skipped.add(absolute);
+            return;
         }
         if (details.isFile()) {
             if (SOURCE_EXTENSIONS.has(path.extname(absolute).toLowerCase())) files.add(absolute);
@@ -1245,18 +1281,23 @@ async function collectSourceFiles(targets: readonly string[], cwd: string): Prom
         }
         if (!details.isDirectory()) return;
         const entries = await readdir(absolute, { withFileTypes: true });
-        for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+        for (const entry of entries.sort((left, right) =>
+            left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+        )) {
+            if (
+                (entry.isDirectory() || entry.isSymbolicLink()) &&
+                SKIPPED_DIRECTORIES.has(entry.name)
+            )
+                continue;
             if (entry.isSymbolicLink()) {
-                throw new Error(
-                    `Refusing to follow symbolic link: ${path.relative(cwd, path.join(absolute, entry.name))}`,
-                );
+                skipped.add(path.join(absolute, entry.name));
+                continue;
             }
-            if (entry.isDirectory() && SKIPPED_DIRECTORIES.has(entry.name)) continue;
             await collect(path.join(absolute, entry.name));
         }
     }
     for (const target of targets) await collect(target);
-    return [...files].sort((left, right) => left.localeCompare(right));
+    return { files: [...files].sort(), skipped: [...skipped].sort() };
 }
 
 async function writeAtomically(filePath: string, content: string, mode: number): Promise<void> {
@@ -1281,11 +1322,28 @@ export async function runCodemod(
     if (targets.length === 0) throw new TypeError('At least one source path is required.');
     const cwd = path.resolve(options.cwd ?? process.cwd());
     const mode = options.mode ?? 'write';
-    const files = await collectSourceFiles(targets, cwd);
-    const reports: CodemodFileReport[] = [];
+    const { files, skipped } = await collectSourceFiles(targets, cwd);
+    const reports: CodemodFileReport[] = skipped.map((filePath) => {
+        const file = path.relative(cwd, filePath).replaceAll('\\', '/');
+        return Object.freeze({
+            file,
+            changed: false,
+            written: false,
+            unresolved: Object.freeze([
+                Object.freeze({
+                    file,
+                    line: 1,
+                    column: 1,
+                    code: 'SYMBOLIC_LINK_SKIPPED',
+                    message: 'Symbolic links are not followed.',
+                }),
+            ]),
+        });
+    });
+    const changes: { path: string; before: string; after: string; mode: number }[] = [];
     let changed = 0;
     let written = 0;
-    let unresolvedCount = 0;
+    let unresolvedCount = skipped.length;
 
     for (const filePath of files) {
         const relative = path.relative(cwd, filePath).replaceAll('\\', '/');
@@ -1312,7 +1370,7 @@ export async function runCodemod(
         const bytes = await readFile(filePath);
         let source: string;
         try {
-            source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+            source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
         } catch {
             const value = Object.freeze({
                 file: relative,
@@ -1334,7 +1392,13 @@ export async function runCodemod(
         }
         const result = transformSource(source, relative);
         const didWrite = mode === 'write' && result.changed;
-        if (didWrite) await writeAtomically(filePath, result.code, details.mode);
+        if (didWrite)
+            changes.push({
+                path: filePath,
+                before: source,
+                after: result.code,
+                mode: details.mode,
+            });
         if (result.changed) changed += 1;
         if (didWrite) written += 1;
         unresolvedCount += result.unresolved.length;
@@ -1350,6 +1414,27 @@ export async function runCodemod(
             }),
         );
     }
+
+    const completed: typeof changes = [];
+    try {
+        for (const change of changes) {
+            await writeAtomically(change.path, change.after, change.mode);
+            completed.push(change);
+        }
+    } catch (error) {
+        const failures: unknown[] = [error];
+        for (const change of completed.reverse()) {
+            try {
+                await writeAtomically(change.path, change.before, change.mode);
+            } catch (restoreError) {
+                failures.push(restoreError);
+            }
+        }
+        throw new AggregateError(failures, 'Source updates could not be completed.', {
+            cause: error,
+        });
+    }
+    reports.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
 
     return Object.freeze({
         command: 'migrate',
@@ -1371,5 +1456,15 @@ export async function runCodemod(
 export async function writeCodemodReport(filePath: string, report: CodemodReport): Promise<void> {
     const absolute = path.resolve(filePath);
     await mkdir(path.dirname(absolute), { recursive: true });
-    await writeFile(absolute, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    let mode = 0o666;
+    try {
+        const details = await lstat(absolute);
+        if (details.isSymbolicLink() || !details.isFile())
+            throw new Error('Report output must be a regular file.');
+        mode = details.mode;
+    } catch (error) {
+        if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'))
+            throw error;
+    }
+    await writeAtomically(absolute, `${JSON.stringify(report, null, 2)}\n`, mode);
 }

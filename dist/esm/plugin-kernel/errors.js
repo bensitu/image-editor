@@ -174,7 +174,9 @@ export class PluginCapabilityError extends PluginError {
 }
 export class CapabilityConflictError extends PluginError {
     constructor(capabilityId, installedProviderPluginId, conflictingProviderPluginId) {
-        super('CAPABILITY_CONFLICT', `[ImageEditor] Capability "${capabilityId}" is already provided by "${installedProviderPluginId}" and cannot also be provided by "${conflictingProviderPluginId}".`, { pluginId: conflictingProviderPluginId });
+        super('CAPABILITY_CONFLICT', installedProviderPluginId === conflictingProviderPluginId
+            ? `[ImageEditor] Plugin "${conflictingProviderPluginId}" cannot register conflicting implementations of Capability "${capabilityId}".`
+            : `[ImageEditor] Capability "${capabilityId}" is already provided by "${installedProviderPluginId}" and cannot also be provided by "${conflictingProviderPluginId}".`, { pluginId: conflictingProviderPluginId });
         this.capabilityId = capabilityId;
         this.installedProviderPluginId = installedProviderPluginId;
         this.conflictingProviderPluginId = conflictingProviderPluginId;

@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_plugin_identifier = require("../chunks/plugin-identifier-gAnWTWj6.cjs");
-const require_core_capabilities = require("../chunks/core-capabilities-DaGyFp12.cjs");
-const require_plugin_manager = require("../chunks/plugin-manager-BFWD7mCk.cjs");
+const require_plugin_identifier = require("../chunks/plugin-identifier-7NKI_vMS.cjs");
+const require_core_capabilities = require("../chunks/core-capabilities-BtgLLuX2.cjs");
+const require_plugin_manager = require("../chunks/plugin-manager-B1jkAv40.cjs");
 
 // dist/esm/testing/deferred-operation.js
 function createDeferredOperation() {

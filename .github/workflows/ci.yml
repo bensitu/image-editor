@@ -68,6 +68,17 @@ jobs:
             - name: Verify package runtime entries
               run: npm run test:package-entries
 
+            - name: Set up the minimum package runtime
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version: '20.0.0'
+                  package-manager-cache: false
+
+            - name: Verify package entries on Node 20
+              run: |
+                  node tests/package/esm-consumer.mjs
+                  node tests/package/cjs-consumer.cjs
+
     node-26:
         name: Node 26 compatibility
         runs-on: ubuntu-latest

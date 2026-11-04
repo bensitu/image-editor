@@ -40,7 +40,7 @@ export default function App() {
     const editorRef = useRef<ImageEditorCore | null>(null);
     const transformRef = useRef<TransformPluginApi | null>(null);
     const historyRef = useRef<HistoryPort | null>(null);
-    const mountCoordinatorRef = useRef(createSerializedEditorMountCoordinator());
+    const [mountCoordinator] = useState(createSerializedEditorMountCoordinator);
     const [ready, setReady] = useState(false);
     const [running, setRunning] = useState(false);
     const [imageInfo, setImageInfo] = useState<CoreImageInfo | null>(null);
@@ -51,7 +51,7 @@ export default function App() {
         const canvas = canvasRef.current;
         if (!canvas) return;
         let mounted = true;
-        const coordinator = mountCoordinatorRef.current;
+        const coordinator = mountCoordinator;
         const lease = coordinator.mount({
             create: () =>
                 createMinimalPreset(fabric, {
@@ -101,7 +101,7 @@ export default function App() {
             mounted = false;
             lease.release();
         };
-    }, []);
+    }, [mountCoordinator]);
 
     async function run(action: () => Promise<void>) {
         setRunning(true);
@@ -117,11 +117,12 @@ export default function App() {
     }
 
     async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-        const file = event.currentTarget.files?.[0];
+        const input = event.currentTarget;
+        const file = input.files?.[0];
         const editor = editorRef.current;
         if (!file || !editor) return;
         await run(async () => editor.loadImage(await readFileAsDataUrl(file)));
-        event.currentTarget.value = '';
+        input.value = '';
     }
 
     async function exportPng() {

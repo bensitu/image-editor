@@ -128,11 +128,12 @@ async function run(action: () => Promise<unknown>) {
 
 async function handleFileChange(event: Event) {
     if (!(event.currentTarget instanceof HTMLInputElement)) return;
-    const file = event.currentTarget.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     const current = editor;
     if (!file || !current) return;
     await run(async () => current.loadImage(await readFileAsDataUrl(file)));
-    event.currentTarget.value = '';
+    input.value = '';
 }
 
 function addMask() {

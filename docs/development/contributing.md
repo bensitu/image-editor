@@ -136,7 +136,7 @@ consumable package surface, security checks, public type fixtures, and Chromium
 E2E. Tests focus on observable behavior and supported contracts; repository file
 layout, comment wording, workflow text, and Demo wiring are reviewed without
 dedicated meta-gates. CI checks the minimum development Node.js 22.22 runtime,
-the primary checks on Node.js 24, and package entry compatibility on Node.js 26.
+the primary checks on Node.js 24, and package entry compatibility on Node.js 20 and 26.
 
 For distribution and release responsibilities, run from a clean commit:
 

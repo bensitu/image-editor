@@ -664,7 +664,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function validateResolvedMask(options, placement, dimensions, resolvedConfig, shapeType) {
 		var _a;
-		if (!validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha) || resolvedConfig.alpha < 0 || resolvedConfig.alpha > 1) return false;
+		if (typeof resolvedConfig.color !== "string" || !validateFiniteField(options, "left", placement.left) || !validateFiniteField(options, "top", placement.top) || !validatePositiveField(options, "width", resolvedConfig.width) || !validatePositiveField(options, "height", resolvedConfig.height) || !validateFiniteField(options, "gap", resolvedConfig.gap) || !validateFiniteField(options, "angle", resolvedConfig.angle) || !validateFiniteField(options, "alpha", resolvedConfig.alpha) || resolvedConfig.alpha < 0 || resolvedConfig.alpha > 1) return false;
 		const styles = (_a = resolvedConfig.styles) !== null && _a !== void 0 ? _a : {};
 		const allowedStyles = /* @__PURE__ */ new Set([
 			"fill",
@@ -860,7 +860,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			"circle",
 			"ellipse",
 			"polygon"
-		] })) {
+		] }) || typeof mask.fill !== "string" || mask.stroke !== null && typeof mask.stroke !== "string" || !Number.isFinite(mask.opacity) || mask.opacity < 0 || mask.opacity > 1 || !Number.isFinite(mask.strokeWidth) || mask.strokeWidth < 0 || mask.width <= 0 || mask.height <= 0 || ["rx", "ry"].some((key) => {
+			const value = Reflect.get(mask, key);
+			return value !== void 0 && (typeof value !== "number" || !Number.isFinite(value) || value < 0);
+		})) {
 			if (!mask.canvas) mask.dispose();
 			warnInvalidMask(options, "generated masks must use supported persistent shapes and properties");
 			return null;

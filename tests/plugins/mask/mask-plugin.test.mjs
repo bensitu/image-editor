@@ -638,6 +638,7 @@ test('Mask creation rejects unsupported persistent shapes and invalid styling wi
         for (const config of [
             { fabricGenerator: () => new fabric.Triangle({ width: 20, height: 20 }) },
             { alpha: 5 },
+            { fabricGenerator: () => new fabric.Rect({ width: 20, height: 20, opacity: 5 }) },
             { width: '12abc%' },
             { styles: { width: 99999 } },
             { styles: { opacity: NaN } },
