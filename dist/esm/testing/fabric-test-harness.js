@@ -4,7 +4,7 @@ function descriptorMatches(left, right) {
     return (left.configurable === right.configurable &&
         left.enumerable === right.enumerable &&
         left.writable === right.writable &&
-        left.value === right.value &&
+        Object.is(left.value, right.value) &&
         left.get === right.get &&
         left.set === right.set);
 }

@@ -172,13 +172,9 @@ export function textAnnotationPlugin(
                         }
                     }),
                 commitEditing: async () => {
-                    try {
-                        await requireController().commitEditing();
-                    } finally {
-                        if (context.tools.getActiveToolId() === TEXT_TOOL_ID) {
-                            await context.tools.exit('operation');
-                        }
-                    }
+                    await requireController().commitEditing();
+                    if (context.tools.getActiveToolId() === TEXT_TOOL_ID)
+                        await context.tools.exit('operation');
                 },
                 cancelEditing: () =>
                     context.operations.run('annotation-text:cancel-edit', undefined, async () => {

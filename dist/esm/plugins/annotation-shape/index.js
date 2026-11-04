@@ -86,14 +86,10 @@ export function shapeAnnotationPlugin(options = {}) {
                 }),
                 updatePreview: (geometry) => context.operations.run('annotation-shape:update-preview', geometry, (value) => requireController().updatePreview(value)),
                 commit: async () => {
-                    try {
-                        return await requireController().commit();
-                    }
-                    finally {
-                        if (context.tools.getActiveToolId() === SHAPE_TOOL_ID) {
-                            await context.tools.exit('operation');
-                        }
-                    }
+                    const id = await requireController().commit();
+                    if (context.tools.getActiveToolId() === SHAPE_TOOL_ID)
+                        await context.tools.exit('operation');
+                    return id;
                 },
                 cancel: () => context.operations.run('annotation-shape:cancel', undefined, async () => {
                     requireController().cancel();

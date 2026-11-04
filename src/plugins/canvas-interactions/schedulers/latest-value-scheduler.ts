@@ -35,7 +35,6 @@ export class LatestValueScheduler<TValue> {
     }
 
     flush(): Promise<void> {
-        if (this.cancelled) return Promise.resolve();
         if (this.failure !== null) return Promise.reject(this.failure);
         if (!this.running && !this.pending) return Promise.resolve();
         return new Promise<void>((resolve, reject) => {
@@ -86,7 +85,7 @@ export class LatestValueScheduler<TValue> {
     }
 
     private settleFlushWaiters(): void {
-        if (this.running && !this.cancelled && this.failure === null) return;
+        if (this.running) return;
         for (const waiter of this.flushWaiters.splice(0)) {
             if (this.failure !== null) waiter.reject(this.failure);
             else waiter.resolve();

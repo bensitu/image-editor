@@ -466,6 +466,12 @@ export class ImageEditorCore {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "initializationCompletion", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "disposePromise", {
             enumerable: true,
             configurable: true,
@@ -709,6 +715,10 @@ export class ImageEditorCore {
     }
     async init(elements) {
         this.lifecycle.beginInitialization();
+        let completeInitialization;
+        this.initializationCompletion = new Promise((resolve) => {
+            completeInitialization = resolve;
+        });
         this.emitRuntimeStatus();
         let pluginInitializationStarted = false;
         let pluginInitializationCompleted = false;
@@ -751,6 +761,10 @@ export class ImageEditorCore {
             if (initialImageLoadStarted)
                 this.reportError(error, 'Initial image load failed.');
             throw error;
+        }
+        finally {
+            completeInitialization();
+            this.initializationCompletion = null;
         }
     }
     createCanvas(elements) {
@@ -1343,6 +1357,15 @@ export class ImageEditorCore {
             return this.disposePromise;
         if (this.lifecycle.current === 'disposed')
             return Promise.resolve();
+        if (this.initializationCompletion) {
+            this.disposePromise = this.initializationCompletion.then(async () => {
+                if (!this.lifecycle.beginDisposal())
+                    return;
+                this.emitRuntimeStatus();
+                await this.performDisposeAsync();
+            });
+            return this.disposePromise;
+        }
         if (!this.lifecycle.beginDisposal())
             return (_a = this.disposePromise) !== null && _a !== void 0 ? _a : Promise.resolve();
         this.emitRuntimeStatus();

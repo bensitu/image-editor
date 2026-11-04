@@ -323,10 +323,34 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			"backgroundColor",
 			"textAlign",
 			"width",
-			"opacity"
+			"opacity",
+			"left",
+			"top",
+			"angle",
+			"scaleX",
+			"scaleY",
+			"skewX",
+			"skewY",
+			"flipX",
+			"flipY"
 		]);
 		if (Object.keys(value).some((key) => !allowed.has(key))) throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Text update contains unknown keys.");
+		const geometry = {};
+		for (const key of [
+			"left",
+			"top",
+			"angle",
+			"scaleX",
+			"scaleY",
+			"skewX",
+			"skewY"
+		]) if (value[key] !== void 0) geometry[key] = validateFiniteRange(value[key], `Text ${key}`, -1e7, MAX_COORDINATE);
+		for (const key of ["flipX", "flipY"]) if (value[key] !== void 0) {
+			if (typeof value[key] !== "boolean") throw new _bensitu_image_editor_plugins_annotation.AnnotationValidationError(`Text ${key} must be boolean.`);
+			geometry[key] = value[key];
+		}
 		return Object.freeze({
+			...geometry,
 			...value.text !== void 0 ? { text: validateText(value.text) } : {},
 			...value.fontSize !== void 0 ? { fontSize: validateFiniteRange(value.fontSize, "Text font size", 1, 512) } : {},
 			...value.fontFamily !== void 0 ? { fontFamily: validateFontField(value.fontFamily, "Text font family") } : {},
@@ -346,9 +370,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			...value.locked !== void 0 ? { locked: value.locked } : {}
 		});
 	}
-	function featureUpdate(value) {
+	function featureUpdate(value, currentFontFamily = "Arial") {
 		var _a;
-		const fontFamily = value.fontFamily !== void 0 || value.fontFallbacks !== void 0 ? resolvedFontFamily((_a = value.fontFamily) !== null && _a !== void 0 ? _a : "Arial", value.fontFallbacks ? validateFallbacks(value.fontFallbacks) : []) : void 0;
+		const fontFamily = value.fontFamily !== void 0 || value.fontFallbacks !== void 0 ? resolvedFontFamily((_a = value.fontFamily) !== null && _a !== void 0 ? _a : currentFontFamily.split(",")[0].trim(), value.fontFallbacks ? validateFallbacks(value.fontFallbacks) : []) : void 0;
 		return normalizeFeatureUpdate({
 			...value.text !== void 0 ? { text: value.text } : {},
 			...value.fontSize !== void 0 ? { fontSize: value.fontSize } : {},
@@ -429,6 +453,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				value: void 0
 			});
 			Object.defineProperty(this, "session", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
+			Object.defineProperty(this, "committingEditing", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: false
+			});
+			Object.defineProperty(this, "editingCommit", {
 				enumerable: true,
 				configurable: true,
 				writable: true,
@@ -621,20 +657,43 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				}
 				throw error;
 			}
+			const editingExited = () => {
+				var _a;
+				if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.preview) !== preview || this.committingEditing) return;
+				(0, _bensitu_image_editor_sdk.observePromise)(this.commitEditing(), (error) => this.host.reportWarning(error, "Text editing could not be committed after focus changed."));
+			};
 			this.session = Object.freeze({
 				annotationId: id,
 				previewId,
 				preview,
-				visibility
+				visibility,
+				editingExited
 			});
+			preview.on("editing:exited", editingExited);
 			this.emitStatus();
 		}
-		async commitEditing() {
+		commitEditing() {
+			if (this.editingCommit) return this.editingCommit;
+			this.editingCommit = this.performCommitEditing().finally(() => {
+				this.editingCommit = null;
+			});
+			return this.editingCommit;
+		}
+		async performCommitEditing() {
 			var _a;
 			this.assertActive("commit Text editing");
 			const session = this.session;
-			if (!session) return;
+			if (!session || this.committingEditing) return;
 			const patch = normalizeFeatureUpdate({
+				left: session.preview.left,
+				top: session.preview.top,
+				angle: session.preview.angle,
+				scaleX: session.preview.scaleX,
+				scaleY: session.preview.scaleY,
+				skewX: session.preview.skewX,
+				skewY: session.preview.skewY,
+				flipX: session.preview.flipX,
+				flipY: session.preview.flipY,
 				text: String((_a = session.preview.text) !== null && _a !== void 0 ? _a : ""),
 				fontSize: session.preview.fontSize,
 				fontFamily: session.preview.fontFamily,
@@ -645,14 +704,39 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				width: session.preview.width,
 				opacity: session.preview.opacity
 			});
-			this.closeSession();
-			if (!this.annotations.get(session.annotationId)) return;
-			await this.authoring.updateFeature({
-				id: session.annotationId,
-				kind: TEXT_ANNOTATION_KIND,
-				patch,
-				operationId: "annotation-text:commit-edit"
-			});
+			if (!this.annotations.get(session.annotationId)) {
+				this.closeSession();
+				return;
+			}
+			this.committingEditing = true;
+			try {
+				await this.authoring.updateFeature({
+					id: session.annotationId,
+					kind: TEXT_ANNOTATION_KIND,
+					patch,
+					operationId: "annotation-text:commit-edit"
+				});
+				this.closeSession();
+			} catch (error) {
+				if (this.session === session && !session.preview.canvas && this.annotations.get(session.annotationId)) {
+					await session.visibility.dispose();
+					const visibility = this.authoring.hideForPreview([session.annotationId]);
+					this.authoring.addPreview({
+						id: session.previewId,
+						ownerKind: TEXT_ANNOTATION_KIND,
+						object: session.preview,
+						interactive: true,
+						select: false
+					});
+					this.session = Object.freeze({
+						...session,
+						visibility
+					});
+				}
+				throw error;
+			} finally {
+				this.committingEditing = false;
+			}
 		}
 		cancelEditing() {
 			this.assertActive("cancel Text editing");
@@ -660,13 +744,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.closeSession();
 		}
 		update(id, patch) {
-			var _a, _b, _c;
+			var _a, _b, _c, _d;
 			this.assertActive("update Text");
 			if (!isPlainRecord(patch)) return Promise.reject(new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Text update must be an object."));
 			if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.annotationId) === id) {
 				const shared = sharedUpdate(patch);
 				if (Object.keys(shared).length > 0) return Promise.reject(new _bensitu_image_editor_plugins_annotation.AnnotationValidationError("Commit or cancel Text editing before updating shared Annotation fields."));
-				const featurePatch = featureUpdate(patch);
+				const featurePatch = featureUpdate(patch, this.session.preview.fontFamily);
 				if (Object.keys(featurePatch).length === 0) return Promise.resolve();
 				const preview = this.session.preview;
 				preview.set(featurePatch);
@@ -685,7 +769,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return this.authoring.updateFeature({
 				id,
 				kind: TEXT_ANNOTATION_KIND,
-				patch: featureUpdate(patch),
+				patch: featureUpdate(patch, (_d = this.authoring.getObject(id, "annotation:text")) === null || _d === void 0 ? void 0 : _d.fontFamily),
 				shared: sharedUpdate(patch),
 				operationId: "annotation-text:update"
 			});
@@ -732,6 +816,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.session;
 			if (!session) return;
 			this.session = null;
+			session.preview.off("editing:exited", session.editingExited);
 			(_b = (_a = session.preview).exitEditing) === null || _b === void 0 || _b.call(_a);
 			this.authoring.removePreview([session.previewId]);
 			(0, _bensitu_image_editor_sdk.observePromise)(Promise.resolve(session.visibility.dispose()), (error) => {
@@ -870,11 +955,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						}
 					}),
 					commitEditing: async () => {
-						try {
-							await requireController().commitEditing();
-						} finally {
-							if (context.tools.getActiveToolId() === TEXT_TOOL_ID) await context.tools.exit("operation");
-						}
+						await requireController().commitEditing();
+						if (context.tools.getActiveToolId() === TEXT_TOOL_ID) await context.tools.exit("operation");
 					},
 					cancelEditing: () => context.operations.run("annotation-text:cancel-edit", void 0, async () => {
 						requireController().cancelEditing();

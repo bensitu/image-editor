@@ -603,8 +603,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...session.options,
 				geometry: session.geometry
 			};
-			this.closeSession();
-			return this.createDefinition(definition, "annotation-shape:commit");
+			try {
+				const id = await this.createDefinition(definition, "annotation-shape:commit");
+				this.closeSession();
+				return id;
+			} catch (error) {
+				if (this.session === session) this.replaceSessionPreview(session, definition.geometry);
+				throw error;
+			}
 		}
 		cancel() {
 			this.assertActive("cancel Shape");
@@ -857,11 +863,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}),
 					updatePreview: (geometry) => context.operations.run("annotation-shape:update-preview", geometry, (value) => requireController().updatePreview(value)),
 					commit: async () => {
-						try {
-							return await requireController().commit();
-						} finally {
-							if (context.tools.getActiveToolId() === SHAPE_TOOL_ID) await context.tools.exit("operation");
-						}
+						const id = await requireController().commit();
+						if (context.tools.getActiveToolId() === SHAPE_TOOL_ID) await context.tools.exit("operation");
+						return id;
 					},
 					cancel: () => context.operations.run("annotation-shape:cancel", void 0, async () => {
 						requireController().cancel();

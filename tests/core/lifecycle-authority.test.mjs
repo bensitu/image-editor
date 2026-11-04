@@ -241,3 +241,22 @@ test('root cutover keeps one Canvas and Base Image owner with no EditorRuntime c
     assert.match(rootSource, /ImageEditorCore\s+as\s+ImageEditor/);
     assert.doesNotMatch(rootSource, /image-editor\.js/);
 });
+
+test('asynchronous disposal waits for initialization and then releases the editor', async () => {
+    const { editor, ids } = createCore();
+    let complete;
+    editor.use(
+        lifecycleProbePlugin(
+            () =>
+                new Promise((resolve) => {
+                    complete = resolve;
+                }),
+        ),
+    );
+    const initializing = editor.init({ canvas: ids.canvas });
+    const disposal = editor.disposeAsync();
+    assert.equal(editor.disposeAsync(), disposal);
+    complete();
+    await Promise.all([initializing, disposal]);
+    assert.equal(editor.getLifecycleState(), 'disposed');
+});

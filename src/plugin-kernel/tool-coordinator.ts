@@ -221,8 +221,6 @@ export class ToolCoordinator implements Disposable {
     private async exitCurrent(reason: ToolExitReason): Promise<void> {
         const current = this.active;
         if (!current) return;
-        this.active = null;
-        this.notifyActivityChange();
         try {
             await current.definition.exit(reason, current.context);
         } catch (error) {
@@ -234,6 +232,9 @@ export class ToolCoordinator implements Disposable {
             );
             reportErrorSafely(this.options.errorSink, transitionError);
             throw transitionError;
+        } finally {
+            if (this.active === current) this.active = null;
+            this.notifyActivityChange();
         }
     }
 

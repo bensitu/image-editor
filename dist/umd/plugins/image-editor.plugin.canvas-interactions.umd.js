@@ -304,6 +304,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 			if (this.disposed) return;
 			this.lifecycleEpoch += 1;
 			this.invalidateLocal("dispose");
+			this.activeToolId = null;
 			this.disposed = true;
 			const cleanup = this.toolSubscription.dispose();
 			if (isPromiseLike(cleanup)) (0, _bensitu_image_editor_sdk.observePromise)(cleanup, (error) => {
@@ -719,7 +720,6 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 			});
 		}
 		flush() {
-			if (this.cancelled) return Promise.resolve();
 			if (this.failure !== null) return Promise.reject(this.failure);
 			if (!this.running && !this.pending) return Promise.resolve();
 			return new Promise((resolve, reject) => {
@@ -763,7 +763,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 			});
 		}
 		settleFlushWaiters() {
-			if (this.running && !this.cancelled && this.failure === null) return;
+			if (this.running) return;
 			for (const waiter of this.flushWaiters.splice(0)) if (this.failure !== null) waiter.reject(this.failure);
 			else waiter.resolve();
 		}
@@ -929,7 +929,6 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 			});
 		}
 		flush() {
-			if (this.cancelled) return Promise.resolve();
 			if (this.failure !== null) return Promise.reject(this.failure);
 			if (!this.running && this.pending.length === 0) return Promise.resolve();
 			return new Promise((resolve, reject) => {
@@ -968,7 +967,7 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 			});
 		}
 		settleFlushWaiters() {
-			if (this.running && !this.cancelled && this.failure === null) return;
+			if (this.running) return;
 			for (const waiter of this.flushWaiters.splice(0)) if (this.failure !== null) waiter.reject(this.failure);
 			else waiter.resolve();
 		}
@@ -1231,15 +1230,19 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 			});
 			else if (!context.sample.target && this.blankClick === "create") target = Object.freeze({ kind: "blank" });
 			else return null;
-			return Object.freeze({ gesture: Object.freeze({
+			return Object.freeze({ gesture: {
+				moved: false,
 				context: context.gesture,
 				point: context.sample.canvasPoint,
 				target
-			}) });
+			} });
 		}
-		move(_gesture, _sample) {}
-		async end(gesture, _sample) {
-			if (!gesture.context.isCurrent()) return;
+		move(gesture, sample) {
+			if (Math.hypot(sample.canvasPoint.x - gesture.point.x, sample.canvasPoint.y - gesture.point.y) > 4) gesture.moved = true;
+		}
+		async end(gesture, sample) {
+			this.move(gesture, sample);
+			if (!gesture.context.isCurrent() || gesture.moved) return;
 			if (gesture.target.kind === "text") {
 				await this.activateExisting(gesture, gesture.target.id);
 				return;

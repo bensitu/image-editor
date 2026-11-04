@@ -1,3 +1,4 @@
+import { settleAbortable } from '../utils/abortable-promise.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import { CommittedEventBus, } from './committed-event-bus.js';
 import { isPromiseLike } from './disposable.js';
@@ -11,6 +12,23 @@ import { PluginStateStore } from './plugin-state-store.js';
 import { RegistrationScope } from './registration-scope.js';
 import { reportErrorSafely } from './reporting.js';
 import { ToolCoordinator } from './tool-coordinator.js';
+const LIFECYCLE_TIMEOUT_MS = 15000;
+async function runLifecycleHook(task, parentSignal) {
+    const controller = new AbortController();
+    const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
+    parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.addEventListener('abort', abort, { once: true });
+    if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted)
+        abort();
+    const timeout = setTimeout(() => controller.abort(new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
+    try {
+        controller.signal.throwIfAborted();
+        await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+    }
+    finally {
+        clearTimeout(timeout);
+        parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.removeEventListener('abort', abort);
+    }
+}
 function createPluginCleanupTraversal(installationOrder, installed, toolCoordinator, operationRegistry, eventBus, capabilityRegistry, stateStore) {
     const records = [...installationOrder]
         .reverse()
@@ -340,7 +358,7 @@ export class PluginManager {
                 if (!(record === null || record === void 0 ? void 0 : record.plugin.onInit))
                     continue;
                 try {
-                    await record.plugin.onInit(record.lifecycleContext);
+                    await runLifecycleHook(() => { var _a, _b; return (_b = (_a = record.plugin).onInit) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext); });
                 }
                 catch (error) {
                     throw new PluginLifecycleError(pluginId, 'init', error);
@@ -406,7 +424,7 @@ export class PluginManager {
                 signal: notificationSignal,
             });
             try {
-                await record.plugin.onImageLoaded(image, context);
+                await runLifecycleHook((hookSignal) => { var _a, _b; return (_b = (_a = record.plugin).onImageLoaded) === null || _b === void 0 ? void 0 : _b.call(_a, image, { ...context, signal: hookSignal }); }, notificationSignal);
             }
             catch (error) {
                 if (notificationSignal.aborted) {
@@ -431,7 +449,7 @@ export class PluginManager {
                 signal: notificationSignal,
             });
             try {
-                await record.plugin.onImageCleared(context);
+                await runLifecycleHook((hookSignal) => { var _a, _b; return (_b = (_a = record.plugin).onImageCleared) === null || _b === void 0 ? void 0 : _b.call(_a, { ...context, signal: hookSignal }); }, notificationSignal);
             }
             catch (error) {
                 if (notificationSignal.aborted) {
@@ -907,7 +925,7 @@ export class PluginManager {
             if (!record.plugin.onDispose)
                 continue;
             try {
-                await record.plugin.onDispose(record.lifecycleContext);
+                await runLifecycleHook(() => { var _a, _b; return (_b = (_a = record.plugin).onDispose) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext); });
             }
             catch (error) {
                 const lifecycleError = new PluginLifecycleError(record.plugin.ref.id, 'dispose', error);

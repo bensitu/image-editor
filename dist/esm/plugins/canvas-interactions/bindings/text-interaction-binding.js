@@ -110,16 +110,21 @@ export class TextInteractionBinding {
             return null;
         }
         return Object.freeze({
-            gesture: Object.freeze({
+            gesture: {
+                moved: false,
                 context: context.gesture,
                 point: context.sample.canvasPoint,
                 target,
-            }),
+            },
         });
     }
-    move(_gesture, _sample) { }
-    async end(gesture, _sample) {
-        if (!gesture.context.isCurrent())
+    move(gesture, sample) {
+        if (Math.hypot(sample.canvasPoint.x - gesture.point.x, sample.canvasPoint.y - gesture.point.y) > 4)
+            gesture.moved = true;
+    }
+    async end(gesture, sample) {
+        this.move(gesture, sample);
+        if (!gesture.context.isCurrent() || gesture.moved)
             return;
         if (gesture.target.kind === 'text') {
             await this.activateExisting(gesture, gesture.target.id);

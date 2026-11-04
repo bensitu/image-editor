@@ -13,6 +13,9 @@ export const MAX_ANNOTATION_METADATA_DEPTH = 4;
 export const MAX_ANNOTATION_METADATA_KEYS = 32;
 export const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
 
+const normalizedMetadata = new WeakSet<object>();
+const textEncoder = new TextEncoder();
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     const prototype = Object.getPrototypeOf(value);
@@ -38,7 +41,7 @@ function cloneMetadataValue(
         return value;
     }
     if (typeof value === 'string') {
-        budget.stringBytes += new TextEncoder().encode(value).byteLength;
+        budget.stringBytes += textEncoder.encode(value).byteLength;
         if (budget.stringBytes > MAX_ANNOTATION_METADATA_STRING_BYTES) {
             throw new AnnotationValidationError('Annotation metadata string data is too large.');
         }
@@ -76,7 +79,7 @@ function cloneMetadataValue(
             if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
                 throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
             }
-            budget.stringBytes += new TextEncoder().encode(key).byteLength;
+            budget.stringBytes += textEncoder.encode(key).byteLength;
             clone[key] = cloneMetadataValue(entry, depth + 1, budget);
         }
         return Object.freeze(clone);
@@ -104,11 +107,14 @@ export function normalizeAnnotationMetadata(value: unknown = {}): AnnotationMeta
     if (!isPlainRecord(value)) {
         throw new AnnotationValidationError('Annotation metadata must be a plain object.');
     }
-    return cloneMetadataValue(value, 0, {
+    if (normalizedMetadata.has(value)) return value as AnnotationMetadata;
+    const result = cloneMetadataValue(value, 0, {
         keyCount: 0,
         stringBytes: 0,
         ancestors: new Set(),
     }) as AnnotationMetadata;
+    normalizedMetadata.add(result);
+    return result;
 }
 
 export function isValidAnnotationMetadata(value: unknown): value is AnnotationMetadata {

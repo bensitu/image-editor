@@ -87,9 +87,12 @@ test('editing preview is transient and commit or cancel uses exact History bound
     assert.ok(preview instanceof fabric.Textbox);
     assert.equal(editor.saveState(), snapshot);
     assert.equal(history.length, 0);
-    preview.set({ text: 'After' });
+    preview.set({ text: 'After', left: 42, top: 28, scaleX: 1.4, scaleY: 0.8, angle: 25 });
     await text.commitEditing();
     assert.equal(textObject(editor, id).text, 'After');
+    assert.equal(textObject(editor, id).left, 42);
+    assert.equal(textObject(editor, id).angle, 25);
+    assert.equal(textObject(editor, id).scaleX, 1.4);
     assert.equal(history.length, 1);
     assert.equal(text.getEditingSession(), null);
 
@@ -311,4 +314,87 @@ test('Text limits reject oversized content and unsafe configuration without muta
     await assert.rejects(text.configure({ fontFallbacks: ['__proto__\u0000'] }), /fallback/i);
     assert.deepEqual(annotations.list(), []);
     await dispose(editor);
+});
+
+test('Text editing commits after focus leaves the preview and preserves the configured primary font', async () => {
+    const { editor, text } = await createEditor({ textOptions: { fontFamily: 'monospace' } });
+    await load(editor);
+    try {
+        const id = await text.create({ text: 'Original' });
+        await text.update(id, { fontFallbacks: ['serif'] });
+        assert.match(textObject(editor, id).fontFamily, /^monospace/);
+        await text.beginEditing(id);
+        const preview = editor
+            .getCanvas()
+            .getObjects()
+            .find((object) => object.editorAnnotationPreviewOwner === 'annotation:text');
+        preview.set({ text: 'Edited' });
+        let subscription;
+        const completed = new Promise((resolve) => {
+            subscription = text.subscribe((status) => {
+                if (status.editing === null) resolve();
+            });
+        });
+        preview.exitEditing();
+        await completed;
+        subscription.dispose();
+        assert.equal(text.getEditingSession(), null);
+        assert.equal(textObject(editor, id).text, 'Edited');
+    } finally {
+        await dispose(editor);
+    }
+});
+
+test('invalid Text commits preserve the draft so it can be corrected', async () => {
+    const { editor, text } = await createEditor();
+    await load(editor);
+    try {
+        const id = await text.create({ text: 'Original' });
+        await text.beginEditing(id);
+        const preview = editor
+            .getCanvas()
+            .getObjects()
+            .find((object) => object.editorAnnotationPreviewOwner === 'annotation:text');
+        preview.set({ text: 'Draft', fontSize: 0 });
+        await assert.rejects(text.commitEditing(), /font size/);
+        assert.equal(text.getEditingSession().annotationId, id);
+        preview.set({ fontSize: 24 });
+        await text.commitEditing();
+        assert.equal(textObject(editor, id).text, 'Draft');
+    } finally {
+        await dispose(editor);
+    }
+});
+
+test('failed Text mutations restore an attached editing preview with the draft intact', async () => {
+    const { editor, text } = await createEditor();
+    await load(editor);
+    try {
+        const id = await text.create({ text: 'Original' });
+        await text.beginEditing(id);
+        const canvas = editor.getCanvas();
+        const preview = canvas
+            .getObjects()
+            .find((object) => object.editorAnnotationPreviewOwner === 'annotation:text');
+        preview.set({ text: 'Draft' });
+        const source = textObject(editor, id);
+        const set = source.set.bind(source);
+        source.set = (key, value) => {
+            const result = set(key, value);
+            if (typeof key === 'object' && key.text === 'Draft')
+                throw new Error('Text update failed');
+            return result;
+        };
+        await assert.rejects(text.commitEditing(), /Text update failed/);
+        assert.equal(text.getEditingSession().annotationId, id);
+        assert.ok(
+            canvas
+                .getObjects()
+                .some((object) => object.editorAnnotationPreviewOwner === 'annotation:text'),
+        );
+        await text.commitEditing();
+        assert.equal(textObject(editor, id).text, 'Draft');
+    } finally {
+        await dispose(editor);
+    }
 });

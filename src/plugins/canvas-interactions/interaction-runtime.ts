@@ -165,6 +165,7 @@ export class InteractionRuntime implements PointerSourceSink, Disposable {
         if (this.disposed) return;
         this.lifecycleEpoch += 1;
         this.invalidateLocal('dispose');
+        this.activeToolId = null;
         this.disposed = true;
         const cleanup = this.toolSubscription.dispose();
         if (isPromiseLike(cleanup)) {

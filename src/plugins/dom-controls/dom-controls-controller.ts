@@ -177,6 +177,8 @@ function disposeRegistration(registration: Disposable | (() => void)): void {
 }
 
 function readNumericInput(input: HTMLInputElement, label: string): number {
+    if (input.value.trim() === '')
+        throw new DomControlsConfigurationError(`${label} must contain a number.`);
     const value = input.valueAsNumber;
     const parsed = Number.isFinite(value) ? value : Number(input.value);
     if (!Number.isFinite(parsed)) {
@@ -266,7 +268,7 @@ export class DomControlsController implements Disposable {
             });
             if (options.ownerDocument) this.bindConfiguredControls(options.ownerDocument, options);
             this.bound = true;
-            this.refresh();
+            this.synchronizeControls();
         } catch (error) {
             this.releaseBindings();
             this.apis = null;
@@ -275,6 +277,18 @@ export class DomControlsController implements Disposable {
     }
 
     refresh(): void {
+        if (this.disposed || !this.bound) {
+            throw new DomControlsConfigurationError(
+                'DOM Controls must be initialized before refresh.',
+            );
+        }
+        const options = this.requireOptions();
+        this.releaseBindings();
+        if (options.ownerDocument) this.bindConfiguredControls(options.ownerDocument, options);
+        this.synchronizeControls();
+    }
+
+    private synchronizeControls(): void {
         if (this.disposed) {
             throw new DomControlsConfigurationError('DOM Controls cannot refresh after disposal.');
         }
@@ -301,7 +315,7 @@ export class DomControlsController implements Disposable {
             state.pending = null;
             if (!this.bound || this.disposed) return;
             try {
-                this.refresh();
+                this.synchronizeControls();
             } catch (error) {
                 this.reportActionError('dom-controls:refresh', error);
             }
@@ -368,11 +382,20 @@ export class DomControlsController implements Disposable {
         if (controls.scaleInput) {
             const input = resolveInput(ownerDocument, controls.scaleInput, 'transform.scaleInput');
             this.listen(input, 'change', () => {
-                const scale = readNumericInput(input, 'transform.scaleInput');
-                this.runAction('transform:scale', () => api.scale(scale));
+                if (this.pendingActions > 0 || input.value.trim() === '') {
+                    this.synchronizeControls();
+                    return;
+                }
+                try {
+                    const scale = readNumericInput(input, 'transform.scaleInput');
+                    this.runAction('transform:scale', () => api.scale(scale));
+                } catch (error) {
+                    this.reportActionError('transform:scale', error);
+                }
             });
             this.synchronizers.push(() => {
                 input.value = String(api.getState().scale);
+                input.disabled = this.pendingActions > 0;
             });
         }
         this.button(ownerDocument, controls.zoomInButton, 'transform.zoomInButton', () =>
@@ -716,16 +739,21 @@ export class DomControlsController implements Disposable {
         const target = this.resolveKeyboardTarget(ownerDocument, keyboard.target);
         this.listen(target, 'keydown', (event) => {
             const keyboardEvent = event as KeyboardEvent;
+            if (keyboardEvent.defaultPrevented || keyboardEvent.repeat) return;
             if (
                 keyboard.allowInEditable !== true &&
                 isEditableNode(keyboardEvent.target, ownerDocument)
             ) {
                 return;
             }
-            const action = this.keyboardAction(keyboardEvent, options);
-            if (!action) return;
-            keyboardEvent.preventDefault();
-            this.runAction(action.name, action.run);
+            try {
+                const action = this.keyboardAction(keyboardEvent, options);
+                if (!action) return;
+                keyboardEvent.preventDefault();
+                this.runAction(action.name, action.run);
+            } catch (error) {
+                this.reportActionError('dom-controls:keyboard', error);
+            }
         });
     }
 
@@ -736,7 +764,7 @@ export class DomControlsController implements Disposable {
         const keyboard = options.keyboard!;
         const apis = this.requireApis();
         const modifier = event.ctrlKey || event.metaKey;
-        const key = event.key.toLowerCase();
+        const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
 
         if (keyboard.historyActions !== false && modifier && !event.altKey) {
             if ((key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey)) {
@@ -757,7 +785,7 @@ export class DomControlsController implements Disposable {
 
         if (
             keyboard.cancelActiveSession !== false &&
-            event.key === 'Escape' &&
+            (event.key === 'Escape' || event.key === 'Esc') &&
             !modifier &&
             !event.altKey
         ) {
@@ -862,7 +890,7 @@ export class DomControlsController implements Disposable {
         if (this.disposed || !this.bound) return;
         this.pendingActions += 1;
         try {
-            this.refresh();
+            this.synchronizeControls();
         } catch (error) {
             this.reportActionError('dom-controls:refresh', error);
         }
@@ -873,7 +901,7 @@ export class DomControlsController implements Disposable {
                 this.pendingActions = Math.max(0, this.pendingActions - 1);
                 if (this.disposed || !this.bound) return;
                 try {
-                    this.refresh();
+                    this.synchronizeControls();
                 } catch (error) {
                     this.reportActionError('dom-controls:refresh', error);
                 }

@@ -1,7 +1,7 @@
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
-const require_core = require("./core-BRyf9CBJ.cjs");
+const require_core = require("./core-BKDbSToV.cjs");
 
 // dist/esm/plugins/history/retained-size-estimator.js
 const BOOLEAN_BYTES = 4;
@@ -410,4 +410,4 @@ Object.defineProperty(exports, "historyPluginRef", {
     return historyPluginRef;
   }
 });
-//# sourceMappingURL=history-DCsQkDoe.cjs.map
+//# sourceMappingURL=history-Bv4e7TuU.cjs.map

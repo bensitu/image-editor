@@ -1,10 +1,10 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
-const require_annotation = require("./annotation-JoYZCsmH.cjs");
+const require_annotation = require("./annotation-GBF6lK0A.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_plugin_identifier = require("./plugin-identifier-gAnWTWj6.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
-const require_core = require("./core-BRyf9CBJ.cjs");
-const require_overlay = require("./overlay-CGcUbhau.cjs");
+const require_core = require("./core-BKDbSToV.cjs");
+const require_overlay = require("./overlay-D5mW2QbW.cjs");
 
 // dist/esm/plugins/annotation-text/text-controller.js
 const TEXT_ANNOTATION_KIND = "annotation:text";
@@ -107,10 +107,34 @@ function normalizeFeatureUpdate(value) {
 		"backgroundColor",
 		"textAlign",
 		"width",
-		"opacity"
+		"opacity",
+		"left",
+		"top",
+		"angle",
+		"scaleX",
+		"scaleY",
+		"skewX",
+		"skewY",
+		"flipX",
+		"flipY"
 	]);
 	if (Object.keys(value).some((key) => !allowed.has(key))) throw new require_annotation.AnnotationValidationError("Text update contains unknown keys.");
+	const geometry = {};
+	for (const key of [
+		"left",
+		"top",
+		"angle",
+		"scaleX",
+		"scaleY",
+		"skewX",
+		"skewY"
+	]) if (value[key] !== void 0) geometry[key] = validateFiniteRange(value[key], `Text ${key}`, -1e7, MAX_COORDINATE);
+	for (const key of ["flipX", "flipY"]) if (value[key] !== void 0) {
+		if (typeof value[key] !== "boolean") throw new require_annotation.AnnotationValidationError(`Text ${key} must be boolean.`);
+		geometry[key] = value[key];
+	}
 	return Object.freeze({
+		...geometry,
 		...value.text !== void 0 ? { text: validateText(value.text) } : {},
 		...value.fontSize !== void 0 ? { fontSize: validateFiniteRange(value.fontSize, "Text font size", 1, 512) } : {},
 		...value.fontFamily !== void 0 ? { fontFamily: validateFontField(value.fontFamily, "Text font family") } : {},
@@ -130,9 +154,9 @@ function sharedUpdate(value) {
 		...value.locked !== void 0 ? { locked: value.locked } : {}
 	});
 }
-function featureUpdate(value) {
+function featureUpdate(value, currentFontFamily = "Arial") {
 	var _a;
-	const fontFamily = value.fontFamily !== void 0 || value.fontFallbacks !== void 0 ? resolvedFontFamily((_a = value.fontFamily) !== null && _a !== void 0 ? _a : "Arial", value.fontFallbacks ? validateFallbacks(value.fontFallbacks) : []) : void 0;
+	const fontFamily = value.fontFamily !== void 0 || value.fontFallbacks !== void 0 ? resolvedFontFamily((_a = value.fontFamily) !== null && _a !== void 0 ? _a : currentFontFamily.split(",")[0].trim(), value.fontFallbacks ? validateFallbacks(value.fontFallbacks) : []) : void 0;
 	return normalizeFeatureUpdate({
 		...value.text !== void 0 ? { text: value.text } : {},
 		...value.fontSize !== void 0 ? { fontSize: value.fontSize } : {},
@@ -213,6 +237,18 @@ var TextAnnotationController = class {
 			value: void 0
 		});
 		Object.defineProperty(this, "session", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: null
+		});
+		Object.defineProperty(this, "committingEditing", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: false
+		});
+		Object.defineProperty(this, "editingCommit", {
 			enumerable: true,
 			configurable: true,
 			writable: true,
@@ -405,20 +441,43 @@ var TextAnnotationController = class {
 			}
 			throw error;
 		}
+		const editingExited = () => {
+			var _a;
+			if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.preview) !== preview || this.committingEditing) return;
+			require_core_capabilities.observePromise(this.commitEditing(), (error) => this.host.reportWarning(error, "Text editing could not be committed after focus changed."));
+		};
 		this.session = Object.freeze({
 			annotationId: id,
 			previewId,
 			preview,
-			visibility
+			visibility,
+			editingExited
 		});
+		preview.on("editing:exited", editingExited);
 		this.emitStatus();
 	}
-	async commitEditing() {
+	commitEditing() {
+		if (this.editingCommit) return this.editingCommit;
+		this.editingCommit = this.performCommitEditing().finally(() => {
+			this.editingCommit = null;
+		});
+		return this.editingCommit;
+	}
+	async performCommitEditing() {
 		var _a;
 		this.assertActive("commit Text editing");
 		const session = this.session;
-		if (!session) return;
+		if (!session || this.committingEditing) return;
 		const patch = normalizeFeatureUpdate({
+			left: session.preview.left,
+			top: session.preview.top,
+			angle: session.preview.angle,
+			scaleX: session.preview.scaleX,
+			scaleY: session.preview.scaleY,
+			skewX: session.preview.skewX,
+			skewY: session.preview.skewY,
+			flipX: session.preview.flipX,
+			flipY: session.preview.flipY,
 			text: String((_a = session.preview.text) !== null && _a !== void 0 ? _a : ""),
 			fontSize: session.preview.fontSize,
 			fontFamily: session.preview.fontFamily,
@@ -429,14 +488,39 @@ var TextAnnotationController = class {
 			width: session.preview.width,
 			opacity: session.preview.opacity
 		});
-		this.closeSession();
-		if (!this.annotations.get(session.annotationId)) return;
-		await this.authoring.updateFeature({
-			id: session.annotationId,
-			kind: TEXT_ANNOTATION_KIND,
-			patch,
-			operationId: "annotation-text:commit-edit"
-		});
+		if (!this.annotations.get(session.annotationId)) {
+			this.closeSession();
+			return;
+		}
+		this.committingEditing = true;
+		try {
+			await this.authoring.updateFeature({
+				id: session.annotationId,
+				kind: TEXT_ANNOTATION_KIND,
+				patch,
+				operationId: "annotation-text:commit-edit"
+			});
+			this.closeSession();
+		} catch (error) {
+			if (this.session === session && !session.preview.canvas && this.annotations.get(session.annotationId)) {
+				await session.visibility.dispose();
+				const visibility = this.authoring.hideForPreview([session.annotationId]);
+				this.authoring.addPreview({
+					id: session.previewId,
+					ownerKind: TEXT_ANNOTATION_KIND,
+					object: session.preview,
+					interactive: true,
+					select: false
+				});
+				this.session = Object.freeze({
+					...session,
+					visibility
+				});
+			}
+			throw error;
+		} finally {
+			this.committingEditing = false;
+		}
 	}
 	cancelEditing() {
 		this.assertActive("cancel Text editing");
@@ -444,13 +528,13 @@ var TextAnnotationController = class {
 		this.closeSession();
 	}
 	update(id, patch) {
-		var _a, _b, _c;
+		var _a, _b, _c, _d;
 		this.assertActive("update Text");
 		if (!isPlainRecord(patch)) return Promise.reject(new require_annotation.AnnotationValidationError("Text update must be an object."));
 		if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.annotationId) === id) {
 			const shared = sharedUpdate(patch);
 			if (Object.keys(shared).length > 0) return Promise.reject(new require_annotation.AnnotationValidationError("Commit or cancel Text editing before updating shared Annotation fields."));
-			const featurePatch = featureUpdate(patch);
+			const featurePatch = featureUpdate(patch, this.session.preview.fontFamily);
 			if (Object.keys(featurePatch).length === 0) return Promise.resolve();
 			const preview = this.session.preview;
 			preview.set(featurePatch);
@@ -469,7 +553,7 @@ var TextAnnotationController = class {
 		return this.authoring.updateFeature({
 			id,
 			kind: TEXT_ANNOTATION_KIND,
-			patch: featureUpdate(patch),
+			patch: featureUpdate(patch, (_d = this.authoring.getObject(id, "annotation:text")) === null || _d === void 0 ? void 0 : _d.fontFamily),
 			shared: sharedUpdate(patch),
 			operationId: "annotation-text:update"
 		});
@@ -516,6 +600,7 @@ var TextAnnotationController = class {
 		const session = this.session;
 		if (!session) return;
 		this.session = null;
+		session.preview.off("editing:exited", session.editingExited);
 		(_b = (_a = session.preview).exitEditing) === null || _b === void 0 || _b.call(_a);
 		this.authoring.removePreview([session.previewId]);
 		require_core_capabilities.observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
@@ -654,11 +739,8 @@ function textAnnotationPlugin(options = {}) {
 					}
 				}),
 				commitEditing: async () => {
-					try {
-						await requireController().commitEditing();
-					} finally {
-						if (context.tools.getActiveToolId() === TEXT_TOOL_ID) await context.tools.exit("operation");
-					}
+					await requireController().commitEditing();
+					if (context.tools.getActiveToolId() === TEXT_TOOL_ID) await context.tools.exit("operation");
 				},
 				cancelEditing: () => context.operations.run("annotation-text:cancel-edit", void 0, async () => {
 					requireController().cancelEditing();
@@ -694,4 +776,4 @@ Object.defineProperty(exports, "textAnnotationPluginRef", {
     return textAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-text-F3xrOaJt.cjs.map
+//# sourceMappingURL=annotation-text-ph0ZY1bB.cjs.map

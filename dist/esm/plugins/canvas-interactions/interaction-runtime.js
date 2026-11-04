@@ -176,6 +176,7 @@ export class InteractionRuntime {
             return;
         this.lifecycleEpoch += 1;
         this.invalidateLocal('dispose');
+        this.activeToolId = null;
         this.disposed = true;
         const cleanup = this.toolSubscription.dispose();
         if (isPromiseLike(cleanup)) {

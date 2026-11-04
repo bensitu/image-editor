@@ -184,8 +184,10 @@ test('image lifecycle notifications expose cancellation and stop before later ca
     await manager.install(
         pluginDefinition('example-test:first-image-listener', {
             onImageLoaded: (_image, context) => {
-                calls.push(context.signal === controller.signal ? 'first:signal' : 'first:other');
                 controller.abort(reason);
+                assert.equal(context.signal.aborted, true);
+                assert.equal(context.signal.reason, reason);
+                calls.push('first:signal');
             },
         }),
     );
@@ -600,4 +602,16 @@ test('PluginStateStore rejects colliding live plugin scopes and releases ids on 
     assert.equal(state.get('value'), 1);
     await thirdScope.dispose();
     stateStore.dispose();
+});
+
+test('stalled initialization releases installed resources after its timeout', async (context) => {
+    const manager = new PluginManager();
+    await manager.install(
+        pluginDefinition('example-test:stalled-init', { onInit: () => new Promise(() => {}) }),
+    );
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const initializing = manager.initialize();
+    context.mock.timers.tick(15_000);
+    await assert.rejects(initializing, (error) => /timed out/.test(error.cause?.message));
+    assert.equal(manager.state, 'disposed');
 });

@@ -1,10 +1,10 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
-const require_annotation = require("./annotation-JoYZCsmH.cjs");
+const require_annotation = require("./annotation-GBF6lK0A.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_plugin_identifier = require("./plugin-identifier-gAnWTWj6.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
-const require_core = require("./core-BRyf9CBJ.cjs");
-const require_overlay = require("./overlay-CGcUbhau.cjs");
+const require_core = require("./core-BKDbSToV.cjs");
+const require_overlay = require("./overlay-D5mW2QbW.cjs");
 
 // dist/esm/plugins/annotation-shape/shape-controller.js
 const SHAPE_ANNOTATION_KIND = "annotation:shape";
@@ -387,8 +387,14 @@ var ShapeAnnotationController = class {
 			...session.options,
 			geometry: session.geometry
 		};
-		this.closeSession();
-		return this.createDefinition(definition, "annotation-shape:commit");
+		try {
+			const id = await this.createDefinition(definition, "annotation-shape:commit");
+			this.closeSession();
+			return id;
+		} catch (error) {
+			if (this.session === session) this.replaceSessionPreview(session, definition.geometry);
+			throw error;
+		}
 	}
 	cancel() {
 		this.assertActive("cancel Shape");
@@ -641,11 +647,9 @@ function shapeAnnotationPlugin(options = {}) {
 				}),
 				updatePreview: (geometry) => context.operations.run("annotation-shape:update-preview", geometry, (value) => requireController().updatePreview(value)),
 				commit: async () => {
-					try {
-						return await requireController().commit();
-					} finally {
-						if (context.tools.getActiveToolId() === SHAPE_TOOL_ID) await context.tools.exit("operation");
-					}
+					const id = await requireController().commit();
+					if (context.tools.getActiveToolId() === SHAPE_TOOL_ID) await context.tools.exit("operation");
+					return id;
 				},
 				cancel: () => context.operations.run("annotation-shape:cancel", void 0, async () => {
 					requireController().cancel();
@@ -681,4 +685,4 @@ Object.defineProperty(exports, "shapeAnnotationPluginRef", {
     return shapeAnnotationPluginRef;
   }
 });
-//# sourceMappingURL=annotation-shape-a-0v8gZx.cjs.map
+//# sourceMappingURL=annotation-shape-CHsJgzcS.cjs.map

@@ -226,6 +226,12 @@ export class DrawAnnotationController {
             writable: true,
             value: 0
         });
+        Object.defineProperty(this, "pendingPreview", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
             configurable: true,
@@ -268,7 +274,7 @@ export class DrawAnnotationController {
                     if (!(object instanceof context.fabric.Path)) {
                         throw new AnnotationValidationError('Fabric did not restore a Draw path.');
                     }
-                    object.editorDrawPoints = normalizePoints(value.points, this.brush.maxPointCount);
+                    object.editorDrawPoints = normalizePoints(value.points, 65536);
                     return object;
                 },
             },
@@ -374,33 +380,46 @@ export class DrawAnnotationController {
         catch (error) {
             throw new AnnotationValidationError(error instanceof Error ? error.message : 'Draw point limit was exceeded.');
         }
-        this.refreshPreview(session);
+        this.schedulePreview(session);
     }
     async endStroke() {
         const session = this.requireActiveStroke('end Draw stroke');
         const points = Object.freeze([...session.points]);
         const mode = session.subMode;
-        this.clearStroke(session);
-        if (!this.isMeaningfulStroke(points))
-            return null;
-        if (mode === 'erase') {
-            const ids = this.intersectedDrawIds(points);
-            if (ids.length === 0)
-                return null;
-            await this.authoring.removeFeatures({
-                ids,
-                kind: DRAW_ANNOTATION_KIND,
-                operationId: 'annotation-draw:commit-erase',
-            });
+        if (!this.isMeaningfulStroke(points)) {
+            this.clearStroke(session);
             return null;
         }
-        const object = this.createPath(points);
-        return this.authoring.create({
-            kind: DRAW_ANNOTATION_KIND,
-            object,
-            name: `${this.brush.namePrefix} ${++this.nameSequence}`,
-            operationId: 'annotation-draw:commit-stroke',
-        });
+        try {
+            if (mode === 'erase') {
+                const ids = this.intersectedDrawIds(points);
+                if (ids.length === 0) {
+                    this.clearStroke(session);
+                    return null;
+                }
+                await this.authoring.removeFeatures({
+                    ids,
+                    kind: DRAW_ANNOTATION_KIND,
+                    operationId: 'annotation-draw:commit-erase',
+                });
+                this.clearStroke(session);
+                return null;
+            }
+            const object = this.createPath(points);
+            const id = await this.authoring.create({
+                kind: DRAW_ANNOTATION_KIND,
+                object,
+                name: `${this.brush.namePrefix} ${++this.nameSequence}`,
+                operationId: 'annotation-draw:commit-stroke',
+            });
+            this.clearStroke(session);
+            return id;
+        }
+        catch (error) {
+            if (this.session === session)
+                this.refreshPreview(session);
+            throw error;
+        }
     }
     cancelStroke() {
         const session = this.requireSession('cancel Draw stroke');
@@ -469,6 +488,41 @@ export class DrawAnnotationController {
         object.editorDrawPoints = Object.freeze([...points]);
         return object;
     }
+    schedulePreview(session) {
+        var _a, _b;
+        if (((_a = this.pendingPreview) === null || _a === void 0 ? void 0 : _a.session) === session)
+            return;
+        (_b = this.pendingPreview) === null || _b === void 0 ? void 0 : _b.cancel();
+        let active = true;
+        let handle = null;
+        const pending = {
+            session,
+            cancel: () => {
+                var _a;
+                active = false;
+                if (handle !== null)
+                    (_a = globalThis.cancelAnimationFrame) === null || _a === void 0 ? void 0 : _a.call(globalThis, handle);
+            },
+        };
+        this.pendingPreview = pending;
+        const render = () => {
+            if (!active || this.pendingPreview !== pending)
+                return;
+            this.pendingPreview = null;
+            if (this.session !== session || this.disposed || session.points.length === 0)
+                return;
+            try {
+                this.refreshPreview(session);
+            }
+            catch (error) {
+                this.host.reportWarning(error, 'Draw preview could not be refreshed.');
+            }
+        };
+        if (typeof globalThis.requestAnimationFrame === 'function')
+            handle = globalThis.requestAnimationFrame(render);
+        else
+            queueMicrotask(render);
+    }
     refreshPreview(session) {
         let preview;
         if (session.subMode === 'brush') {
@@ -517,6 +571,11 @@ export class DrawAnnotationController {
         return points.some((point) => Math.hypot(point.x - first.x, point.y - first.y) >= 0.5);
     }
     clearStroke(session) {
+        var _a;
+        if (((_a = this.pendingPreview) === null || _a === void 0 ? void 0 : _a.session) === session) {
+            this.pendingPreview.cancel();
+            this.pendingPreview = null;
+        }
         if (session.previewId)
             this.authoring.removePreview([session.previewId]);
         session.previewId = null;

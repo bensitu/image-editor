@@ -50,8 +50,6 @@ export class LatestValueScheduler {
         });
     }
     flush() {
-        if (this.cancelled)
-            return Promise.resolve();
         if (this.failure !== null)
             return Promise.reject(this.failure);
         if (!this.running && !this.pending)
@@ -103,7 +101,7 @@ export class LatestValueScheduler {
         });
     }
     settleFlushWaiters() {
-        if (this.running && !this.cancelled && this.failure === null)
+        if (this.running)
             return;
         for (const waiter of this.flushWaiters.splice(0)) {
             if (this.failure !== null)

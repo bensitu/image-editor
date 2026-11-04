@@ -154,3 +154,32 @@ test('Existing Text clicks use public classification and explicit retarget polic
 
     assert.deepEqual(calls, [['cancel'], ['enter'], ['edit', 'text-2']]);
 });
+
+test('Text drags do not create or activate editing sessions', async () => {
+    let created = 0;
+    const text = {
+        create: async () => {
+            created += 1;
+            return 'text-1';
+        },
+    } as unknown as TextAnnotationPluginApi;
+    const binding = new TextInteractionBinding(
+        bindingOptions(
+            text,
+            { classify: () => null } as unknown as OverlayFoundationApi,
+            {} as AnnotationPluginApi,
+        ),
+    );
+    const start = sample();
+    const claim = binding.claim({
+        sample: start,
+        activeToolId: binding.toolId,
+        gesture: gestureContext,
+    });
+    assert.ok(claim);
+    await binding.end(claim.gesture, {
+        ...start,
+        canvasPoint: { x: start.canvasPoint.x + 20, y: start.canvasPoint.y },
+    });
+    assert.equal(created, 0);
+});

@@ -249,6 +249,11 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     private mutationSequence = 0;
     private generatedIdSequence = 0;
     private lastInteractionId: string | null = null;
+    private presentationDescriptors: ReadonlyMap<
+        FabricNS.FabricObject,
+        AnnotationDescriptor
+    > | null = null;
+    private removeObjectListener: (() => void) | null = null;
     private disposed = false;
 
     constructor(
@@ -315,10 +320,12 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         const normalized = this.normalizeQuery(query);
         const objects = this.overlay.list(normalized);
         const selected = new Set(this.overlay.getSelection().ids);
-        const allLayers = this.persistentOverlayObjects();
+        const allLayers = new Map(
+            this.persistentOverlayObjects().map((object, index) => [object, index]),
+        );
         const descriptors = objects
             .filter((object) => this.isAnnotationObject(object))
-            .map((object) => this.describe(object, selected, allLayers));
+            .map((object) => this.describe(object, selected, allLayers.get(object) ?? -1));
         if (this.listOrder === 'front-to-back') descriptors.reverse();
         return Object.freeze(descriptors);
     }
@@ -330,7 +337,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
         return this.describe(
             object,
             new Set(this.overlay.getSelection().ids),
-            this.persistentOverlayObjects(),
+            this.persistentOverlayObjects().indexOf(object),
         );
     }
 
@@ -656,11 +663,19 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     }
 
     synchronizeRuntimePresentation(): void {
+        const canvas = this.host.getCanvas();
+        if (canvas && !this.removeObjectListener) {
+            this.removeObjectListener = canvas.on('object:removed', ({ target }) =>
+                this.presentations.removeFor(target as AnnotationFabricObject),
+            );
+        }
         this.synchronizePresentations();
     }
 
     dispose(): void {
         if (this.disposed) return;
+        this.removeObjectListener?.();
+        this.removeObjectListener = null;
         this.removeAllPreviews();
         this.presentations.reset();
         this.listeners.clear();
@@ -963,7 +978,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     private describe(
         object: FabricNS.FabricObject,
         selected: ReadonlySet<string>,
-        layers: readonly FabricNS.FabricObject[],
+        layerIndex: number,
     ): AnnotationDescriptor {
         const annotation = object as AnnotationFabricObject;
         const classification = this.overlay.classify(object);
@@ -977,7 +992,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             hidden: classification.hidden,
             locked: classification.locked,
             selected: selected.has(classification.persistentId),
-            layerIndex: layers.indexOf(object),
+            layerIndex,
             metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
         });
     }
@@ -1042,7 +1057,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
     private describePresentationOwner(object: AnnotationFabricObject): AnnotationDescriptor | null {
         const id = object.editorOverlayId;
         if (!id) return null;
-        return this.get(id);
+        return this.presentationDescriptors?.get(object) ?? this.get(id);
     }
 
     private synchronizePresentations(): void {
@@ -1054,7 +1069,25 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
                 includeLocked: true,
             })
             .filter((object): object is AnnotationFabricObject => this.isAnnotationObject(object));
-        this.presentations.synchronizeAll(objects);
+        if (objects.length === 0) {
+            this.presentations.synchronizeAll(objects);
+            return;
+        }
+        const layers = new Map(
+            this.persistentOverlayObjects().map((object, index) => [object, index]),
+        );
+        const selected = new Set(this.overlay.getSelection().ids);
+        this.presentationDescriptors = new Map(
+            objects.map((object) => [
+                object,
+                this.describe(object, selected, layers.get(object) ?? -1),
+            ]),
+        );
+        try {
+            this.presentations.synchronizeAll(objects);
+        } finally {
+            this.presentationDescriptors = null;
+        }
     }
 
     private requireAnnotation(

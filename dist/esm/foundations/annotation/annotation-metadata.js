@@ -4,6 +4,8 @@ export const MAX_ANNOTATION_NAME_LENGTH = 128;
 export const MAX_ANNOTATION_METADATA_DEPTH = 4;
 export const MAX_ANNOTATION_METADATA_KEYS = 32;
 export const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
+const normalizedMetadata = new WeakSet();
+const textEncoder = new TextEncoder();
 function isPlainRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
         return false;
@@ -20,7 +22,7 @@ function cloneMetadataValue(value, depth, budget) {
         return value;
     }
     if (typeof value === 'string') {
-        budget.stringBytes += new TextEncoder().encode(value).byteLength;
+        budget.stringBytes += textEncoder.encode(value).byteLength;
         if (budget.stringBytes > MAX_ANNOTATION_METADATA_STRING_BYTES) {
             throw new AnnotationValidationError('Annotation metadata string data is too large.');
         }
@@ -56,7 +58,7 @@ function cloneMetadataValue(value, depth, budget) {
             if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
                 throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
             }
-            budget.stringBytes += new TextEncoder().encode(key).byteLength;
+            budget.stringBytes += textEncoder.encode(key).byteLength;
             clone[key] = cloneMetadataValue(entry, depth + 1, budget);
         }
         return Object.freeze(clone);
@@ -79,11 +81,15 @@ export function normalizeAnnotationMetadata(value = {}) {
     if (!isPlainRecord(value)) {
         throw new AnnotationValidationError('Annotation metadata must be a plain object.');
     }
-    return cloneMetadataValue(value, 0, {
+    if (normalizedMetadata.has(value))
+        return value;
+    const result = cloneMetadataValue(value, 0, {
         keyCount: 0,
         stringBytes: 0,
         ancestors: new Set(),
     });
+    normalizedMetadata.add(result);
+    return result;
 }
 export function isValidAnnotationMetadata(value) {
     try {

@@ -59,6 +59,7 @@ export declare class ImageEditorCore {
     private latestLoadSequence;
     private stateLoadSequence;
     private initialImageLoadActive;
+    private initializationCompletion;
     private disposePromise;
     private emergencyResetPromise;
     private readonly diagnostics;

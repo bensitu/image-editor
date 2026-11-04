@@ -189,6 +189,18 @@ export class AnnotationController {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "presentationDescriptors", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "removeObjectListener", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "disposed", {
             enumerable: true,
             configurable: true,
@@ -233,10 +245,10 @@ export class AnnotationController {
         const normalized = this.normalizeQuery(query);
         const objects = this.overlay.list(normalized);
         const selected = new Set(this.overlay.getSelection().ids);
-        const allLayers = this.persistentOverlayObjects();
+        const allLayers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
         const descriptors = objects
             .filter((object) => this.isAnnotationObject(object))
-            .map((object) => this.describe(object, selected, allLayers));
+            .map((object) => { var _a; return this.describe(object, selected, (_a = allLayers.get(object)) !== null && _a !== void 0 ? _a : -1); });
         if (this.listOrder === 'front-to-back')
             descriptors.reverse();
         return Object.freeze(descriptors);
@@ -246,7 +258,7 @@ export class AnnotationController {
         const object = this.overlay.getByPersistentId(id);
         if (!object || !this.isAnnotationObject(object))
             return null;
-        return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects());
+        return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects().indexOf(object));
     }
     async update(id, patch) {
         const object = this.requireAnnotation(id);
@@ -533,11 +545,18 @@ export class AnnotationController {
         this.emitStatus();
     }
     synchronizeRuntimePresentation() {
+        const canvas = this.host.getCanvas();
+        if (canvas && !this.removeObjectListener) {
+            this.removeObjectListener = canvas.on('object:removed', ({ target }) => this.presentations.removeFor(target));
+        }
         this.synchronizePresentations();
     }
     dispose() {
+        var _a;
         if (this.disposed)
             return;
+        (_a = this.removeObjectListener) === null || _a === void 0 ? void 0 : _a.call(this);
+        this.removeObjectListener = null;
         this.removeAllPreviews();
         this.presentations.reset();
         this.listeners.clear();
@@ -799,7 +818,7 @@ export class AnnotationController {
         this.normalizeQuery(query);
         return Object.freeze({ force, query });
     }
-    describe(object, selected, layers) {
+    describe(object, selected, layerIndex) {
         const annotation = object;
         const classification = this.overlay.classify(object);
         if (!classification || !this.features.has(classification.kind)) {
@@ -812,7 +831,7 @@ export class AnnotationController {
             hidden: classification.hidden,
             locked: classification.locked,
             selected: selected.has(classification.persistentId),
-            layerIndex: layers.indexOf(object),
+            layerIndex,
             metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata),
         });
     }
@@ -865,10 +884,11 @@ export class AnnotationController {
         return !!classification && this.features.has(classification.kind);
     }
     describePresentationOwner(object) {
+        var _a, _b;
         const id = object.editorOverlayId;
         if (!id)
             return null;
-        return this.get(id);
+        return (_b = (_a = this.presentationDescriptors) === null || _a === void 0 ? void 0 : _a.get(object)) !== null && _b !== void 0 ? _b : this.get(id);
     }
     synchronizePresentations() {
         if (this.disposed)
@@ -880,7 +900,25 @@ export class AnnotationController {
             includeLocked: true,
         })
             .filter((object) => this.isAnnotationObject(object));
-        this.presentations.synchronizeAll(objects);
+        if (objects.length === 0) {
+            this.presentations.synchronizeAll(objects);
+            return;
+        }
+        const layers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
+        const selected = new Set(this.overlay.getSelection().ids);
+        this.presentationDescriptors = new Map(objects.map((object) => {
+            var _a;
+            return [
+                object,
+                this.describe(object, selected, (_a = layers.get(object)) !== null && _a !== void 0 ? _a : -1),
+            ];
+        }));
+        try {
+            this.presentations.synchronizeAll(objects);
+        }
+        finally {
+            this.presentationDescriptors = null;
+        }
     }
     requireAnnotation(id, kind) {
         this.assertIdentifier(id, 'Annotation id');

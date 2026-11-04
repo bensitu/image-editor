@@ -1,3 +1,4 @@
+const require_abortable_promise = require("./abortable-promise-brVLi25s.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_plugin_identifier = require("./plugin-identifier-gAnWTWj6.cjs");
 
@@ -104,7 +105,7 @@ var CapabilityRegistry = class {
 		const id = typeof tokenOrId === "string" ? tokenOrId : tokenOrId.id;
 		if (!require_plugin_identifier.isRuntimeIdentifier(id)) throw new require_plugin_identifier.InvalidPluginDefinitionError("Invalid Capability Runtime ID.");
 		const record = this.providers.get(id);
-		if (!record) return null;
+		if (!(record === null || record === void 0 ? void 0 : record.complete)) return null;
 		return Object.freeze({
 			capabilityId: record.token.id,
 			version: record.version,
@@ -1395,14 +1396,15 @@ var ToolCoordinator = class {
 	async exitCurrent(reason) {
 		const current = this.active;
 		if (!current) return;
-		this.active = null;
-		this.notifyActivityChange();
 		try {
 			await current.definition.exit(reason, current.context);
 		} catch (error) {
 			const transitionError = new require_plugin_identifier.ToolTransitionError(current.definition.id, `failed to exit for reason "${reason}"`, current.ownerPluginId, error);
 			require_core_capabilities.reportErrorSafely(this.options.errorSink, transitionError);
 			throw transitionError;
+		} finally {
+			if (this.active === current) this.active = null;
+			this.notifyActivityChange();
 		}
 	}
 	async runTransition(toolId, task) {
@@ -1463,6 +1465,21 @@ var ToolCoordinator = class {
 };
 
 // dist/esm/plugin-kernel/plugin-manager.js
+const LIFECYCLE_TIMEOUT_MS = 15e3;
+async function runLifecycleHook(task, parentSignal) {
+	const controller = new AbortController();
+	const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
+	parentSignal === null || parentSignal === void 0 || parentSignal.addEventListener("abort", abort, { once: true });
+	if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted) abort();
+	const timeout = setTimeout(() => controller.abort(/* @__PURE__ */ new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
+	try {
+		controller.signal.throwIfAborted();
+		await require_abortable_promise.settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+	} finally {
+		clearTimeout(timeout);
+		parentSignal === null || parentSignal === void 0 || parentSignal.removeEventListener("abort", abort);
+	}
+}
 function createPluginCleanupTraversal(installationOrder, installed, toolCoordinator, operationRegistry, eventBus, capabilityRegistry, stateStore) {
 	const records = [...installationOrder].reverse().map((pluginId) => installed.get(pluginId)).filter((record) => record !== void 0);
 	const kernelTargets = Object.freeze([
@@ -1743,7 +1760,10 @@ var PluginManager = class {
 				const record = this.installed.get(pluginId);
 				if (!(record === null || record === void 0 ? void 0 : record.plugin.onInit)) continue;
 				try {
-					await record.plugin.onInit(record.lifecycleContext);
+					await runLifecycleHook(() => {
+						var _a, _b;
+						return (_b = (_a = record.plugin).onInit) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext);
+					});
 				} catch (error) {
 					throw new require_plugin_identifier.PluginLifecycleError(pluginId, "init", error);
 				}
@@ -1796,7 +1816,13 @@ var PluginManager = class {
 				signal: notificationSignal
 			});
 			try {
-				await record.plugin.onImageLoaded(image, context);
+				await runLifecycleHook((hookSignal) => {
+					var _a, _b;
+					return (_b = (_a = record.plugin).onImageLoaded) === null || _b === void 0 ? void 0 : _b.call(_a, image, {
+						...context,
+						signal: hookSignal
+					});
+				}, notificationSignal);
 			} catch (error) {
 				if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 				throw new require_plugin_identifier.PluginLifecycleError(pluginId, "image-loaded", error);
@@ -1817,7 +1843,13 @@ var PluginManager = class {
 				signal: notificationSignal
 			});
 			try {
-				await record.plugin.onImageCleared(context);
+				await runLifecycleHook((hookSignal) => {
+					var _a, _b;
+					return (_b = (_a = record.plugin).onImageCleared) === null || _b === void 0 ? void 0 : _b.call(_a, {
+						...context,
+						signal: hookSignal
+					});
+				}, notificationSignal);
 			} catch (error) {
 				if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 				throw new require_plugin_identifier.PluginLifecycleError(pluginId, "image-cleared", error);
@@ -2217,7 +2249,10 @@ var PluginManager = class {
 		for (const record of traversal.records) {
 			if (!record.plugin.onDispose) continue;
 			try {
-				await record.plugin.onDispose(record.lifecycleContext);
+				await runLifecycleHook(() => {
+					var _a, _b;
+					return (_b = (_a = record.plugin).onDispose) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext);
+				});
 			} catch (error) {
 				const lifecycleError = new require_plugin_identifier.PluginLifecycleError(record.plugin.ref.id, "dispose", error);
 				recordPluginCleanupError(errors, this.options.errorSink, lifecycleError);
@@ -2314,4 +2349,4 @@ Object.defineProperty(exports, "normalizeThrownError", {
     return normalizeThrownError;
   }
 });
-//# sourceMappingURL=plugin-manager-BH4xRW5k.cjs.map
+//# sourceMappingURL=plugin-manager-BFWD7mCk.cjs.map

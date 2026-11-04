@@ -193,8 +193,6 @@ export class ToolCoordinator {
         const current = this.active;
         if (!current)
             return;
-        this.active = null;
-        this.notifyActivityChange();
         try {
             await current.definition.exit(reason, current.context);
         }
@@ -202,6 +200,11 @@ export class ToolCoordinator {
             const transitionError = new ToolTransitionError(current.definition.id, `failed to exit for reason "${reason}"`, current.ownerPluginId, error);
             reportErrorSafely(this.options.errorSink, transitionError);
             throw transitionError;
+        }
+        finally {
+            if (this.active === current)
+                this.active = null;
+            this.notifyActivityChange();
         }
     }
     async runTransition(toolId, task) {

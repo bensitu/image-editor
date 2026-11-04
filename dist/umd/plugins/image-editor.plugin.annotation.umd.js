@@ -204,6 +204,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const MAX_ANNOTATION_METADATA_DEPTH = 4;
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
 	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
+	const normalizedMetadata = /* @__PURE__ */ new WeakSet();
+	const textEncoder = new TextEncoder();
 	function isPlainRecord$2(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -216,7 +218,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return value;
 		}
 		if (typeof value === "string") {
-			budget.stringBytes += new TextEncoder().encode(value).byteLength;
+			budget.stringBytes += textEncoder.encode(value).byteLength;
 			if (budget.stringBytes > 8192) throw new AnnotationValidationError("Annotation metadata string data is too large.");
 			return value;
 		}
@@ -236,7 +238,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const clone = {};
 			for (const [key, entry] of entries) {
 				if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
-				budget.stringBytes += new TextEncoder().encode(key).byteLength;
+				budget.stringBytes += textEncoder.encode(key).byteLength;
 				clone[key] = cloneMetadataValue(entry, depth + 1, budget);
 			}
 			return Object.freeze(clone);
@@ -251,11 +253,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function normalizeAnnotationMetadata(value = {}) {
 		if (!isPlainRecord$2(value)) throw new AnnotationValidationError("Annotation metadata must be a plain object.");
-		return cloneMetadataValue(value, 0, {
+		if (normalizedMetadata.has(value)) return value;
+		const result = cloneMetadataValue(value, 0, {
 			keyCount: 0,
 			stringBytes: 0,
 			ancestors: /* @__PURE__ */ new Set()
 		});
+		normalizedMetadata.add(result);
+		return result;
 	}
 	function isValidAnnotationMetadata(value) {
 		try {
@@ -883,6 +888,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: null
 			});
+			Object.defineProperty(this, "presentationDescriptors", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
+			Object.defineProperty(this, "removeObjectListener", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
 			Object.defineProperty(this, "disposed", {
 				enumerable: true,
 				configurable: true,
@@ -922,8 +939,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const normalized = this.normalizeQuery(query);
 			const objects = this.overlay.list(normalized);
 			const selected = new Set(this.overlay.getSelection().ids);
-			const allLayers = this.persistentOverlayObjects();
-			const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => this.describe(object, selected, allLayers));
+			const allLayers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
+			const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => {
+				var _a;
+				return this.describe(object, selected, (_a = allLayers.get(object)) !== null && _a !== void 0 ? _a : -1);
+			});
 			if (this.listOrder === "front-to-back") descriptors.reverse();
 			return Object.freeze(descriptors);
 		}
@@ -931,7 +951,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.assertIdentifier(id, "Annotation id");
 			const object = this.overlay.getByPersistentId(id);
 			if (!object || !this.isAnnotationObject(object)) return null;
-			return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects());
+			return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects().indexOf(object));
 		}
 		async update(id, patch) {
 			const object = this.requireAnnotation(id);
@@ -1193,10 +1213,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.emitStatus();
 		}
 		synchronizeRuntimePresentation() {
+			const canvas = this.host.getCanvas();
+			if (canvas && !this.removeObjectListener) this.removeObjectListener = canvas.on("object:removed", ({ target }) => this.presentations.removeFor(target));
 			this.synchronizePresentations();
 		}
 		dispose() {
+			var _a;
 			if (this.disposed) return;
+			(_a = this.removeObjectListener) === null || _a === void 0 || _a.call(this);
+			this.removeObjectListener = null;
 			this.removeAllPreviews();
 			this.presentations.reset();
 			this.listeners.clear();
@@ -1433,7 +1458,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				query
 			});
 		}
-		describe(object, selected, layers) {
+		describe(object, selected, layerIndex) {
 			const annotation = object;
 			const classification = this.overlay.classify(object);
 			if (!classification || !this.features.has(classification.kind)) throw new AnnotationError("Annotation descriptor lost its Overlay classification.");
@@ -1444,7 +1469,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				hidden: classification.hidden,
 				locked: classification.locked,
 				selected: selected.has(classification.persistentId),
-				layerIndex: layers.indexOf(object),
+				layerIndex,
 				metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata)
 			});
 		}
@@ -1483,9 +1508,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return !!classification && this.features.has(classification.kind);
 		}
 		describePresentationOwner(object) {
+			var _a, _b;
 			const id = object.editorOverlayId;
 			if (!id) return null;
-			return this.get(id);
+			return (_b = (_a = this.presentationDescriptors) === null || _a === void 0 ? void 0 : _a.get(object)) !== null && _b !== void 0 ? _b : this.get(id);
 		}
 		synchronizePresentations() {
 			if (this.disposed) return;
@@ -1494,7 +1520,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				includeHidden: true,
 				includeLocked: true
 			}).filter((object) => this.isAnnotationObject(object));
-			this.presentations.synchronizeAll(objects);
+			if (objects.length === 0) {
+				this.presentations.synchronizeAll(objects);
+				return;
+			}
+			const layers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
+			const selected = new Set(this.overlay.getSelection().ids);
+			this.presentationDescriptors = new Map(objects.map((object) => {
+				var _a;
+				return [object, this.describe(object, selected, (_a = layers.get(object)) !== null && _a !== void 0 ? _a : -1)];
+			}));
+			try {
+				this.presentations.synchronizeAll(objects);
+			} finally {
+				this.presentationDescriptors = null;
+			}
 		}
 		requireAnnotation(id, kind) {
 			this.assertIdentifier(id, "Annotation id");

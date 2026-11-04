@@ -2,7 +2,7 @@ const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 const require_image_budget = require("./image-budget-BAyRgd0r.cjs");
-const require_core = require("./core-BRyf9CBJ.cjs");
+const require_core = require("./core-BKDbSToV.cjs");
 const require_abortable_promise = require("./abortable-promise-brVLi25s.cjs");
 const require_plugin_identifier = require("./plugin-identifier-gAnWTWj6.cjs");
 
@@ -2139,4 +2139,4 @@ Object.defineProperty(exports, "restoreOverlayStateBounds", {
     return restoreOverlayStateBounds;
   }
 });
-//# sourceMappingURL=overlay-CGcUbhau.cjs.map
+//# sourceMappingURL=overlay-D5mW2QbW.cjs.map

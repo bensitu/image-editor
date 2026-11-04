@@ -793,7 +793,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const id = typeof tokenOrId === "string" ? tokenOrId : tokenOrId.id;
 			if (!isRuntimeIdentifier(id)) throw new InvalidPluginDefinitionError("Invalid Capability Runtime ID.");
 			const record = this.providers.get(id);
-			if (!record) return null;
+			if (!(record === null || record === void 0 ? void 0 : record.complete)) return null;
 			return Object.freeze({
 				capabilityId: record.token.id,
 				version: record.version,
@@ -1649,6 +1649,34 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo: "history:redo"
 	});
 
+// dist/esm/utils/abortable-promise.js
+	function settleAbortable(task, signal, disposeLateResult) {
+		return new Promise((resolve, reject) => {
+			let settled = false;
+			const finish = (body) => {
+				if (settled) return;
+				settled = true;
+				signal.removeEventListener("abort", abort);
+				body();
+			};
+			const abort = () => finish(() => {
+				var _a;
+				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
+			});
+			signal.addEventListener("abort", abort, { once: true });
+			if (signal.aborted) abort();
+			task.then((value) => {
+				if (settled) {
+					try {
+						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
+					} catch {}
+					return;
+				}
+				finish(() => resolve(value));
+			}, (error) => finish(() => reject(error)));
+		});
+	}
+
 // dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
@@ -2148,14 +2176,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		async exitCurrent(reason) {
 			const current = this.active;
 			if (!current) return;
-			this.active = null;
-			this.notifyActivityChange();
 			try {
 				await current.definition.exit(reason, current.context);
 			} catch (error) {
 				const transitionError = new ToolTransitionError(current.definition.id, `failed to exit for reason "${reason}"`, current.ownerPluginId, error);
 				reportErrorSafely(this.options.errorSink, transitionError);
 				throw transitionError;
+			} finally {
+				if (this.active === current) this.active = null;
+				this.notifyActivityChange();
 			}
 		}
 		async runTransition(toolId, task) {
@@ -2216,6 +2245,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 // dist/esm/plugin-kernel/plugin-manager.js
+	const LIFECYCLE_TIMEOUT_MS = 15e3;
+	async function runLifecycleHook(task, parentSignal) {
+		const controller = new AbortController();
+		const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
+		parentSignal === null || parentSignal === void 0 || parentSignal.addEventListener("abort", abort, { once: true });
+		if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted) abort();
+		const timeout = setTimeout(() => controller.abort(/* @__PURE__ */ new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
+		try {
+			controller.signal.throwIfAborted();
+			await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+		} finally {
+			clearTimeout(timeout);
+			parentSignal === null || parentSignal === void 0 || parentSignal.removeEventListener("abort", abort);
+		}
+	}
 	function createPluginCleanupTraversal(installationOrder, installed, toolCoordinator, operationRegistry, eventBus, capabilityRegistry, stateStore) {
 		const records = [...installationOrder].reverse().map((pluginId) => installed.get(pluginId)).filter((record) => record !== void 0);
 		const kernelTargets = Object.freeze([
@@ -2496,7 +2540,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					const record = this.installed.get(pluginId);
 					if (!(record === null || record === void 0 ? void 0 : record.plugin.onInit)) continue;
 					try {
-						await record.plugin.onInit(record.lifecycleContext);
+						await runLifecycleHook(() => {
+							var _a, _b;
+							return (_b = (_a = record.plugin).onInit) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext);
+						});
 					} catch (error) {
 						throw new PluginLifecycleError(pluginId, "init", error);
 					}
@@ -2549,7 +2596,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					signal: notificationSignal
 				});
 				try {
-					await record.plugin.onImageLoaded(image, context);
+					await runLifecycleHook((hookSignal) => {
+						var _a, _b;
+						return (_b = (_a = record.plugin).onImageLoaded) === null || _b === void 0 ? void 0 : _b.call(_a, image, {
+							...context,
+							signal: hookSignal
+						});
+					}, notificationSignal);
 				} catch (error) {
 					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-loaded", error);
@@ -2570,7 +2623,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					signal: notificationSignal
 				});
 				try {
-					await record.plugin.onImageCleared(context);
+					await runLifecycleHook((hookSignal) => {
+						var _a, _b;
+						return (_b = (_a = record.plugin).onImageCleared) === null || _b === void 0 ? void 0 : _b.call(_a, {
+							...context,
+							signal: hookSignal
+						});
+					}, notificationSignal);
 				} catch (error) {
 					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-cleared", error);
@@ -2970,7 +3029,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			for (const record of traversal.records) {
 				if (!record.plugin.onDispose) continue;
 				try {
-					await record.plugin.onDispose(record.lifecycleContext);
+					await runLifecycleHook(() => {
+						var _a, _b;
+						return (_b = (_a = record.plugin).onDispose) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext);
+					});
 				} catch (error) {
 					const lifecycleError = new PluginLifecycleError(record.plugin.ref.id, "dispose", error);
 					recordPluginCleanupError(errors, this.options.errorSink, lifecycleError);
@@ -6365,9 +6427,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		maxImageDimension: 32768,
 		externalUrlPolicy: "reject"
 	});
-	const textEncoder = new TextEncoder();
+	const textEncoder$1 = new TextEncoder();
 	function byteLength(value) {
-		return textEncoder.encode(value).byteLength;
+		return textEncoder$1.encode(value).byteLength;
 	}
 	function normalizeResourceUrl(value) {
 		let start = 0;
@@ -7225,6 +7287,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: false
 			});
+			Object.defineProperty(this, "initializationCompletion", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
 			Object.defineProperty(this, "disposePromise", {
 				enumerable: true,
 				configurable: true,
@@ -7448,6 +7516,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async init(elements) {
 			this.lifecycle.beginInitialization();
+			let completeInitialization;
+			this.initializationCompletion = new Promise((resolve) => {
+				completeInitialization = resolve;
+			});
 			this.emitRuntimeStatus();
 			let pluginInitializationStarted = false;
 			let pluginInitializationCompleted = false;
@@ -7479,6 +7551,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.emitRuntimeStatus();
 				if (initialImageLoadStarted) this.reportError(error, "Initial image load failed.");
 				throw error;
+			} finally {
+				completeInitialization();
+				this.initializationCompletion = null;
 			}
 		}
 		createCanvas(elements) {
@@ -7973,6 +8048,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a;
 			if (this.disposePromise) return this.disposePromise;
 			if (this.lifecycle.current === "disposed") return Promise.resolve();
+			if (this.initializationCompletion) {
+				this.disposePromise = this.initializationCompletion.then(async () => {
+					if (!this.lifecycle.beginDisposal()) return;
+					this.emitRuntimeStatus();
+					await this.performDisposeAsync();
+				});
+				return this.disposePromise;
+			}
 			if (!this.lifecycle.beginDisposal()) return (_a = this.disposePromise) !== null && _a !== void 0 ? _a : Promise.resolve();
 			this.emitRuntimeStatus();
 			this.disposePromise = this.performDisposeAsync();
@@ -8694,34 +8777,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			...definition,
 			manifest
 		}));
-	}
-
-// dist/esm/utils/abortable-promise.js
-	function settleAbortable(task, signal, disposeLateResult) {
-		return new Promise((resolve, reject) => {
-			let settled = false;
-			const finish = (body) => {
-				if (settled) return;
-				settled = true;
-				signal.removeEventListener("abort", abort);
-				body();
-			};
-			const abort = () => finish(() => {
-				var _a;
-				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
-			});
-			signal.addEventListener("abort", abort, { once: true });
-			if (signal.aborted) abort();
-			task.then((value) => {
-				if (settled) {
-					try {
-						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
-					} catch {}
-					return;
-				}
-				finish(() => resolve(value));
-			}, (error) => finish(() => reject(error)));
-		});
 	}
 
 // dist/esm/foundations/overlay/overlay-transform-delta.js
@@ -10911,6 +10966,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	const MAX_ANNOTATION_METADATA_DEPTH = 4;
 	const MAX_ANNOTATION_METADATA_KEYS = 32;
 	const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
+	const normalizedMetadata = /* @__PURE__ */ new WeakSet();
+	const textEncoder = new TextEncoder();
 	function isPlainRecord$7(value) {
 		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 		const prototype = Object.getPrototypeOf(value);
@@ -10923,7 +10980,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return value;
 		}
 		if (typeof value === "string") {
-			budget.stringBytes += new TextEncoder().encode(value).byteLength;
+			budget.stringBytes += textEncoder.encode(value).byteLength;
 			if (budget.stringBytes > 8192) throw new AnnotationValidationError("Annotation metadata string data is too large.");
 			return value;
 		}
@@ -10943,7 +11000,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const clone = {};
 			for (const [key, entry] of entries) {
 				if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
-				budget.stringBytes += new TextEncoder().encode(key).byteLength;
+				budget.stringBytes += textEncoder.encode(key).byteLength;
 				clone[key] = cloneMetadataValue(entry, depth + 1, budget);
 			}
 			return Object.freeze(clone);
@@ -10958,11 +11015,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function normalizeAnnotationMetadata(value = {}) {
 		if (!isPlainRecord$7(value)) throw new AnnotationValidationError("Annotation metadata must be a plain object.");
-		return cloneMetadataValue(value, 0, {
+		if (normalizedMetadata.has(value)) return value;
+		const result = cloneMetadataValue(value, 0, {
 			keyCount: 0,
 			stringBytes: 0,
 			ancestors: /* @__PURE__ */ new Set()
 		});
+		normalizedMetadata.add(result);
+		return result;
 	}
 	function isValidAnnotationMetadata(value) {
 		try {
@@ -11590,6 +11650,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: null
 			});
+			Object.defineProperty(this, "presentationDescriptors", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
+			Object.defineProperty(this, "removeObjectListener", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
 			Object.defineProperty(this, "disposed", {
 				enumerable: true,
 				configurable: true,
@@ -11629,8 +11701,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const normalized = this.normalizeQuery(query);
 			const objects = this.overlay.list(normalized);
 			const selected = new Set(this.overlay.getSelection().ids);
-			const allLayers = this.persistentOverlayObjects();
-			const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => this.describe(object, selected, allLayers));
+			const allLayers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
+			const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => {
+				var _a;
+				return this.describe(object, selected, (_a = allLayers.get(object)) !== null && _a !== void 0 ? _a : -1);
+			});
 			if (this.listOrder === "front-to-back") descriptors.reverse();
 			return Object.freeze(descriptors);
 		}
@@ -11638,7 +11713,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.assertIdentifier(id, "Annotation id");
 			const object = this.overlay.getByPersistentId(id);
 			if (!object || !this.isAnnotationObject(object)) return null;
-			return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects());
+			return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects().indexOf(object));
 		}
 		async update(id, patch) {
 			const object = this.requireAnnotation(id);
@@ -11900,10 +11975,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.emitStatus();
 		}
 		synchronizeRuntimePresentation() {
+			const canvas = this.host.getCanvas();
+			if (canvas && !this.removeObjectListener) this.removeObjectListener = canvas.on("object:removed", ({ target }) => this.presentations.removeFor(target));
 			this.synchronizePresentations();
 		}
 		dispose() {
+			var _a;
 			if (this.disposed) return;
+			(_a = this.removeObjectListener) === null || _a === void 0 || _a.call(this);
+			this.removeObjectListener = null;
 			this.removeAllPreviews();
 			this.presentations.reset();
 			this.listeners.clear();
@@ -12140,7 +12220,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				query
 			});
 		}
-		describe(object, selected, layers) {
+		describe(object, selected, layerIndex) {
 			const annotation = object;
 			const classification = this.overlay.classify(object);
 			if (!classification || !this.features.has(classification.kind)) throw new AnnotationError("Annotation descriptor lost its Overlay classification.");
@@ -12151,7 +12231,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				hidden: classification.hidden,
 				locked: classification.locked,
 				selected: selected.has(classification.persistentId),
-				layerIndex: layers.indexOf(object),
+				layerIndex,
 				metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata)
 			});
 		}
@@ -12190,9 +12270,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return !!classification && this.features.has(classification.kind);
 		}
 		describePresentationOwner(object) {
+			var _a, _b;
 			const id = object.editorOverlayId;
 			if (!id) return null;
-			return this.get(id);
+			return (_b = (_a = this.presentationDescriptors) === null || _a === void 0 ? void 0 : _a.get(object)) !== null && _b !== void 0 ? _b : this.get(id);
 		}
 		synchronizePresentations() {
 			if (this.disposed) return;
@@ -12201,7 +12282,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				includeHidden: true,
 				includeLocked: true
 			}).filter((object) => this.isAnnotationObject(object));
-			this.presentations.synchronizeAll(objects);
+			if (objects.length === 0) {
+				this.presentations.synchronizeAll(objects);
+				return;
+			}
+			const layers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
+			const selected = new Set(this.overlay.getSelection().ids);
+			this.presentationDescriptors = new Map(objects.map((object) => {
+				var _a;
+				return [object, this.describe(object, selected, (_a = layers.get(object)) !== null && _a !== void 0 ? _a : -1)];
+			}));
+			try {
+				this.presentations.synchronizeAll(objects);
+			} finally {
+				this.presentationDescriptors = null;
+			}
 		}
 		requireAnnotation(id, kind) {
 			this.assertIdentifier(id, "Annotation id");
@@ -18345,10 +18440,34 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			"backgroundColor",
 			"textAlign",
 			"width",
-			"opacity"
+			"opacity",
+			"left",
+			"top",
+			"angle",
+			"scaleX",
+			"scaleY",
+			"skewX",
+			"skewY",
+			"flipX",
+			"flipY"
 		]);
 		if (Object.keys(value).some((key) => !allowed.has(key))) throw new AnnotationValidationError("Text update contains unknown keys.");
+		const geometry = {};
+		for (const key of [
+			"left",
+			"top",
+			"angle",
+			"scaleX",
+			"scaleY",
+			"skewX",
+			"skewY"
+		]) if (value[key] !== void 0) geometry[key] = validateFiniteRange(value[key], `Text ${key}`, -1e7, MAX_COORDINATE$1);
+		for (const key of ["flipX", "flipY"]) if (value[key] !== void 0) {
+			if (typeof value[key] !== "boolean") throw new AnnotationValidationError(`Text ${key} must be boolean.`);
+			geometry[key] = value[key];
+		}
 		return Object.freeze({
+			...geometry,
 			...value.text !== void 0 ? { text: validateText(value.text) } : {},
 			...value.fontSize !== void 0 ? { fontSize: validateFiniteRange(value.fontSize, "Text font size", 1, 512) } : {},
 			...value.fontFamily !== void 0 ? { fontFamily: validateFontField(value.fontFamily, "Text font family") } : {},
@@ -18368,9 +18487,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			...value.locked !== void 0 ? { locked: value.locked } : {}
 		});
 	}
-	function featureUpdate(value) {
+	function featureUpdate(value, currentFontFamily = "Arial") {
 		var _a;
-		const fontFamily = value.fontFamily !== void 0 || value.fontFallbacks !== void 0 ? resolvedFontFamily((_a = value.fontFamily) !== null && _a !== void 0 ? _a : "Arial", value.fontFallbacks ? validateFallbacks(value.fontFallbacks) : []) : void 0;
+		const fontFamily = value.fontFamily !== void 0 || value.fontFallbacks !== void 0 ? resolvedFontFamily((_a = value.fontFamily) !== null && _a !== void 0 ? _a : currentFontFamily.split(",")[0].trim(), value.fontFallbacks ? validateFallbacks(value.fontFallbacks) : []) : void 0;
 		return normalizeFeatureUpdate$1({
 			...value.text !== void 0 ? { text: value.text } : {},
 			...value.fontSize !== void 0 ? { fontSize: value.fontSize } : {},
@@ -18451,6 +18570,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				value: void 0
 			});
 			Object.defineProperty(this, "session", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
+			Object.defineProperty(this, "committingEditing", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: false
+			});
+			Object.defineProperty(this, "editingCommit", {
 				enumerable: true,
 				configurable: true,
 				writable: true,
@@ -18643,20 +18774,43 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				}
 				throw error;
 			}
+			const editingExited = () => {
+				var _a;
+				if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.preview) !== preview || this.committingEditing) return;
+				observePromise(this.commitEditing(), (error) => this.host.reportWarning(error, "Text editing could not be committed after focus changed."));
+			};
 			this.session = Object.freeze({
 				annotationId: id,
 				previewId,
 				preview,
-				visibility
+				visibility,
+				editingExited
 			});
+			preview.on("editing:exited", editingExited);
 			this.emitStatus();
 		}
-		async commitEditing() {
+		commitEditing() {
+			if (this.editingCommit) return this.editingCommit;
+			this.editingCommit = this.performCommitEditing().finally(() => {
+				this.editingCommit = null;
+			});
+			return this.editingCommit;
+		}
+		async performCommitEditing() {
 			var _a;
 			this.assertActive("commit Text editing");
 			const session = this.session;
-			if (!session) return;
+			if (!session || this.committingEditing) return;
 			const patch = normalizeFeatureUpdate$1({
+				left: session.preview.left,
+				top: session.preview.top,
+				angle: session.preview.angle,
+				scaleX: session.preview.scaleX,
+				scaleY: session.preview.scaleY,
+				skewX: session.preview.skewX,
+				skewY: session.preview.skewY,
+				flipX: session.preview.flipX,
+				flipY: session.preview.flipY,
 				text: String((_a = session.preview.text) !== null && _a !== void 0 ? _a : ""),
 				fontSize: session.preview.fontSize,
 				fontFamily: session.preview.fontFamily,
@@ -18667,14 +18821,39 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				width: session.preview.width,
 				opacity: session.preview.opacity
 			});
-			this.closeSession();
-			if (!this.annotations.get(session.annotationId)) return;
-			await this.authoring.updateFeature({
-				id: session.annotationId,
-				kind: TEXT_ANNOTATION_KIND,
-				patch,
-				operationId: "annotation-text:commit-edit"
-			});
+			if (!this.annotations.get(session.annotationId)) {
+				this.closeSession();
+				return;
+			}
+			this.committingEditing = true;
+			try {
+				await this.authoring.updateFeature({
+					id: session.annotationId,
+					kind: TEXT_ANNOTATION_KIND,
+					patch,
+					operationId: "annotation-text:commit-edit"
+				});
+				this.closeSession();
+			} catch (error) {
+				if (this.session === session && !session.preview.canvas && this.annotations.get(session.annotationId)) {
+					await session.visibility.dispose();
+					const visibility = this.authoring.hideForPreview([session.annotationId]);
+					this.authoring.addPreview({
+						id: session.previewId,
+						ownerKind: TEXT_ANNOTATION_KIND,
+						object: session.preview,
+						interactive: true,
+						select: false
+					});
+					this.session = Object.freeze({
+						...session,
+						visibility
+					});
+				}
+				throw error;
+			} finally {
+				this.committingEditing = false;
+			}
 		}
 		cancelEditing() {
 			this.assertActive("cancel Text editing");
@@ -18682,13 +18861,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			this.closeSession();
 		}
 		update(id, patch) {
-			var _a, _b, _c;
+			var _a, _b, _c, _d;
 			this.assertActive("update Text");
 			if (!isPlainRecord$3(patch)) return Promise.reject(new AnnotationValidationError("Text update must be an object."));
 			if (((_a = this.session) === null || _a === void 0 ? void 0 : _a.annotationId) === id) {
 				const shared = sharedUpdate$1(patch);
 				if (Object.keys(shared).length > 0) return Promise.reject(new AnnotationValidationError("Commit or cancel Text editing before updating shared Annotation fields."));
-				const featurePatch = featureUpdate(patch);
+				const featurePatch = featureUpdate(patch, this.session.preview.fontFamily);
 				if (Object.keys(featurePatch).length === 0) return Promise.resolve();
 				const preview = this.session.preview;
 				preview.set(featurePatch);
@@ -18707,7 +18886,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return this.authoring.updateFeature({
 				id,
 				kind: TEXT_ANNOTATION_KIND,
-				patch: featureUpdate(patch),
+				patch: featureUpdate(patch, (_d = this.authoring.getObject(id, "annotation:text")) === null || _d === void 0 ? void 0 : _d.fontFamily),
 				shared: sharedUpdate$1(patch),
 				operationId: "annotation-text:update"
 			});
@@ -18754,6 +18933,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const session = this.session;
 			if (!session) return;
 			this.session = null;
+			session.preview.off("editing:exited", session.editingExited);
 			(_b = (_a = session.preview).exitEditing) === null || _b === void 0 || _b.call(_a);
 			this.authoring.removePreview([session.previewId]);
 			observePromise(Promise.resolve(session.visibility.dispose()), (error) => {
@@ -18892,11 +19072,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						}
 					}),
 					commitEditing: async () => {
-						try {
-							await requireController().commitEditing();
-						} finally {
-							if (context.tools.getActiveToolId() === TEXT_TOOL_ID$1) await context.tools.exit("operation");
-						}
+						await requireController().commitEditing();
+						if (context.tools.getActiveToolId() === TEXT_TOOL_ID$1) await context.tools.exit("operation");
 					},
 					cancelEditing: () => context.operations.run("annotation-text:cancel-edit", void 0, async () => {
 						requireController().cancelEditing();
@@ -19301,8 +19478,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				...session.options,
 				geometry: session.geometry
 			};
-			this.closeSession();
-			return this.createDefinition(definition, "annotation-shape:commit");
+			try {
+				const id = await this.createDefinition(definition, "annotation-shape:commit");
+				this.closeSession();
+				return id;
+			} catch (error) {
+				if (this.session === session) this.replaceSessionPreview(session, definition.geometry);
+				throw error;
+			}
 		}
 		cancel() {
 			this.assertActive("cancel Shape");
@@ -19555,11 +19738,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					}),
 					updatePreview: (geometry) => context.operations.run("annotation-shape:update-preview", geometry, (value) => requireController().updatePreview(value)),
 					commit: async () => {
-						try {
-							return await requireController().commit();
-						} finally {
-							if (context.tools.getActiveToolId() === SHAPE_TOOL_ID$1) await context.tools.exit("operation");
-						}
+						const id = await requireController().commit();
+						if (context.tools.getActiveToolId() === SHAPE_TOOL_ID$1) await context.tools.exit("operation");
+						return id;
 					},
 					cancel: () => context.operations.run("annotation-shape:cancel", void 0, async () => {
 						requireController().cancel();
@@ -19859,6 +20040,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: 0
 			});
+			Object.defineProperty(this, "pendingPreview", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
 			Object.defineProperty(this, "disposed", {
 				enumerable: true,
 				configurable: true,
@@ -19890,7 +20077,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 						if (!isSerializedDraw(value)) throw new AnnotationValidationError("Serialized Draw data is malformed.");
 						const object = (await context.fabric.util.enlivenObjects([value.object]))[0];
 						if (!(object instanceof context.fabric.Path)) throw new AnnotationValidationError("Fabric did not restore a Draw path.");
-						object.editorDrawPoints = normalizePoints(value.points, this.brush.maxPointCount);
+						object.editorDrawPoints = normalizePoints(value.points, 65536);
 						return object;
 					}
 				},
@@ -19981,31 +20168,44 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			} catch (error) {
 				throw new AnnotationValidationError(error instanceof Error ? error.message : "Draw point limit was exceeded.");
 			}
-			this.refreshPreview(session);
+			this.schedulePreview(session);
 		}
 		async endStroke() {
 			const session = this.requireActiveStroke("end Draw stroke");
 			const points = Object.freeze([...session.points]);
 			const mode = session.subMode;
-			this.clearStroke(session);
-			if (!this.isMeaningfulStroke(points)) return null;
-			if (mode === "erase") {
-				const ids = this.intersectedDrawIds(points);
-				if (ids.length === 0) return null;
-				await this.authoring.removeFeatures({
-					ids,
-					kind: DRAW_ANNOTATION_KIND,
-					operationId: "annotation-draw:commit-erase"
-				});
+			if (!this.isMeaningfulStroke(points)) {
+				this.clearStroke(session);
 				return null;
 			}
-			const object = this.createPath(points);
-			return this.authoring.create({
-				kind: DRAW_ANNOTATION_KIND,
-				object,
-				name: `${this.brush.namePrefix} ${++this.nameSequence}`,
-				operationId: "annotation-draw:commit-stroke"
-			});
+			try {
+				if (mode === "erase") {
+					const ids = this.intersectedDrawIds(points);
+					if (ids.length === 0) {
+						this.clearStroke(session);
+						return null;
+					}
+					await this.authoring.removeFeatures({
+						ids,
+						kind: DRAW_ANNOTATION_KIND,
+						operationId: "annotation-draw:commit-erase"
+					});
+					this.clearStroke(session);
+					return null;
+				}
+				const object = this.createPath(points);
+				const id = await this.authoring.create({
+					kind: DRAW_ANNOTATION_KIND,
+					object,
+					name: `${this.brush.namePrefix} ${++this.nameSequence}`,
+					operationId: "annotation-draw:commit-stroke"
+				});
+				this.clearStroke(session);
+				return id;
+			} catch (error) {
+				if (this.session === session) this.refreshPreview(session);
+				throw error;
+			}
 		}
 		cancelStroke() {
 			const session = this.requireSession("cancel Draw stroke");
@@ -20067,6 +20267,34 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			object.editorDrawPoints = Object.freeze([...points]);
 			return object;
 		}
+		schedulePreview(session) {
+			var _a, _b;
+			if (((_a = this.pendingPreview) === null || _a === void 0 ? void 0 : _a.session) === session) return;
+			(_b = this.pendingPreview) === null || _b === void 0 || _b.cancel();
+			let active = true;
+			let handle = null;
+			const pending = {
+				session,
+				cancel: () => {
+					var _a;
+					active = false;
+					if (handle !== null) (_a = globalThis.cancelAnimationFrame) === null || _a === void 0 || _a.call(globalThis, handle);
+				}
+			};
+			this.pendingPreview = pending;
+			const render = () => {
+				if (!active || this.pendingPreview !== pending) return;
+				this.pendingPreview = null;
+				if (this.session !== session || this.disposed || session.points.length === 0) return;
+				try {
+					this.refreshPreview(session);
+				} catch (error) {
+					this.host.reportWarning(error, "Draw preview could not be refreshed.");
+				}
+			};
+			if (typeof globalThis.requestAnimationFrame === "function") handle = globalThis.requestAnimationFrame(render);
+			else queueMicrotask(render);
+		}
 		refreshPreview(session) {
 			let preview;
 			if (session.subMode === "brush") preview = this.createPath(session.points);
@@ -20110,6 +20338,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			return points.some((point) => Math.hypot(point.x - first.x, point.y - first.y) >= .5);
 		}
 		clearStroke(session) {
+			var _a;
+			if (((_a = this.pendingPreview) === null || _a === void 0 ? void 0 : _a.session) === session) {
+				this.pendingPreview.cancel();
+				this.pendingPreview = null;
+			}
 			if (session.previewId) this.authoring.removePreview([session.previewId]);
 			session.previewId = null;
 			session.points = [];
@@ -21214,6 +21447,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (result instanceof Promise) result.catch(() => void 0);
 	}
 	function readNumericInput(input, label) {
+		if (input.value.trim() === "") throw new DomControlsConfigurationError(`${label} must contain a number.`);
 		const value = input.valueAsNumber;
 		const parsed = Number.isFinite(value) ? value : Number(input.value);
 		if (!Number.isFinite(parsed)) throw new DomControlsConfigurationError(`${label} must contain a finite number.`);
@@ -21321,7 +21555,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				});
 				if (options.ownerDocument) this.bindConfiguredControls(options.ownerDocument, options);
 				this.bound = true;
-				this.refresh();
+				this.synchronizeControls();
 			} catch (error) {
 				this.releaseBindings();
 				this.apis = null;
@@ -21329,6 +21563,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			}
 		}
 		refresh() {
+			if (this.disposed || !this.bound) throw new DomControlsConfigurationError("DOM Controls must be initialized before refresh.");
+			const options = this.requireOptions();
+			this.releaseBindings();
+			if (options.ownerDocument) this.bindConfiguredControls(options.ownerDocument, options);
+			this.synchronizeControls();
+		}
+		synchronizeControls() {
 			if (this.disposed) throw new DomControlsConfigurationError("DOM Controls cannot refresh after disposal.");
 			if (!this.bound) throw new DomControlsConfigurationError("DOM Controls cannot refresh before editor initialization.");
 			invalidatePendingRuntimeRefresh(this);
@@ -21346,7 +21587,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				state.pending = null;
 				if (!this.bound || this.disposed) return;
 				try {
-					this.refresh();
+					this.synchronizeControls();
 				} catch (error) {
 					this.reportActionError("dom-controls:refresh", error);
 				}
@@ -21402,11 +21643,20 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (controls.scaleInput) {
 				const input = resolveInput(ownerDocument, controls.scaleInput, "transform.scaleInput");
 				this.listen(input, "change", () => {
-					const scale = readNumericInput(input, "transform.scaleInput");
-					this.runAction("transform:scale", () => api.scale(scale));
+					if (this.pendingActions > 0 || input.value.trim() === "") {
+						this.synchronizeControls();
+						return;
+					}
+					try {
+						const scale = readNumericInput(input, "transform.scaleInput");
+						this.runAction("transform:scale", () => api.scale(scale));
+					} catch (error) {
+						this.reportActionError("transform:scale", error);
+					}
 				});
 				this.synchronizers.push(() => {
 					input.value = String(api.getState().scale);
+					input.disabled = this.pendingActions > 0;
 				});
 			}
 			this.button(ownerDocument, controls.zoomInButton, "transform.zoomInButton", () => api.zoomIn());
@@ -21556,11 +21806,16 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const target = this.resolveKeyboardTarget(ownerDocument, keyboard.target);
 			this.listen(target, "keydown", (event) => {
 				const keyboardEvent = event;
+				if (keyboardEvent.defaultPrevented || keyboardEvent.repeat) return;
 				if (keyboard.allowInEditable !== true && isEditableNode(keyboardEvent.target, ownerDocument)) return;
-				const action = this.keyboardAction(keyboardEvent, options);
-				if (!action) return;
-				keyboardEvent.preventDefault();
-				this.runAction(action.name, action.run);
+				try {
+					const action = this.keyboardAction(keyboardEvent, options);
+					if (!action) return;
+					keyboardEvent.preventDefault();
+					this.runAction(action.name, action.run);
+				} catch (error) {
+					this.reportActionError("dom-controls:keyboard", error);
+				}
 			});
 		}
 		keyboardAction(event, options) {
@@ -21568,7 +21823,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const keyboard = options.keyboard;
 			const apis = this.requireApis();
 			const modifier = event.ctrlKey || event.metaKey;
-			const key = event.key.toLowerCase();
+			const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
 			if (keyboard.historyActions !== false && modifier && !event.altKey) {
 				if (key === "z" && event.shiftKey || key === "y" && !event.shiftKey) {
 					if (!((_a = apis.history) === null || _a === void 0 ? void 0 : _a.canRedo())) return null;
@@ -21585,7 +21840,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					});
 				}
 			}
-			if (keyboard.cancelActiveSession !== false && event.key === "Escape" && !modifier && !event.altKey) {
+			if (keyboard.cancelActiveSession !== false && (event.key === "Escape" || event.key === "Esc") && !modifier && !event.altKey) {
 				const cancellers = [];
 				if ((_c = apis.text) === null || _c === void 0 ? void 0 : _c.getEditingSession()) cancellers.push(() => apis.text.cancelEditing());
 				if ((_d = apis.shape) === null || _d === void 0 ? void 0 : _d.getSession()) cancellers.push(() => apis.shape.cancel());
@@ -21651,7 +21906,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (this.disposed || !this.bound) return;
 			this.pendingActions += 1;
 			try {
-				this.refresh();
+				this.synchronizeControls();
 			} catch (error) {
 				this.reportActionError("dom-controls:refresh", error);
 			}
@@ -21659,7 +21914,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.pendingActions = Math.max(0, this.pendingActions - 1);
 				if (this.disposed || !this.bound) return;
 				try {
-					this.refresh();
+					this.synchronizeControls();
 				} catch (error) {
 					this.reportActionError("dom-controls:refresh", error);
 				}
@@ -22097,6 +22352,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (this.disposed) return;
 			this.lifecycleEpoch += 1;
 			this.invalidateLocal("dispose");
+			this.activeToolId = null;
 			this.disposed = true;
 			const cleanup = this.toolSubscription.dispose();
 			if (isPromiseLike(cleanup)) observePromise(cleanup, (error) => {
@@ -22512,7 +22768,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 		flush() {
-			if (this.cancelled) return Promise.resolve();
 			if (this.failure !== null) return Promise.reject(this.failure);
 			if (!this.running && !this.pending) return Promise.resolve();
 			return new Promise((resolve, reject) => {
@@ -22556,7 +22811,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 		settleFlushWaiters() {
-			if (this.running && !this.cancelled && this.failure === null) return;
+			if (this.running) return;
 			for (const waiter of this.flushWaiters.splice(0)) if (this.failure !== null) waiter.reject(this.failure);
 			else waiter.resolve();
 		}
@@ -22722,7 +22977,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 		flush() {
-			if (this.cancelled) return Promise.resolve();
 			if (this.failure !== null) return Promise.reject(this.failure);
 			if (!this.running && this.pending.length === 0) return Promise.resolve();
 			return new Promise((resolve, reject) => {
@@ -22761,7 +23015,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 		}
 		settleFlushWaiters() {
-			if (this.running && !this.cancelled && this.failure === null) return;
+			if (this.running) return;
 			for (const waiter of this.flushWaiters.splice(0)) if (this.failure !== null) waiter.reject(this.failure);
 			else waiter.resolve();
 		}
@@ -23024,15 +23278,19 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			});
 			else if (!context.sample.target && this.blankClick === "create") target = Object.freeze({ kind: "blank" });
 			else return null;
-			return Object.freeze({ gesture: Object.freeze({
+			return Object.freeze({ gesture: {
+				moved: false,
 				context: context.gesture,
 				point: context.sample.canvasPoint,
 				target
-			}) });
+			} });
 		}
-		move(_gesture, _sample) {}
-		async end(gesture, _sample) {
-			if (!gesture.context.isCurrent()) return;
+		move(gesture, sample) {
+			if (Math.hypot(sample.canvasPoint.x - gesture.point.x, sample.canvasPoint.y - gesture.point.y) > 4) gesture.moved = true;
+		}
+		async end(gesture, sample) {
+			this.move(gesture, sample);
+			if (!gesture.context.isCurrent() || gesture.moved) return;
 			if (gesture.target.kind === "text") {
 				await this.activateExisting(gesture, gesture.target.id);
 				return;

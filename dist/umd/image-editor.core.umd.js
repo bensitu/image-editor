@@ -793,7 +793,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			const id = typeof tokenOrId === "string" ? tokenOrId : tokenOrId.id;
 			if (!isRuntimeIdentifier(id)) throw new InvalidPluginDefinitionError("Invalid Capability Runtime ID.");
 			const record = this.providers.get(id);
-			if (!record) return null;
+			if (!(record === null || record === void 0 ? void 0 : record.complete)) return null;
 			return Object.freeze({
 				capabilityId: record.token.id,
 				version: record.version,
@@ -1649,6 +1649,34 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		redo: "history:redo"
 	});
 
+// dist/esm/utils/abortable-promise.js
+	function settleAbortable(task, signal, disposeLateResult) {
+		return new Promise((resolve, reject) => {
+			let settled = false;
+			const finish = (body) => {
+				if (settled) return;
+				settled = true;
+				signal.removeEventListener("abort", abort);
+				body();
+			};
+			const abort = () => finish(() => {
+				var _a;
+				return reject((_a = signal.reason) !== null && _a !== void 0 ? _a : new DOMException("The asynchronous task was aborted.", "AbortError"));
+			});
+			signal.addEventListener("abort", abort, { once: true });
+			if (signal.aborted) abort();
+			task.then((value) => {
+				if (settled) {
+					try {
+						disposeLateResult === null || disposeLateResult === void 0 || disposeLateResult(value);
+					} catch {}
+					return;
+				}
+				finish(() => resolve(value));
+			}, (error) => finish(() => reject(error)));
+		});
+	}
+
 // dist/esm/plugin-kernel/plugin-definition-lease.js
 	const definitionAliases = /* @__PURE__ */ new WeakMap();
 	const definitionLeases = /* @__PURE__ */ new WeakMap();
@@ -2148,14 +2176,15 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		async exitCurrent(reason) {
 			const current = this.active;
 			if (!current) return;
-			this.active = null;
-			this.notifyActivityChange();
 			try {
 				await current.definition.exit(reason, current.context);
 			} catch (error) {
 				const transitionError = new ToolTransitionError(current.definition.id, `failed to exit for reason "${reason}"`, current.ownerPluginId, error);
 				reportErrorSafely(this.options.errorSink, transitionError);
 				throw transitionError;
+			} finally {
+				if (this.active === current) this.active = null;
+				this.notifyActivityChange();
 			}
 		}
 		async runTransition(toolId, task) {
@@ -2216,6 +2245,21 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	};
 
 // dist/esm/plugin-kernel/plugin-manager.js
+	const LIFECYCLE_TIMEOUT_MS = 15e3;
+	async function runLifecycleHook(task, parentSignal) {
+		const controller = new AbortController();
+		const abort = () => controller.abort(parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.reason);
+		parentSignal === null || parentSignal === void 0 || parentSignal.addEventListener("abort", abort, { once: true });
+		if (parentSignal === null || parentSignal === void 0 ? void 0 : parentSignal.aborted) abort();
+		const timeout = setTimeout(() => controller.abort(/* @__PURE__ */ new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`)), LIFECYCLE_TIMEOUT_MS);
+		try {
+			controller.signal.throwIfAborted();
+			await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+		} finally {
+			clearTimeout(timeout);
+			parentSignal === null || parentSignal === void 0 || parentSignal.removeEventListener("abort", abort);
+		}
+	}
 	function createPluginCleanupTraversal(installationOrder, installed, toolCoordinator, operationRegistry, eventBus, capabilityRegistry, stateStore) {
 		const records = [...installationOrder].reverse().map((pluginId) => installed.get(pluginId)).filter((record) => record !== void 0);
 		const kernelTargets = Object.freeze([
@@ -2496,7 +2540,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					const record = this.installed.get(pluginId);
 					if (!(record === null || record === void 0 ? void 0 : record.plugin.onInit)) continue;
 					try {
-						await record.plugin.onInit(record.lifecycleContext);
+						await runLifecycleHook(() => {
+							var _a, _b;
+							return (_b = (_a = record.plugin).onInit) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext);
+						});
 					} catch (error) {
 						throw new PluginLifecycleError(pluginId, "init", error);
 					}
@@ -2549,7 +2596,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					signal: notificationSignal
 				});
 				try {
-					await record.plugin.onImageLoaded(image, context);
+					await runLifecycleHook((hookSignal) => {
+						var _a, _b;
+						return (_b = (_a = record.plugin).onImageLoaded) === null || _b === void 0 ? void 0 : _b.call(_a, image, {
+							...context,
+							signal: hookSignal
+						});
+					}, notificationSignal);
 				} catch (error) {
 					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-loaded", error);
@@ -2570,7 +2623,13 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					signal: notificationSignal
 				});
 				try {
-					await record.plugin.onImageCleared(context);
+					await runLifecycleHook((hookSignal) => {
+						var _a, _b;
+						return (_b = (_a = record.plugin).onImageCleared) === null || _b === void 0 ? void 0 : _b.call(_a, {
+							...context,
+							signal: hookSignal
+						});
+					}, notificationSignal);
 				} catch (error) {
 					if (notificationSignal.aborted) throw (_a = notificationSignal.reason) !== null && _a !== void 0 ? _a : error;
 					throw new PluginLifecycleError(pluginId, "image-cleared", error);
@@ -2970,7 +3029,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			for (const record of traversal.records) {
 				if (!record.plugin.onDispose) continue;
 				try {
-					await record.plugin.onDispose(record.lifecycleContext);
+					await runLifecycleHook(() => {
+						var _a, _b;
+						return (_b = (_a = record.plugin).onDispose) === null || _b === void 0 ? void 0 : _b.call(_a, record.lifecycleContext);
+					});
 				} catch (error) {
 					const lifecycleError = new PluginLifecycleError(record.plugin.ref.id, "dispose", error);
 					recordPluginCleanupError(errors, this.options.errorSink, lifecycleError);
@@ -7258,6 +7320,12 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				writable: true,
 				value: false
 			});
+			Object.defineProperty(this, "initializationCompletion", {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value: null
+			});
 			Object.defineProperty(this, "disposePromise", {
 				enumerable: true,
 				configurable: true,
@@ -7481,6 +7549,10 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async init(elements) {
 			this.lifecycle.beginInitialization();
+			let completeInitialization;
+			this.initializationCompletion = new Promise((resolve) => {
+				completeInitialization = resolve;
+			});
 			this.emitRuntimeStatus();
 			let pluginInitializationStarted = false;
 			let pluginInitializationCompleted = false;
@@ -7512,6 +7584,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 				this.emitRuntimeStatus();
 				if (initialImageLoadStarted) this.reportError(error, "Initial image load failed.");
 				throw error;
+			} finally {
+				completeInitialization();
+				this.initializationCompletion = null;
 			}
 		}
 		createCanvas(elements) {
@@ -8006,6 +8081,14 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			var _a;
 			if (this.disposePromise) return this.disposePromise;
 			if (this.lifecycle.current === "disposed") return Promise.resolve();
+			if (this.initializationCompletion) {
+				this.disposePromise = this.initializationCompletion.then(async () => {
+					if (!this.lifecycle.beginDisposal()) return;
+					this.emitRuntimeStatus();
+					await this.performDisposeAsync();
+				});
+				return this.disposePromise;
+			}
 			if (!this.lifecycle.beginDisposal()) return (_a = this.disposePromise) !== null && _a !== void 0 ? _a : Promise.resolve();
 			this.emitRuntimeStatus();
 			this.disposePromise = this.performDisposeAsync();

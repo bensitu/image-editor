@@ -24,6 +24,7 @@ export declare class DomControlsController implements Disposable {
     constructor(options: DomControlsOptions, diagnostics: CoreDiagnosticsPort);
     bind(): void;
     refresh(): void;
+    private synchronizeControls;
     refreshFromRuntime(): void;
     getStatus(): DomControlsStatus;
     dispose(): void;

@@ -569,3 +569,23 @@ test('configured feature dependencies are required by exact PluginRef', () => {
     );
     assert.equal(editor.getPlugin(domControlsPluginRef), null);
 });
+
+test('explicit refresh binds replaced controls and ignores an empty numeric input', async () => {
+    const { editor, transform, dom } = await createIntegratedEditor();
+    try {
+        const original = document.getElementById('zoom-in');
+        const replacement = original.cloneNode();
+        original.replaceWith(replacement);
+        dom.refresh();
+        replacement.click();
+        await tick();
+        assert.equal(transform.getState().scale, 1.05);
+        const input = document.getElementById('scale');
+        input.value = '';
+        input.dispatchEvent(new document.defaultView.Event('change'));
+        await tick();
+        assert.equal(transform.getState().scale, 1.05);
+    } finally {
+        await dispose(editor);
+    }
+});

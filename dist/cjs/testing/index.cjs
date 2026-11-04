@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 const require_plugin_identifier = require("../chunks/plugin-identifier-gAnWTWj6.cjs");
 const require_core_capabilities = require("../chunks/core-capabilities-DaGyFp12.cjs");
-const require_plugin_manager = require("../chunks/plugin-manager-BH4xRW5k.cjs");
+const require_plugin_manager = require("../chunks/plugin-manager-BFWD7mCk.cjs");
 
 // dist/esm/testing/deferred-operation.js
 function createDeferredOperation() {
@@ -84,7 +84,7 @@ function createControlledImageDecoder() {
 // dist/esm/testing/fabric-test-harness.js
 function descriptorMatches(left, right) {
 	if (!left || !right) return left === right;
-	return left.configurable === right.configurable && left.enumerable === right.enumerable && left.writable === right.writable && left.value === right.value && left.get === right.get && left.set === right.set;
+	return left.configurable === right.configurable && left.enumerable === right.enumerable && left.writable === right.writable && Object.is(left.value, right.value) && left.get === right.get && left.set === right.set;
 }
 function createPluginTestFabric(module) {
 	const keys = Reflect.ownKeys(module);

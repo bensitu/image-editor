@@ -1,7 +1,7 @@
 const require_internal_operation_conflict_domains = require("./internal-operation-conflict-domains-BJ_RwHrI.cjs");
 const require_core_capabilities = require("./core-capabilities-DaGyFp12.cjs");
 const require_sdk = require("./sdk-ClcNYrYa.cjs");
-const require_overlay = require("./overlay-CGcUbhau.cjs");
+const require_overlay = require("./overlay-D5mW2QbW.cjs");
 const require_internal_layer_placement = require("./internal-layer-placement-BVTXDv2N.cjs");
 const require_safe_object_key = require("./safe-object-key-B_cQ-6i9.cjs");
 
@@ -44,6 +44,8 @@ const MAX_ANNOTATION_NAME_LENGTH = 128;
 const MAX_ANNOTATION_METADATA_DEPTH = 4;
 const MAX_ANNOTATION_METADATA_KEYS = 32;
 const MAX_ANNOTATION_METADATA_STRING_BYTES = 8192;
+const normalizedMetadata = /* @__PURE__ */ new WeakSet();
+const textEncoder = new TextEncoder();
 function isPlainRecord$2(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
@@ -56,7 +58,7 @@ function cloneMetadataValue(value, depth, budget) {
 		return value;
 	}
 	if (typeof value === "string") {
-		budget.stringBytes += new TextEncoder().encode(value).byteLength;
+		budget.stringBytes += textEncoder.encode(value).byteLength;
 		if (budget.stringBytes > 8192) throw new AnnotationValidationError("Annotation metadata string data is too large.");
 		return value;
 	}
@@ -76,7 +78,7 @@ function cloneMetadataValue(value, depth, budget) {
 		const clone = {};
 		for (const [key, entry] of entries) {
 			if (require_safe_object_key.isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) throw new AnnotationValidationError("Annotation metadata contains an unsafe key.");
-			budget.stringBytes += new TextEncoder().encode(key).byteLength;
+			budget.stringBytes += textEncoder.encode(key).byteLength;
 			clone[key] = cloneMetadataValue(entry, depth + 1, budget);
 		}
 		return Object.freeze(clone);
@@ -91,11 +93,14 @@ function normalizeAnnotationName(value, fallback) {
 }
 function normalizeAnnotationMetadata(value = {}) {
 	if (!isPlainRecord$2(value)) throw new AnnotationValidationError("Annotation metadata must be a plain object.");
-	return cloneMetadataValue(value, 0, {
+	if (normalizedMetadata.has(value)) return value;
+	const result = cloneMetadataValue(value, 0, {
 		keyCount: 0,
 		stringBytes: 0,
 		ancestors: /* @__PURE__ */ new Set()
 	});
+	normalizedMetadata.add(result);
+	return result;
 }
 function isValidAnnotationMetadata(value) {
 	try {
@@ -723,6 +728,18 @@ var AnnotationController = class {
 			writable: true,
 			value: null
 		});
+		Object.defineProperty(this, "presentationDescriptors", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: null
+		});
+		Object.defineProperty(this, "removeObjectListener", {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value: null
+		});
 		Object.defineProperty(this, "disposed", {
 			enumerable: true,
 			configurable: true,
@@ -762,8 +779,11 @@ var AnnotationController = class {
 		const normalized = this.normalizeQuery(query);
 		const objects = this.overlay.list(normalized);
 		const selected = new Set(this.overlay.getSelection().ids);
-		const allLayers = this.persistentOverlayObjects();
-		const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => this.describe(object, selected, allLayers));
+		const allLayers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
+		const descriptors = objects.filter((object) => this.isAnnotationObject(object)).map((object) => {
+			var _a;
+			return this.describe(object, selected, (_a = allLayers.get(object)) !== null && _a !== void 0 ? _a : -1);
+		});
 		if (this.listOrder === "front-to-back") descriptors.reverse();
 		return Object.freeze(descriptors);
 	}
@@ -771,7 +791,7 @@ var AnnotationController = class {
 		this.assertIdentifier(id, "Annotation id");
 		const object = this.overlay.getByPersistentId(id);
 		if (!object || !this.isAnnotationObject(object)) return null;
-		return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects());
+		return this.describe(object, new Set(this.overlay.getSelection().ids), this.persistentOverlayObjects().indexOf(object));
 	}
 	async update(id, patch) {
 		const object = this.requireAnnotation(id);
@@ -1033,10 +1053,15 @@ var AnnotationController = class {
 		this.emitStatus();
 	}
 	synchronizeRuntimePresentation() {
+		const canvas = this.host.getCanvas();
+		if (canvas && !this.removeObjectListener) this.removeObjectListener = canvas.on("object:removed", ({ target }) => this.presentations.removeFor(target));
 		this.synchronizePresentations();
 	}
 	dispose() {
+		var _a;
 		if (this.disposed) return;
+		(_a = this.removeObjectListener) === null || _a === void 0 || _a.call(this);
+		this.removeObjectListener = null;
 		this.removeAllPreviews();
 		this.presentations.reset();
 		this.listeners.clear();
@@ -1273,7 +1298,7 @@ var AnnotationController = class {
 			query
 		});
 	}
-	describe(object, selected, layers) {
+	describe(object, selected, layerIndex) {
 		const annotation = object;
 		const classification = this.overlay.classify(object);
 		if (!classification || !this.features.has(classification.kind)) throw new AnnotationError("Annotation descriptor lost its Overlay classification.");
@@ -1284,7 +1309,7 @@ var AnnotationController = class {
 			hidden: classification.hidden,
 			locked: classification.locked,
 			selected: selected.has(classification.persistentId),
-			layerIndex: layers.indexOf(object),
+			layerIndex,
 			metadata: normalizeAnnotationMetadata(annotation.editorAnnotationMetadata)
 		});
 	}
@@ -1323,9 +1348,10 @@ var AnnotationController = class {
 		return !!classification && this.features.has(classification.kind);
 	}
 	describePresentationOwner(object) {
+		var _a, _b;
 		const id = object.editorOverlayId;
 		if (!id) return null;
-		return this.get(id);
+		return (_b = (_a = this.presentationDescriptors) === null || _a === void 0 ? void 0 : _a.get(object)) !== null && _b !== void 0 ? _b : this.get(id);
 	}
 	synchronizePresentations() {
 		if (this.disposed) return;
@@ -1334,7 +1360,21 @@ var AnnotationController = class {
 			includeHidden: true,
 			includeLocked: true
 		}).filter((object) => this.isAnnotationObject(object));
-		this.presentations.synchronizeAll(objects);
+		if (objects.length === 0) {
+			this.presentations.synchronizeAll(objects);
+			return;
+		}
+		const layers = new Map(this.persistentOverlayObjects().map((object, index) => [object, index]));
+		const selected = new Set(this.overlay.getSelection().ids);
+		this.presentationDescriptors = new Map(objects.map((object) => {
+			var _a;
+			return [object, this.describe(object, selected, (_a = layers.get(object)) !== null && _a !== void 0 ? _a : -1)];
+		}));
+		try {
+			this.presentations.synchronizeAll(objects);
+		} finally {
+			this.presentationDescriptors = null;
+		}
 	}
 	requireAnnotation(id, kind) {
 		this.assertIdentifier(id, "Annotation id");
@@ -1551,4 +1591,4 @@ Object.defineProperty(exports, "annotationFoundationRef", {
     return annotationFoundationRef;
   }
 });
-//# sourceMappingURL=annotation-JoYZCsmH.cjs.map
+//# sourceMappingURL=annotation-GBF6lK0A.cjs.map

@@ -56,6 +56,15 @@ type TextObject = FabricNS.Textbox & {
 };
 
 interface TextFeatureUpdate {
+    readonly left?: number;
+    readonly top?: number;
+    readonly angle?: number;
+    readonly scaleX?: number;
+    readonly scaleY?: number;
+    readonly skewX?: number;
+    readonly skewY?: number;
+    readonly flipX?: boolean;
+    readonly flipY?: boolean;
     readonly text?: string;
     readonly fontSize?: number;
     readonly fontFamily?: string;
@@ -72,6 +81,7 @@ interface TextRuntimeSession {
     readonly previewId: string;
     readonly preview: TextObject;
     readonly visibility: Disposable;
+    readonly editingExited: () => void;
 }
 
 interface TextStateData {
@@ -249,11 +259,38 @@ function normalizeFeatureUpdate(value: unknown): TextFeatureUpdate {
         'textAlign',
         'width',
         'opacity',
+        'left',
+        'top',
+        'angle',
+        'scaleX',
+        'scaleY',
+        'skewX',
+        'skewY',
+        'flipX',
+        'flipY',
     ]);
     if (Object.keys(value).some((key) => !allowed.has(key))) {
         throw new AnnotationValidationError('Text update contains unknown keys.');
     }
+    const geometry: Record<string, number | boolean> = {};
+    for (const key of ['left', 'top', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY']) {
+        if (value[key] !== undefined)
+            geometry[key] = validateFiniteRange(
+                value[key],
+                `Text ${key}`,
+                -MAX_COORDINATE,
+                MAX_COORDINATE,
+            );
+    }
+    for (const key of ['flipX', 'flipY']) {
+        if (value[key] !== undefined) {
+            if (typeof value[key] !== 'boolean')
+                throw new AnnotationValidationError(`Text ${key} must be boolean.`);
+            geometry[key] = value[key];
+        }
+    }
     return Object.freeze({
+        ...geometry,
         ...(value.text !== undefined ? { text: validateText(value.text) } : {}),
         ...(value.fontSize !== undefined
             ? { fontSize: validateFiniteRange(value.fontSize, 'Text font size', 1, 512) }
@@ -292,11 +329,14 @@ function sharedUpdate(value: TextAnnotationUpdate): AnnotationUpdate {
     });
 }
 
-function featureUpdate(value: TextAnnotationUpdate): TextFeatureUpdate {
+function featureUpdate(
+    value: TextAnnotationUpdate,
+    currentFontFamily = 'Arial',
+): TextFeatureUpdate {
     const fontFamily =
         value.fontFamily !== undefined || value.fontFallbacks !== undefined
             ? resolvedFontFamily(
-                  value.fontFamily ?? 'Arial',
+                  value.fontFamily ?? currentFontFamily.split(',')[0]!.trim(),
                   value.fontFallbacks ? validateFallbacks(value.fontFallbacks) : [],
               )
             : undefined;
@@ -372,6 +412,8 @@ function isTextStateData(value: unknown): value is TextStateData {
 export class TextAnnotationController implements Disposable {
     private configuration: TextAnnotationConfiguration;
     private session: TextRuntimeSession | null = null;
+    private committingEditing = false;
+    private editingCommit: Promise<void> | null = null;
     private readonly listeners = new Set<TextAnnotationStatusListener>();
     private previewSequence = 0;
     private nameSequence = 0;
@@ -611,15 +653,48 @@ export class TextAnnotationController implements Disposable {
             }
             throw error;
         }
-        this.session = Object.freeze({ annotationId: id, previewId, preview, visibility });
+        const editingExited = (): void => {
+            if (this.session?.preview !== preview || this.committingEditing) return;
+            observePromise(this.commitEditing(), (error) =>
+                this.host.reportWarning(
+                    error,
+                    'Text editing could not be committed after focus changed.',
+                ),
+            );
+        };
+        this.session = Object.freeze({
+            annotationId: id,
+            previewId,
+            preview,
+            visibility,
+            editingExited,
+        });
+        preview.on('editing:exited', editingExited);
         this.emitStatus();
     }
 
-    async commitEditing(): Promise<void> {
+    commitEditing(): Promise<void> {
+        if (this.editingCommit) return this.editingCommit;
+        this.editingCommit = this.performCommitEditing().finally(() => {
+            this.editingCommit = null;
+        });
+        return this.editingCommit;
+    }
+
+    private async performCommitEditing(): Promise<void> {
         this.assertActive('commit Text editing');
         const session = this.session;
-        if (!session) return;
+        if (!session || this.committingEditing) return;
         const patch = normalizeFeatureUpdate({
+            left: session.preview.left,
+            top: session.preview.top,
+            angle: session.preview.angle,
+            scaleX: session.preview.scaleX,
+            scaleY: session.preview.scaleY,
+            skewX: session.preview.skewX,
+            skewY: session.preview.skewY,
+            flipX: session.preview.flipX,
+            flipY: session.preview.flipY,
             text: String(session.preview.text ?? ''),
             fontSize: session.preview.fontSize,
             fontFamily: session.preview.fontFamily,
@@ -630,14 +705,40 @@ export class TextAnnotationController implements Disposable {
             width: session.preview.width,
             opacity: session.preview.opacity,
         });
-        this.closeSession();
-        if (!this.annotations.get(session.annotationId)) return;
-        await this.authoring.updateFeature({
-            id: session.annotationId,
-            kind: TEXT_ANNOTATION_KIND,
-            patch,
-            operationId: 'annotation-text:commit-edit',
-        });
+        if (!this.annotations.get(session.annotationId)) {
+            this.closeSession();
+            return;
+        }
+        this.committingEditing = true;
+        try {
+            await this.authoring.updateFeature({
+                id: session.annotationId,
+                kind: TEXT_ANNOTATION_KIND,
+                patch,
+                operationId: 'annotation-text:commit-edit',
+            });
+            this.closeSession();
+        } catch (error) {
+            if (
+                this.session === session &&
+                !session.preview.canvas &&
+                this.annotations.get(session.annotationId)
+            ) {
+                await session.visibility.dispose();
+                const visibility = this.authoring.hideForPreview([session.annotationId]);
+                this.authoring.addPreview({
+                    id: session.previewId,
+                    ownerKind: TEXT_ANNOTATION_KIND,
+                    object: session.preview,
+                    interactive: true,
+                    select: false,
+                });
+                this.session = Object.freeze({ ...session, visibility });
+            }
+            throw error;
+        } finally {
+            this.committingEditing = false;
+        }
     }
 
     cancelEditing(): void {
@@ -660,7 +761,7 @@ export class TextAnnotationController implements Disposable {
                     ),
                 );
             }
-            const featurePatch = featureUpdate(patch);
+            const featurePatch = featureUpdate(patch, this.session.preview.fontFamily);
             if (Object.keys(featurePatch).length === 0) return Promise.resolve();
             const preview = this.session.preview;
             preview.set(featurePatch as Partial<FabricNS.TextboxProps>);
@@ -679,7 +780,11 @@ export class TextAnnotationController implements Disposable {
         return this.authoring.updateFeature({
             id,
             kind: TEXT_ANNOTATION_KIND,
-            patch: featureUpdate(patch),
+            patch: featureUpdate(
+                patch,
+                (this.authoring.getObject(id, TEXT_ANNOTATION_KIND) as TextObject | null)
+                    ?.fontFamily,
+            ),
             shared: sharedUpdate(patch),
             operationId: 'annotation-text:update',
         });
@@ -735,6 +840,7 @@ export class TextAnnotationController implements Disposable {
         const session = this.session;
         if (!session) return;
         this.session = null;
+        session.preview.off('editing:exited', session.editingExited);
         session.preview.exitEditing?.();
         this.authoring.removePreview([session.previewId]);
         observePromise(Promise.resolve(session.visibility.dispose()), (error) => {

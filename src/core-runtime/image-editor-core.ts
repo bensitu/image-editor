@@ -521,6 +521,7 @@ export class ImageEditorCore {
     private latestLoadSequence = 0;
     private stateLoadSequence = 0;
     private initialImageLoadActive = false;
+    private initializationCompletion: Promise<void> | null = null;
     private disposePromise: Promise<void> | null = null;
     private emergencyResetPromise: Promise<void> | null = null;
     private readonly diagnostics: CoreDiagnostic[] = [];
@@ -829,6 +830,10 @@ export class ImageEditorCore {
      */
     async init(elements: CoreElementMap): Promise<void> {
         this.lifecycle.beginInitialization();
+        let completeInitialization!: () => void;
+        this.initializationCompletion = new Promise<void>((resolve) => {
+            completeInitialization = resolve;
+        });
         this.emitRuntimeStatus();
         let pluginInitializationStarted = false;
         let pluginInitializationCompleted = false;
@@ -870,6 +875,9 @@ export class ImageEditorCore {
             this.emitRuntimeStatus();
             if (initialImageLoadStarted) this.reportError(error, 'Initial image load failed.');
             throw error;
+        } finally {
+            completeInitialization();
+            this.initializationCompletion = null;
         }
     }
 
@@ -1591,6 +1599,14 @@ export class ImageEditorCore {
     disposeAsync(): Promise<void> {
         if (this.disposePromise) return this.disposePromise;
         if (this.lifecycle.current === 'disposed') return Promise.resolve();
+        if (this.initializationCompletion) {
+            this.disposePromise = this.initializationCompletion.then(async () => {
+                if (!this.lifecycle.beginDisposal()) return;
+                this.emitRuntimeStatus();
+                await this.performDisposeAsync();
+            });
+            return this.disposePromise;
+        }
         if (!this.lifecycle.beginDisposal()) return this.disposePromise ?? Promise.resolve();
         this.emitRuntimeStatus();
         this.disposePromise = this.performDisposeAsync();

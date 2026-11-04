@@ -132,7 +132,7 @@ export class CapabilityRegistry {
             throw new InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(id);
-        if (!record)
+        if (!(record === null || record === void 0 ? void 0 : record.complete))
             return null;
         return Object.freeze({
             capabilityId: record.token.id,

@@ -50,7 +50,7 @@ test('Ordered scheduling preserves every sample and flushes before later work co
     assert.deepEqual(calls, [1, 2, 3, 4]);
 });
 
-test('Cancelling a scheduler drops pending work without waiting for the active task', async () => {
+test('Cancelling drops pending work while flush waits for the active task', async () => {
     const releaseActive = deferred();
     const calls: number[] = [];
     const scheduler = new OrderedSampleScheduler<number>(async (value) => {
@@ -62,8 +62,14 @@ test('Cancelling a scheduler drops pending work without waiting for the active t
     await Promise.resolve();
     const second = scheduler.push(2);
     scheduler.cancel();
-    await scheduler.flush();
+    let flushed = false;
+    const flush = scheduler.flush().then(() => {
+        flushed = true;
+    });
+    await Promise.resolve();
+    assert.equal(flushed, false);
     assert.deepEqual(calls, [1]);
     releaseActive.resolve();
-    await Promise.all([first, second]);
+    await Promise.all([first, second, flush]);
+    assert.equal(flushed, true);
 });

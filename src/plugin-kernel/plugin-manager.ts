@@ -4,6 +4,8 @@
  * @module
  */
 
+import { settleAbortable } from '../utils/abortable-promise.js';
+
 import type { CapabilityToken } from './capability-token.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import {
@@ -68,6 +70,32 @@ import type {
 import { RegistrationScope } from './registration-scope.js';
 import { reportErrorSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 import { ToolCoordinator, type ToolDefinition, type ToolExitReason } from './tool-coordinator.js';
+
+const LIFECYCLE_TIMEOUT_MS = 15_000;
+
+async function runLifecycleHook(
+    task: (signal: AbortSignal) => unknown,
+    parentSignal?: AbortSignal,
+): Promise<void> {
+    const controller = new AbortController();
+    const abort = (): void => controller.abort(parentSignal?.reason);
+    parentSignal?.addEventListener('abort', abort, { once: true });
+    if (parentSignal?.aborted) abort();
+    const timeout = setTimeout(
+        () =>
+            controller.abort(
+                new Error(`Plugin lifecycle hook timed out after ${LIFECYCLE_TIMEOUT_MS}ms.`),
+            ),
+        LIFECYCLE_TIMEOUT_MS,
+    );
+    try {
+        controller.signal.throwIfAborted();
+        await settleAbortable(Promise.resolve(task(controller.signal)), controller.signal);
+    } finally {
+        clearTimeout(timeout);
+        parentSignal?.removeEventListener('abort', abort);
+    }
+}
 
 export type PluginHostState = 'created' | 'initializing' | 'initialized' | 'disposing' | 'disposed';
 
@@ -565,7 +593,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 const record = this.installed.get(pluginId);
                 if (!record?.plugin.onInit) continue;
                 try {
-                    await record.plugin.onInit(record.lifecycleContext);
+                    await runLifecycleHook(() => record.plugin.onInit?.(record.lifecycleContext));
                 } catch (error) {
                     throw new PluginLifecycleError(pluginId, 'init', error);
                 }
@@ -642,7 +670,11 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 signal: notificationSignal,
             });
             try {
-                await record.plugin.onImageLoaded(image, context);
+                await runLifecycleHook(
+                    (hookSignal) =>
+                        record.plugin.onImageLoaded?.(image, { ...context, signal: hookSignal }),
+                    notificationSignal,
+                );
             } catch (error) {
                 if (notificationSignal.aborted) {
                     throw notificationSignal.reason ?? error;
@@ -665,7 +697,11 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 signal: notificationSignal,
             });
             try {
-                await record.plugin.onImageCleared(context);
+                await runLifecycleHook(
+                    (hookSignal) =>
+                        record.plugin.onImageCleared?.({ ...context, signal: hookSignal }),
+                    notificationSignal,
+                );
             } catch (error) {
                 if (notificationSignal.aborted) {
                     throw notificationSignal.reason ?? error;
@@ -1284,7 +1320,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         for (const record of traversal.records) {
             if (!record.plugin.onDispose) continue;
             try {
-                await record.plugin.onDispose(record.lifecycleContext);
+                await runLifecycleHook(() => record.plugin.onDispose?.(record.lifecycleContext));
             } catch (error) {
                 const lifecycleError = new PluginLifecycleError(
                     record.plugin.ref.id,

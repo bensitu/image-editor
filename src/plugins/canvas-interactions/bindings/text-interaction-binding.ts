@@ -27,6 +27,7 @@ interface TextGesture {
     readonly context: PointerDownContext['gesture'];
     readonly point: PointerSample['canvasPoint'];
     readonly target: TextClickTarget;
+    moved: boolean;
 }
 
 function textClassification(
@@ -88,18 +89,28 @@ export class TextInteractionBinding implements CanvasInteractionBinding<TextGest
             return null;
         }
         return Object.freeze({
-            gesture: Object.freeze({
+            gesture: {
+                moved: false,
                 context: context.gesture,
                 point: context.sample.canvasPoint,
                 target,
-            }),
+            },
         });
     }
 
-    move(_gesture: TextGesture, _sample: PointerSample): void {}
+    move(gesture: TextGesture, sample: PointerSample): void {
+        if (
+            Math.hypot(
+                sample.canvasPoint.x - gesture.point.x,
+                sample.canvasPoint.y - gesture.point.y,
+            ) > 4
+        )
+            gesture.moved = true;
+    }
 
-    async end(gesture: TextGesture, _sample: PointerSample): Promise<void> {
-        if (!gesture.context.isCurrent()) return;
+    async end(gesture: TextGesture, sample: PointerSample): Promise<void> {
+        this.move(gesture, sample);
+        if (!gesture.context.isCurrent() || gesture.moved) return;
         if (gesture.target.kind === 'text') {
             await this.activateExisting(gesture, gesture.target.id);
             return;

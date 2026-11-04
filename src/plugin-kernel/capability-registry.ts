@@ -247,7 +247,7 @@ export class CapabilityRegistry implements Disposable {
             throw new InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(id);
-        if (!record) return null;
+        if (!record?.complete) return null;
         return Object.freeze({
             capabilityId: record.token.id,
             version: record.version,

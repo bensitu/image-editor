@@ -571,8 +571,14 @@ export class ShapeAnnotationController {
             ...session.options,
             geometry: session.geometry,
         };
-        this.closeSession();
-        return this.createDefinition(definition, 'annotation-shape:commit');
+        try {
+            const id = await this.createDefinition(definition, 'annotation-shape:commit');
+            this.closeSession();
+            return id;
+        } catch (error) {
+            if (this.session === session) this.replaceSessionPreview(session, definition.geometry);
+            throw error;
+        }
     }
 
     cancel(): void {
