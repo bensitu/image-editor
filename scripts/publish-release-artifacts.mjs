@@ -13,8 +13,8 @@ import { pathToFileURL } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
-const DEFAULT_PUBLISHED_INSPECTION_ATTEMPTS = 12;
-const DEFAULT_PUBLISHED_INSPECTION_DELAY_MS = 5_000;
+const DEFAULT_PUBLISHED_INSPECTION_ATTEMPTS = 61;
+const DEFAULT_PUBLISHED_INSPECTION_DELAY_MS = 10_000;
 const VALID_DIST_TAG = /^[a-z][a-z0-9._-]{0,63}$/u;
 const VERSION_LIKE_DIST_TAG = /^(?:v\d|v?x(?:\.|$))/u;
 const SEMVER_PATTERN =
@@ -137,6 +137,13 @@ export async function publishReleaseArtifacts(
                 inspect,
                 publishedInspection,
             );
+            if (!published) {
+                const attempts =
+                    publishedInspection.attempts ?? DEFAULT_PUBLISHED_INSPECTION_ATTEMPTS;
+                throw new Error(
+                    `The publish command completed for ${artifact.name}@${artifact.version}, but the version is not visible after ${attempts} registry checks. Check npm processing status before publishing again.`,
+                );
+            }
             verifyPublishedArtifact(artifact, published);
             const status = Object.freeze({ artifact, status: 'published' });
             statuses.push(status);
@@ -239,7 +246,8 @@ async function runCli() {
     await publishReleaseArtifacts(artifacts, {
         inspect: (artifact) => inspectFromNpm(artifact, registry),
         publish: async (artifact) => {
-            await runNpm([
+            console.log(`${artifact.name}@${artifact.version}: submitting release artifact`);
+            const { stdout, stderr } = await runNpm([
                 'publish',
                 artifact.tarball,
                 '--access',
@@ -250,6 +258,16 @@ async function runCli() {
                 '--registry',
                 registry,
             ]);
+            process.stdout.write(stdout);
+            process.stderr.write(stderr);
+        },
+        publishedInspection: {
+            wait: async (durationMs) => {
+                console.log(
+                    `Waiting ${durationMs / 1000}s for the published version to appear in npm registry metadata.`,
+                );
+                await delay(durationMs);
+            },
         },
         onStatus: ({ artifact, status }) => {
             console.log(`${artifact.name}@${artifact.version}: ${status}`);

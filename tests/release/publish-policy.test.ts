@@ -108,13 +108,12 @@ test('dual-package publish waits for newly published versions to become visible'
             if (!published.has(artifact.name)) return null;
             const attempts = (inspectionAttempts.get(artifact.name) ?? 0) + 1;
             inspectionAttempts.set(artifact.name, attempts);
-            return attempts >= 3 ? metadataFor(artifact) : null;
+            return attempts >= 30 ? metadataFor(artifact) : null;
         },
         publish: async (artifact: ReleaseArtifact) => {
             published.add(artifact.name);
         },
         publishedInspection: {
-            attempts: 3,
             delayMs: 0,
             wait: async () => {
                 waits += 1;
@@ -126,7 +125,30 @@ test('dual-package publish waits for newly published versions to become visible'
         statuses.map(({ status }) => status),
         ['published', 'published'],
     );
-    assert.equal(waits, 4);
+    assert.equal(waits, 58);
+});
+
+test('a version that stays unavailable fails without publishing it again', async () => {
+    let publishCalls = 0;
+    let waits = 0;
+    await assert.rejects(
+        publishReleaseArtifacts(artifacts(), {
+            inspect: async () => null,
+            publish: async () => {
+                publishCalls += 1;
+            },
+            publishedInspection: {
+                attempts: 2,
+                delayMs: 0,
+                wait: async () => {
+                    waits += 1;
+                },
+            },
+        }),
+        /not visible.*2 registry checks/i,
+    );
+    assert.equal(publishCalls, 1);
+    assert.equal(waits, 1);
 });
 
 test('an existing package with different integrity is a hard failure', async () => {
