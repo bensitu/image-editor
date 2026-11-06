@@ -16,6 +16,7 @@ const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
 const DEFAULT_PUBLISHED_INSPECTION_ATTEMPTS = 12;
 const DEFAULT_PUBLISHED_INSPECTION_DELAY_MS = 5_000;
 const VALID_DIST_TAG = /^[a-z][a-z0-9._-]{0,63}$/u;
+const VERSION_LIKE_DIST_TAG = /^(?:v\d|v?x(?:\.|$))/u;
 const SEMVER_PATTERN =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
 
@@ -45,6 +46,11 @@ export function validateReleaseTag(versionInput, tagInput) {
     const { version, prerelease } = parseReleaseVersion(versionInput);
     const tag = String(tagInput ?? '');
     if (!VALID_DIST_TAG.test(tag)) throw new Error(`Invalid npm dist-tag: ${tag || '<empty>'}`);
+    if (VERSION_LIKE_DIST_TAG.test(tag)) {
+        throw new Error(
+            `npm dist-tag must name a release channel such as "latest" or "next", not a version or version range: ${tag}`,
+        );
+    }
 
     if (prerelease.length === 0) return Object.freeze({ version, tag, channel: 'stable' });
     if (tag === 'latest') {

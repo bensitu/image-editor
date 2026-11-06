@@ -42,6 +42,10 @@ test('release tag policy keeps prereleases away from latest', () => {
     assert.throws(() => validateReleaseTag('3.0.0-rc.1', 'invalid tag'), /invalid npm dist-tag/i);
     assert.throws(() => validateReleaseTag('3.0.0-beta.1', 'next'), /must use one of: beta/);
     assert.equal(validateReleaseTag('3.0.0-alpha.1', 'alpha').channel, 'alpha');
+    for (const tag of ['v3.0.1', 'v3.0', 'v3.x', 'x', 'vx']) {
+        assert.throws(() => validateReleaseTag('3.0.1', tag), /release channel/i);
+    }
+    assert.equal(validateReleaseTag('3.0.1', 'legacy-v2').tag, 'legacy-v2');
 });
 
 test('dual-package publish skips verified artifacts and publishes only missing versions', async () => {
