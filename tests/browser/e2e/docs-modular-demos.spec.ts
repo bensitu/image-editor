@@ -192,7 +192,14 @@ test('Crop exposes active Fabric controls and commits the resized raster', async
     expect(resized.height, resizeDiagnostic).toBeLessThan(Number(probe.size.height) - 20);
     await page.locator('#applyCropButton').click();
     await expect(page.locator('#statusTool')).toHaveText('None');
+    await expect(page.locator('#exportQualityInput')).toBeDisabled();
+    await page.locator('#exportFormatSelect').selectOption('jpeg');
+    await expect(page.locator('#exportQualityInput')).toBeEnabled();
     await page.locator('#exportImageButton').click();
+    await expect(page.locator('#exportPreview')).toHaveAttribute(
+        'src',
+        /^data:image\/jpeg;base64,/,
+    );
     await expect
         .poll(() =>
             page

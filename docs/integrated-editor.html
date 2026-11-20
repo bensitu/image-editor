@@ -31,9 +31,8 @@
                 <div>
                     <h1>Integrated Editor Demo</h1>
                     <p>
-                        Compose the selected Transform, History, Mask, Annotation, and Canvas
-                        Interactions modules for one workspace without loading Filters, Crop,
-                        Mosaic, or Full UMD.
+                        Rotate or flip an image with masks and annotations. Choose which overlays
+                        follow the image, undo edits, and export the result.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -475,7 +474,7 @@
                                     type="number"
                                     min="0.1"
                                     max="1"
-                                    step="0.05"
+                                    step="0.01"
                                     value="0.92"
                                 />
                             </label>
@@ -515,7 +514,7 @@
                     <section class="panel-section">
                         <h2>Public APIs used</h2>
                         <div class="api-list">
-                            <code>new ImageEditor.ImageEditorCore()</code>
+                            <code>new ImageEditor.ImageEditorCore(fabric, options)</code>
                             <code>ImageEditor.composePlugins()</code>
                             <code>ImageEditorPlugins.Transform.transformPlugin()</code>
                             <code>ImageEditorPlugins.History.historyPlugin()</code>
@@ -553,7 +552,6 @@
             </section>
         </main>
 
-        <!-- package:pages rewrites local Fabric and Image Editor sources to jsDelivr. -->
         <script src="../node_modules/fabric/dist/index.min.js"></script>
         <script src="../dist/umd/image-editor.core.umd.min.js"></script>
         <script src="../dist/umd/plugins/image-editor.plugin.overlay.umd.min.js"></script>

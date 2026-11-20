@@ -156,7 +156,9 @@
     }
 
     function readNumberControl(id, fallback) {
-        const value = Number(getOptionalElement(id)?.value);
+        const input = getOptionalElement(id);
+        if (!input?.value.trim()) return fallback;
+        const value = Number(input.value);
         return Number.isFinite(value) ? value : fallback;
     }
 
@@ -315,7 +317,6 @@
                     previewFill: 'rgba(255,255,255,0.35)',
                 },
             },
-            overlayState: {},
         };
     }
 
@@ -632,14 +633,13 @@
         }
         setDisabled('undoButton', busy || !historyState?.canUndo || activeToolMode !== null);
         setDisabled('redoButton', busy || !historyState?.canRedo || activeToolMode !== null);
-        for (const id of [
-            'exportFormatSelect',
-            'exportQualityInput',
-            'exportMasksInput',
-            'exportAnnotationsInput',
-        ]) {
+        for (const id of ['exportFormatSelect', 'exportMasksInput', 'exportAnnotationsInput']) {
             setDisabled(id, !canUseIdleImage);
         }
+        setDisabled(
+            'exportQualityInput',
+            !canUseIdleImage || getOptionalElement('exportFormatSelect')?.value === 'png',
+        );
         setDisabled('exportImageButton', !canUseIdleImage);
         setDisabled('downloadExportButton', !canUseIdleImage);
         const exportLinkHref = getOptionalElement('exportDownloadLink')?.getAttribute('href') || '';
@@ -1340,8 +1340,6 @@
 
     function getExportOptions() {
         const formatSelect = getOptionalElement('exportFormatSelect');
-        const qualityInput = getOptionalElement('exportQualityInput');
-        const quality = Number(qualityInput?.value || 0.92);
         const format = formatSelect?.value || 'png';
         const excludeKinds = [];
         if (getOptionalElement('exportMasksInput')?.checked === false) {
@@ -1353,7 +1351,7 @@
         return {
             area: 'image',
             format,
-            quality: Number.isFinite(quality) ? quality : 0.92,
+            ...(format === 'png' ? {} : { quality: readNumberControl('exportQualityInput', 0.92) }),
             fileName: `image-editor-${pageName}.${format === 'jpeg' ? 'jpg' : format}`,
             ...(excludeKinds.length > 0
                 ? {
@@ -1424,13 +1422,6 @@
         if (bytes < 1024) return `${bytes} B`;
         if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
         return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-    }
-
-    function scaleImageFromControl() {
-        const kit = getKit();
-        if (!kit?.editor.isImageLoaded() || isDemoBusy()) return;
-        const scale = Math.max(10, Math.min(500, readNumberControl('scalePercentageInput', 100)));
-        void runDemoAction('transform:scale', () => kit.transform.scale(scale / 100));
     }
 
     function zoomImage(direction) {
@@ -1673,7 +1664,7 @@
             ['loadSampleButton', 'click', loadSample],
             ['imageInput', 'change', handleFileInputChange],
             ['layoutModeSelect', 'change', setLayoutModeFromControl],
-            ['scalePercentageInput', 'change', scaleImageFromControl],
+            ['exportFormatSelect', 'change', updateDemoUi],
             ['zoomInButton', 'click', () => zoomImage(1)],
             ['zoomOutButton', 'click', () => zoomImage(-1)],
             ['rotateLeftButton', 'click', () => rotateImage(-1)],
