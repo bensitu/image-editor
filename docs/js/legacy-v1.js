@@ -345,9 +345,12 @@ function getSelectedLayoutMode() {
 }
 
 function createEditorOptions() {
+    const layoutMode = getSelectedLayoutMode();
     return {
         backgroundColor: 'transparent',
-        defaultLayoutMode: getSelectedLayoutMode(),
+        fitImageToCanvas: layoutMode === 'fit',
+        coverImageToCanvas: layoutMode === 'cover',
+        expandCanvasToImage: layoutMode === 'expand',
         // Downsampling protects memory usage when users drop very large
         // source images into the demo.
         downsampleOnLoad: true,
@@ -360,11 +363,7 @@ function createEditorOptions() {
         maskLabelOffset: 5,
         showPlaceholder: true,
         exportImageAreaByDefault: true,
-        // Lifecycle callbacks are a convenient way for host pages to sync
-        // their own controls with editor state without reaching into internals.
-        onImageChanged: updateDemoControls,
-        onBusyChange: updateDemoControls,
-        onMasksChanged: updateDemoControls,
+        onImageLoaded: updateDemoControls,
     };
 }
 
@@ -646,11 +645,6 @@ function initEditor() {
         return;
     }
 
-    // UMD form: when `globalThis.fabric` is present (loaded via the
-    // documented `<script>` tag) the constructor reads it automatically.
-    //
-    // In ESM applications the equivalent is:
-    // `new ImageEditor(fabric, { ...options })`.
     editor = new ImageEditorCtor(createEditorOptions());
 
     // `init` wires optional DOM affordances by ID. Passing `null` disables a
@@ -686,18 +680,9 @@ if (document.readyState === 'loading') {
     initEditor();
 }
 
-function setOptions() {
-    if (!editor) return;
-    const layoutMode = getSelectedLayoutMode();
-
-    // Use `setLayoutMode` when the loaded build supports it. The archived build
-    // has no equivalent setter, so recreate the editor before loading an image.
-    if (typeof editor.setLayoutMode === 'function') {
-        editor.setLayoutMode(layoutMode);
-    } else {
-        disposeEditorInstance();
-        initEditor();
-    }
+function initializeForImageLoad() {
+    disposeEditorInstance();
+    initEditor();
 }
 
 function isEditorBusy() {
@@ -761,15 +746,12 @@ async function loadFile(file) {
     if (!file || !canLoadImage()) return;
 
     clearMessage();
-    setOptions();
+    initializeForImageLoad();
     demoLoading = true;
     updateDemoControls();
 
     try {
         const imageBase64 = await readFileAsDataUrl(file);
-        // `loadImage` accepts data URLs. File objects are converted by the
-        // host page; the editor then handles decode, downsample, layout, and
-        // transactional rollback internally.
         await editor.loadImage(imageBase64);
     } catch (error) {
         showMessage(error);
@@ -784,7 +766,7 @@ function handleLoadButtonClick() {
     if (!canLoadImage()) return;
 
     clearMessage();
-    setOptions();
+    initializeForImageLoad();
     const imageBase64 = getOptionalElement('base64Input')?.value || '';
     demoLoading = true;
     updateDemoControls();
