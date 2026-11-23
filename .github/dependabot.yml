@@ -59,6 +59,9 @@ updates:
           - dependency-name: typescript
             versions:
                 - '>=7.0.0'
+          - dependency-name: '@types/node'
+            versions:
+                - '>=23.0.0'
       groups:
           next-example-minor-and-patch:
               patterns:
