@@ -55,6 +55,10 @@ updates:
           time: '05:00'
           timezone: Asia/Tokyo
       open-pull-requests-limit: 5
+      ignore:
+          - dependency-name: typescript
+            versions:
+                - '>=7.0.0'
       groups:
           next-example-minor-and-patch:
               patterns:
