@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "packageManager": "npm@11.15.0",
     "description": "TypeScript-first Fabric.js v7 image editor with masks, annotations, crop, mosaic, history, and export APIs",
     "license": "MIT",
@@ -332,7 +332,7 @@
         "check:pr": "node scripts/check-gates.mjs pr",
         "check:release": "node scripts/check-gates.mjs release",
         "typecheck": "tsc -p tsconfig.json --noEmit",
-        "typecheck:tests": "tsc -p tests/tsconfig.runtime.json --noEmit",
+        "typecheck:tests": "tsc -p tests/tsconfig.runtime.json --noEmit && tsc -p tests/browser/tsconfig.json",
         "check:architecture": "node scripts/check-architecture.mjs",
         "precheck:bundle-size": "npm run build:bundle-fixtures",
         "check:bundle-size": "node scripts/check-bundle-size.mjs",

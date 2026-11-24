@@ -1,19 +1,19 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
-const require_core = require("../../chunks/core-BBpWXwyA.cjs");
-const require_annotation = require("../../chunks/annotation-MKF6oE8N.cjs");
-const require_overlay = require("../../chunks/overlay-BG7Q7h_n.cjs");
-const require_annotation_draw = require("../../chunks/annotation-draw-CbeWf1GO.cjs");
-const require_annotation_shape = require("../../chunks/annotation-shape-nTqzw2pt.cjs");
-const require_annotation_text = require("../../chunks/annotation-text-BkpJaP0V.cjs");
-const require_crop = require("../../chunks/crop-AfUm-fbf.cjs");
-const require_filters = require("../../chunks/filters-sI17rD11.cjs");
-const require_history = require("../../chunks/history-C65kzKsj.cjs");
-const require_mask = require("../../chunks/mask-C0cIPV8J.cjs");
-const require_mosaic = require("../../chunks/mosaic-CtjB_ZJX.cjs");
-const require_overlay_state = require("../../chunks/overlay-state-ovrGz2yV.cjs");
-const require_transform = require("../../chunks/transform-Bf3MHYMZ.cjs");
-const require_core_capabilities = require("../../chunks/core-capabilities-BtgLLuX2.cjs");
-const require_preset_support = require("../../chunks/preset-support-DEqLfvRU.cjs");
+const require_core = require("../../chunks/core-DX0eYkdk.cjs");
+const require_annotation = require("../../chunks/annotation-98DwQK74.cjs");
+const require_overlay = require("../../chunks/overlay--Cp3EtE2.cjs");
+const require_annotation_draw = require("../../chunks/annotation-draw-Bd_QuINy.cjs");
+const require_annotation_shape = require("../../chunks/annotation-shape-BWRfqj47.cjs");
+const require_annotation_text = require("../../chunks/annotation-text-sO8hygua.cjs");
+const require_crop = require("../../chunks/crop-BcbmPtnh.cjs");
+const require_filters = require("../../chunks/filters-C-Wj9MQ1.cjs");
+const require_history = require("../../chunks/history-CIsZQ6Kh.cjs");
+const require_mask = require("../../chunks/mask-Ph1V84_m.cjs");
+const require_mosaic = require("../../chunks/mosaic-CXuaHpwT.cjs");
+const require_overlay_state = require("../../chunks/overlay-state-DN_eFPFp.cjs");
+const require_transform = require("../../chunks/transform-C94Vwybu.cjs");
+const require_core_capabilities = require("../../chunks/core-capabilities-CR9r6Rq6.cjs");
+const require_preset_support = require("../../chunks/preset-support-rOszmgYc.cjs");
 
 // dist/esm/presets/full/index.js
 function createFullPreset(fabric, options = {}) {

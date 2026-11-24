@@ -170,3 +170,40 @@ test('external cancellation at the commit boundary restores the before state', a
     assert.deepEqual(errors, []);
     await editor.disposeAsync();
 });
+
+test('a Data URL supersedes a pending file read before it can decode', async (t) => {
+    const controlled = controlledFabric();
+    const { editor, committed } = await createEditor(controlled);
+    const read = t.mock.method(FileReader.prototype, 'readAsDataURL', () => {});
+    const abort = t.mock.method(FileReader.prototype, 'abort');
+    const older = editor.loadImageFile(new File(['pending'], 'first.png', { type: 'image/png' }));
+    const cancelled = assert.rejects(older, { name: 'AbortError' });
+    assert.equal(read.mock.callCount(), 1);
+    const source = makeImageDataUrl({ width: 23, height: 17 });
+    const latest = editor.loadImage(source);
+    await cancelled;
+    assert.equal(abort.mock.callCount(), 1);
+    assert.equal(controlled.requests.length, 1);
+    controlled.requests[0].gate.resolve(await makeDecodedImage(source));
+    await latest;
+    assert.equal(committed.length, 1);
+    assert.equal(editor.getImageInfo().naturalWidth, 23);
+    await editor.disposeAsync();
+});
+
+test('starting a file read cancels an active decode and disposal aborts the reader', async (t) => {
+    const controlled = controlledFabric({ abortAware: true });
+    const { editor, committed } = await createEditor(controlled);
+    t.mock.method(FileReader.prototype, 'readAsDataURL', () => {});
+    const abort = t.mock.method(FileReader.prototype, 'abort');
+    const decoding = editor.loadImage(makeImageDataUrl());
+    const decodeCancelled = assert.rejects(decoding, { name: 'AbortError' });
+    const reading = editor.loadImageFile(new File(['pending'], 'last.png', { type: 'image/png' }));
+    const readCancelled = assert.rejects(reading, { name: 'AbortError' });
+    assert.equal(controlled.requests[0].options.signal.aborted, true);
+    await decodeCancelled;
+    await editor.disposeAsync();
+    await readCancelled;
+    assert.equal(abort.mock.callCount(), 1);
+    assert.deepEqual(committed, []);
+});

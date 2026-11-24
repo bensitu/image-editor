@@ -18,18 +18,6 @@ const emptyHistory: HistoryStatus = {
     maxBytes: 128 * 1024 * 1024,
 };
 
-function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') resolve(reader.result);
-            else reject(new Error('FileReader did not return a data URL.'));
-        };
-        reader.onerror = () => reject(reader.error ?? new Error('Failed to read the file.'));
-        reader.readAsDataURL(file);
-    });
-}
-
 function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -121,7 +109,8 @@ export default function App() {
         const file = input.files?.[0];
         const editor = editorRef.current;
         if (!file || !editor) return;
-        await run(async () => editor.loadImage(await readFileAsDataUrl(file)));
+        setImageInfo(null);
+        await run(() => editor.loadImageFile(file));
         input.value = '';
     }
 
@@ -194,13 +183,13 @@ export default function App() {
                             Reset transform
                         </button>
                         <button
-                            disabled={running || !historyState.canUndo}
+                            disabled={!canEdit || !historyState.canUndo}
                             onClick={() => runHistory((api) => api.undo())}
                         >
                             Undo
                         </button>
                         <button
-                            disabled={running || !historyState.canRedo}
+                            disabled={!canEdit || !historyState.canRedo}
                             onClick={() => runHistory((api) => api.redo())}
                         >
                             Redo
@@ -234,7 +223,9 @@ export default function App() {
                         </div>
                     </dl>
 
-                    {message ? <p className="message">{message}</p> : null}
+                    <p className="message" role="status">
+                        {message}
+                    </p>
                 </aside>
             </section>
         </main>

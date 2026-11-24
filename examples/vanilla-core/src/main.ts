@@ -17,18 +17,6 @@ function requireElement<TElement extends Element>(selector: string): TElement {
     return element;
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') resolve(reader.result);
-            else reject(new Error('FileReader did not return a data URL.'));
-        };
-        reader.onerror = () => reject(reader.error ?? new Error('Failed to read the file.'));
-        reader.readAsDataURL(file);
-    });
-}
-
 function describeError(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -55,6 +43,7 @@ const [transform, history] = editor.install([
 
 let disposed = false;
 input.disabled = true;
+exportButton.disabled = true;
 
 async function run(action: () => Promise<unknown>): Promise<void> {
     try {
@@ -68,10 +57,17 @@ async function run(action: () => Promise<unknown>): Promise<void> {
 input.addEventListener('change', () => {
     const file = input.files?.[0];
     if (!file) return;
+    input.value = '';
+    input.disabled = true;
+    exportButton.disabled = true;
     run(async () => {
-        await editor.loadImage(await readFileAsDataUrl(file));
-        input.value = '';
-    }).catch(console.error);
+        await editor.loadImageFile(file);
+        exportButton.disabled = false;
+    })
+        .finally(() => {
+            input.disabled = disposed;
+        })
+        .catch(console.error);
 });
 rotateButton.addEventListener('click', () => {
     run(() => transform.rotate(90)).catch(console.error);

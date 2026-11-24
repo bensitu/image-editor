@@ -152,6 +152,12 @@ function requireEditor(): ImageEditor {
     return editor;
 }
 
+function requireCanvas(): fabric.Canvas {
+    const canvas = requireEditor().getCanvas();
+    if (!canvas) throw new Error('The editor canvas is unavailable.');
+    return canvas;
+}
+
 function requireTransform(): TransformPluginApi {
     if (!transform) throw new Error('Transform Plugin is not installed.');
     return transform;
@@ -203,10 +209,9 @@ function requireDrawAnnotations(): DrawAnnotationPluginApi {
 }
 
 function annotationObject(id: string): fabric.FabricObject {
-    const object = requireEditor()
-        .getCanvas()
+    const object = requireCanvas()
         .getObjects()
-        .find((candidate) => candidate.editorOverlayId === id);
+        .find((candidate) => 'editorOverlayId' in candidate && candidate.editorOverlayId === id);
     if (!object) throw new Error(`Annotation object "${id}" is missing.`);
     return object;
 }
@@ -301,14 +306,14 @@ async function createAnnotationScene(): Promise<AnnotationSceneResult> {
 }
 
 async function liveCanvasDataUrl(): Promise<string> {
-    const canvas = requireEditor().getCanvas();
+    const canvas = requireCanvas();
     canvas.requestRenderAll();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     return canvas.getElement().toDataURL('image/png');
 }
 
 async function createCropMask(): Promise<MaskObject> {
-    const bounds = requireEditor().getCanvas().getObjects()[0]?.getBoundingRect();
+    const bounds = requireCanvas().getObjects()[0]?.getBoundingRect();
     if (!bounds) throw new Error('Base Image is missing.');
     return requireMasks().create({
         left: bounds.left + bounds.width * 0.25,
@@ -493,10 +498,13 @@ const harness: CoreBrowserHarness = Object.freeze({
 
         requireHistory().clear();
         await textApi.beginEditing(id);
-        const preview = requireEditor()
-            .getCanvas()
+        const preview = requireCanvas()
             .getObjects()
-            .find((object) => object.editorAnnotationPreviewOwner === 'annotation:text');
+            .find(
+                (object) =>
+                    'editorAnnotationPreviewOwner' in object &&
+                    object.editorAnnotationPreviewOwner === 'annotation:text',
+            );
         if (!(preview instanceof fabric.Textbox))
             throw new Error('Text editing preview is missing.');
         preview.set({ text: 'Edited in browser' });

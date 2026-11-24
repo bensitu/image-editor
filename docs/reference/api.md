@@ -96,6 +96,13 @@ restore the prior document before their promises reject. Snapshot validation
 runs before mutation and enforces byte, depth, object-count, string, data-URL,
 pixel, dimension, Plugin-payload, metadata, URL, and dangerous-key limits.
 
+File and Data URL loads share one replacement operation. A newer accepted load cancels
+an earlier pending file read or decode. Handle the rejected Promise from each call:
+cancellation (`AbortError`) is expected when replacing a load or disposing the editor.
+Catch validation failures in the caller as well; they can reject before `onError` runs.
+When a host displays the newly selected file name, enable actions for that selection only
+after its load succeeds.
+
 Core imports are SSR-safe. Canvas initialization, image decode, and export need
 a browser or an explicitly supplied compatible Fabric DOM environment.
 
@@ -107,6 +114,12 @@ container observers also disconnect automatically when Core is disposed.
 `exportImageFile()` is the direct export primitive. Core deliberately does not own link
 creation, click simulation, or download permission policy; hosts can download the returned
 `File` with their own DOM or platform adapter.
+
+`saveState()` produces an editable document and can include the base image data even
+when a visible overlay covers it. Treat snapshots as private whenever the source is
+private. For a rendered output, call `exportImageFile()` with the required overlay
+contributors. Applications that promise redaction should verify the covered pixels in
+the delivered file before sharing it.
 
 ## SDK and installation
 

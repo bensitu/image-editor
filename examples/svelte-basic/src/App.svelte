@@ -32,18 +32,6 @@
     let message = $state<string | null>(null);
     let canEdit = $derived(ready && !running && imageInfo !== null);
 
-    function readFileAsDataUrl(file: File): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                if (typeof reader.result === 'string') resolve(reader.result);
-                else reject(new Error('FileReader did not return a data URL.'));
-            };
-            reader.onerror = () => reject(reader.error ?? new Error('Failed to read the file.'));
-            reader.readAsDataURL(file);
-        });
-    }
-
     function errorMessage(error: unknown): string {
         return error instanceof Error ? error.message : String(error);
     }
@@ -125,7 +113,8 @@
         const file = input.files?.[0];
         const current = editor;
         if (!file || !current) return;
-        await run(async () => current.loadImage(await readFileAsDataUrl(file)));
+        imageInfo = null;
+        await run(() => current.loadImageFile(file));
         input.value = '';
     }
 
@@ -187,13 +176,13 @@
                     Reset transform
                 </button>
                 <button
-                    disabled={running || !historyState.canUndo}
+                    disabled={!canEdit || !historyState.canUndo}
                     onclick={() => runHistory((api) => api.undo())}
                 >
                     Undo
                 </button>
                 <button
-                    disabled={running || !historyState.canRedo}
+                    disabled={!canEdit || !historyState.canRedo}
                     onclick={() => runHistory((api) => api.redo())}
                 >
                     Redo
@@ -216,9 +205,7 @@
                 </div>
             </dl>
 
-            {#if message}
-                <p class="message">{message}</p>
-            {/if}
+            <p class="message" role="status">{message ?? ''}</p>
         </aside>
     </section>
 </main>

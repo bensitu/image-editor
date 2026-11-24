@@ -21,7 +21,7 @@ npm run build
   retains its Core, Mask, Crop, and History APIs separately.
 - Keeps editor-owned runtime objects outside Vue's reactive proxy graph.
 - Serializes initialization and disposal through a shared mount coordinator.
-- Loads a local PNG, JPEG, or WebP file through `FileReader` and `loadImage()`.
+- Loads a local PNG, JPEG, or WebP file with `loadImageFile()`.
 - Reads image state from Core, reads selection-free Mask/Crop state from their
   Plugin APIs, and subscribes to History changes through Plugin options.
 - Calls the owning APIs for masks, Crop sessions, undo/redo, and Core export.

@@ -1,8 +1,5 @@
-import ImageEditorDefault, {
-    ImageEditor,
-    ImageEditorCore,
-    type FabricModule,
-} from '@bensitu/image-editor';
+import * as fabric from 'fabric';
+import ImageEditorDefault, { ImageEditor, ImageEditorCore } from '@bensitu/image-editor';
 import { ImageEditorCore as CoreEntry } from '@bensitu/image-editor/core';
 import {
     definePlugin,
@@ -76,8 +73,6 @@ import {
     type SnapshotMigrationWarning,
     type SnapshotVersionDetection,
 } from '@bensitu/image-editor/migrate-v2';
-
-declare const fabric: FabricModule;
 
 const editor = new ImageEditor(fabric);
 const defaultEditor: ImageEditorCore = new ImageEditorDefault(fabric);

@@ -6982,12 +6982,6 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		if (typeof target === "string") return ownerDocument.getElementById(target);
 		return target;
 	}
-	function inferMimeType(source) {
-		var _a;
-		const match = /^data:(image\/(?:jpeg|png|webp))(?:[;,])/i.exec(source);
-		const mimeType = (_a = match === null || match === void 0 ? void 0 : match[1]) === null || _a === void 0 ? void 0 : _a.toLowerCase();
-		return mimeType === "image/jpeg" || mimeType === "image/png" || mimeType === "image/webp" ? mimeType : null;
-	}
 	function loadAbortError(message) {
 		return new DOMException(message, "AbortError");
 	}
@@ -6997,6 +6991,35 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 	function isLoadCancellation(error) {
 		return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+	}
+	function readImageFile(file, signal) {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			const abort = () => {
+				reader.abort();
+				reject(loadAbortReason(signal, "Image file read was aborted."));
+			};
+			if (signal.aborted) {
+				reject(loadAbortReason(signal, "Image file read was aborted."));
+				return;
+			}
+			reader.onerror = () => reject(new CoreRuntimeError("[ImageEditor] Image file could not be read.", {
+				code: "IMAGE_FILE_READ_FAILED",
+				cause: reader.error
+			}));
+			reader.onload = () => {
+				if (typeof reader.result === "string" && reader.result.startsWith("data:")) resolve(reader.result);
+				else reject(new CoreRuntimeError("[ImageEditor] Image file reader did not produce a Data URL.", { code: "IMAGE_FILE_RESULT_INVALID" }));
+			};
+			reader.onloadend = () => signal.removeEventListener("abort", abort);
+			signal.addEventListener("abort", abort, { once: true });
+			try {
+				reader.readAsDataURL(file);
+			} catch (error) {
+				signal.removeEventListener("abort", abort);
+				reject(error);
+			}
+		});
 	}
 	function withCoreTimeout(task, timeoutMs, label, signal, disposeLateResult) {
 		return new Promise((resolve, reject) => {
@@ -7517,7 +7540,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 					initialImageLoadStarted = true;
 					this.initialImageLoadActive = true;
 					try {
-						await this.performImageLoad(this.options.initialImageBase64);
+						await this.performImageLoad(this.inspectLoadSource(this.options.initialImageBase64));
 					} finally {
 						this.initialImageLoadActive = false;
 					}
@@ -7565,23 +7588,29 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 		}
 		async loadImage(source, options = {}) {
 			this.assertReady("load an image");
-			await this.performImageLoad(source, options);
+			await this.performImageLoad(this.inspectLoadSource(source), options);
 		}
-		async performImageLoad(source, options = {}) {
+		inspectLoadSource(source) {
 			const encodedImage = inspectEncodedImageDataUrl(source);
-			const sourceMimeType = inferMimeType(source);
-			if (!sourceMimeType || !encodedImage) throw new CoreRuntimeError("[ImageEditor] Unsupported image Data URL.");
+			if (!encodedImage) throw new CoreRuntimeError("[ImageEditor] Unsupported image Data URL.");
 			if (encodedImage.encodedBytes > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image input exceeds maxInputBytes.");
 			if (!encodedImage.dimensions) throw new CoreRuntimeError("[ImageEditor] Image dimensions could not be determined.");
-			if (encodedImage.dimensions && !this.isInputRasterWithinBudget(encodedImage.dimensions.width, encodedImage.dimensions.height)) throw new CoreRuntimeError("[ImageEditor] Image input dimensions exceed the configured budget.");
+			if (!this.isInputRasterWithinBudget(encodedImage.dimensions.width, encodedImage.dimensions.height)) throw new CoreRuntimeError("[ImageEditor] Image input dimensions exceed the configured budget.");
+			return {
+				source,
+				mimeType: encodedImage.mimeType,
+				dimensions: encodedImage.dimensions
+			};
+		}
+		async performImageLoad(input, options = {}) {
 			if (options.concurrency && options.concurrency !== "replace-pending") throw new CoreRuntimeError("[ImageEditor] Unsupported load concurrency policy.");
 			const preprocessing = resolveImagePreprocessing(options.preprocessing, this.options.imagePreprocessing);
 			try {
-				await this.plugins.runOperationForHost(coreOperationIds.loadImage, source, async (loadSource, operationContext) => {
+				await this.plugins.runOperationForHost(coreOperationIds.loadImage, input, async (request, operationContext) => {
 					const sequence = ++this.loadSequence;
 					this.latestLoadSequence = sequence;
-					const dimensions = encodedImage.dimensions;
-					const processed = dimensions && requiresImagePreprocessing(sourceMimeType, dimensions.width, dimensions.height, preprocessing) ? await withCoreTimeout((signal) => {
+					const { source: loadSource, mimeType: sourceMimeType, dimensions } = "file" in request ? this.inspectLoadSource(await readImageFile(request.file, operationContext.signal)) : request;
+					const processed = requiresImagePreprocessing(sourceMimeType, dimensions.width, dimensions.height, preprocessing) ? await withCoreTimeout((signal) => {
 						var _a, _b;
 						return preprocessImageDataUrl({
 							source: loadSource,
@@ -7707,34 +7736,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 			if (file.size === 0) throw new CoreRuntimeError("[ImageEditor] Image file is empty.", { code: "IMAGE_FILE_EMPTY" });
 			if (file.size > this.options.maxInputBytes) throw new CoreRuntimeError("[ImageEditor] Image file exceeds maxInputBytes.");
 			if ((_a = options.signal) === null || _a === void 0 ? void 0 : _a.aborted) throw loadAbortReason(options.signal, "Image file read was aborted.");
-			const dataUrl = await new Promise((resolve, reject) => {
-				var _a;
-				const reader = new FileReader();
-				const cleanup = () => {
-					var _a;
-					return (_a = options.signal) === null || _a === void 0 ? void 0 : _a.removeEventListener("abort", abort);
-				};
-				const abort = () => {
-					reader.abort();
-					cleanup();
-					reject(loadAbortReason(options.signal, "Image file read was aborted."));
-				};
-				reader.onerror = () => {
-					cleanup();
-					reject(new CoreRuntimeError("[ImageEditor] Image file could not be read.", {
-						code: "IMAGE_FILE_READ_FAILED",
-						cause: reader.error
-					}));
-				};
-				reader.onload = () => {
-					cleanup();
-					if (typeof reader.result === "string" && reader.result.startsWith("data:")) resolve(reader.result);
-					else reject(new CoreRuntimeError("[ImageEditor] Image file reader did not produce a Data URL.", { code: "IMAGE_FILE_RESULT_INVALID" }));
-				};
-				(_a = options.signal) === null || _a === void 0 || _a.addEventListener("abort", abort, { once: true });
-				reader.readAsDataURL(file);
-			});
-			await this.loadImage(dataUrl, options);
+			await this.performImageLoad({ file }, options);
 		}
 		saveState() {
 			this.assertReady("save state");
@@ -13241,7 +13243,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 // dist/esm/plugins/history/history-controller.js
-	const DEFAULT_MAX_HISTORY_BYTES = 134217728;
+	const DEFAULT_MAX_HISTORY_BYTES = 0x8000000;
 	function resolveMaxSize(value) {
 		return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 50;
 	}

@@ -127,6 +127,7 @@ export declare class ImageEditorCore {
      * @remarks The replacement is transactional and supersedes any pending image load.
      */
     loadImage(source: string, options?: LoadImageOptions): Promise<void>;
+    private inspectLoadSource;
     private performImageLoad;
     /** Reads a browser `File` and replaces the document image transactionally. */
     loadImageFile(file: File, options?: LoadImageOptions): Promise<void>;

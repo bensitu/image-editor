@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_annotation_text = require("../../chunks/annotation-text-BkpJaP0V.cjs");
+const require_annotation_text = require("../../chunks/annotation-text-sO8hygua.cjs");
 
 exports.textAnnotationPlugin = require_annotation_text.textAnnotationPlugin;
 exports.textAnnotationPluginRef = require_annotation_text.textAnnotationPluginRef;

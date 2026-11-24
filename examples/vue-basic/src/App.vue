@@ -12,6 +12,7 @@ const canvasRef = ref<HTMLCanvasElement | null>(null);
 const containerRef = ref<HTMLElement | null>(null);
 const ready = ref(false);
 const running = ref(false);
+const selectedFileLoaded = ref(false);
 const imageInfo = ref<CoreImageInfo | null>(null);
 const maskCount = ref(0);
 const cropActive = ref(false);
@@ -34,18 +35,6 @@ let history: HistoryPort | null = null;
 let mounted = false;
 const mountCoordinator = createSerializedEditorMountCoordinator();
 let mountLease: ReturnType<typeof mountCoordinator.mount> | null = null;
-
-function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') resolve(reader.result);
-            else reject(new Error('FileReader did not return a data URL.'));
-        };
-        reader.onerror = () => reject(reader.error ?? new Error('Failed to read the file.'));
-        reader.readAsDataURL(file);
-    });
-}
 
 function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -132,7 +121,11 @@ async function handleFileChange(event: Event) {
     const file = input.files?.[0];
     const current = editor;
     if (!file || !current) return;
-    await run(async () => current.loadImage(await readFileAsDataUrl(file)));
+    selectedFileLoaded.value = false;
+    await run(async () => {
+        await current.loadImageFile(file);
+        selectedFileLoaded.value = true;
+    });
     input.value = '';
 }
 
@@ -201,12 +194,22 @@ function exportImage(format: 'png' | 'jpeg') {
                     <button :disabled="!cropActive || running" @click="cancelCrop">
                         Cancel crop
                     </button>
-                    <button :disabled="running || !historyState.canUndo" @click="undo">Undo</button>
-                    <button :disabled="running || !historyState.canRedo" @click="redo">Redo</button>
-                    <button :disabled="!imageInfo || running" @click="exportImage('png')">
+                    <button
+                        :disabled="!imageInfo || running || !historyState.canUndo"
+                        @click="undo"
+                    >
+                        Undo
+                    </button>
+                    <button
+                        :disabled="!imageInfo || running || !historyState.canRedo"
+                        @click="redo"
+                    >
+                        Redo
+                    </button>
+                    <button :disabled="!selectedFileLoaded || running" @click="exportImage('png')">
                         Export PNG
                     </button>
-                    <button :disabled="!imageInfo || running" @click="exportImage('jpeg')">
+                    <button :disabled="!selectedFileLoaded || running" @click="exportImage('jpeg')">
                         Export JPEG
                     </button>
                 </div>
@@ -232,7 +235,7 @@ function exportImage(format: 'png' | 'jpeg') {
                     </div>
                 </dl>
 
-                <p v-if="message" class="message">{{ message }}</p>
+                <p class="message" role="status">{{ message }}</p>
             </aside>
         </section>
     </main>

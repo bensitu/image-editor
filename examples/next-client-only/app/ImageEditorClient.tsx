@@ -23,18 +23,6 @@ const emptyHistory: HistoryStatus = {
     maxBytes: 128 * 1024 * 1024,
 };
 
-function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') resolve(reader.result);
-            else reject(new Error('FileReader did not return a data URL.'));
-        };
-        reader.onerror = () => reject(reader.error ?? new Error('Failed to read the file.'));
-        reader.readAsDataURL(file);
-    });
-}
-
 function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -49,6 +37,7 @@ export default function ImageEditorClient() {
     const [mountCoordinator] = useState(createSerializedEditorMountCoordinator);
     const [ready, setReady] = useState(false);
     const [running, setRunning] = useState(false);
+    const [selectedFileLoaded, setSelectedFileLoaded] = useState(false);
     const [imageInfo, setImageInfo] = useState<CoreImageInfo | null>(null);
     const [maskCount, setMaskCount] = useState(0);
     const [cropActive, setCropActive] = useState(false);
@@ -144,7 +133,11 @@ export default function ImageEditorClient() {
         const file = input.files?.[0];
         const editor = editorRef.current;
         if (!file || !editor) return;
-        await run(async () => editor.loadImage(await readFileAsDataUrl(file)));
+        setSelectedFileLoaded(false);
+        await run(async () => {
+            await editor.loadImageFile(file);
+            setSelectedFileLoaded(true);
+        });
         input.value = '';
     }
 
@@ -218,16 +211,22 @@ export default function ImageEditorClient() {
                         <button disabled={!cropActive || running} onClick={cancelCrop}>
                             Cancel crop
                         </button>
-                        <button disabled={running || !historyState.canUndo} onClick={undo}>
+                        <button disabled={!canUseImage || !historyState.canUndo} onClick={undo}>
                             Undo
                         </button>
-                        <button disabled={running || !historyState.canRedo} onClick={redo}>
+                        <button disabled={!canUseImage || !historyState.canRedo} onClick={redo}>
                             Redo
                         </button>
-                        <button disabled={!canUseImage} onClick={() => exportImage('png')}>
+                        <button
+                            disabled={!canUseImage || !selectedFileLoaded}
+                            onClick={() => exportImage('png')}
+                        >
                             Export PNG
                         </button>
-                        <button disabled={!canUseImage} onClick={() => exportImage('jpeg')}>
+                        <button
+                            disabled={!canUseImage || !selectedFileLoaded}
+                            onClick={() => exportImage('jpeg')}
+                        >
                             Export JPEG
                         </button>
                     </div>
@@ -255,7 +254,9 @@ export default function ImageEditorClient() {
                         </div>
                     </dl>
 
-                    {message ? <p className="message">{message}</p> : null}
+                    <p className="message" role="status">
+                        {message}
+                    </p>
                 </aside>
             </section>
         </main>

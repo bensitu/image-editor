@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_plugin_identifier = require("../chunks/plugin-identifier-7NKI_vMS.cjs");
+const require_plugin_identifier = require("../chunks/plugin-identifier-BWXWud-M.cjs");
 
 // dist/esm/migrate-v2/overlay-state-v1.js
 const SCHEMA = "image-editor.overlay-state";

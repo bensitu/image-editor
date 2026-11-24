@@ -21,7 +21,7 @@ npm run build
   `ImageEditorCore`, Transform, and History APIs separately.
 - Serializes initialization and disposal across React StrictMode remounts.
 - Initializes Core with element refs instead of adding DOM Controls.
-- Loads a local PNG, JPEG, or WebP file through `FileReader` and `loadImage()`.
+- Loads a local PNG, JPEG, or WebP file with `loadImageFile()`.
 - Reads image state from Core and subscribes to History through the Plugin's
   `onChange` option.
 - Calls Transform for zoom, rotation, and reset; calls History for undo/redo;

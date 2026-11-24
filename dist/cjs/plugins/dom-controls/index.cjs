@@ -1,6 +1,6 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-const require_core_capabilities = require("../../chunks/core-capabilities-BtgLLuX2.cjs");
-const require_sdk = require("../../chunks/sdk-CSVlKrlK.cjs");
+const require_core_capabilities = require("../../chunks/core-capabilities-CR9r6Rq6.cjs");
+const require_sdk = require("../../chunks/sdk-CoDHlle5.cjs");
 
 // dist/esm/plugins/dom-controls/dom-controls-controller.js
 var DomControlsConfigurationError = class extends Error {

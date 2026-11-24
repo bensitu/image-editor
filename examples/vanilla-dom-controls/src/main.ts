@@ -16,18 +16,6 @@ function requireElement<TElement extends Element>(selector: string): TElement {
     return element;
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') resolve(reader.result);
-            else reject(new Error('FileReader did not return a data URL.'));
-        };
-        reader.onerror = () => reject(reader.error ?? new Error('Failed to read the file.'));
-        reader.readAsDataURL(file);
-    });
-}
-
 function describeError(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -79,19 +67,26 @@ const preset = createMinimalPreset(fabric, {
 
 let disposed = false;
 input.disabled = true;
+exportButton.disabled = true;
 
 input.addEventListener('change', () => {
     const file = input.files?.[0];
     if (!file) return;
-    void readFileAsDataUrl(file)
-        .then((source) => preset.editor.loadImage(source))
+    input.value = '';
+    input.disabled = true;
+    exportButton.disabled = true;
+    void preset.editor
+        .loadImageFile(file)
         .then(() => {
-            input.value = '';
+            exportButton.disabled = false;
             preset.domControls.refresh();
             message.textContent = 'Image loaded.';
         })
         .catch((error: unknown) => {
             message.textContent = `Image load failed: ${describeError(error)}`;
+        })
+        .finally(() => {
+            input.disabled = disposed;
         });
 });
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { loadImage as decodeImage } from 'canvas';
 
 import { ImageEditorCore, definePluginRef } from '../../../src/core/index.js';
 import { GEOMETRY_MUTATION_CAPABILITY } from '../../../src/core-runtime/internal-capabilities.js';
@@ -517,6 +518,33 @@ test('mask transform binding defaults off and opt-in preserves identity through 
     await enabled.transform.resetImageTransform();
     assert.equal(enabled.overlay.getByPersistentId(bound.maskUid), identity);
     await dispose(enabled.editor);
+});
+
+test('an editable snapshot retains the base image while raster export covers the mask pixels', async () => {
+    const { editor, masks } = await createEditor({ label: false });
+    try {
+        const source = makeImageDataUrl({ width: 360, height: 260, fill: '#ff9900' });
+        await editor.loadImage(source);
+        const mask = await masks.create({ left: 120, top: 90, width: 40, height: 40 });
+        assert.ok(editor.saveState().includes(source));
+
+        const output = await decodeImage(
+            await editor.exportImageBase64({ area: 'image', format: 'png' }),
+        );
+        const canvas = document.createElement('canvas');
+        canvas.width = output.width;
+        canvas.height = output.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(output, 0, 0);
+        const center = mask.getCenterPoint();
+        assert.deepEqual(
+            Array.from(ctx.getImageData(center.x, center.y, 1, 1).data),
+            [0, 0, 0, 255],
+        );
+        assert.deepEqual(Array.from(ctx.getImageData(2, 2, 1, 1).data), [255, 153, 0, 255]);
+    } finally {
+        await dispose(editor);
+    }
 });
 
 test('Mask labels are transient, track object movement, and never enter Snapshot or export', async () => {

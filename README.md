@@ -58,7 +58,7 @@ uses the same Fabric version as your application.
     <canvas id="canvas"></canvas>
 </div>
 
-<input id="imageInput" type="file" accept="image/*" />
+<input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" />
 ```
 
 ### Initialize
@@ -97,6 +97,17 @@ keeps lifecycle operations on `editor` and exposes each Feature through its own
 typed Plugin API. See [Presets](docs/reference/presets.md) for the four compositions and
 [DOM Controls](docs/plugins/dom-controls.md) when an imperative DOM binding layer is
 useful.
+
+For a browser file input, pass the selected `File` directly to
+`preset.editor.loadImageFile(file)`. Await the call and handle its rejection before
+enabling actions for that selection. File loading checks the byte limit before
+reading, and the default preprocessing fits large inputs within 4000 by 3000 pixels.
+See the [resource and preprocessing options](docs/reference/options.md#image-preprocessing)
+when the host requires original resolution. Store `saveState()` as an editable
+draft; use raster export for a rendered result intended for distribution.
+
+Applications that supply editor controls can use the [accessibility guide](ACCESSIBILITY.md)
+for keyboard editing alternatives, focus handling and status announcements.
 
 ## Core + Plugins
 
@@ -278,13 +289,16 @@ the linked Feature documents and declaration files for their complete contracts.
 - **Development**: Node `^22.22.2 || ^24.15.0 || >=26.0.0`; Node 24 is recommended
   for local development and releases.
 - **Fabric.js**: peer dependency `>=7.4.0 <8`.
-- **Browsers**: Chrome 100+, Firefox 100+, Safari 15+, Edge 100+.
+- **Browser targets**: Chrome 100+, Firefox 100+, Safari 15+, Edge 100+.
+  Release E2E tests exercise the desktop Chromium, Firefox and WebKit versions
+  pinned by Playwright. Older browser versions, embedded WebViews and mobile
+  devices need verification against the host application and its Fabric version.
 - **JavaScript target**: distributed files target ES2019 and browser DOM APIs.
 - **TypeScript**: strict consumers that compile dependencies with
-  `skipLibCheck: false` should include the ES2019 and DOM libraries in
-  `tsconfig.json`. Fabric v7.4 declarations also reference `jsdom` types, so
-  install `@types/jsdom` when your project type-checks Fabric's declaration
-  files.
+  `skipLibCheck: false` can use `"target": "ES2019"` with `"lib": ["ES2022", "DOM"]`.
+  Fabric 7.4 declarations reference `ErrorOptions` and `jsdom` types. Install
+  `@types/jsdom` as a development dependency (tested with TypeScript 5.9.3 and
+  `@types/jsdom@21.1.7`).
 
 Older runtime targets must be transpiled by the consumer.
 

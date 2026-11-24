@@ -21,7 +21,7 @@ npm run build
 - Uses `"use client"` in the component that creates and initializes the Redaction Preset.
 - Dynamically imports Fabric and `@bensitu/image-editor/presets/redaction`
   inside `useEffect` so browser-only work starts after mount.
-- Loads a local PNG, JPEG, or WebP file through `FileReader` and `loadImage()`.
+- Loads a local PNG, JPEG, or WebP file with `loadImageFile()`.
 - Retains Core, Mask, Crop, and History APIs separately and calls the owner of
   each operation directly.
 - Reads Core and Plugin state for the host UI and subscribes to History through

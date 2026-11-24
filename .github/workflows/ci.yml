@@ -213,6 +213,19 @@ jobs:
                   npm run test:package-entries
                   npm run test:package-types
 
+            - name: Compile a strict TypeScript 5.9 browser consumer from the packed distribution
+              shell: bash
+              run: |
+                  consumer="$(mktemp -d)"
+                  tarball="$(npm pack --ignore-scripts --silent --pack-destination "$consumer")"
+                  cp tests/package/esm-consumer.mts "$consumer/"
+                  cd "$consumer"
+                  printf '%s\n' '{"private":true}' > package.json
+                  npm install --ignore-scripts --omit=optional --no-audit --no-fund \
+                    "./$tarball" fabric@7.4.0 typescript@5.9.3 @types/jsdom@21.1.7
+                  ./node_modules/.bin/tsc --noEmit --strict --skipLibCheck false \
+                    --module NodeNext --target ES2019 --lib ES2022,DOM esm-consumer.mts
+
             - name: Verify package metadata and public API
               run: |
                   npm run package:check

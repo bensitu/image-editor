@@ -115,7 +115,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
 	}
 
 // dist/esm/plugins/history/history-controller.js
-	const DEFAULT_MAX_HISTORY_BYTES = 134217728;
+	const DEFAULT_MAX_HISTORY_BYTES = 0x8000000;
 	function resolveMaxSize(value) {
 		return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : 50;
 	}
